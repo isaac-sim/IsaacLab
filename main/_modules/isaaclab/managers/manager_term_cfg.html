@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -788,14 +788,14 @@
     <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.</span>
 
-<span class="sd">    Observation history initializes to empty, but is filled with the first append after reset or initialization. Subsequent history</span>
-<span class="sd">    only adds a single entry to the history buffer. If flatten_history_dim is set to True, the source data of shape</span>
-<span class="sd">    (N, H, D, ...) where N is the batch dimension and H is the history length will be reshaped to a 2D tensor of shape</span>
-<span class="sd">    (N, H*D*...). Otherwise, the data will be returned as is.</span>
+<span class="sd">    Observation history initializes to empty, but is filled with the first append after reset or initialization.</span>
+<span class="sd">    Subsequent history only adds a single entry to the history buffer. If flatten_history_dim is set to True,</span>
+<span class="sd">    the source data of shape (N, H, D, ...) where N is the batch dimension and H is the history length will</span>
+<span class="sd">    be reshaped to a 2-D tensor of shape (N, H*D*...). Otherwise, the data will be returned as is.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">flatten_history_dim</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.</span>
 <span class="sd">    Defaults to True.&quot;&quot;&quot;</span></div>
 
 
@@ -806,8 +806,8 @@
     <span class="n">concatenate_terms</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to concatenate the observation terms in the group. Defaults to True.</span>
 
-<span class="sd">    If true, the observation terms in the group are concatenated along the dimension specified through :attr:`concatenate_dim`.</span>
-<span class="sd">    Otherwise, they are kept separate and returned as a dictionary.</span>
+<span class="sd">    If true, the observation terms in the group are concatenated along the dimension specified through</span>
+<span class="sd">    :attr:`concatenate_dim`. Otherwise, they are kept separate and returned as a dictionary.</span>
 
 <span class="sd">    If the observation group contains terms of different dimensions, it must be set to False.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -816,10 +816,10 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Dimension along to concatenate the different observation terms. Defaults to -1, which</span>
 <span class="sd">    means the last dimension of the observation terms.</span>
 
-<span class="sd">    If :attr:`concatenate_terms` is True, this parameter specifies the dimension along which the observation terms are concatenated.</span>
-<span class="sd">    The indicated dimension depends on the shape of the observations. For instance, for a 2D RGB image of shape (H, W, C), the dimension</span>
-<span class="sd">    0 means concatenating along the height, 1 along the width, and 2 along the channels. The offset due</span>
-<span class="sd">    to the batched environment is handled automatically.</span>
+<span class="sd">    If :attr:`concatenate_terms` is True, this parameter specifies the dimension along which the observation</span>
+<span class="sd">    terms are concatenated. The indicated dimension depends on the shape of the observations. For instance,</span>
+<span class="sd">    for a 2-D RGB image of shape (H, W, C), the dimension 0 means concatenating along the height, 1 along the</span>
+<span class="sd">    width, and 2 along the channels. The offset due to the batched environment is handled automatically.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">enable_corruption</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -832,13 +832,13 @@
     <span class="n">history_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of past observation to store in the observation buffers for all observation terms in group.</span>
 
-<span class="sd">    This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None. If None, each</span>
-<span class="sd">    terms history will be controlled on a per term basis. See :class:`ObservationTermCfg` for details on history_length</span>
-<span class="sd">    implementation.</span>
+<span class="sd">    This parameter will override :attr:`ObservationTermCfg.history_length` if set. Defaults to None.</span>
+<span class="sd">    If None, each terms history will be controlled on a per term basis. See :class:`ObservationTermCfg`</span>
+<span class="sd">    for details on :attr:`ObservationTermCfg.history_length` implementation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">flatten_history_dim</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flag to flatten history-based observation terms to a 2-D (num_env, D) tensor for all observation terms in group.</span>
 <span class="sd">    Defaults to True.</span>
 
 <span class="sd">    This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if</span>
@@ -1004,7 +1004,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1059,7 +1059,8 @@ implementing scene setup, computing dones, performing resets, and computing rewa
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedEnv">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.envs.</span></span><span class="sig-name descname"><span class="pre">ManagerBasedEnv</span></span><a class="reference internal" href="../../../_modules/isaaclab/envs/manager_based_env.html#ManagerBasedEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.envs.ManagerBasedEnv" title="Permalink to this definition">#</a></dt>
-<dd><p>The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.</p>
+<dd><p>The base environment encapsulates the simulation scene and the environment managers for
+the manager-based workflow.</p>
 <p>While a simulation scene or world comprises of different components such as the robots, objects,
 and sensors (cameras, lidars, etc.), the environment is a higher level abstraction
 that provides an interface for interacting with the simulation. The environment is comprised of
@@ -1487,13 +1488,14 @@ step will be performed after each time an environment is reset.</p></li>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset">
 <span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be
+performed after reset.</p>
 <ul class="simple">
-<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-latest states in simulation caused by the reset.</p></li>
-<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-to reflect the latest states from the reset. This comes at a cost of performance as additional render
-steps will be performed after each time an environment is reset.</p></li>
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+reset will be stale and will not reflect the latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the
+sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+render steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -2173,13 +2175,14 @@ step will be performed after each time an environment is reset.</p></li>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset">
 <span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.ManagerBasedRLEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be
+performed after reset.</p>
 <ul class="simple">
-<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-latest states in simulation caused by the reset.</p></li>
-<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-to reflect the latest states from the reset. This comes at a cost of performance as additional render
-steps will be performed after each time an environment is reset.</p></li>
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+reset will be stale and will not reflect the latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the
+sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+render steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -2846,7 +2849,8 @@ specification of the space is desired) or basic Python data types (for simplicit
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.observation_noise_model">
 <span class="sig-name descname"><span class="pre">observation_noise_model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.noise_cfg.NoiseModelCfg"><span class="pre">NoiseModelCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.observation_noise_model" title="Permalink to this definition">#</a></dt>
-<dd><p>The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.</p>
+<dd><p>The noise model to apply to the computed observations from the environment. Default is None,
+which means no noise is added.</p>
 <p>Please refer to the <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.utils.noise.NoiseModel</span></code></a> class for more details.</p>
 </dd></dl>
 
@@ -2896,7 +2900,8 @@ specification of the space is desired) or basic Python data types (for simplicit
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.action_noise_model">
 <span class="sig-name descname"><span class="pre">action_noise_model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.noise_cfg.NoiseModelCfg"><span class="pre">NoiseModelCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.action_noise_model" title="Permalink to this definition">#</a></dt>
-<dd><p>The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.</p>
+<dd><p>The noise model applied to the actions provided to the environment. Default is None,
+which means no noise is added.</p>
 <p>Please refer to the <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.utils.noise.NoiseModel</span></code></a> class for more details.</p>
 </dd></dl>
 
@@ -2923,13 +2928,14 @@ step will be performed after each time an environment is reset.</p></li>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset">
 <span class="sig-name descname"><span class="pre">num_rerenders_on_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectRLEnvCfg.num_rerenders_on_reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</p>
+<dd><p>Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed
+after reset.</p>
 <ul class="simple">
-<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-latest states in simulation caused by the reset.</p></li>
-<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-to reflect the latest states from the reset. This comes at a cost of performance as additional render
-steps will be performed after each time an environment is reset.</p></li>
+<li><p>When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+reset will be stale and will not reflect the latest states in simulation caused by the reset.</p></li>
+<li><p>When this is greater than 0, the specified number of extra render steps will be performed to update the
+sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+render steps will be performed after each time an environment is reset.</p></li>
 </ul>
 </dd></dl>
 
@@ -3215,7 +3221,8 @@ time-step is computed as the product of the two.</p>
 Shape of individual tensors is (num_envs, action_dim).</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A tuple containing the observations, rewards, resets (terminated and truncated) and extras (keyed by the agent ID).</p>
+<dd class="field-even"><p>A tuple containing the observations, rewards, resets (terminated and truncated) and
+extras (keyed by the agent ID). Shape of individual tensors is (num_envs, …).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3605,7 +3612,8 @@ specification of the space is desired) or basic Python data types (for simplicit
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectMARLEnvCfg.observation_noise_model">
 <span class="sig-name descname"><span class="pre">observation_noise_model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><span class="pre">AgentID</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.noise_cfg.NoiseModelCfg"><span class="pre">isaaclab.utils.noise.noise_cfg.NoiseModelCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectMARLEnvCfg.observation_noise_model" title="Permalink to this definition">#</a></dt>
-<dd><p>The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.</p>
+<dd><p>The noise model to apply to the computed observations from the environment. Default is None,
+which means no noise is added.</p>
 <p>Please refer to the <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.utils.noise.NoiseModel</span></code></a> class for more details.</p>
 </dd></dl>
 
@@ -3655,7 +3663,8 @@ specification of the space is desired) or basic Python data types (for simplicit
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.envs.DirectMARLEnvCfg.action_noise_model">
 <span class="sig-name descname"><span class="pre">action_noise_model</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><span class="pre">AgentID</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModelCfg" title="isaaclab.utils.noise.noise_cfg.NoiseModelCfg"><span class="pre">isaaclab.utils.noise.noise_cfg.NoiseModelCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.envs.DirectMARLEnvCfg.action_noise_model" title="Permalink to this definition">#</a></dt>
-<dd><p>The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.</p>
+<dd><p>The noise model applied to the actions provided to the environment. Default is None,
+which means no noise is added.</p>
 <p>Please refer to the <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.noise.NoiseModel" title="isaaclab.utils.noise.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">isaaclab.utils.noise.NoiseModel</span></code></a> class for more details.</p>
 </dd></dl>
 
@@ -4524,7 +4533,8 @@ task_constraints_dict contains flags used to implement the constraint logic in t
 - “coordination”</p>
 <dl class="simple">
 <dt>For a “sequential” constraint:</dt><dd><ul class="simple">
-<li><p>Data from task_constraint_configs is added to task_constraints_dict as “sequential former” task constraint.</p></li>
+<li><p>Data from task_constraint_configs is added to task_constraints_dict as “sequential former”
+task constraint.</p></li>
 <li><p>The opposite constraint, of type “sequential latter”, is also added to task_constraints_dict.</p></li>
 <li><p>Additionally, a (“fulfilled”, Bool) key-value pair is added to task_constraints_dict.</p></li>
 <li><p>This is used to check if the precondition (i.e., the sequential former task) has been met.</p></li>
@@ -4540,7 +4550,8 @@ task_constraints_dict contains flags used to implement the constraint logic in t
 <li><p>The opposite constraint, of type “coordination”, is also added to task_constraints_dict.</p></li>
 <li><p>The number of synchronous steps is set to the minimum of subtask_len and concurrent_subtask_len.</p></li>
 <li><p>This ensures both concurrent tasks end at the same time step.</p></li>
-<li><p>A “selected_src_demo_ind” and “transform” field are used to ensure the transforms used by both subtasks are the same.</p></li>
+<li><p>A “selected_src_demo_ind” and “transform” field are used to ensure the transforms used by
+both subtasks are the same.</p></li>
 </ul>
 </dd>
 </dl>
@@ -4620,7 +4631,8 @@ Default is (1280, 720).</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code>: The origin of the world.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;env&quot;</span></code>: The origin of the environment defined by <a class="reference internal" href="#isaaclab.envs.ViewerCfg.env_index" title="isaaclab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;asset_root&quot;</span></code>: The center of the asset defined by <a class="reference internal" href="#isaaclab.envs.ViewerCfg.asset_name" title="isaaclab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in environment <a class="reference internal" href="#isaaclab.envs.ViewerCfg.env_index" title="isaaclab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;asset_body&quot;</span></code>: The center of the body defined by <a class="reference internal" href="#isaaclab.envs.ViewerCfg.body_name" title="isaaclab.envs.ViewerCfg.body_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_name</span></code></a> in asset defined by <a class="reference internal" href="#isaaclab.envs.ViewerCfg.asset_name" title="isaaclab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in environment <a class="reference internal" href="#isaaclab.envs.ViewerCfg.env_index" title="isaaclab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;asset_body&quot;</span></code>: The center of the body defined by <a class="reference internal" href="#isaaclab.envs.ViewerCfg.body_name" title="isaaclab.envs.ViewerCfg.body_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_name</span></code></a> in asset defined by
+<a class="reference internal" href="#isaaclab.envs.ViewerCfg.asset_name" title="isaaclab.envs.ViewerCfg.asset_name"><code class="xref py py-attr docutils literal notranslate"><span class="pre">asset_name</span></code></a> in environment <a class="reference internal" href="#isaaclab.envs.ViewerCfg.env_index" title="isaaclab.envs.ViewerCfg.env_index"><code class="xref py py-attr docutils literal notranslate"><span class="pre">env_index</span></code></a>.</p></li>
 </ul>
 </dd></dl>
 
@@ -5016,7 +5028,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -627,26 +627,28 @@
 
     <span class="c1"># Camera-based tactile data</span>
     <span class="n">tactile_depth_image</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile depth images. Shape: (num_instances, height, width, 1).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile depth images. Shape is (num_instances, height, width, 1).&quot;&quot;&quot;</span>
 
     <span class="n">tactile_rgb_image</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile RGB images rendered using the Taxim approach (https://arxiv.org/abs/2109.04027). Shape: (num_instances, height, width, 3).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile RGB images rendered using the Taxim approach (https://arxiv.org/abs/2109.04027).</span>
+<span class="sd">    Shape is (num_instances, height, width, 3).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># Force field tactile data</span>
     <span class="n">tactile_points_pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Positions of tactile points in world frame. Shape: (num_instances, num_tactile_points, 3).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Positions of tactile points in world frame. Shape is (num_instances, num_tactile_points, 3).&quot;&quot;&quot;</span>
 
     <span class="n">tactile_points_quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Orientations of tactile points in world frame. Shape: (num_instances, num_tactile_points, 4).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Orientations of tactile points in world frame. Shape is (num_instances, num_tactile_points, 4).&quot;&quot;&quot;</span>
 
     <span class="n">penetration_depth</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Penetration depth at each tactile point. Shape: (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Penetration depth at each tactile point. Shape is (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
 
     <span class="n">tactile_normal_force</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normal forces at each tactile point in sensor frame. Shape: (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normal forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
 
     <span class="n">tactile_shear_force</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Shear forces at each tactile point in sensor frame. Shape: (num_instances, num_tactile_points, 2).&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Shear forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points, 2).&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -694,7 +696,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

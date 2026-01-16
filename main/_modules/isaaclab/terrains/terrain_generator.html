@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -657,21 +657,23 @@
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        \text{difficulty} = \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}</span>
+<span class="sd">        \text{difficulty} =</span>
+<span class="sd">            \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}</span>
 
 <span class="sd">    where :math:`\eta\sim\mathcal{U}(0, 1)` is a random perturbation to the difficulty, and</span>
 <span class="sd">    :math:`(\text{lower}, \text{upper})` is the range of the difficulty parameter, specified using the</span>
 <span class="sd">    :attr:`~TerrainGeneratorCfg.difficulty_range` parameter.</span>
 
 <span class="sd">    If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter</span>
-<span class="sd">    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range` parameter:</span>
+<span class="sd">    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range`</span>
+<span class="sd">    parameter:</span>
 
 <span class="sd">    .. math::</span>
 
 <span class="sd">        \text{difficulty} \sim \mathcal{U}(\text{lower}, \text{upper})</span>
 
-<span class="sd">    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled</span>
-<span class="sd">    on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored</span>
+<span class="sd">    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are</span>
+<span class="sd">    sampled on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored</span>
 <span class="sd">    in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the</span>
 <span class="sd">    value is a tensor containing the flat patches for each sub-terrain.</span>
 
@@ -1046,7 +1048,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

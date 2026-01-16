@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -726,7 +726,8 @@
     <span class="c1">##</span>
 
     <span class="n">default_root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.</span>
+<span class="sd">    Shape is (num_instances, 13).</span>
 
 <span class="sd">    The position and quaternion are of the articulation root&#39;s actor frame. Meanwhile, the linear and angular</span>
 <span class="sd">    velocities are of its center of mass frame.</span>
@@ -759,9 +760,10 @@
     <span class="n">default_inertia</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).</span>
 
-<span class="sd">    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links&#39; actor frame.</span>
-<span class="sd">    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.</span>
-<span class="sd">    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.</span>
+<span class="sd">    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links&#39;</span>
+<span class="sd">    actor frame. The values are stored in the order</span>
+<span class="sd">    :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`. However, due to the</span>
+<span class="sd">    symmetry of inertia tensors, row- and column-major orders are equivalent.</span>
 
 <span class="sd">    This quantity is parsed from the USD schema at the time of initialization.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -805,34 +807,38 @@
 <span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
 <span class="sd">    is used.</span>
 
-<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
-<span class="sd">    it is modeled as an effort (torque or force).</span>
+<span class="sd">    Note:</span>
+<span class="sd">        In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">        it is modeled as an effort (torque or force).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_dynamic_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).</span>
 
-<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`</span>
-<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
-<span class="sd">    is used.</span>
+<span class="sd">    This quantity is configured through the actuator model&#39;s</span>
+<span class="sd">    :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction` parameter. If the parameter&#39;s value is None,</span>
+<span class="sd">    the value parsed from the USD schema, at the time of initialization, is used.</span>
 
-<span class="sd">    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
-<span class="sd">    it is modeled as an effort (torque or force).</span>
+<span class="sd">    Note:</span>
+<span class="sd">        In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,</span>
+<span class="sd">        it is modeled as an effort (torque or force).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_viscous_friction_coeff</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).</span>
 
-<span class="sd">    This quantity is configured through the actuator model&#39;s :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`</span>
-<span class="sd">    parameter. If the parameter&#39;s value is None, the value parsed from the USD schema, at the time of initialization,</span>
-<span class="sd">    is used.</span>
+<span class="sd">    This quantity is configured through the actuator model&#39;s</span>
+<span class="sd">    :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction` parameter. If the parameter&#39;s value is None,</span>
+<span class="sd">    the value parsed from the USD schema, at the time of initialization, is used.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_joint_pos_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).</span>
 
-<span class="sd">    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.</span>
+<span class="sd">    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the</span>
+<span class="sd">    time of initialization.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">default_fixed_tendon_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).</span>
 
@@ -1160,7 +1166,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">root_com_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, 13).</span>
 
 <span class="sd">        The position, quaternion, and linear/angular velocity are of the articulation root link&#39;s center of mass frame</span>
 <span class="sd">        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the</span>
@@ -1331,8 +1338,11 @@
 <span class="sd">        Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the</span>
 <span class="sd">        world of an articulation.</span>
 
-<span class="sd">        For more information on joint wrenches, please check the`PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force&gt;`__</span>
-<span class="sd">        and the underlying `PhysX Tensor API &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force&gt;`__ .</span>
+<span class="sd">        For more information on joint wrenches, please check the`PhysX documentation`_ and the underlying</span>
+<span class="sd">        `PhysX Tensor API`_.</span>
+
+<span class="sd">        .. _`PhysX documentation`: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force</span>
+<span class="sd">        .. _`PhysX Tensor API`: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_incoming_joint_wrench_b</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
@@ -1804,7 +1814,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

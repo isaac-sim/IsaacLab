@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1560,9 +1560,12 @@ and the maximum length.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="isaaclab.utils.buffers.CircularBuffer.buffer">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">buffer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#isaaclab.utils.buffers.CircularBuffer.buffer" title="Permalink to this definition">#</a></dt>
-<dd><p>Complete circular buffer with most recent entry at the end and oldest entry at the beginning.
-:returns: ]].
-:rtype: Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1</p>
+<dd><p>Complete circular buffer with most recent entry at the end and oldest entry at the beginning.</p>
+<p>The shape of the buffer is (batch_size, max_length, …).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The oldest entry is at the beginning of dimension 1.</p>
+</div>
 </dd></dl>
 
 <dl class="py method">
@@ -3447,12 +3450,18 @@ This means that the camera is looking down the -Z axis with the +Y axis pointing
 However, in ROS, the camera is looking down the +Z axis with the +Y axis pointing down, and +X axis pointing right.
 Thus, the camera needs to be rotated by <span class="math notranslate nohighlight">\(180^{\circ}\)</span> around the X axis to follow the ROS convention.</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}T_{ROS} = \begin{bmatrix} 1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; -1 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}\end{split}\]</div>
+\[\begin{split}T_{ROS} =
+    \begin{bmatrix}
+        1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; -1 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1
+    \end{bmatrix} T_{USD}\end{split}\]</div>
 <p>On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
 and +Z pointing up. The camera can also be set in this convention by rotating the camera by <span class="math notranslate nohighlight">\(90^{\circ}\)</span>
 around the X axis and <span class="math notranslate nohighlight">\(-90^{\circ}\)</span> around the Y axis.</p>
 <div class="math notranslate nohighlight">
-\[\begin{split}T_{WORLD} = \begin{bmatrix} 0 &amp; 0 &amp; -1 &amp; 0 \\ -1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; 1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}\end{split}\]</div>
+\[\begin{split}T_{WORLD} =
+    \begin{bmatrix}
+        0 &amp; 0 &amp; -1 &amp; 0 \\ -1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; 1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1
+    \end{bmatrix} T_{USD}\end{split}\]</div>
 <p>Thus, based on their application, cameras follow different conventions for their orientation. This function
 converts a quaternion from one convention to another.</p>
 <p>Possible conventions are:</p>
@@ -4939,7 +4948,8 @@ of the provided list of query regular expressions.</p>
 <p>For example, consider the dictionary is {“a|d|e”: 1, “b|c”: 2}, the list of strings is [‘a’, ‘b’, ‘c’, ‘d’, ‘e’].
 If <code class="xref py py-attr docutils literal notranslate"><span class="pre">preserve_order</span></code> is False, then the function will return the indices of the matched strings, the
 matched strings, and the values as: ([0, 1, 2, 3, 4], [‘a’, ‘b’, ‘c’, ‘d’, ‘e’], [1, 2, 2, 1, 1]). When
-<code class="xref py py-attr docutils literal notranslate"><span class="pre">preserve_order</span></code> is True, it will return them as: ([0, 3, 4, 1, 2], [‘a’, ‘d’, ‘e’, ‘b’, ‘c’], [1, 1, 1, 2, 2]).</p>
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">preserve_order</span></code> is True, it will return them as:
+([0, 3, 4, 1, 2], [‘a’, ‘d’, ‘e’, ‘b’, ‘c’], [1, 1, 1, 2, 2]).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -5905,7 +5915,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

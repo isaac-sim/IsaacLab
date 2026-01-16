@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1312,7 +1312,8 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rotate a vector by the inverse of a quaternion along the last dimension of q and v.</span>
 
 <span class="sd">    .. deprecated v2.1.0:</span>
-<span class="sd">         This function will be removed in a future release in favor of the faster implementation :meth:`quat_apply_inverse`.</span>
+<span class="sd">         This function will be removed in a future release in favor of the faster implementation</span>
+<span class="sd">         :meth:`quat_apply_inverse`.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        q: The quaternion in (w, x, y, z). Shape is (..., 4).</span>
@@ -2131,7 +2132,10 @@
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        T_{ROS} = \begin{bmatrix} 1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; -1 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}</span>
+<span class="sd">        T_{ROS} =</span>
+<span class="sd">            \begin{bmatrix}</span>
+<span class="sd">                1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; -1 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1</span>
+<span class="sd">            \end{bmatrix} T_{USD}</span>
 
 <span class="sd">    On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,</span>
 <span class="sd">    and +Z pointing up. The camera can also be set in this convention by rotating the camera by :math:`90^{\circ}`</span>
@@ -2139,7 +2143,10 @@
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        T_{WORLD} = \begin{bmatrix} 0 &amp; 0 &amp; -1 &amp; 0 \\ -1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; 1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1 \end{bmatrix} T_{USD}</span>
+<span class="sd">        T_{WORLD} =</span>
+<span class="sd">            \begin{bmatrix}</span>
+<span class="sd">                0 &amp; 0 &amp; -1 &amp; 0 \\ -1 &amp; 0 &amp; 0 &amp; 0 \\ 0 &amp; 1 &amp; 0 &amp; 0 \\ 0 &amp; 0 &amp; 0 &amp; 1</span>
+<span class="sd">            \end{bmatrix} T_{USD}</span>
 
 <span class="sd">    Thus, based on their application, cameras follow different conventions for their orientation. This function</span>
 <span class="sd">    converts a quaternion from one convention to another.</span>
@@ -2308,7 +2315,8 @@
     <span class="c1"># Take transpose of last 2 dimensions</span>
     <span class="n">inv_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span>
 
-    <span class="c1"># note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -&gt; [..., 3, 1] so we add a dimension and take it away after</span>
+    <span class="c1"># note: PyTorch matmul wants shapes [..., 3, 3] x [..., 3, 1] -&gt; [..., 3, 1]</span>
+    <span class="c1"># so we add a dimension and take it away after</span>
     <span class="n">inv_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="o">-</span><span class="n">inv_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">4</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
     <span class="n">inv_pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
     <span class="k">return</span> <span class="n">inv_pose</span></div>
@@ -2620,7 +2628,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

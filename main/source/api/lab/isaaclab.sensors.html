@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -2505,7 +2505,8 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <span class="sig-name descname"><span class="pre">convention</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'opengl'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'ros'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'world'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.TiledCameraCfg.OffsetCfg.convention" title="Permalink to this definition">#</a></dt>
 <dd><p>The convention in which the frame offset is applied. Defaults to “ros”.</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;opengl&quot;</span></code> - forward axis: <code class="docutils literal notranslate"><span class="pre">-Z</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">+Y</span></code> - Offset is applied in the OpenGL (Usd.Camera) convention.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;opengl&quot;</span></code> - forward axis: <code class="docutils literal notranslate"><span class="pre">-Z</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">+Y</span></code> - Offset is applied in the OpenGL (Usd.Camera)
+convention.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;ros&quot;</span></code>    - forward axis: <code class="docutils literal notranslate"><span class="pre">+Z</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">-Y</span></code> - Offset is applied in the ROS convention.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code>  - forward axis: <code class="docutils literal notranslate"><span class="pre">+X</span></code> - up axis: <code class="docutils literal notranslate"><span class="pre">+Z</span></code> - Offset is applied in the World Frame convention.</p></li>
 </ul>
@@ -3664,10 +3665,13 @@ the regex matching.</p>
 <dt class="sig sig-object py" id="isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path">
 <span class="sig-name descname"><span class="pre">prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="Permalink to this definition">#</a></dt>
 <dd><p>The prim path corresponding to a rigid body.</p>
-<p>This can be a regex pattern to match multiple prims. For example, “/Robot/.*” will match all prims under “/Robot”.</p>
-<p>This means that if the source <a class="reference internal" href="#isaaclab.sensors.FrameTransformerCfg.prim_path" title="isaaclab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.prim_path</span></code></a> is “/Robot/base”, and the target <a class="reference internal" href="#isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.FrameCfg.prim_path</span></code></a> is “/Robot/.*”,
-then the frame transformer will track the poses of all the prims under “/Robot”,
-including “/Robot/base” (even though this will result in an identity pose w.r.t. the source frame).</p>
+<p>This can be a regex pattern to match multiple prims. For example, “/Robot/.*”
+will match all prims under “/Robot”.</p>
+<p>This means that if the source <a class="reference internal" href="#isaaclab.sensors.FrameTransformerCfg.prim_path" title="isaaclab.sensors.FrameTransformerCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.prim_path</span></code></a> is “/Robot/base”,
+and the target <a class="reference internal" href="#isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path" title="isaaclab.sensors.FrameTransformerCfg.FrameCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">FrameTransformerCfg.FrameCfg.prim_path</span></code></a> is “/Robot/.*”, then
+the frame transformer will track the poses of all the prims under “/Robot”,
+including “/Robot/base” (even though this will result in an identity pose w.r.t.
+the source frame).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4124,10 +4128,10 @@ the current data is stored (no history).</p>
 <p>The options are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
-This is useful for ray-casting height maps.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
-package on the robot and querying ray-casts in a global frame.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of
+the orientation. This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination
+with a mapping package on the robot and querying ray-casts in a global frame.</p></li>
 </ul>
 </dd></dl>
 
@@ -4561,10 +4565,10 @@ Defaults to None, which doesn’t raise a warning of deprecated usage.</p>
 <p>The options are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
-This is useful for ray-casting height maps.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
-package on the robot and querying ray-casts in a global frame.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of
+the orientation. This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination
+with a mapping package on the robot and querying ray-casts in a global frame.</p></li>
 </ul>
 </dd></dl>
 
@@ -4974,8 +4978,8 @@ This provides a startup performance boost when there are many environments that 
 <dt class="sig sig-object py" id="isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.merge_prim_meshes">
 <span class="sig-name descname"><span class="pre">merge_prim_meshes</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.merge_prim_meshes" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether to merge the parsed meshes for a prim that contains multiple meshes. Defaults to True.</p>
-<p>This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs will then refer to the single
-merged mesh.</p>
+<p>This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs
+will then refer to the single merged mesh.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5048,10 +5052,10 @@ Defaults to None, which doesn’t raise a warning of deprecated usage.</p>
 <p>The options are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
-This is useful for ray-casting height maps.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
-package on the robot and querying ray-casts in a global frame.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of
+the orientation. This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination
+with a mapping package on the robot and querying ray-casts in a global frame.</p></li>
 </ul>
 </dd></dl>
 
@@ -5096,7 +5100,9 @@ a dictionary with zero drift for each x, y and z axis.</p>
 <dt class="sig sig-object py" id="isaaclab.sensors.MultiMeshRayCasterCfg.mesh_prim_paths">
 <span class="sig-name descname"><span class="pre">mesh_prim_paths</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg" title="isaaclab.sensors.ray_caster.multi_mesh_ray_caster_cfg.MultiMeshRayCasterCfg.RaycastTargetCfg"><span class="pre">isaaclab.sensors.ray_caster.multi_mesh_ray_caster_cfg.MultiMeshRayCasterCfg.RaycastTargetCfg</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCasterCfg.mesh_prim_paths" title="Permalink to this definition">#</a></dt>
 <dd><p>The list of mesh primitive paths to ray cast against.</p>
-<p>If an entry is a string, it is internally converted to <a class="reference internal" href="#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg" title="isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RaycastTargetCfg</span></code></a> with <cite>~RaycastTargetCfg.track_mesh_transforms</cite> disabled. These settings ensure backwards compatibility with the default raycaster.</p>
+<p>If an entry is a string, it is internally converted to <a class="reference internal" href="#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg" title="isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RaycastTargetCfg</span></code></a> with
+<a class="reference internal" href="#isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.track_mesh_transforms" title="isaaclab.sensors.MultiMeshRayCasterCfg.RaycastTargetCfg.track_mesh_transforms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">track_mesh_transforms</span></code></a> disabled. These settings ensure backwards compatibility
+with the default raycaster.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5484,7 +5490,9 @@ the current data is stored (no history).</p>
 <dt class="sig sig-object py" id="isaaclab.sensors.MultiMeshRayCasterCameraCfg.mesh_prim_paths">
 <span class="sig-name descname"><span class="pre">mesh_prim_paths</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab.sensors.MultiMeshRayCasterCameraCfg.mesh_prim_paths" title="Permalink to this definition">#</a></dt>
 <dd><p>The list of mesh primitive paths to ray cast against.</p>
-<p>If an entry is a string, it is internally converted to <code class="xref py py-class docutils literal notranslate"><span class="pre">RaycastTargetCfg</span></code> with <cite>~RaycastTargetCfg.track_mesh_transforms</cite> disabled. These settings ensure backwards compatibility with the default raycaster.</p>
+<p>If an entry is a string, it is internally converted to <code class="xref py py-class docutils literal notranslate"><span class="pre">RaycastTargetCfg</span></code> with
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">track_mesh_transforms</span></code> disabled. These settings ensure backwards compatibility
+with the default raycaster.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5514,10 +5522,10 @@ Defaults to None, which doesn’t raise a warning of deprecated usage.</p>
 <p>The options are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">base</span></code> if the rays’ starting positions and directions track the full root position and orientation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of orientation.
-This is useful for ray-casting height maps.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination with a mapping
-package on the robot and querying ray-casts in a global frame.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">yaw</span></code> if the rays’ starting positions and directions track root position and only yaw component of
+the orientation. This is useful for ray-casting height maps.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">world</span></code> if rays’ starting positions and directions are always fixed. This is useful in combination
+with a mapping package on the robot and querying ray-casts in a global frame.</p></li>
 </ul>
 </dd></dl>
 
@@ -5601,8 +5609,9 @@ for <code class="docutils literal notranslate"><span class="pre">distance_to_ima
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab.sensors.</span></span><span class="sig-name descname"><span class="pre">Imu</span></span><a class="reference internal" href="../../../_modules/isaaclab/sensors/imu/imu.html#Imu"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sensors.Imu" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab.sensors.SensorBase" title="isaaclab.sensors.sensor_base.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">SensorBase</span></code></a></p>
 <p>The Inertia Measurement Unit (IMU) sensor.</p>
-<p>The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,
-along with world-frame pose and body-frame linear and angular accelerations/velocities.</p>
+<p>The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
+linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
+accelerations/velocities.</p>
 <p>If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
 The fixed transform from that ancestor to the target prim is computed once during initialization and
 composed with the configured sensor offset.</p>
@@ -5614,8 +5623,8 @@ timestep at least as 200Hz.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The user can configure the sensor offset in the configuration file. The offset is applied relative to the rigid source prim.
-If the target prim is not a rigid body, the offset is composed with the fixed transform
+<p>The user can configure the sensor offset in the configuration file. The offset is applied relative to the
+rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
 from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
 The offset is defined as a position vector and a quaternion rotation, which
 are applied in the order: position, then rotation. The position is applied as a translation
@@ -5891,7 +5900,8 @@ which results in a positive acceleration reading in the world Z.</p>
 <dt><strong>Computation Pipeline:</strong></dt><dd><p>Camera-based sensing computes depth differences from a nominal (no-contact) baseline and
 processes them through the tac-sl GelSight renderer to produce realistic tactile images.</p>
 <p>Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
-then applies penalty-based spring-damper models (<span class="math notranslate nohighlight">\(F_n = k_n \cdot \text{depth}\)</span>, <span class="math notranslate nohighlight">\(F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)\)</span>)
+then applies penalty-based spring-damper models
+(<span class="math notranslate nohighlight">\(F_n = k_n \cdot \text{depth}\)</span>, <span class="math notranslate nohighlight">\(F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)\)</span>)
 to compute normal and shear forces at discrete tactile points.</p>
 </dd>
 <dt><strong>Example Usage:</strong></dt><dd><p>For a complete working example, see: <code class="docutils literal notranslate"><span class="pre">scripts/demos/sensors/tacsl/tacsl_example.py</span></code></p>
@@ -6090,25 +6100,25 @@ does not support debug visualization.</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_depth_image" title="isaaclab.sensors.VisuoTactileSensorData.tactile_depth_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_depth_image</span></code></a></p></td>
-<td><p>(num_instances, height, width, 1).</p></td>
+<td><p>Tactile depth images.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_rgb_image" title="isaaclab.sensors.VisuoTactileSensorData.tactile_rgb_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_rgb_image</span></code></a></p></td>
-<td><p>(num_instances, height, width, 3).</p></td>
+<td><p>//arxiv.org/abs/2109.04027).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_points_pos_w" title="isaaclab.sensors.VisuoTactileSensorData.tactile_points_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_points_pos_w</span></code></a></p></td>
-<td><p>(num_instances, num_tactile_points, 3).</p></td>
+<td><p>Positions of tactile points in world frame.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_points_quat_w" title="isaaclab.sensors.VisuoTactileSensorData.tactile_points_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_points_quat_w</span></code></a></p></td>
-<td><p>(num_instances, num_tactile_points, 4).</p></td>
+<td><p>Orientations of tactile points in world frame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.penetration_depth" title="isaaclab.sensors.VisuoTactileSensorData.penetration_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">penetration_depth</span></code></a></p></td>
-<td><p>(num_instances, num_tactile_points).</p></td>
+<td><p>Penetration depth at each tactile point.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_normal_force" title="isaaclab.sensors.VisuoTactileSensorData.tactile_normal_force"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_normal_force</span></code></a></p></td>
-<td><p>(num_instances, num_tactile_points).</p></td>
+<td><p>Normal forces at each tactile point in sensor frame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_shear_force" title="isaaclab.sensors.VisuoTactileSensorData.tactile_shear_force"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_shear_force</span></code></a></p></td>
-<td><p>(num_instances, num_tactile_points, 2).</p></td>
+<td><p>Shear forces at each tactile point in sensor frame.</p></td>
 </tr>
 </tbody>
 </table>
@@ -6116,24 +6126,17 @@ does not support debug visualization.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_depth_image">
 <span class="sig-name descname"><span class="pre">tactile_depth_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_depth_image" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, height, width, 1).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Tactile depth images. Shape</p>
-</dd>
-</dl>
+<dd><p>Tactile depth images. Shape is (num_instances, height, width, 1).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_rgb_image">
 <span class="sig-name descname"><span class="pre">tactile_rgb_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_rgb_image" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, height, width, 3).</p>
+<dd><p>//arxiv.org/abs/2109.04027).
+Shape is (num_instances, height, width, 3).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Tactile RGB images rendered using the Taxim approach (https</p>
-</dd>
-<dt class="field-even">Type<span class="colon">:</span></dt>
-<dd class="field-even"><p>//arxiv.org/abs/2109.04027). Shape</p>
 </dd>
 </dl>
 </dd></dl>
@@ -6141,56 +6144,31 @@ does not support debug visualization.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_points_pos_w">
 <span class="sig-name descname"><span class="pre">tactile_points_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_points_pos_w" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, num_tactile_points, 3).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Positions of tactile points in world frame. Shape</p>
-</dd>
-</dl>
+<dd><p>Positions of tactile points in world frame. Shape is (num_instances, num_tactile_points, 3).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_points_quat_w">
 <span class="sig-name descname"><span class="pre">tactile_points_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_points_quat_w" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, num_tactile_points, 4).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Orientations of tactile points in world frame. Shape</p>
-</dd>
-</dl>
+<dd><p>Orientations of tactile points in world frame. Shape is (num_instances, num_tactile_points, 4).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.penetration_depth">
 <span class="sig-name descname"><span class="pre">penetration_depth</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.penetration_depth" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, num_tactile_points).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Penetration depth at each tactile point. Shape</p>
-</dd>
-</dl>
+<dd><p>Penetration depth at each tactile point. Shape is (num_instances, num_tactile_points).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_normal_force">
 <span class="sig-name descname"><span class="pre">tactile_normal_force</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_normal_force" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, num_tactile_points).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Normal forces at each tactile point in sensor frame. Shape</p>
-</dd>
-</dl>
+<dd><p>Normal forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sensors.VisuoTactileSensorData.tactile_shear_force">
 <span class="sig-name descname"><span class="pre">tactile_shear_force</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab.sensors.VisuoTactileSensorData.tactile_shear_force" title="Permalink to this definition">#</a></dt>
-<dd><p>(num_instances, num_tactile_points, 2).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Shear forces at each tactile point in sensor frame. Shape</p>
-</dd>
-</dl>
+<dd><p>Shear forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points, 2).</p>
 </dd></dl>
 
 </dd></dl>
@@ -6948,7 +6926,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1488,8 +1488,13 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">- `pip`: List of extra pip packages to install before running any tasks.</span>
 </span><span class="hll"><span class="sd">- `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.</span>
 </span><span class="hll"><span class="sd">- `concurrent`: (bool) It determines task dispatch semantics:</span>
-</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.</span>
-</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until</span>
+</span><span class="hll"><span class="sd">      sufficient resources are available for every task in the batch, then launches all tasks</span>
+</span><span class="hll"><span class="sd">      together. If resources are insufficient, all tasks remain blocked until the cluster can</span>
+</span><span class="hll"><span class="sd">      support the full batch.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each</span>
+</span><span class="hll"><span class="sd">      individual task, and Ray independently schedules them. This may result in non-simultaneous</span>
+</span><span class="hll"><span class="sd">      task start times.</span>
 </span><span class="hll"><span class="sd">- `tasks`: List of task specifications, each with:</span>
 </span><span class="hll"><span class="sd">    - `name`: String identifier for the task.</span>
 </span><span class="hll"><span class="sd">    - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).</span>
@@ -1499,14 +1504,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    - `node` (optional): Node placement constraints.</span>
 </span><span class="hll"><span class="sd">        - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.</span>
 </span><span class="hll"><span class="sd">            - `any`: Place the task on any available node.</span>
-</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.</span>
-</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified</span>
+</span><span class="hll"><span class="sd">              in the node field.</span>
+</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in</span>
+</span><span class="hll"><span class="sd">              the node field.</span>
 </span><span class="hll"><span class="sd">        - `hostname` (str): Specific hostname to place the task on.</span>
 </span><span class="hll"><span class="sd">        - `node_id` (str): Specific node ID to place the task on.</span>
 </span><span class="hll">
 </span><span class="hll">
 </span><span class="hll"><span class="sd">Typical usage:</span>
-</span><span class="hll"><span class="sd">---------------</span>
+</span><span class="hll"><span class="sd">--------------</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
@@ -1517,7 +1524,8 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">    python task_runner.py --task_cfg /path/to/tasks.yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">YAML configuration example-1:</span>
-</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">-----------------------------</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
@@ -1536,7 +1544,8 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">YAML configuration example-2:</span>
-</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">-----------------------------</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
@@ -1560,16 +1569,16 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 </span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
 </span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
-</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll">
-</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-</span><span class="hll">
-</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
-</span><span class="hll">
-</span><span class="hll"><span class="c1"># Local imports</span>
-</span><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
+</span><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
+<span class="sd">&quot;&quot;&quot;</span>  <span class="c1"># noqa: E501</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+
+<span class="c1"># Local imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
@@ -1577,7 +1586,7 @@ job processing on local/virtual multi-GPU machines. Tuning jobs assume homogeneo
 <span class="sd">    Parse command-line arguments for the Ray task runner.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        argparse.Namespace: The namespace containing parsed CLI arguments:</span>
+<span class="sd">        A namespace containing parsed CLI arguments:</span>
 <span class="sd">            - task_cfg (str): Path to the YAML task file.</span>
 <span class="sd">            - ray_address (str): Ray cluster address.</span>
 <span class="sd">            - test (bool): Whether to run a GPU resource isolation sanity check.</span>
@@ -1754,7 +1763,8 @@ resource requirements.</p>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example: submitting tasks with specific resources, and supporting pip packages and py_modules</span>
-</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.</span>
+</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the</span>
+</span><span class="hll"><span class="sd">    # &quot;scripts/reinforcement_learning/ray&quot; directory, which will be uploaded to the cluster.</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
@@ -1766,8 +1776,8 @@ resource requirements.</p>
 </span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 </span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 </span><span class="hll">
-</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
-</span>
+</span><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
+
 <span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
@@ -2036,11 +2046,12 @@ resource requirements.</p>
 <span class="sd">    For each cluster, check that it is running, and get the Ray head address that will accept jobs.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        cluster_info (dict): A dictionary containing cluster information with keys &#39;cluster&#39;, &#39;pods&#39;, and &#39;namespace&#39;.</span>
-<span class="sd">        ray_head_name (str, optional): The name of the ray head container. Defaults to &quot;head&quot;.</span>
+<span class="sd">        cluster_info: A dictionary containing cluster information with keys &#39;cluster&#39;, &#39;pods&#39;, and &#39;namespace&#39;.</span>
+<span class="sd">        ray_head_name: The name of the ray head container. Defaults to &quot;head&quot;.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        str: A string containing the cluster name and its Ray head address, or an error message if the head pod or Ray address is not found.</span>
+<span class="sd">        A string containing the cluster name and its Ray head address, or an error message if</span>
+<span class="sd">        the head pod or Ray address is not found.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">cluster</span><span class="p">,</span> <span class="n">pods</span><span class="p">,</span> <span class="n">namespace</span> <span class="o">=</span> <span class="n">cluster_info</span>
     <span class="n">head_pod</span> <span class="o">=</span> <span class="kc">None</span>
@@ -2571,8 +2582,13 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">- `pip`: List of extra pip packages to install before running any tasks.</span>
 </span><span class="hll"><span class="sd">- `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.</span>
 </span><span class="hll"><span class="sd">- `concurrent`: (bool) It determines task dispatch semantics:</span>
-</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.</span>
-</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until</span>
+</span><span class="hll"><span class="sd">      sufficient resources are available for every task in the batch, then launches all tasks</span>
+</span><span class="hll"><span class="sd">      together. If resources are insufficient, all tasks remain blocked until the cluster can</span>
+</span><span class="hll"><span class="sd">      support the full batch.</span>
+</span><span class="hll"><span class="sd">    - If `concurrent: false`, tasks are launched as soon as resources are available for each</span>
+</span><span class="hll"><span class="sd">      individual task, and Ray independently schedules them. This may result in non-simultaneous</span>
+</span><span class="hll"><span class="sd">      task start times.</span>
 </span><span class="hll"><span class="sd">- `tasks`: List of task specifications, each with:</span>
 </span><span class="hll"><span class="sd">    - `name`: String identifier for the task.</span>
 </span><span class="hll"><span class="sd">    - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).</span>
@@ -2582,14 +2598,16 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">    - `node` (optional): Node placement constraints.</span>
 </span><span class="hll"><span class="sd">        - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.</span>
 </span><span class="hll"><span class="sd">            - `any`: Place the task on any available node.</span>
-</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.</span>
-</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.</span>
+</span><span class="hll"><span class="sd">            - `hostname`: Place the task on a specific hostname. `hostname` must be specified</span>
+</span><span class="hll"><span class="sd">              in the node field.</span>
+</span><span class="hll"><span class="sd">            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in</span>
+</span><span class="hll"><span class="sd">              the node field.</span>
 </span><span class="hll"><span class="sd">        - `hostname` (str): Specific hostname to place the task on.</span>
 </span><span class="hll"><span class="sd">        - `node_id` (str): Specific node ID to place the task on.</span>
 </span><span class="hll">
 </span><span class="hll">
 </span><span class="hll"><span class="sd">Typical usage:</span>
-</span><span class="hll"><span class="sd">---------------</span>
+</span><span class="hll"><span class="sd">--------------</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: bash</span>
 </span><span class="hll">
@@ -2600,7 +2618,8 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">    python task_runner.py --task_cfg /path/to/tasks.yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">YAML configuration example-1:</span>
-</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">-----------------------------</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
@@ -2619,7 +2638,8 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">        memory: 10*1024*1024*1024</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">YAML configuration example-2:</span>
-</span><span class="hll"><span class="sd">---------------------------</span>
+</span><span class="hll"><span class="sd">-----------------------------</span>
+</span><span class="hll">
 </span><span class="hll"><span class="sd">.. code-block:: yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    pip: [&quot;xxx&quot;]</span>
@@ -2643,16 +2663,16 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 </span><span class="hll"><span class="sd">          specific: &quot;hostname&quot;</span>
 </span><span class="hll"><span class="sd">          hostname: &quot;xxx&quot;</span>
 </span><span class="hll">
-</span><span class="hll"><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
-</span><span class="hll"><span class="sd">&quot;&quot;&quot;</span>
-</span><span class="hll">
-</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-</span><span class="hll">
-</span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
-</span><span class="hll">
-</span><span class="hll"><span class="c1"># Local imports</span>
-</span><span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
+</span><span class="sd">To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.</span>
+<span class="sd">&quot;&quot;&quot;</span>  <span class="c1"># noqa: E501</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+
+<span class="c1"># Local imports</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">util</span>  <span class="c1"># isort: skip</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">parse_args</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
@@ -2660,7 +2680,7 @@ tensorboard<span class="w"> </span>--logdir<span class="o">=</span>.
 <span class="sd">    Parse command-line arguments for the Ray task runner.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        argparse.Namespace: The namespace containing parsed CLI arguments:</span>
+<span class="sd">        A namespace containing parsed CLI arguments:</span>
 <span class="sd">            - task_cfg (str): Path to the YAML task file.</span>
 <span class="sd">            - ray_address (str): Ray cluster address.</span>
 <span class="sd">            - test (bool): Whether to run a GPU resource isolation sanity check.</span>
@@ -3585,11 +3605,12 @@ printed.</p>
 <span class="sd">    For each cluster, check that it is running, and get the Ray head address that will accept jobs.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        cluster_info (dict): A dictionary containing cluster information with keys &#39;cluster&#39;, &#39;pods&#39;, and &#39;namespace&#39;.</span>
-<span class="sd">        ray_head_name (str, optional): The name of the ray head container. Defaults to &quot;head&quot;.</span>
+<span class="sd">        cluster_info: A dictionary containing cluster information with keys &#39;cluster&#39;, &#39;pods&#39;, and &#39;namespace&#39;.</span>
+<span class="sd">        ray_head_name: The name of the ray head container. Defaults to &quot;head&quot;.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        str: A string containing the cluster name and its Ray head address, or an error message if the head pod or Ray address is not found.</span>
+<span class="sd">        A string containing the cluster name and its Ray head address, or an error message if</span>
+<span class="sd">        the head pod or Ray address is not found.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">cluster</span><span class="p">,</span> <span class="n">pods</span><span class="p">,</span> <span class="n">namespace</span> <span class="o">=</span> <span class="n">cluster_info</span>
     <span class="n">head_pod</span> <span class="o">=</span> <span class="kc">None</span>
@@ -3764,7 +3785,8 @@ python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # Example: submitting tasks with specific resources, and supporting pip packages and py_modules</span>
-</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.</span>
+</span><span class="hll"><span class="sd">    # You may use relative paths for task_cfg and py_modules, placing them in the</span>
+</span><span class="hll"><span class="sd">    # &quot;scripts/reinforcement_learning/ray&quot; directory, which will be uploaded to the cluster.</span>
 </span><span class="hll"><span class="sd">    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml</span>
 </span><span class="hll">
 </span><span class="hll"><span class="sd">    # For all command line arguments</span>
@@ -3776,8 +3798,8 @@ python3<span class="w"> </span>scripts/reinforcement_learning/ray/submit_job.py<
 </span><span class="hll"><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 </span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 </span><span class="hll">
-</span><span class="hll"><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
-</span>
+</span><span class="kn">from</span><span class="w"> </span><span class="nn">ray</span><span class="w"> </span><span class="kn">import</span> <span class="n">job_submission</span>
+
 <span class="n">script_directory</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">CONFIG</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;working_dir&quot;</span><span class="p">:</span> <span class="n">script_directory</span><span class="p">,</span> <span class="s2">&quot;executable&quot;</span><span class="p">:</span> <span class="s2">&quot;/workspace/isaaclab/isaaclab.sh -p&quot;</span><span class="p">}</span>
 
@@ -4119,7 +4141,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

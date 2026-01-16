@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -607,9 +607,7 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Base class for data generator.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;Base class for data generator.&quot;&quot;&quot;</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
@@ -740,15 +738,15 @@
 
 
 <div class="viewcode-block" id="DataGenerator"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DataGenerator</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    The main data generator class that generates new trajectories from source datasets.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The main data generator class that generates new trajectories from source datasets.</span>
 
-<span class="sd">    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human</span>
-<span class="sd">    collected source demonstrations.</span>
+<span class="sd">    The data generator, inspired by the MimicGen, enables the generation of new datasets based on a</span>
+<span class="sd">    few human collected source demonstrations.</span>
 
-<span class="sd">    The data generator works by parsing demonstrations into object-centric subtask segments, stored in DataGenInfoPool.</span>
-<span class="sd">    It then adapts these subtask segments to new scenes by transforming each segment according to the new scene’s context,</span>
-<span class="sd">    stitching them into a coherent trajectory for a robotic end-effector to execute.</span>
+<span class="sd">    The data generator works by parsing demonstrations into object-centric subtask segments, stored in</span>
+<span class="sd">    :class:`DataGenInfoPool`. It then adapts these subtask segments to new scenes by transforming each</span>
+<span class="sd">    segment according to the new scene&#39;s context, stitching them into a coherent trajectory for a robotic</span>
+<span class="sd">    end-effector to execute.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="DataGenerator.__init__"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -763,8 +761,8 @@
 <span class="sd">            env: environment to use for data generation</span>
 <span class="sd">            src_demo_datagen_info_pool: source demo datagen info pool</span>
 <span class="sd">            dataset_path: path to hdf5 dataset to use for generation</span>
-<span class="sd">            demo_keys: list of demonstration keys to use in file. If not provided, all demonstration keys</span>
-<span class="sd">                will be used.</span>
+<span class="sd">            demo_keys: list of demonstration keys to use in file. If not provided,</span>
+<span class="sd">                all demonstration keys will be used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">cfg</span>
@@ -789,16 +787,14 @@
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either src_demo_datagen_info_pool or dataset_path must be provided&quot;</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Pretty print this object.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pretty print this object.&quot;&quot;&quot;</span>
         <span class="n">msg</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
         <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; (</span><span class="se">\n\t</span><span class="s2">dataset_path=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">dataset_path</span><span class="si">}</span><span class="se">\n\t</span><span class="s2">demo_keys=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">demo_keys</span><span class="si">}</span><span class="se">\n</span><span class="s2">)&quot;</span>
         <span class="k">return</span> <span class="n">msg</span>
 
 <div class="viewcode-block" id="DataGenerator.randomize_subtask_boundaries"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">randomize_subtask_boundaries</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Apply random offsets to sample subtask boundaries according to the task spec.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply random offsets to sample subtask boundaries according to the task spec.</span>
+
 <span class="sd">        Recall that each demonstration is segmented into a set of subtask segments, and the</span>
 <span class="sd">        end index (and start index when skillgen is enabled) of each subtask can have a random offset.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -866,20 +862,20 @@
         <span class="n">selection_strategy_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">selection_strategy_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Helper method to run source subtask segment selection.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper method to run source subtask segment selection.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            eef_name: name of end effector</span>
 <span class="sd">            eef_pose: current end effector pose</span>
 <span class="sd">            object_pose: current object pose for this subtask</span>
-<span class="sd">            src_demo_current_subtask_boundaries: start and end indices for subtask segment in source demonstrations of shape (N, 2)</span>
+<span class="sd">            src_demo_current_subtask_boundaries: start and end indices for subtask segment</span>
+<span class="sd">                in source demonstrations of shape (N, 2)</span>
 <span class="sd">            subtask_object_name: name of reference object for this subtask</span>
 <span class="sd">            selection_strategy_name: name of selection strategy</span>
 <span class="sd">            selection_strategy_kwargs: extra kwargs for running selection strategy</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            selected_src_demo_ind: selected source demo index</span>
+<span class="sd">            The selected source demo index</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">subtask_object_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># no reference object - only random selection is supported</span>
@@ -941,8 +937,7 @@
         <span class="n">runtime_subtask_constraints_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
         <span class="n">selected_src_demo_inds</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">WaypointTrajectory</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Build a transformed waypoint trajectory for a single subtask of an end-effector.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a transformed waypoint trajectory for a single subtask of an end-effector.</span>
 
 <span class="sd">        This method selects a source demonstration segment for the specified subtask,</span>
 <span class="sd">        slices the corresponding EEF poses/targets/gripper actions using the randomized</span>
@@ -1009,7 +1004,8 @@
                     <span class="c1"># The concurrent task has started, so we should use the same source demo</span>
                     <span class="n">selected_src_demo_inds</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">concurrent_selected_src_ind</span>
                     <span class="n">need_source_demo_selection</span> <span class="o">=</span> <span class="kc">False</span>
-                    <span class="c1"># This transform is set at after the first data generation iteration/first run of the main while loop</span>
+                    <span class="c1"># This transform is set at after the first data generation iteration/first</span>
+                    <span class="c1"># run of the main while loop</span>
                     <span class="n">use_delta_transform</span> <span class="o">=</span> <span class="n">runtime_subtask_constraints_dict</span><span class="p">[</span>
                         <span class="p">(</span><span class="n">concurrent_task_spec_key</span><span class="p">,</span> <span class="n">concurrent_subtask_ind</span><span class="p">)</span>
                     <span class="p">][</span><span class="s2">&quot;transform&quot;</span><span class="p">]</span>
@@ -1151,8 +1147,7 @@
         <span class="n">prev_executed_traj</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">subtask_trajectory</span><span class="p">:</span> <span class="n">WaypointTrajectory</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Waypoint</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Merge a subtask trajectory into an executable trajectory for the robot end-effector.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Merge a subtask trajectory into an executable trajectory for the robot end-effector.</span>
 
 <span class="sd">        This constructs a new `WaypointTrajectory` by first creating an initial</span>
 <span class="sd">        interpolation segment, then merging the provided `subtask_trajectory` onto it.</span>
@@ -1181,7 +1176,7 @@
 <span class="sd">                Trajectory segment for the current subtask that will be merged after the initial interpolation segment.</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            list[Waypoint]: The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),</span>
+<span class="sd">            The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),</span>
 <span class="sd">            with the temporary initial waypoint removed.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">is_first_subtask</span> <span class="o">=</span> <span class="n">subtask_index</span> <span class="o">==</span> <span class="mi">0</span>
@@ -1233,8 +1228,7 @@
         <span class="n">export_demo</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
         <span class="n">motion_planner</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Attempt to generate a new demonstration.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attempt to generate a new demonstration.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            env_id: environment ID</span>
@@ -1246,15 +1240,16 @@
 <span class="sd">            motion_planner: motion planner to use for motion planning</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">            results (dict): dictionary with the following items:</span>
-<span class="sd">                initial_state (dict): initial simulator state for the executed trajectory</span>
-<span class="sd">                states (list): simulator state at each timestep</span>
-<span class="sd">                observations (list): observation dictionary at each timestep</span>
-<span class="sd">                datagen_infos (list): datagen_info at each timestep</span>
-<span class="sd">                actions (np.array): action executed at each timestep</span>
-<span class="sd">                success (bool): whether the trajectory successfully solved the task or not</span>
-<span class="sd">                src_demo_inds (list): list of selected source demonstration indices for each subtask</span>
-<span class="sd">                src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for each timestep of the trajectory</span>
+<span class="sd">            A dictionary containing the following items:</span>
+<span class="sd">                - initial_state (dict): initial simulator state for the executed trajectory</span>
+<span class="sd">                - states (list): simulator state at each timestep</span>
+<span class="sd">                - observations (list): observation dictionary at each timestep</span>
+<span class="sd">                - datagen_infos (list): datagen_info at each timestep</span>
+<span class="sd">                - actions (np.array): action executed at each timestep</span>
+<span class="sd">                - success (bool): whether the trajectory successfully solved the task or not</span>
+<span class="sd">                - src_demo_inds (list): list of selected source demonstration indices for each subtask</span>
+<span class="sd">                - src_demo_labels (np.array): same as @src_demo_inds, but repeated to have a label for</span>
+<span class="sd">                  each timestep of the trajectory.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># With skillgen, a motion planner is required to generate collision-free transitions between subtasks.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env_cfg</span><span class="o">.</span><span class="n">datagen_config</span><span class="o">.</span><span class="n">use_skillgen</span> <span class="ow">and</span> <span class="n">motion_planner</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1344,7 +1339,8 @@
                                         <span class="n">eef_name</span><span class="p">,</span> <span class="n">current_eef_subtask_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">cfg</span>
                                     <span class="p">)</span>
 
-                                <span class="c1"># Plan motion using motion planner with comprehensive world update and attachment handling</span>
+                                <span class="c1"># Plan motion using motion planner with comprehensive world update</span>
+                                <span class="c1"># and attachment handling</span>
                                 <span class="k">if</span> <span class="n">motion_planner</span><span class="p">:</span>
                                     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">--- Environment </span><span class="si">{</span><span class="n">env_id</span><span class="si">}</span><span class="s2">: Planning motion to target pose ---&quot;</span><span class="p">)</span>
                                     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Target pose: </span><span class="si">{</span><span class="n">target_eef_pose</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1398,7 +1394,8 @@
                                 <span class="p">)</span>
                                 <span class="n">current_eef_subtask_step_indices</span><span class="p">[</span><span class="n">eef_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="c1"># Motion-planned trajectory has been executed, so we are ready to move to execute the next subtask</span>
+                            <span class="c1"># Motion-planned trajectory has been executed, so we are ready to move to</span>
+                            <span class="c1"># execute the next subtask</span>
                             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished executing motion-planned trajectory&quot;</span><span class="p">)</span>
                             <span class="c1"># It is important to pass the prev_executed_traj to merge_eef_subtask_trajectory</span>
                             <span class="c1"># so that it can correctly interpolate from the last pose of the motion-planned trajectory</span>
@@ -1685,7 +1682,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

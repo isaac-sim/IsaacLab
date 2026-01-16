@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -802,8 +802,8 @@
 <span class="sd">          Valid options are:</span>
 
 <span class="sd">          - ``0``: Disabled</span>
-<span class="sd">          - ``1``: `WebRTC &lt;https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client&gt;`_ over public network</span>
-<span class="sd">          - ``2``: `WebRTC &lt;https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client&gt;`_ over local/private network</span>
+<span class="sd">          - ``1``: `WebRTC`_ over public network</span>
+<span class="sd">          - ``2``: `WebRTC`_ over local/private network</span>
 
 <span class="sd">        * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in</span>
 <span class="sd">          headless mode. This flag must be set to True if the environments contains any camera sensors.</span>
@@ -821,14 +821,21 @@
 
 <span class="sd">          If provided as an empty string, the experience file is determined based on the command-line flags:</span>
 
-<span class="sd">          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.</span>
-<span class="sd">          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.</span>
-<span class="sd">          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.</span>
-<span class="sd">          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.</span>
+<span class="sd">          * If headless and enable_cameras are True, the experience file is set to</span>
+<span class="sd">            ``isaaclab.python.headless.rendering.kit``.</span>
+<span class="sd">          * If headless is False and enable_cameras is True, the experience file is set to</span>
+<span class="sd">            ``isaaclab.python.rendering.kit``.</span>
+<span class="sd">          * If headless and enable_cameras are False, the experience file is set to</span>
+<span class="sd">            ``isaaclab.python.kit``.</span>
+<span class="sd">          * If headless is True and enable_cameras is False, the experience file is set to</span>
+<span class="sd">            ``isaaclab.python.headless.kit``.</span>
 
 <span class="sd">        * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.</span>
 <span class="sd">          Arguments should be combined into a single string separated by space.</span>
 <span class="sd">          Example usage: --kit_args &quot;--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2&quot;</span>
+
+
+<span class="sd">        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            parser: An argument parser instance to be extended with the AppLauncher specific options.</span>
@@ -1137,7 +1144,8 @@
         <span class="c1"># Set public IP address of a remote instance</span>
         <span class="n">public_ip_env</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;PUBLIC_IP&quot;</span><span class="p">,</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Process livestream here before launching kit because some of the extensions only work when launched with the kit file</span>
+        <span class="c1"># Process livestream here before launching kit because some of the extensions only work</span>
+        <span class="c1"># when launched with the kit file</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_args</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
             <span class="c1"># Note: Only one livestream extension can be enabled at a time</span>
@@ -1234,7 +1242,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve viewport related settings.&quot;&quot;&quot;</span>
         <span class="c1"># Check if we can disable the viewport to improve performance</span>
         <span class="c1">#   This should only happen if we are running headless and do not require livestreaming or video recording</span>
-        <span class="c1">#   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene</span>
+        <span class="c1">#   This is different from offscreen_render because this only affects the default viewport and</span>
+        <span class="c1">#   not other render-products in the scene</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;video&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_render_viewport</span> <span class="o">=</span> <span class="kc">False</span>
@@ -1435,7 +1444,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if rendering is required by the app.&quot;&quot;&quot;</span>
         <span class="c1"># Indicates whether rendering is required by the app.</span>
-        <span class="c1"># Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.</span>
+        <span class="c1"># Extensions required for rendering bring startup and simulation costs, so we do not</span>
+        <span class="c1"># enable them if not required.</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_xr</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_extensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1722,7 +1732,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -728,13 +728,14 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">num_rerenders_on_reset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of render steps to perform after reset. Defaults to 0, which means no render step will be</span>
+<span class="sd">    performed after reset.</span>
 
-<span class="sd">    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the</span>
-<span class="sd">      latest states in simulation caused by the reset.</span>
-<span class="sd">    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data</span>
-<span class="sd">      to reflect the latest states from the reset. This comes at a cost of performance as additional render</span>
-<span class="sd">      steps will be performed after each time an environment is reset.</span>
+<span class="sd">    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing</span>
+<span class="sd">      reset will be stale and will not reflect the latest states in simulation caused by the reset.</span>
+<span class="sd">    * When this is greater than 0, the specified number of extra render steps will be performed to update the</span>
+<span class="sd">      sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional</span>
+<span class="sd">      render steps will be performed after each time an environment is reset.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">wait_for_textures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
@@ -798,7 +799,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

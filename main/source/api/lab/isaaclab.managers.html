@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1179,7 +1179,8 @@ joint, body, or object collection names.</p>
 <p>For more details, see the <a class="reference internal" href="isaaclab.utils.html#isaaclab.utils.string.resolve_matching_names" title="isaaclab.utils.string.resolve_matching_names"><code class="xref py py-meth docutils literal notranslate"><span class="pre">isaaclab.utils.string.resolve_matching_names()</span></code></a> function.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This attribute is only used when <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.joint_names" title="isaaclab.managers.SceneEntityCfg.joint_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">joint_names</span></code></a>, <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.body_names" title="isaaclab.managers.SceneEntityCfg.body_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_names</span></code></a>, or <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.object_collection_names" title="isaaclab.managers.SceneEntityCfg.object_collection_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">object_collection_names</span></code></a> are specified.</p>
+<p>This attribute is only used when <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.joint_names" title="isaaclab.managers.SceneEntityCfg.joint_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">joint_names</span></code></a>, <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.body_names" title="isaaclab.managers.SceneEntityCfg.body_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">body_names</span></code></a>, or <a class="reference internal" href="#isaaclab.managers.SceneEntityCfg.object_collection_names" title="isaaclab.managers.SceneEntityCfg.object_collection_names"><code class="xref py py-attr docutils literal notranslate"><span class="pre">object_collection_names</span></code></a>
+are specified.</p>
 </div>
 </dd></dl>
 
@@ -1200,7 +1201,8 @@ and should be called only once.</p>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">joint_names</span></code> and <code class="docutils literal notranslate"><span class="pre">joint_ids</span></code> are specified and are not consistent.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">fixed_tendon_names</span></code> and <code class="docutils literal notranslate"><span class="pre">fixed_tendon_ids</span></code> are specified and are not consistent.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">body_names</span></code> and <code class="docutils literal notranslate"><span class="pre">body_ids</span></code> are specified and are not consistent.</p></li>
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">object_collection_names</span></code> and <code class="docutils literal notranslate"><span class="pre">object_collection_ids</span></code> are specified and are not consistent.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If both <code class="docutils literal notranslate"><span class="pre">object_collection_names</span></code> and <code class="docutils literal notranslate"><span class="pre">object_collection_ids</span></code> are specified and
+    are not consistent.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1785,7 +1787,7 @@ information on the name matching.</p>
 <td><p>Number of past observation to store in the observation buffers for all observation terms in group.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.flatten_history_dim" title="isaaclab.managers.ObservationGroupCfg.flatten_history_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flatten_history_dim</span></code></a></p></td>
-<td><p>Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.</p></td>
+<td><p>Flag to flatten history-based observation terms to a 2-D (num_env, D) tensor for all observation terms in group.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1794,8 +1796,8 @@ information on the name matching.</p>
 <dt class="sig sig-object py" id="isaaclab.managers.ObservationGroupCfg.concatenate_terms">
 <span class="sig-name descname"><span class="pre">concatenate_terms</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationGroupCfg.concatenate_terms" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether to concatenate the observation terms in the group. Defaults to True.</p>
-<p>If true, the observation terms in the group are concatenated along the dimension specified through <a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.concatenate_dim" title="isaaclab.managers.ObservationGroupCfg.concatenate_dim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_dim</span></code></a>.
-Otherwise, they are kept separate and returned as a dictionary.</p>
+<p>If true, the observation terms in the group are concatenated along the dimension specified through
+<a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.concatenate_dim" title="isaaclab.managers.ObservationGroupCfg.concatenate_dim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_dim</span></code></a>. Otherwise, they are kept separate and returned as a dictionary.</p>
 <p>If the observation group contains terms of different dimensions, it must be set to False.</p>
 </dd></dl>
 
@@ -1804,10 +1806,10 @@ Otherwise, they are kept separate and returned as a dictionary.</p>
 <span class="sig-name descname"><span class="pre">concatenate_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationGroupCfg.concatenate_dim" title="Permalink to this definition">#</a></dt>
 <dd><p>Dimension along to concatenate the different observation terms. Defaults to -1, which
 means the last dimension of the observation terms.</p>
-<p>If <a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.concatenate_terms" title="isaaclab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> is True, this parameter specifies the dimension along which the observation terms are concatenated.
-The indicated dimension depends on the shape of the observations. For instance, for a 2D RGB image of shape (H, W, C), the dimension
-0 means concatenating along the height, 1 along the width, and 2 along the channels. The offset due
-to the batched environment is handled automatically.</p>
+<p>If <a class="reference internal" href="#isaaclab.managers.ObservationGroupCfg.concatenate_terms" title="isaaclab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> is True, this parameter specifies the dimension along which the observation
+terms are concatenated. The indicated dimension depends on the shape of the observations. For instance,
+for a 2-D RGB image of shape (H, W, C), the dimension 0 means concatenating along the height, 1 along the
+width, and 2 along the channels. The offset due to the batched environment is handled automatically.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1822,15 +1824,15 @@ Otherwise, no corruption is applied.</p>
 <dt class="sig sig-object py" id="isaaclab.managers.ObservationGroupCfg.history_length">
 <span class="sig-name descname"><span class="pre">history_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationGroupCfg.history_length" title="Permalink to this definition">#</a></dt>
 <dd><p>Number of past observation to store in the observation buffers for all observation terms in group.</p>
-<p>This parameter will override <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.history_length" title="isaaclab.managers.ObservationTermCfg.history_length"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.history_length</span></code></a> if set. Defaults to None. If None, each
-terms history will be controlled on a per term basis. See <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg" title="isaaclab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a> for details on history_length
-implementation.</p>
+<p>This parameter will override <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.history_length" title="isaaclab.managers.ObservationTermCfg.history_length"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.history_length</span></code></a> if set. Defaults to None.
+If None, each terms history will be controlled on a per term basis. See <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg" title="isaaclab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a>
+for details on <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.history_length" title="isaaclab.managers.ObservationTermCfg.history_length"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.history_length</span></code></a> implementation.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.managers.ObservationGroupCfg.flatten_history_dim">
 <span class="sig-name descname"><span class="pre">flatten_history_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationGroupCfg.flatten_history_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>Flag to flatten history-based observation terms to a 2D (num_env, D) tensor for all observation terms in group.
+<dd><p>Flag to flatten history-based observation terms to a 2-D (num_env, D) tensor for all observation terms in group.
 Defaults to True.</p>
 <p>This parameter will override all <a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.flatten_history_dim" title="isaaclab.managers.ObservationTermCfg.flatten_history_dim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationTermCfg.flatten_history_dim</span></code></a> in the group if
 ObservationGroupCfg.history_length is set.</p>
@@ -1864,7 +1866,7 @@ ObservationGroupCfg.history_length is set.</p>
 <td><p>Number of past observations to store in the observation buffers.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.flatten_history_dim" title="isaaclab.managers.ObservationTermCfg.flatten_history_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flatten_history_dim</span></code></a></p></td>
-<td><p>Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.</p></td>
+<td><p>Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.managers.ObservationTermCfg.params" title="isaaclab.managers.ObservationTermCfg.params"><code class="xref py py-obj docutils literal notranslate"><span class="pre">params</span></code></a></p></td>
 <td><p>The parameters to be passed to the function as keyword arguments.</p></td>
@@ -1918,16 +1920,16 @@ please make sure the length of the tuple matches the dimensions of the tensor ou
 <dt class="sig sig-object py" id="isaaclab.managers.ObservationTermCfg.history_length">
 <span class="sig-name descname"><span class="pre">history_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationTermCfg.history_length" title="Permalink to this definition">#</a></dt>
 <dd><p>Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.</p>
-<p>Observation history initializes to empty, but is filled with the first append after reset or initialization. Subsequent history
-only adds a single entry to the history buffer. If flatten_history_dim is set to True, the source data of shape
-(N, H, D, …) where N is the batch dimension and H is the history length will be reshaped to a 2D tensor of shape
-(N, H*D*…). Otherwise, the data will be returned as is.</p>
+<p>Observation history initializes to empty, but is filled with the first append after reset or initialization.
+Subsequent history only adds a single entry to the history buffer. If flatten_history_dim is set to True,
+the source data of shape (N, H, D, …) where N is the batch dimension and H is the history length will
+be reshaped to a 2-D tensor of shape (N, H*D*…). Otherwise, the data will be returned as is.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.managers.ObservationTermCfg.flatten_history_dim">
 <span class="sig-name descname"><span class="pre">flatten_history_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.managers.ObservationTermCfg.flatten_history_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether or not the observation manager should flatten history-based observation terms to a 2D (N, D) tensor.
+<dd><p>Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
 Defaults to True.</p>
 </dd></dl>
 
@@ -4094,7 +4096,8 @@ If None, uses the default sequential naming scheme. Defaults to None.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.managers.RecorderManager.close">
 <span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/managers/recorder_manager.html#RecorderManager.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.managers.RecorderManager.close" title="Permalink to this definition">#</a></dt>
-<dd><p>Closes the recorder manager by exporting any remaining data to file as well as properly closes the recorder terms.</p>
+<dd><p>Closes the recorder manager by exporting any remaining data to file as well as properly
+closes the recorder terms.</p>
 </dd></dl>
 
 </dd></dl>
@@ -4482,7 +4485,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

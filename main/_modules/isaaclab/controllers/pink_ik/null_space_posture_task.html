@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -644,7 +644,8 @@
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        \mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) = \mathbf{I} - \mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}</span>
+<span class="sd">        \mathbf{J}_{\text{posture}}(\mathbf{q}) = \mathbf{N}(\mathbf{q}) =</span>
+<span class="sd">            \mathbf{I} -\mathbf{J}_{\text{primary}}^+ \mathbf{J}_{\text{primary}}</span>
 
 <span class="sd">    where:</span>
 <span class="sd">        - :math:`\mathbf{J}_{\text{primary}}` is the combined Jacobian of all higher priority tasks</span>
@@ -662,7 +663,8 @@
 <span class="sd">            \mathbf{J}_2(\mathbf{q})</span>
 <span class="sd">        \end{bmatrix}</span>
 
-<span class="sd">    where :math:`\mathbf{J}_1(\mathbf{q})` and :math:`\mathbf{J}_2(\mathbf{q})` are the Jacobians for the first and second frame tasks, respectively.</span>
+<span class="sd">    where :math:`\mathbf{J}_1(\mathbf{q})` and :math:`\mathbf{J}_2(\mathbf{q})` are the Jacobians for the</span>
+<span class="sd">    first and second frame tasks, respectively.</span>
 
 <span class="sd">    The null space projector ensures that joint velocities in the null space produce zero velocity</span>
 <span class="sd">    for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.</span>
@@ -673,7 +675,9 @@
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        \left\| \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q}) \right\|_{W_{\text{posture}}}^2</span>
+<span class="sd">        \left\|</span>
+<span class="sd">            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})</span>
+<span class="sd">        \right\|_{W_{\text{posture}}}^2</span>
 
 <span class="sd">    This formulation allows the robot to maintain a desired posture while respecting the constraints</span>
 <span class="sd">    imposed by higher priority tasks (e.g., end-effector positioning).</span>
@@ -821,7 +825,8 @@
 <span class="sd">            - :math:`\mathbf{I}` is the identity matrix</span>
 
 <span class="sd">        The null space projector ensures that joint velocities in the null space produce</span>
-<span class="sd">        zero velocity for the primary tasks: :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.</span>
+<span class="sd">        zero velocity for the primary tasks:</span>
+<span class="sd">        :math:`\mathbf{J}_{\text{primary}} \cdot \dot{\mathbf{q}}_{\text{null}} = \mathbf{0}`.</span>
 
 <span class="sd">        If no controlled frames are specified, returns the identity matrix.</span>
 
@@ -919,7 +924,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

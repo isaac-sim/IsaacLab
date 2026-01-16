@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -929,7 +929,8 @@
             <span class="k">if</span> <span class="n">need_fixed</span><span class="p">:</span>
                 <span class="c1"># segment of constant target poses equal to @other&#39;s first target pose</span>
 
-                <span class="c1"># account for the fact that we pop&#39;d the first element of @other in anticipation of an interpolation segment</span>
+                <span class="c1"># account for the fact that we pop&#39;d the first element of</span>
+                <span class="c1"># @other in anticipation of an interpolation segment</span>
                 <span class="n">num_steps_fixed_to_use</span> <span class="o">=</span> <span class="n">num_steps_fixed</span> <span class="k">if</span> <span class="n">need_interp</span> <span class="k">else</span> <span class="p">(</span><span class="n">num_steps_fixed</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">add_waypoint_sequence_for_target_pose</span><span class="p">(</span>
                     <span class="n">pose</span><span class="o">=</span><span class="n">target_for_interpolation</span><span class="o">.</span><span class="n">pose</span><span class="p">,</span>
@@ -1077,7 +1078,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -683,8 +683,11 @@
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">buffer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Complete circular buffer with most recent entry at the end and oldest entry at the beginning.</span>
-<span class="sd">        Returns:</span>
-<span class="sd">            Complete circular buffer with most recent entry at the end and oldest entry at the beginning of dimension 1. The shape is [batch_size, max_length, data.shape[1:]].</span>
+
+<span class="sd">        The shape of the buffer is (batch_size, max_length, ...).</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            The oldest entry is at the beginning of dimension 1.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">buf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">shifts</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_length</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pointer</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
@@ -706,7 +709,8 @@
         <span class="c1"># reset the number of pushes for the specified batch indices</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_num_pushes</span><span class="p">[</span><span class="n">batch_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns the cleared circular buffer after reset.</span>
+            <span class="c1"># set buffer at batch_id reset indices to 0.0 so that the buffer()</span>
+            <span class="c1"># getter returns the cleared circular buffer after reset.</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">[:,</span> <span class="n">batch_ids</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
 <div class="viewcode-block" id="CircularBuffer.append"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.utils.html#isaaclab.utils.buffers.CircularBuffer.append">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
@@ -817,7 +821,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

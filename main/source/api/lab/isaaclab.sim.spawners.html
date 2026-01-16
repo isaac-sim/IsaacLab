@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -4752,10 +4752,12 @@ to not vary with the area or angular size of the light.</p>
 <dd><p>The parametrization format of the color map file. Defaults to “automatic”.</p>
 <p>Valid values are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;automatic&quot;</span></code>: Tries to determine the layout from the file itself. For example, Renderman texture files embed an explicit parameterization.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;automatic&quot;</span></code>: Tries to determine the layout from the file itself. For example, Renderman texture files
+embed an explicit parameterization.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;latlong&quot;</span></code>: Latitude as X, longitude as Y.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;mirroredBall&quot;</span></code>: An image of the environment reflected in a sphere, using an implicitly orthogonal projection.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;angular&quot;</span></code>: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better sampling at the edges.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;angular&quot;</span></code>: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better
+sampling at the edges.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;cubeMapVerticalCross&quot;</span></code>: A cube map with faces laid out as a vertical cross.</p></li>
 </ul>
 </dd></dl>
@@ -5130,8 +5132,8 @@ f_x &amp; 0 &amp; c_x \\
 0 &amp; f_y &amp; c_y \\
 0 &amp; 0 &amp; 1
 \\end{bmatrix},\end{split}\]</div>
-<p>where <span class="math notranslate nohighlight">\(f_x\)</span> and <span class="math notranslate nohighlight">\(f_y\)</span> are the focal length along x and y direction, while <span class="math notranslate nohighlight">\(c_x\)</span> and <span class="math notranslate nohighlight">\(c_y\)</span> are the
-principle point offsets along x and y direction respectively.</p>
+<p>where <span class="math notranslate nohighlight">\(f_x\)</span> and <span class="math notranslate nohighlight">\(f_y\)</span> are the focal length along x and y direction, while <span class="math notranslate nohighlight">\(c_x\)</span> and
+<span class="math notranslate nohighlight">\(c_y\)</span> are the principle point offsets along x and y direction respectively.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -5693,7 +5695,8 @@ used in the scene. For more information, please check the USD documentation on
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UrdfFileCfg.link_density">
 <span class="sig-name descname"><span class="pre">link_density</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UrdfFileCfg.link_density" title="Permalink to this definition">#</a></dt>
-<dd><p>Default density in <code class="docutils literal notranslate"><span class="pre">kg/m^3</span></code> for links whose <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> properties are missing in the URDF. Defaults to 0.0.</p>
+<dd><p>Default density in <code class="docutils literal notranslate"><span class="pre">kg/m^3</span></code> for links whose <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> properties are missing in the URDF.
+Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -5993,9 +5996,9 @@ This is done by calling the respective function with the specified properties.</
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.from_files.UsdFileCfg.variants">
 <span class="sig-name descname"><span class="pre">variants</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.from_files.UsdFileCfg.variants" title="Permalink to this definition">#</a></dt>
 <dd><p>Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.</p>
-<p>This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-or a dictionary mapping between the two. Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function
-for more information.</p>
+<p>This can either be a configclass object, in which case each attribute is used as a variant set name and
+its specified value, or a dictionary mapping between the two. Please check the
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function for more information.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -7197,9 +7200,9 @@ This parameter is ignored if <cite>visual_material</cite> is not None.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.spawners.wrappers.MultiUsdFileCfg.variants">
 <span class="sig-name descname"><span class="pre">variants</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab.sim.spawners.wrappers.MultiUsdFileCfg.variants" title="Permalink to this definition">#</a></dt>
 <dd><p>Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.</p>
-<p>This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-or a dictionary mapping between the two. Please check the <code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function
-for more information.</p>
+<p>This can either be a configclass object, in which case each attribute is used as a variant set name and
+its specified value, or a dictionary mapping between the two. Please check the
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">select_usd_variants()</span></code> function for more information.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -7847,7 +7850,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

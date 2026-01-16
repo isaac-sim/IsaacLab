@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -807,11 +807,12 @@
 <dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">DataGenerator</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator" title="Permalink to this definition">#</a></dt>
 <dd><p>The main data generator class that generates new trajectories from source datasets.</p>
-<p>The data generator, inspired by the MimicGen, enables the generation of new datasets based on a few human
-collected source demonstrations.</p>
-<p>The data generator works by parsing demonstrations into object-centric subtask segments, stored in DataGenInfoPool.
-It then adapts these subtask segments to new scenes by transforming each segment according to the new scene’s context,
-stitching them into a coherent trajectory for a robotic end-effector to execute.</p>
+<p>The data generator, inspired by the MimicGen, enables the generation of new datasets based on a
+few human collected source demonstrations.</p>
+<p>The data generator works by parsing demonstrations into object-centric subtask segments, stored in
+<a class="reference internal" href="#isaaclab_mimic.datagen.DataGenInfoPool" title="isaaclab_mimic.datagen.DataGenInfoPool"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataGenInfoPool</span></code></a>. It then adapts these subtask segments to new scenes by transforming each
+segment according to the new scene’s context, stitching them into a coherent trajectory for a robotic
+end-effector to execute.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -850,8 +851,8 @@ stitching them into a coherent trajectory for a robotic end-effector to execute.
 <li><p><strong>env</strong> – environment to use for data generation</p></li>
 <li><p><strong>src_demo_datagen_info_pool</strong> – source demo datagen info pool</p></li>
 <li><p><strong>dataset_path</strong> – path to hdf5 dataset to use for generation</p></li>
-<li><p><strong>demo_keys</strong> – list of demonstration keys to use in file. If not provided, all demonstration keys
-will be used.</p></li>
+<li><p><strong>demo_keys</strong> – list of demonstration keys to use in file. If not provided,
+all demonstration keys will be used.</p></li>
 </ul>
 </dd>
 </dl>
@@ -860,8 +861,8 @@ will be used.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries">
 <span class="sig-name descname"><span class="pre">randomize_subtask_boundaries</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/data_generator.html#DataGenerator.randomize_subtask_boundaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DataGenerator.randomize_subtask_boundaries" title="Permalink to this definition">#</a></dt>
-<dd><p>Apply random offsets to sample subtask boundaries according to the task spec.
-Recall that each demonstration is segmented into a set of subtask segments, and the
+<dd><p>Apply random offsets to sample subtask boundaries according to the task spec.</p>
+<p>Recall that each demonstration is segmented into a set of subtask segments, and the
 end index (and start index when skillgen is enabled) of each subtask can have a random offset.</p>
 </dd></dl>
 
@@ -875,17 +876,15 @@ end index (and start index when skillgen is enabled) of each subtask can have a 
 <li><p><strong>eef_name</strong> – name of end effector</p></li>
 <li><p><strong>eef_pose</strong> – current end effector pose</p></li>
 <li><p><strong>object_pose</strong> – current object pose for this subtask</p></li>
-<li><p><strong>src_demo_current_subtask_boundaries</strong> – start and end indices for subtask segment in source demonstrations of shape (N, 2)</p></li>
+<li><p><strong>src_demo_current_subtask_boundaries</strong> – start and end indices for subtask segment
+in source demonstrations of shape (N, 2)</p></li>
 <li><p><strong>subtask_object_name</strong> – name of reference object for this subtask</p></li>
 <li><p><strong>selection_strategy_name</strong> – name of selection strategy</p></li>
 <li><p><strong>selection_strategy_kwargs</strong> – extra kwargs for running selection strategy</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>selected source demo index</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>selected_src_demo_ind</p>
+<dd class="field-even"><p>The selected source demo index</p>
 </dd>
 </dl>
 </dd></dl>
@@ -967,9 +966,6 @@ is enabled and this is not the first subtask.</p></li>
 <dd class="field-even"><p>The full sequence of waypoints to execute (initial interpolation segment followed by the subtask segment),
 with the temporary initial waypoint removed.</p>
 </dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)">list</a>[<a class="reference internal" href="#isaaclab_mimic.datagen.Waypoint" title="isaaclab_mimic.datagen.Waypoint">Waypoint</a>]</p>
-</dd>
 </dl>
 </dd></dl>
 
@@ -990,21 +986,21 @@ with the temporary initial waypoint removed.</p>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>dictionary with the following items:</dt><dd><p>initial_state (dict): initial simulator state for the executed trajectory
-states (list): simulator state at each timestep
-observations (list): observation dictionary at each timestep
-datagen_infos (list): datagen_info at each timestep
-actions (np.array): action executed at each timestep
-success (bool): whether the trajectory successfully solved the task or not
-src_demo_inds (list): list of selected source demonstration indices for each subtask
-src_demo_labels (np.array): same as &#64;src_demo_inds, but repeated to have a label for each timestep of the trajectory</p>
-</dd>
-</dl>
+<dd class="field-even"><p><ul class="simple">
+<li><p>initial_state (dict): initial simulator state for the executed trajectory</p></li>
+<li><p>states (list): simulator state at each timestep</p></li>
+<li><p>observations (list): observation dictionary at each timestep</p></li>
+<li><p>datagen_infos (list): datagen_info at each timestep</p></li>
+<li><p>actions (np.array): action executed at each timestep</p></li>
+<li><p>success (bool): whether the trajectory successfully solved the task or not</p></li>
+<li><p>src_demo_inds (list): list of selected source demonstration indices for each subtask</p></li>
+<li><p>src_demo_labels (np.array): same as &#64;src_demo_inds, but repeated to have a label for
+each timestep of the trajectory.</p></li>
+</ul>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>results (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a>)</p>
+<dd class="field-odd"><p>A dictionary containing the following items</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1017,27 +1013,26 @@ src_demo_labels (np.array): same as &#64;src_demo_inds, but repeated to have a l
 <dl class="py class">
 <dt class="sig sig-object py" id="isaaclab_mimic.datagen.DatagenInfo">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_mimic.datagen.</span></span><span class="sig-name descname"><span class="pre">DatagenInfo</span></span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info.html#DatagenInfo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DatagenInfo" title="Permalink to this definition">#</a></dt>
-<dd><p>Defines the structure of information required from an environment for data generation processes.
-The <cite>DatagenInfo</cite> class centralizes all essential data elements needed for data generation in one place,
-reducing the overhead and complexity of repeatedly querying the environment whenever this information is needed.</p>
+<dd><p>Defines the structure of information required from an environment for data generation processes.</p>
+<p>The <a class="reference internal" href="#isaaclab_mimic.datagen.DatagenInfo" title="isaaclab_mimic.datagen.DatagenInfo"><code class="xref py py-class docutils literal notranslate"><span class="pre">DatagenInfo</span></code></a> class centralizes all essential data elements needed for data generation in one place,
+reducing the overhead and complexity of repeatedly querying the environment whenever this information
+is needed.</p>
 <p>To allow for flexibility,not all information must be present.</p>
-<p>Core Elements:
-- <strong>eef_pose</strong>: Captures the current 6 dimensional poses of the robot’s end-effector.
-- <strong>object_poses</strong>: Captures the 6 dimensional poses of relevant objects in the scene.
-- <strong>subtask_start_signals</strong>: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.
-- <strong>subtask_term_signals</strong>: Captures subtask completions signals.
-- <strong>target_eef_pose</strong>: Captures the target 6 dimensional poses for robot’s end effector at each time step.
-- <strong>gripper_action</strong>:  Captures the gripper’s state.</p>
+<p>Core Elements:</p>
+<ul class="simple">
+<li><p><strong>eef_pose</strong>: Captures the current 6 dimensional poses of the robot’s end-effector.</p></li>
+<li><p><strong>object_poses</strong>: Captures the 6 dimensional poses of relevant objects in the scene.</p></li>
+<li><p><strong>subtask_start_signals</strong>: Captures subtask start signals. Used by skillgen to identify
+the precise start of a subtask from a demonstration.</p></li>
+<li><p><strong>subtask_term_signals</strong>: Captures subtask completions signals.</p></li>
+<li><p><strong>target_eef_pose</strong>: Captures the target 6 dimensional poses for robot’s end effector at each time step.</p></li>
+<li><p><strong>gripper_action</strong>:  Captures the gripper’s state.</p></li>
+</ul>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_mimic.datagen.DatagenInfo.__init__" title="isaaclab_mimic.datagen.DatagenInfo.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([eef_pose, object_poses, ...])</p></td>
-<td><p><dl class="field-list simple">
-<dt class="field-odd">param eef_pose<span class="colon">:</span></dt>
-<dd class="field-odd"><p>robot end effector poses of shape [..., 4, 4]</p>
-</dd>
-</dl>
-</p></td>
+<td><p>Initialize the DatagenInfo object.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1045,7 +1040,8 @@ reducing the overhead and complexity of repeatedly querying the environment when
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_mimic.datagen.DatagenInfo.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">eef_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">object_poses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_term_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtask_start_signals</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_eef_pose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gripper_action</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_mimic/datagen/datagen_info.html#DatagenInfo.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_mimic.datagen.DatagenInfo.__init__" title="Permalink to this definition">#</a></dt>
-<dd><dl class="field-list simple">
+<dd><p>Initialize the DatagenInfo object.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>eef_pose</strong> (<a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.9)"><em>torch.Tensor</em></a><em> or </em><em>None</em>) – robot end effector poses of shape […, 4, 4]</p></li>
@@ -1765,7 +1761,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

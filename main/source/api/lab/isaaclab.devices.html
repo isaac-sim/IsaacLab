@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -2537,8 +2537,10 @@ It can either:
 <li><p><strong>use_wrist_position</strong> – If True, use wrist position instead of pinch position (midpoint between fingers)</p></li>
 <li><p><strong>delta_pos_scale_factor</strong> – Amplification factor for position changes (higher = larger robot movements)</p></li>
 <li><p><strong>delta_rot_scale_factor</strong> – Amplification factor for rotation changes (higher = larger robot rotations)</p></li>
-<li><p><strong>alpha_pos</strong> – Position smoothing parameter (0-1); higher values track more closely to input, lower values smooth more</p></li>
-<li><p><strong>alpha_rot</strong> – Rotation smoothing parameter (0-1); higher values track more closely to input, lower values smooth more</p></li>
+<li><p><strong>alpha_pos</strong> – Position smoothing parameter (0-1); higher values track more closely to input,
+lower values smooth more</p></li>
+<li><p><strong>alpha_rot</strong> – Rotation smoothing parameter (0-1); higher values track more closely to input,
+lower values smooth more</p></li>
 <li><p><strong>enable_visualization</strong> – If True, show a visual marker representing the target end-effector pose</p></li>
 <li><p><strong>device</strong> – The device to place the returned tensor on (‘cpu’ or ‘cuda’)</p></li>
 </ul>
@@ -2591,7 +2593,8 @@ Implementations should override to narrow to only what they need.</p>
 <dd><p>Bases: <a class="reference internal" href="#isaaclab.devices.RetargeterBase" title="isaaclab.devices.retargeter_base.RetargeterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">RetargeterBase</span></code></a></p>
 <p>Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.</p>
 <p>This retargeter maps hand tracking data from OpenXR to joint commands for the GR1T2 robot’s hands.
-It handles both left and right hands, converting poses of the hands in OpenXR format joint angles for the GR1T2 robot’s hands.</p>
+It handles both left and right hands, converting poses of the hands in OpenXR format joint angles
+for the GR1T2 robot’s hands.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2780,7 +2783,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -820,7 +820,8 @@
 <span class="sd">        - &quot;coordination&quot;</span>
 
 <span class="sd">        For a &quot;sequential&quot; constraint:</span>
-<span class="sd">            - Data from task_constraint_configs is added to task_constraints_dict as &quot;sequential former&quot; task constraint.</span>
+<span class="sd">            - Data from task_constraint_configs is added to task_constraints_dict as &quot;sequential former&quot;</span>
+<span class="sd">              task constraint.</span>
 <span class="sd">            - The opposite constraint, of type &quot;sequential latter&quot;, is also added to task_constraints_dict.</span>
 <span class="sd">            - Additionally, a (&quot;fulfilled&quot;, Bool) key-value pair is added to task_constraints_dict.</span>
 <span class="sd">            - This is used to check if the precondition (i.e., the sequential former task) has been met.</span>
@@ -832,7 +833,8 @@
 <span class="sd">            - The opposite constraint, of type &quot;coordination&quot;, is also added to task_constraints_dict.</span>
 <span class="sd">            - The number of synchronous steps is set to the minimum of subtask_len and concurrent_subtask_len.</span>
 <span class="sd">            - This ensures both concurrent tasks end at the same time step.</span>
-<span class="sd">            - A &quot;selected_src_demo_ind&quot; and &quot;transform&quot; field are used to ensure the transforms used by both subtasks are the same.</span>
+<span class="sd">            - A &quot;selected_src_demo_ind&quot; and &quot;transform&quot; field are used to ensure the transforms used by</span>
+<span class="sd">              both subtasks are the same.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">task_constraints_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraint_type</span> <span class="o">==</span> <span class="n">SubTaskConstraintType</span><span class="o">.</span><span class="n">SEQUENTIAL</span><span class="p">:</span>
@@ -967,7 +969,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

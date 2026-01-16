@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -642,8 +642,8 @@
         <span class="n">merge_prim_meshes</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether to merge the parsed meshes for a prim that contains multiple meshes. Defaults to True.</span>
 
-<span class="sd">        This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs will then refer to the single</span>
-<span class="sd">        merged mesh.</span>
+<span class="sd">        This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs</span>
+<span class="sd">        will then refer to the single merged mesh.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">track_mesh_transforms</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
@@ -658,7 +658,9 @@
     <span class="n">mesh_prim_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">RaycastTargetCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The list of mesh primitive paths to ray cast against.</span>
 
-<span class="sd">    If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with `~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility with the default raycaster.</span>
+<span class="sd">    If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with</span>
+<span class="sd">    :attr:`~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility</span>
+<span class="sd">    with the default raycaster.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">update_mesh_ids</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -718,7 +720,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

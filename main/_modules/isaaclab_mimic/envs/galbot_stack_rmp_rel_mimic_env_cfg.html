@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -699,10 +699,9 @@
                 <span class="c1"># Corresponding key for the binary indicator in &quot;datagen_info&quot; for completion</span>
                 <span class="n">subtask_term_signal</span><span class="o">=</span><span class="s2">&quot;grasp_2&quot;</span><span class="p">,</span>
                 <span class="c1"># Time offsets for data generation when splitting a trajectory</span>
-                <span class="n">subtask_term_offset_range</span><span class="o">=</span><span class="p">(</span>
-                    <span class="mi">25</span><span class="p">,</span>
-                    <span class="mi">30</span><span class="p">,</span>
-                <span class="p">),</span>  <span class="c1"># this should be larger than the other subtasks, because the gripper should be lifted higher than 2 blocks</span>
+                <span class="c1"># This should be larger than the other subtasks, because the gripper</span>
+                <span class="c1"># should be lifted higher than two blocks</span>
+                <span class="n">subtask_term_offset_range</span><span class="o">=</span><span class="p">(</span><span class="mi">25</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
                 <span class="c1"># Selection strategy for source subtask segment</span>
                 <span class="n">selection_strategy</span><span class="o">=</span><span class="s2">&quot;nearest_neighbor_object&quot;</span><span class="p">,</span>
                 <span class="c1"># Optional parameters for the selection strategy function</span>
@@ -903,7 +902,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

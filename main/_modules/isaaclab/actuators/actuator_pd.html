@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -817,16 +817,17 @@
 
 <span class="sd">    A DC motor characteristics are defined by the following parameters:</span>
 
-<span class="sd">    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).</span>
-<span class="sd">    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).</span>
-<span class="sd">    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This</span>
-<span class="sd">      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or</span>
-<span class="sd">      enforced by electrical limitations.(:attr:`effort_limit`).</span>
+<span class="sd">    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at</span>
+<span class="sd">      zero torque (:attr:`velocity_limit`).</span>
+<span class="sd">    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at</span>
+<span class="sd">      zero speed (:attr:`saturation_effort`).</span>
+<span class="sd">    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.</span>
+<span class="sd">      This is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage,</span>
+<span class="sd">      or enforced by electrical limitations (:attr:`effort_limit`).</span>
 <span class="sd">    * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.</span>
-<span class="sd">      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities</span>
-<span class="sd">      (where torque-speed curve intersects with continuous torque) are defined as follows:</span>
 
-<span class="sd">    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:</span>
+<span class="sd">    Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities</span>
+<span class="sd">    (where torque-speed curve intersects with continuous torque) are defined as follows:</span>
 
 <span class="sd">    .. math::</span>
 
@@ -1099,7 +1100,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -1658,7 +1658,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">positions</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># If the positions are not provided, and the flag is set, then we need to ensure that the desired positions are zeroed.</span>
+            <span class="c1"># If the positions are not provided, and the flag is set, then we need to ensure</span>
+            <span class="c1"># that the desired positions are zeroed.</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uses_external_wrench_positions</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_external_wrench_positions_b</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
@@ -1747,7 +1748,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set fixed tendon stiffness into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon stiffness, call the</span>
+<span class="sd">        :meth:`write_fixed_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).</span>
@@ -1799,7 +1801,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set fixed tendon limit stiffness efforts into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon limit stiffness, call the</span>
+<span class="sd">        :meth:`write_fixed_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).</span>
@@ -1851,7 +1854,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set fixed tendon rest length efforts into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon rest length to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon rest length, call the</span>
+<span class="sd">        :meth:`write_fixed_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).</span>
@@ -1932,7 +1936,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set spatial tendon stiffness into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon stiffness, call the</span>
+<span class="sd">        :meth:`write_spatial_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).</span>
@@ -1963,12 +1968,14 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set spatial tendon damping into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon damping to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon damping, call the</span>
+<span class="sd">        :meth:`write_spatial_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).</span>
-<span class="sd">            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).</span>
-<span class="sd">            env_ids: The environment indices to set the damping for. Defaults to None (all environments).</span>
+<span class="sd">            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None,</span>
+<span class="sd">                which means all spatial tendons.</span>
+<span class="sd">            env_ids: The environment indices to set the damping for. Defaults to None, which means all environments.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -1994,11 +2001,13 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set spatial tendon limit stiffness into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon limit stiffness, call the</span>
+<span class="sd">        :meth:`write_spatial_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).</span>
-<span class="sd">            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).</span>
+<span class="sd">            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None,</span>
+<span class="sd">                which means all spatial tendons.</span>
 <span class="sd">            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">get_isaac_sim_version</span><span class="p">()</span><span class="o">.</span><span class="n">major</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
@@ -2025,7 +2034,8 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set spatial tendon offset efforts into internal buffers.</span>
 
 <span class="sd">        This function does not apply the tendon offset to the simulation. It only fills the buffers with</span>
-<span class="sd">        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim` function.</span>
+<span class="sd">        the desired values. To apply the tendon offset, call the</span>
+<span class="sd">        :meth:`write_spatial_tendon_properties_to_sim` method.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).</span>
@@ -2055,8 +2065,10 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Write spatial tendon properties into the simulation.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).</span>
-<span class="sd">            env_ids: The environment indices to set the properties for. Defaults to None (all environments).</span>
+<span class="sd">            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None,</span>
+<span class="sd">                which means all spatial tendons.</span>
+<span class="sd">            env_ids: The environment indices to set the properties for. Defaults to None,</span>
+<span class="sd">                which means all environments.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
@@ -2791,7 +2803,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

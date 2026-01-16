@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -607,25 +607,26 @@
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Defines structure of information that is needed from an environment for data generation.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;Defines the structure of information required from an environment for data generation processes.&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
 
 
 <div class="viewcode-block" id="DatagenInfo"><a class="viewcode-back" href="../../../source/api/lab_mimic/isaaclab_mimic.datagen.html#isaaclab_mimic.datagen.DatagenInfo">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DatagenInfo</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Defines the structure of information required from an environment for data generation processes.</span>
-<span class="sd">    The `DatagenInfo` class centralizes all essential data elements needed for data generation in one place,</span>
-<span class="sd">    reducing the overhead and complexity of repeatedly querying the environment whenever this information is needed.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the structure of information required from an environment for data generation processes.</span>
+
+<span class="sd">    The :class:`DatagenInfo` class centralizes all essential data elements needed for data generation in one place,</span>
+<span class="sd">    reducing the overhead and complexity of repeatedly querying the environment whenever this information</span>
+<span class="sd">    is needed.</span>
 
 <span class="sd">    To allow for flexibility,not all information must be present.</span>
 
 <span class="sd">    Core Elements:</span>
+
 <span class="sd">    - **eef_pose**: Captures the current 6 dimensional poses of the robot&#39;s end-effector.</span>
 <span class="sd">    - **object_poses**: Captures the 6 dimensional poses of relevant objects in the scene.</span>
-<span class="sd">    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.</span>
+<span class="sd">    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify</span>
+<span class="sd">      the precise start of a subtask from a demonstration.</span>
 <span class="sd">    - **subtask_term_signals**: Captures subtask completions signals.</span>
 <span class="sd">    - **target_eef_pose**: Captures the target 6 dimensional poses for robot&#39;s end effector at each time step.</span>
 <span class="sd">    - **gripper_action**:  Captures the gripper&#39;s state.</span>
@@ -640,7 +641,8 @@
         <span class="n">target_eef_pose</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">gripper_action</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the DatagenInfo object.</span>
+
 <span class="sd">        Args:</span>
 <span class="sd">            eef_pose (torch.Tensor or None): robot end effector poses of shape [..., 4, 4]</span>
 <span class="sd">            object_poses (dict or None): dictionary mapping object name to object poses</span>
@@ -692,9 +694,11 @@
         <span class="k">if</span> <span class="n">gripper_action</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">gripper_action</span> <span class="o">=</span> <span class="n">gripper_action</span></div>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Convert this instance to a dictionary containing the same information.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert this instance to a dictionary containing the same information.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A dictionary containing the same information as this instance.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">eef_pose</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -757,7 +761,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

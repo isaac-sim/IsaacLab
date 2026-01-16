@@ -66,7 +66,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -2550,16 +2550,17 @@ Depending on various design factors such as windings and materials, the motor ca
 from the electronic source, which limits the produced motor torque and speed.</p>
 <p>A DC motor characteristics are defined by the following parameters:</p>
 <ul class="simple">
-<li><p>No-load speed (<span class="math notranslate nohighlight">\(\dot{q}_{motor, max}\)</span>) : The maximum-rated speed of the motor at 0 Torque (<a class="reference internal" href="#isaaclab.actuators.DCMotor.velocity_limit" title="isaaclab.actuators.DCMotor.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a>).</p></li>
-<li><p>Stall torque (<span class="math notranslate nohighlight">\(\tau_{motor, stall}\)</span>): The maximum-rated torque produced at 0 speed (<code class="xref py py-attr docutils literal notranslate"><span class="pre">saturation_effort</span></code>).</p></li>
-<li><p>Continuous torque (<span class="math notranslate nohighlight">\(\tau_{motor, con}\)</span>): The maximum torque that can be outputted for a short period. This
-is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
-enforced by electrical limitations.(<a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>).</p></li>
-<li><p>Corner velocity (<span class="math notranslate nohighlight">\(V_{c}\)</span>): The velocity where the torque-speed curve intersects with continuous torque.
-Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
-(where torque-speed curve intersects with continuous torque) are defined as follows:</p></li>
+<li><p>No-load speed (<span class="math notranslate nohighlight">\(\dot{q}_{motor, max}\)</span>) : The maximum-rated speed of the motor at
+zero torque (<a class="reference internal" href="#isaaclab.actuators.DCMotor.velocity_limit" title="isaaclab.actuators.DCMotor.velocity_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">velocity_limit</span></code></a>).</p></li>
+<li><p>Stall torque (<span class="math notranslate nohighlight">\(\tau_{motor, stall}\)</span>): The maximum-rated torque produced at
+zero speed (<code class="xref py py-attr docutils literal notranslate"><span class="pre">saturation_effort</span></code>).</p></li>
+<li><p>Continuous torque (<span class="math notranslate nohighlight">\(\tau_{motor, con}\)</span>): The maximum torque that can be outputted for a short period.
+This is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage,
+or enforced by electrical limitations (<a class="reference internal" href="#isaaclab.actuators.DCMotor.effort_limit" title="isaaclab.actuators.DCMotor.effort_limit"><code class="xref py py-attr docutils literal notranslate"><span class="pre">effort_limit</span></code></a>).</p></li>
+<li><p>Corner velocity (<span class="math notranslate nohighlight">\(V_{c}\)</span>): The velocity where the torque-speed curve intersects with continuous torque.</p></li>
 </ul>
-<p>Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:</p>
+<p>Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+(where torque-speed curve intersects with continuous torque) are defined as follows:</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\tau_{j, max}(\dot{q}) &amp; = clip \left (\tau_{j, stall} \times \left(1 -
     \frac{\dot{q}}{\dot{q}_{j, max}}\right), -∞, \tau_{j, con} \right) \\
@@ -5530,7 +5531,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

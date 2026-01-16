@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -624,18 +624,26 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">urdf_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the robot&#39;s URDF file. This file is used by Pinocchio&#39;s `robot_wrapper.BuildFromURDF` to load the robot model.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the robot&#39;s URDF file. This file is used by Pinocchio&#39;s ``robot_wrapper.BuildFromURDF``</span>
+<span class="sd">    to load the robot model.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">mesh_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the mesh files associated with the robot. These files are also loaded by Pinocchio&#39;s `robot_wrapper.BuildFromURDF`.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Path to the mesh files associated with the robot. These files are also loaded by Pinocchio&#39;s</span>
+<span class="sd">    ``robot_wrapper.BuildFromURDF``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">num_hand_joints</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of hand joints in the robot. The action space for the controller contains the pose_dim(7)*num_controlled_frames + num_hand_joints.</span>
-<span class="sd">    The last num_hand_joints values of the action are the hand joint angles.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of hand joints in the robot.</span>
+
+<span class="sd">    The action space for the controller contains the ``pose_dim(7) * num_controlled_frames + num_hand_joints``.</span>
+<span class="sd">    The last ``num_hand_joints`` values of the action are the hand joint angles.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">variable_input_tasks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FrameTask</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A list of tasks for the Pink IK controller. These tasks are controllable by the env action.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list of tasks for the Pink IK controller.</span>
+
+<span class="sd">    These tasks are controllable by the environment action.</span>
 
 <span class="sd">    These tasks can be used to control the pose of a frame or the angles of joints.</span>
 <span class="sd">    For more details, visit: https://github.com/stephane-caron/pink</span>
@@ -650,12 +658,18 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.</span>
-<span class="sd">    This value is currently designed to be automatically populated by the action term in a manager based environment.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list of joint names in the USD asset controlled by the Pink IK controller.</span>
+
+<span class="sd">    This is required because the joint naming conventions differ between USD and URDF files. This value is</span>
+<span class="sd">    currently designed to be automatically populated by the action term in a manager based environment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">all_joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.</span>
-<span class="sd">    This value is currently designed to be automatically populated by the action term in a manager based environment.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A list of joint names in the USD asset.</span>
+
+<span class="sd">    This is required because the joint naming conventions differ between USD and URDF files. This value is</span>
+<span class="sd">    currently designed to be automatically populated by the action term in a manager based environment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">articulation_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;robot&quot;</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The name of the articulation USD asset in the scene.&quot;&quot;&quot;</span>
@@ -667,9 +681,13 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Show warning if IK solver fails to find a solution.&quot;&quot;&quot;</span>
 
     <span class="n">fail_on_joint_limit_violation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController</span>
-<span class="sd">    will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the</span>
-<span class="sd">    closest solution found.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to fail on joint limit violation.</span>
+
+<span class="sd">    If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization.</span>
+<span class="sd">    The PinkIKController will handle the error by setting the last joint positions.</span>
+
+<span class="sd">    If False, the solver will ignore joint limit violations and return the closest solution found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">xr_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;If True, the Pink IK controller will send information to the XRVisualization.&quot;&quot;&quot;</span></div>
@@ -720,7 +738,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

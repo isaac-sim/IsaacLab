@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -637,11 +637,14 @@
         <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The prim path corresponding to a rigid body.</span>
 
-<span class="sd">        This can be a regex pattern to match multiple prims. For example, &quot;/Robot/.*&quot; will match all prims under &quot;/Robot&quot;.</span>
+<span class="sd">        This can be a regex pattern to match multiple prims. For example, &quot;/Robot/.*&quot;</span>
+<span class="sd">        will match all prims under &quot;/Robot&quot;.</span>
 
-<span class="sd">        This means that if the source :attr:`FrameTransformerCfg.prim_path` is &quot;/Robot/base&quot;, and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is &quot;/Robot/.*&quot;,</span>
-<span class="sd">        then the frame transformer will track the poses of all the prims under &quot;/Robot&quot;,</span>
-<span class="sd">        including &quot;/Robot/base&quot; (even though this will result in an identity pose w.r.t. the source frame).</span>
+<span class="sd">        This means that if the source :attr:`FrameTransformerCfg.prim_path` is &quot;/Robot/base&quot;,</span>
+<span class="sd">        and the target :attr:`FrameTransformerCfg.FrameCfg.prim_path` is &quot;/Robot/.*&quot;, then</span>
+<span class="sd">        the frame transformer will track the poses of all the prims under &quot;/Robot&quot;,</span>
+<span class="sd">        including &quot;/Robot/base&quot; (even though this will result in an identity pose w.r.t.</span>
+<span class="sd">        the source frame).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -722,7 +725,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

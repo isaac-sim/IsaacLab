@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -783,9 +783,9 @@
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">target_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to find a prim at path expression: </span><span class="si">{</span><span class="n">target_prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-            <span class="n">is_global_prim</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="nb">len</span><span class="p">(</span><span class="n">target_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
-            <span class="p">)</span>  <span class="c1"># If only one prim is found, treat it as a global prim. Either it&#39;s a single global object (e.g. ground) or we are only using one env.</span>
+            <span class="c1"># If only one prim is found, treat it as a global prim.</span>
+            <span class="c1"># Either it&#39;s a single global object (e.g. ground) or we are only using one env.</span>
+            <span class="n">is_global_prim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">target_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
 
             <span class="n">loaded_vertices</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">wp_mesh_ids</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1076,7 +1076,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

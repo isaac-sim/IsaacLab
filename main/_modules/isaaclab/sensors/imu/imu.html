@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -631,8 +631,9 @@
 <div class="viewcode-block" id="Imu"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.Imu">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Imu</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The Inertia Measurement Unit (IMU) sensor.</span>
 
-<span class="sd">    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,</span>
-<span class="sd">    along with world-frame pose and body-frame linear and angular accelerations/velocities.</span>
+<span class="sd">    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame</span>
+<span class="sd">    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular</span>
+<span class="sd">    accelerations/velocities.</span>
 
 <span class="sd">    If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.</span>
 <span class="sd">    The fixed transform from that ancestor to the target prim is computed once during initialization and</span>
@@ -646,8 +647,8 @@
 
 <span class="sd">    .. note::</span>
 
-<span class="sd">        The user can configure the sensor offset in the configuration file. The offset is applied relative to the rigid source prim.</span>
-<span class="sd">        If the target prim is not a rigid body, the offset is composed with the fixed transform</span>
+<span class="sd">        The user can configure the sensor offset in the configuration file. The offset is applied relative to the</span>
+<span class="sd">        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform</span>
 <span class="sd">        from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.</span>
 <span class="sd">        The offset is defined as a position vector and a quaternion rotation, which</span>
 <span class="sd">        are applied in the order: position, then rotation. The position is applied as a translation</span>
@@ -852,7 +853,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_prev_lin_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prev_ang_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">)</span>
 
-        <span class="c1"># store sensor offset (applied relative to rigid source). This may be composed later with a fixed ancestor-&gt;target transform.</span>
+        <span class="c1"># store sensor offset (applied relative to rigid source).</span>
+        <span class="c1"># This may be composed later with a fixed ancestor-&gt;target transform.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offset_pos_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">pos</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offset_quat_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">offset</span><span class="o">.</span><span class="n">rot</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="c1"># set gravity bias</span>
@@ -946,7 +948,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

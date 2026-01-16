@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -637,7 +637,8 @@
 
 
 <div class="viewcode-block" id="ManagerBasedEnv"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.envs.html#isaaclab.envs.ManagerBasedEnv">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ManagerBasedEnv</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The base environment encapsulates the simulation scene and the environment managers for</span>
+<span class="sd">    the manager-based workflow.</span>
 
 <span class="sd">    While a simulation scene or world comprises of different components such as the robots, objects,</span>
 <span class="sd">    and sensors (cameras, lidars, etc.), the environment is a higher level abstraction</span>
@@ -776,7 +777,8 @@
                     <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
                 <span class="c1"># update scene to pre populate data buffers for assets and sensors.</span>
                 <span class="c1"># this is needed for the observation manager to get valid tensors for initialization.</span>
-                <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.</span>
+                <span class="c1"># this shouldn&#39;t cause an issue since later on, users do a reset over all the environments</span>
+                <span class="c1"># so the lazy buffers would be reset.</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
             <span class="c1"># add timeline event to load managers</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">load_managers</span><span class="p">()</span>
@@ -1232,7 +1234,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

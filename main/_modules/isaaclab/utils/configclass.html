@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -907,12 +907,13 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_process_mutable_types</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize all mutable elements through :obj:`dataclasses.Field` to avoid unnecessary complaints.</span>
 
-<span class="sd">    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects every time a new</span>
-<span class="sd">    class instance is created. If a member has a mutable type and it is created without specifying the `field(default_factory=...)`,</span>
-<span class="sd">    then Python throws an error requiring the usage of `default_factory`.</span>
+<span class="sd">    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects</span>
+<span class="sd">    every time a new class instance is created. If a member has a mutable type and it is created without</span>
+<span class="sd">    specifying the `field(default_factory=...)`, then Python throws an error requiring the usage of `default_factory`.</span>
 
-<span class="sd">    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict. This misses the</span>
-<span class="sd">    use-case where the type is class itself. Thus, the code silently carries a bug with it which can lead to undesirable effects.</span>
+<span class="sd">    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict.</span>
+<span class="sd">    This misses the use-case where the type is class itself. Thus, the code silently carries a bug with it which</span>
+<span class="sd">    can lead to undesirable effects.</span>
 
 <span class="sd">    This function deals with this issue</span>
 
@@ -1150,7 +1151,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>

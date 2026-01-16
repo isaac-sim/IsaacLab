@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 15, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 16, 2026"/>
   </head>
   
   
@@ -905,10 +905,14 @@ Valid options are:</p>
 is provided, it is resolved relative to the <code class="docutils literal notranslate"><span class="pre">apps</span></code> folder in Isaac Sim and Isaac Lab (in that order).</p>
 <p>If provided as an empty string, the experience file is determined based on the command-line flags:</p>
 <ul class="simple">
-<li><p>If headless and enable_cameras are True, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.rendering.kit</span></code>.</p></li>
-<li><p>If headless is False and enable_cameras is True, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.rendering.kit</span></code>.</p></li>
-<li><p>If headless and enable_cameras are False, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.kit</span></code>.</p></li>
-<li><p>If headless is True and enable_cameras is False, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.kit</span></code>.</p></li>
+<li><p>If headless and enable_cameras are True, the experience file is set to
+<code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.rendering.kit</span></code>.</p></li>
+<li><p>If headless is False and enable_cameras is True, the experience file is set to
+<code class="docutils literal notranslate"><span class="pre">isaaclab.python.rendering.kit</span></code>.</p></li>
+<li><p>If headless and enable_cameras are False, the experience file is set to
+<code class="docutils literal notranslate"><span class="pre">isaaclab.python.kit</span></code>.</p></li>
+<li><p>If headless is True and enable_cameras is False, the experience file is set to
+<code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.kit</span></code>.</p></li>
 </ul>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">kit_args</span></code> (str): Optional command line arguments to be passed to Omniverse Kit directly.
@@ -1017,7 +1021,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 15, 2026.
+  Last updated on Jan 16, 2026.
   <br/>
 </p>
   </div>
