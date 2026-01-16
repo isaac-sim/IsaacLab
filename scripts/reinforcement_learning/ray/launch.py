@@ -29,8 +29,8 @@ Usage:
 import argparse
 import pathlib
 import subprocess
-import yaml
 
+import yaml
 from jinja2 import Environment, FileSystemLoader
 from kubernetes import config
 

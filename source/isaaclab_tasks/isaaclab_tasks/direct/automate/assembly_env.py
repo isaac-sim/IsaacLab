@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import warp as wp
 

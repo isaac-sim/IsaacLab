@@ -8,13 +8,14 @@ from __future__ import annotations
 import contextlib
 import inspect
 import logging
-import numpy as np
 import threading
 import time
-import torch
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, Union
+
+import numpy as np
+import torch
 
 from pxr import Gf
 

@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 from contextlib import suppress
-from matplotlib import cm
 from typing import TYPE_CHECKING
+
+import numpy as np
+from matplotlib import cm
 
 import omni
 

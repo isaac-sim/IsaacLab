@@ -23,13 +23,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 from collections.abc import Sequence
+
+import torch
 
 import carb
 import omni
-
-from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import (
@@ -47,6 +46,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
+
+from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
 
 @configclass

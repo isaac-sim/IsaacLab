@@ -30,8 +30,9 @@ For more information, please check the `documentation`_.
 import argparse
 import os
 import shutil
-import toml
 from subprocess import PIPE, STDOUT, Popen
+
+import toml
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")

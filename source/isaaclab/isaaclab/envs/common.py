@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from typing import Dict, Literal, TypeVar  # noqa: UP035
+
 import gymnasium as gym
 import torch
-from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 from isaaclab.utils import configclass
 

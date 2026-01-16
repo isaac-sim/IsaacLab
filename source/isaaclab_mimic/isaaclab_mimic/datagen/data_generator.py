@@ -10,9 +10,10 @@ Base class for data generator.
 import asyncio
 import copy
 import logging
+from typing import Any
+
 import numpy as np
 import torch
-from typing import Any
 
 import isaaclab.utils.math as PoseUtils
 

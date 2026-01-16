@@ -8,11 +8,9 @@ from dataclasses import MISSING
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from . import thrust_actions
+from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
 
-from isaaclab_contrib.controllers import LeeAccControllerCfg
-from isaaclab_contrib.controllers import LeePosControllerCfg
-from isaaclab_contrib.controllers import LeeVelControllerCfg
+from . import thrust_actions
 
 ##
 # Drone actions.
@@ -47,6 +45,7 @@ class ThrustActionCfg(ActionTermCfg):
     If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
     from the articulation asset.
     """
+
 
 @configclass
 class NavigationActionCfg(ActionTermCfg):

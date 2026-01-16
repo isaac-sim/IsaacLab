@@ -24,7 +24,7 @@ class LeeVelControllerCfg:
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """World gravity vector used by the controller [m/s^2]."""
 
-    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((3.3, 3.3, 1.3), (2.7, 2.7, 1.7))
+    K_vel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((3.3, 3.3, 1.7), (2.7, 2.7, 1.3))
     """Velocity error proportional gain range about body axes [unitless]."""
 
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))

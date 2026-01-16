@@ -3,8 +3,8 @@
 version = "0.0.1"
 
 # Description
-title =  "Isaac Lab MultiRotor Implementation"
-description="Extension containing implementation for multi rotor systems"
+title =  "Isaac Lab External Contributions"
+description="An extension used to stage and integrate externally contributed features and implementations."
 readme  = "docs/README.md"
 repository = "https://github.com/isaac-sim/IsaacLab"
 category = "robotics"

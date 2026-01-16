@@ -134,4 +134,7 @@ python -m pytest source/isaaclab_contrib/test/actuators/test_thruster.py
 
 # Test multirotor asset
 python -m pytest source/isaaclab_contrib/test/assets/test_multirotor.py
+
+# Test drone geometric controllers
+python -m pytest source/isaaclab_contrib/test/assets/test_drone_geometric_controllers.py
 ```

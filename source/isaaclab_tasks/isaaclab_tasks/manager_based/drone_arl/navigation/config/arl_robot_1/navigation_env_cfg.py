@@ -6,9 +6,11 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_contrib.assets import MultirotorCfg
+from isaaclab_contrib.controllers import LeeVelControllerCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab_contrib.controllers import LeeVelControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -26,7 +28,6 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
-from isaaclab_contrib.assets import MultirotorCfg
 
 ##
 # Pre-defined configs
@@ -163,25 +164,6 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    
-    # @configclass
-    # class VisualizationCfg(ObsGroup):
-    #     """Observations for visualization only."""
-        
-    #     depth_image = ObsTerm(
-    #         func=mdp.image,
-    #         params={
-    #             "sensor_cfg": SceneEntityCfg("depth_camera"),
-    #             "data_type": "distance_to_image_plane",
-    #             "normalize": False,
-    #         }
-    #     )
-
-    #     def __post_init__(self):
-    #         self.enable_corruption = False
-    #         self.concatenate_terms = True 
-
-    # visualization: VisualizationCfg = VisualizationCfg()
 
 
 @configclass

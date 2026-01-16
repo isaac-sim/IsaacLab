@@ -6,13 +6,13 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
-
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.drone_arl.navigation.config.arl_robot_1.navigation_env_cfg import (
     NavigationVelocityFloatingObstacleEnvCfg,
 )
+
+from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 
 @configclass

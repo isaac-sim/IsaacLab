@@ -239,13 +239,13 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
-import numpy as np
 import random
 import time
-import torch
 
+import gymnasium as gym
+import numpy as np
 import psutil
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg

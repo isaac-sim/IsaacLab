@@ -11,8 +11,9 @@ specify the reward function and its parameters.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.envs import mdp
 from isaaclab.managers import SceneEntityCfg

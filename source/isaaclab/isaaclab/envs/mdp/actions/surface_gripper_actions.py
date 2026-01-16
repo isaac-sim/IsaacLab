@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm

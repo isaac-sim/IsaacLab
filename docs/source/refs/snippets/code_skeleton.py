@@ -5,7 +5,6 @@
 
 from typing import ClassVar
 
-
 DEFAULT_TIMEOUT: int = 30
 """Default timeout for the task."""
 
