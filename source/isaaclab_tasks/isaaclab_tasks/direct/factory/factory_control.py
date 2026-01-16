@@ -149,7 +149,7 @@ def get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     """Get delta Franka DOF position from delta pose using specified IK method."""
     # References:
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf
-    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)
+    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)  # noqa: E501
 
     if ik_method == "pinv":  # Jacobian pseudoinverse
         k_val = 1.0

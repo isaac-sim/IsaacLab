@@ -1161,7 +1161,8 @@ class Articulation(AssetBase):
         """Set fixed tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1213,7 +1214,8 @@ class Articulation(AssetBase):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1265,7 +1267,8 @@ class Articulation(AssetBase):
         """Set fixed tendon rest length efforts into internal buffers.
 
         This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon rest length, call the
+        :meth:`write_fixed_tendon_properties_to_sim` method.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -1346,7 +1349,8 @@ class Articulation(AssetBase):
         """Set spatial tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -1377,12 +1381,14 @@ class Articulation(AssetBase):
         """Set spatial tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon damping, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).
-            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None,
+                which means all spatial tendons.
+            env_ids: The environment indices to set the damping for. Defaults to None, which means all environments.
         """
         if get_isaac_sim_version().major < 5:
             logger.warning(
@@ -1408,11 +1414,13 @@ class Articulation(AssetBase):
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
-            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None,
+                which means all spatial tendons.
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
         if get_isaac_sim_version().major < 5:
@@ -1439,7 +1447,8 @@ class Articulation(AssetBase):
         """Set spatial tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon offset, call the
+        :meth:`write_spatial_tendon_properties_to_sim` method.
 
         Args:
             offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -1469,8 +1478,10 @@ class Articulation(AssetBase):
         """Write spatial tendon properties into the simulation.
 
         Args:
-            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the properties for. Defaults to None (all environments).
+            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None,
+                which means all spatial tendons.
+            env_ids: The environment indices to set the properties for. Defaults to None,
+                which means all environments.
         """
         # resolve indices
         physx_env_ids = env_ids

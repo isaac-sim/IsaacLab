@@ -100,8 +100,8 @@ class SimulationContext(_SimulationContext):
         control what is updated when the simulation is rendered. This is where the render mode comes in. There are
         four different render modes:
 
-        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
-          so none of the above are updated.
+        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag
+          is disabled, so none of the above are updated.
         * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
         * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
         * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
@@ -1044,8 +1044,8 @@ def build_simulation_context(
     aspects of the simulation, such as time step, gravity, device, and scene elements like ground plane and
     lighting.
 
-    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings, with parameters
-    overwritten based on arguments to the function.
+    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings,
+    with parameters overwritten based on arguments to the function.
 
     An example usage of the context manager function:
 

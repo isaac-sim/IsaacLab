@@ -22,8 +22,13 @@ YAML configuration fields:
 - `pip`: List of extra pip packages to install before running any tasks.
 - `py_modules`: List of additional Python module paths (directories or files) to include in the runtime environment.
 - `concurrent`: (bool) It determines task dispatch semantics:
-    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until sufficient resources are available for every task in the batch, then launches all tasks together. If resources are insufficient, all tasks remain blocked until the cluster can support the full batch.
-    - If `concurrent: false`, tasks are launched as soon as resources are available for each individual task, and Ray independently schedules them. This may result in non-simultaneous task start times.
+    - If `concurrent: true`, **all tasks are scheduled as a batch**. The script waits until
+      sufficient resources are available for every task in the batch, then launches all tasks
+      together. If resources are insufficient, all tasks remain blocked until the cluster can
+      support the full batch.
+    - If `concurrent: false`, tasks are launched as soon as resources are available for each
+      individual task, and Ray independently schedules them. This may result in non-simultaneous
+      task start times.
 - `tasks`: List of task specifications, each with:
     - `name`: String identifier for the task.
     - `py_args`: Arguments to the Python interpreter (e.g., script/module, flags, user arguments).
@@ -33,14 +38,16 @@ YAML configuration fields:
     - `node` (optional): Node placement constraints.
         - `specific` (str): Type of node placement, support `hostname`, `node_id`, or `any`.
             - `any`: Place the task on any available node.
-            - `hostname`: Place the task on a specific hostname. `hostname` must be specified in the node field.
-            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in the node field.
+            - `hostname`: Place the task on a specific hostname. `hostname` must be specified
+              in the node field.
+            - `node_id`: Place the task on a specific node ID. `node_id` must be specified in
+              the node field.
         - `hostname` (str): Specific hostname to place the task on.
         - `node_id` (str): Specific node ID to place the task on.
 
 
 Typical usage:
----------------
+--------------
 
 .. code-block:: bash
 
@@ -51,7 +58,8 @@ Typical usage:
     python task_runner.py --task_cfg /path/to/tasks.yaml
 
 YAML configuration example-1:
----------------------------
+-----------------------------
+
 .. code-block:: yaml
 
     pip: ["xxx"]
@@ -70,7 +78,8 @@ YAML configuration example-1:
         memory: 10*1024*1024*1024
 
 YAML configuration example-2:
----------------------------
+-----------------------------
+
 .. code-block:: yaml
 
     pip: ["xxx"]
@@ -95,7 +104,7 @@ YAML configuration example-2:
           hostname: "xxx"
 
 To stop all tasks early, press Ctrl+C; the script will cancel all running Ray tasks.
-"""
+"""  # noqa: E501
 
 import argparse
 from datetime import datetime
@@ -111,7 +120,7 @@ def parse_args() -> argparse.Namespace:
     Parse command-line arguments for the Ray task runner.
 
     Returns:
-        argparse.Namespace: The namespace containing parsed CLI arguments:
+        A namespace containing parsed CLI arguments:
             - task_cfg (str): Path to the YAML task file.
             - ray_address (str): Ray cluster address.
             - test (bool): Whether to run a GPU resource isolation sanity check.
