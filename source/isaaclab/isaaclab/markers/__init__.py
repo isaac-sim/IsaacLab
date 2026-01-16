@@ -21,5 +21,20 @@ Currently, the sub-package provides the following classes:
 
 """
 
-from .config import *  # noqa: F401, F403
+# marker configurations
+from .config import (
+    BLUE_ARROW_X_MARKER_CFG,
+    CONTACT_SENSOR_MARKER_CFG,
+    CUBOID_MARKER_CFG,
+    DEFORMABLE_TARGET_MARKER_CFG,
+    FRAME_MARKER_CFG,
+    GREEN_ARROW_X_MARKER_CFG,
+    POSITION_GOAL_MARKER_CFG,
+    RAY_CASTER_MARKER_CFG,
+    RED_ARROW_X_MARKER_CFG,
+    SPHERE_MARKER_CFG,
+    VISUO_TACTILE_SENSOR_MARKER_CFG,
+)
+
+# visualization markers
 from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
