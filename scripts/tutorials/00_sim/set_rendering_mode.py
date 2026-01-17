@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,7 +41,8 @@ def main():
     """Main function."""
 
     # rendering modes include performance, balanced, and quality
-    # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over this Render Config setting
+    # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over
+    # this Render Config setting
     rendering_mode = "performance"
 
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting

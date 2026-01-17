@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,28 +6,28 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import re
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import omni
+import numpy as np
+import torch
 import warp as wp
-from isaacsim.core.prims import XFormPrim
+
+import omni
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -147,7 +147,7 @@ class RayCaster(SensorBase):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
-            available_prims = ",".join([str(p.GetPath()) for p in stage_utils.get_current_stage().Traverse()])
+            available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
             raise RuntimeError(
                 f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
             )
@@ -334,7 +334,7 @@ class RayCaster(SensorBase):
 
     def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[XFormPrim | any, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> tuple[XformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
         """Obtain a prim view that can be used to track the pose of the parget prim.
 
         The target prim path is a regex expression that matches one or more mesh prims. While we can track its
@@ -377,7 +377,7 @@ class RayCaster(SensorBase):
             new_root_prim = current_prim.GetParent()
             current_path_expr = current_path_expr.rsplit("/", 1)[0]
             if not new_root_prim.IsValid():
-                prim_view = XFormPrim(target_prim_path, reset_xform_properties=False)
+                prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
                 current_path_expr = target_prim_path
                 logger.warning(
                     f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."

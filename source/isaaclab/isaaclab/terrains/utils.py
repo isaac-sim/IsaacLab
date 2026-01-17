@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 import torch
 import trimesh
-
 import warp as wp
 
 from isaaclab.utils.warp import raycast_mesh
@@ -83,12 +82,11 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     from pxr import UsdGeom
 
     import isaaclab.sim as sim_utils
-    import isaaclab.sim.utils.prims as prim_utils
 
     # create parent prim
-    prim_utils.create_prim(prim_path, "Xform")
+    sim_utils.create_prim(prim_path, "Xform")
     # create mesh prim
-    prim = prim_utils.create_prim(
+    prim = sim_utils.create_prim(
         f"{prim_path}/mesh",
         "Mesh",
         translation=kwargs.get("translation"),

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -64,7 +64,9 @@ class TerrainGeneratorCfg:
     """The height of the border around the terrain (in m). Defaults to 1.0.
 
     .. note::
-      The default border extends below the ground. If you want to make the border above the ground, choose a negative value.
+      The default border extends below the ground. If you want to make the border above the ground,
+      choose a negative value.
+
     """
 
     num_rows: int = 1

@@ -35,6 +35,13 @@ If you wish to install Isaac Sim 5.X, please use modify the instructions accordi
       .. tab-item::  UV Environment
 
          To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
+
+         .. note::
+
+            A virtual environment created by ``uv venv`` does **not** include ``pip``.
+            Since Isaac Lab installation requires ``pip``, please install it manually
+            after activating the environment.
+
          You can create the Isaac Lab environment using the following commands:
 
          .. tab-set::

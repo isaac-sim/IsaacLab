@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,16 +17,13 @@ required arguments:
     --videos_dir         Directory containing the visually augmented MP4 videos.
 """
 
-# Standard library imports
 import argparse
 import glob
-import h5py
-import numpy as np
-
-# Third-party imports
 import os
 
 import cv2
+import h5py
+import numpy as np
 
 
 def parse_args():

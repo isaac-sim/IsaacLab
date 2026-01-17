@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,13 +6,13 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
-
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.manipulation.cabinet import mdp
+
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 from isaaclab_tasks.manager_based.manipulation.cabinet.config.openarm.cabinet_openarm_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,21 +15,20 @@ required arguments:
     --output_dir         Directory to save the output MP4 files.
 
 optional arguments:
-    --input_keys         List of input keys to process from the HDF5 file. (default: ["table_cam", "wrist_cam", "table_cam_segmentation", "table_cam_normals", "table_cam_shaded_segmentation"])
+    --input_keys         List of input keys to process from the HDF5 file.
+                         (default: ["table_cam", "wrist_cam", "table_cam_segmentation",
+                                    "table_cam_normals", "table_cam_shaded_segmentation"])
     --video_height       Height of the output video in pixels. (default: 704)
     --video_width        Width of the output video in pixels. (default: 1280)
     --framerate          Frames per second for the output video. (default: 30)
 """
 
-# Standard library imports
 import argparse
-import h5py
-import numpy as np
-
-# Third-party imports
 import os
 
 import cv2
+import h5py
+import numpy as np
 
 # Constants
 DEFAULT_VIDEO_HEIGHT = 704

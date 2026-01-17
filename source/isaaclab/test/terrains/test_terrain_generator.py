@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,12 +12,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 import shutil
-import torch
 
+import numpy as np
 import pytest
+import torch
 
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG

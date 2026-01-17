@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
-from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
 
 from isaaclab.utils import class_to_dict, modifiers, noise
 from isaaclab.utils.buffers import CircularBuffer
@@ -167,16 +168,20 @@ class ObservationManager(ManagerBase):
                 continue
 
             idx = 0
+            concat_dim = self._group_obs_concatenate_dim[group_name]
+            # handle cases where concat dim is positive, account for the batch dimension
+            if concat_dim > 0:
+                concat_dim -= 1
             # add info for each term
             data = obs_buffer[group_name]
             for name, shape in zip(
                 self._group_obs_term_names[group_name],
                 self._group_obs_term_dim[group_name],
             ):
-                data_length = np.prod(shape)
-                term = data[env_idx, idx : idx + data_length]
+                # extract the term from the buffer based on the shape
+                term = data[env_idx].narrow(dim=concat_dim, start=idx, length=shape[concat_dim])
                 terms.append((group_name + "-" + name, term.cpu().tolist()))
-                idx += data_length
+                idx += shape[concat_dim]
 
         return terms
 
@@ -501,19 +506,23 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
             self._group_obs_class_term_cfgs[group_name] = list()
+
+            # history buffers
             group_entry_history_buffer: dict[str, CircularBuffer] = dict()
+
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
+
             # check if config is dict already
             if isinstance(group_cfg, dict):
-                group_cfg_items = group_cfg.items()
+                term_cfg_items = group_cfg.items()
             else:
-                group_cfg_items = group_cfg.__dict__.items()
+                term_cfg_items = group_cfg.__dict__.items()
             # iterate over all the terms in each group
-            for term_name, term_cfg in group_cfg_items:
+            for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
                 if term_name in [
                     "enable_corruption",
