@@ -241,6 +241,11 @@
     "license": "Mozilla Public License 2.0 (MPL 2.0)"
   },
   {
+    "package": "nvidia-sphinx-theme",
+    "license": null,
+    "comment": "BSD"
+  },
+  {
       "package": "rl_games",
       "license": "UNKNOWN",
       "comment": "MIT"

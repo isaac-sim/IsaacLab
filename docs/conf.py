@@ -17,9 +17,12 @@
 #
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_assets/isaaclab_assets"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_tasks"))
@@ -28,13 +31,11 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl/isaaclab_rl"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_mimic/isaaclab_mimic"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib"))
-sys.path.insert(0, os.path.abspath("../source/isaaclab_contrib/isaaclab_contrib"))
 
 # -- Project information -----------------------------------------------------
 
 project = "Isaac Lab"
-copyright = "2022-2025, The Isaac Lab Project Developers."
+copyright = f"2022-{datetime.now().year}, The Isaac Lab Project Developers."
 author = "The Isaac Lab Project Developers."
 
 # Read version from the package
@@ -227,11 +228,8 @@ language = "en"
 
 # -- Options for HTML output -------------------------------------------------
 
-import sphinx_book_theme
-
-html_title = "Isaac Lab Documentation"
-html_theme_path = [sphinx_book_theme.get_html_theme_path()]
-html_theme = "sphinx_book_theme"
+html_title = "Isaac Lab"
+html_theme = "nvidia_sphinx_theme"
 html_favicon = "source/_static/favicon.ico"
 html_show_copyright = True
 html_show_sphinx = False
@@ -243,56 +241,59 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 html_static_path = ["source/_static/css"]
 html_css_files = ["custom.css"]
 
+html_context = {
+    "github_user": "isaac-sim",
+    "github_repo": "IsaacLab",
+    "github_version": "main",
+    "doc_path": "docs",
+}
 html_theme_options = {
-    "path_to_docs": "docs/",
+    "pygments_light_style": "tango",
+    "pygments_dark_style": "monokai",
     "collapse_navigation": True,
-    "repository_url": "https://github.com/isaac-sim/IsaacLab",
-    "use_repository_button": True,
-    "use_issues_button": True,
+    "copyright_override": {"start": 2022},
+    "github_url": "https://github.com/isaac-sim/IsaacLab",
+    "secondary_sidebar_items": ["page-toc", "edit-this-page"],
     "use_edit_page_button": True,
-    "show_toc_level": 1,
-    "use_sidenotes": True,
-    "logo": {
-        "text": "Isaac Lab Documentation",
-        "image_light": "source/_static/NVIDIA-logo-white.png",
-        "image_dark": "source/_static/NVIDIA-logo-black.png",
+    "navigation_depth": 2,
+    "switcher": {
+        "json_url": "https://isaac-sim.github.io/IsaacLab/main/_static/switcher.json",
+        "version_match": os.environ.get("SMV_CURRENT_VERSION", "main"),
     },
+    "check_switcher": False,  # Disable switcher check during local builds
     "icon_links": [
         {
-            "name": "GitHub",
-            "url": "https://github.com/isaac-sim/IsaacLab",
-            "icon": "fa-brands fa-square-github",
+            "name": "Docker",
+            "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-lab",
+            "icon": "fa-brands fa-docker",
             "type": "fontawesome",
         },
         {
-            "name": "Isaac Sim",
-            "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg",
-            "type": "url",
-        },
-        {
-            "name": "Stars",
-            "url": "https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba",
-            "icon": "https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba",
-            "type": "url",
+            "name": "PyPI",
+            "url": "https://pypi.org/project/isaaclab",
+            "icon": "fa-brands fa-python",
+            "type": "fontawesome",
         },
     ],
-    "icon_links_label": "Quick Links",
+    "footer_links": {},
 }
 
 templates_path = [
     "_templates",
 ]
 
-# Whitelist pattern for remotes
+# -- Sphinx-multiversion configuration --------------------------------------
+
+# Whitelist pattern for remotes (branches/tags from which remote to include)
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|devel|release/.*)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main)$")
 # Whitelist pattern for tags (set to None to ignore all tags)
 smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+$")
-html_sidebars = {
-    "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
-}
+# Output directory format for each version
+smv_outputdir_format = "{ref.name}"
+# Prefer remote refs over local refs
+smv_prefer_remote_refs = False
 
 
 # -- Advanced configuration -------------------------------------------------

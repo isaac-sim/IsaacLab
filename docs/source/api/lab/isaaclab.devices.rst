@@ -18,16 +18,16 @@
     HaplyDevice
     OpenXRDevice
     ManusVive
-    isaaclab.devices.openxr.retargeters.GripperRetargeter
-    isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
-    isaaclab.devices.openxr.retargeters.Se3RelRetargeter
-    isaaclab.devices.openxr.retargeters.GR1T2Retargeter
+    openxr.retargeters.GripperRetargeter
+    openxr.retargeters.Se3AbsRetargeter
+    openxr.retargeters.Se3RelRetargeter
+    openxr.retargeters.GR1T2Retargeter
 
   .. rubric:: Modules
 
   .. autosummary::
 
-    isaaclab.devices.openxr.retargeters
+    ~openxr.retargeters
 
 Device Base
 -----------
@@ -116,25 +116,27 @@ Manus + Vive
 Retargeters
 -----------
 
-.. autoclass:: isaaclab.devices.openxr.retargeters.GripperRetargeter
+.. currentmodule:: isaaclab.devices.openxr.retargeters
+
+.. autoclass:: GripperRetargeter
     :members:
     :inherited-members:
     :show-inheritance:
     :noindex:
 
-.. autoclass:: isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
+.. autoclass:: Se3AbsRetargeter
     :members:
     :inherited-members:
     :show-inheritance:
     :noindex:
 
-.. autoclass:: isaaclab.devices.openxr.retargeters.Se3RelRetargeter
+.. autoclass:: Se3RelRetargeter
     :members:
     :inherited-members:
     :show-inheritance:
     :noindex:
 
-.. autoclass:: isaaclab.devices.openxr.retargeters.GR1T2Retargeter
+.. autoclass:: GR1T2Retargeter
     :members:
     :inherited-members:
     :show-inheritance:

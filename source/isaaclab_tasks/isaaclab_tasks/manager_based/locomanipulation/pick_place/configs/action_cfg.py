@@ -3,12 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
 from ..mdp.actions import AgileBasedLowerBodyAction
+
+if TYPE_CHECKING:
+    from isaaclab.managers import ActionTerm
 
 
 @configclass

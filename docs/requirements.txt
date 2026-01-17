@@ -1,5 +1,5 @@
 # for building the docs
-sphinx-book-theme==1.0.1
+nvidia_sphinx_theme
 myst-parser
 sphinxcontrib-bibtex==2.5.0
 autodocsumm
