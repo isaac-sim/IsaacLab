@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -23,9 +23,10 @@ headless = True
 app_launcher = AppLauncher(headless=headless)
 simulation_app: Any = app_launcher.app
 
+from collections.abc import Generator
+
 import gymnasium as gym
 import torch
-from collections.abc import Generator
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -204,9 +205,9 @@ class TestCubeStackPlanner:
             self._visualize_goal_pose(pos_place, quat_place)
 
         # Plan with attached object
-        assert self.planner.update_world_and_plan_motion(
-            place_pose, expected_attached_object="cube_1"
-        ), "Failed to plan placement trajectory with attached cube"
+        assert self.planner.update_world_and_plan_motion(place_pose, expected_attached_object="cube_1"), (
+            "Failed to plan placement trajectory with attached cube"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_CLOSE_CMD)
 
         # Release cube 1
@@ -221,9 +222,9 @@ class TestCubeStackPlanner:
             quat_pg = math_utils.quat_from_matrix(pre_grasp_pose[:3, :3].unsqueeze(0))[0].detach().cpu()
             self._visualize_goal_pose(pos_pg, quat_pg)
 
-        assert self.planner.update_world_and_plan_motion(
-            pre_grasp_pose, expected_attached_object=None
-        ), "Failed to plan retract motion"
+        assert self.planner.update_world_and_plan_motion(pre_grasp_pose, expected_attached_object=None), (
+            "Failed to plan retract motion"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_OPEN_CMD)
 
         # Grasp cube 3
@@ -237,9 +238,9 @@ class TestCubeStackPlanner:
             quat_place = math_utils.quat_from_matrix(place_pose[:3, :3].unsqueeze(0))[0].detach().cpu()
             self._visualize_goal_pose(pos_place, quat_place)
 
-        assert self.planner.update_world_and_plan_motion(
-            place_pose, expected_attached_object="cube_3"
-        ), "Failed to plan placement trajectory with attached cube"
+        assert self.planner.update_world_and_plan_motion(place_pose, expected_attached_object="cube_3"), (
+            "Failed to plan placement trajectory with attached cube"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_CLOSE_CMD)
 
         # Release cube 3

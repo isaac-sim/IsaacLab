@@ -1,21 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
+
 from isaacsim.core.simulation_manager import SimulationManager
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.utils import resolve_pose_relative_to_physx_parent
 
 from ..sensor_base import SensorBase
 from .imu_data import ImuData
@@ -27,8 +27,9 @@ if TYPE_CHECKING:
 class Imu(SensorBase):
     """The Inertia Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,
-    along with world-frame pose and body-frame linear and angular accelerations/velocities.
+    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
+    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
+    accelerations/velocities.
 
     If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
     The fixed transform from that ancestor to the target prim is computed once during initialization and
@@ -42,8 +43,8 @@ class Imu(SensorBase):
 
     .. note::
 
-        The user can configure the sensor offset in the configuration file. The offset is applied relative to the rigid source prim.
-        If the target prim is not a rigid body, the offset is composed with the fixed transform
+        The user can configure the sensor offset in the configuration file. The offset is applied relative to the
+        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
         from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
         The offset is defined as a position vector and a quaternion rotation, which
         are applied in the order: position, then rotation. The position is applied as a translation
@@ -113,6 +114,8 @@ class Imu(SensorBase):
         self._data.ang_vel_b[env_ids] = 0.0
         self._data.lin_acc_b[env_ids] = 0.0
         self._data.ang_acc_b[env_ids] = 0.0
+        self._prev_lin_vel_w[env_ids] = 0.0
+        self._prev_ang_vel_w[env_ids] = 0.0
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
@@ -140,11 +143,25 @@ class Imu(SensorBase):
         if prim is None:
             raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
 
-        # Determine rigid source prim and (if needed) the fixed transform from that rigid prim to target prim
-        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = resolve_pose_relative_to_physx_parent(self.cfg.prim_path)
+        # Find the first matching ancestor prim that implements rigid body API
+        ancestor_prim = sim_utils.get_first_matching_ancestor_prim(
+            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
+        )
+        if ancestor_prim is None:
+            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
+        # Convert ancestor prim path to expression
+        if ancestor_prim == prim:
+            self._rigid_parent_expr = self.cfg.prim_path
+            fixed_pos_b, fixed_quat_b = None, None
+        else:
+            # Convert ancestor prim path to expression
+            relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
+            self._rigid_parent_expr = self.cfg.prim_path.replace(relative_path, "")
+            # Resolve the relative pose between the target prim and the ancestor prim
+            fixed_pos_b, fixed_quat_b = sim_utils.resolve_prim_pose(prim, ancestor_prim)
 
         # Create the rigid body view on the ancestor
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr)
+        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
 
         # Get world gravity
         gravity = self._physics_sim_view.get_gravity()
@@ -232,7 +249,8 @@ class Imu(SensorBase):
         self._prev_lin_vel_w = torch.zeros_like(self._data.pos_w)
         self._prev_ang_vel_w = torch.zeros_like(self._data.pos_w)
 
-        # store sensor offset (applied relative to rigid source). This may be composed later with a fixed ancestor->target transform.
+        # store sensor offset (applied relative to rigid source).
+        # This may be composed later with a fixed ancestor->target transform.
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
         # set gravity bias
@@ -266,7 +284,7 @@ class Imu(SensorBase):
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
         # get up axis of current stage
-        up_axis = stage_utils.get_stage_up_axis()
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(

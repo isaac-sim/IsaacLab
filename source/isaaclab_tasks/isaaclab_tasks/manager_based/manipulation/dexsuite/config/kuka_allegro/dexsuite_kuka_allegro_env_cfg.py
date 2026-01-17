@@ -1,15 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
+
+from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
@@ -22,7 +22,6 @@ class KukaAllegroRelJointPosActionCfg:
 
 @configclass
 class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
-
     # bool awarding term if 2 finger tips are in contact with object, one of the contacting fingers has to be thumb.
     good_finger_contact = RewTerm(
         func=mdp.contacts,

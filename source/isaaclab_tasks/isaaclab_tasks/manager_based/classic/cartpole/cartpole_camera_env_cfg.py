@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,6 +21,7 @@ from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 @configclass
 class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
+    """Configuration for the cartpole environment with RGB camera."""
 
     # add camera to the scene
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
@@ -37,7 +38,6 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
 
 @configclass
 class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
-
     # add camera to the scene
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",

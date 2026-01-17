@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,11 +18,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import math
+
+import pytest
 import torch
 
 import omni.usd
-import pytest
-from isaacsim.core.version import get_version
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
@@ -31,6 +31,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
@@ -138,8 +139,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 def test_color_randomization(device):
     """Test color randomization for cartpole environment."""
     # skip test if stage in memory is not supported
-    isaac_sim_version = float(".".join(get_version()[2]))
-    if isaac_sim_version < 5:
+    if get_isaac_sim_version().major < 5:
         pytest.skip("Color randomization test hangs in this version of Isaac Sim")
 
     # Create a new stage

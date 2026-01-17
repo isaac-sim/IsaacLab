@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,6 @@ import h5py
 
 
 def write_log_to_hdf5(held_asset_pose_log, fixed_asset_pose_log, success_log, eval_logging_filename):
-
     with h5py.File(eval_logging_filename, "w") as hf:
         hf.create_dataset("held_asset_pose", data=held_asset_pose_log.cpu().numpy())
         hf.create_dataset("fixed_asset_pose", data=fixed_asset_pose_log.cpu().numpy())
@@ -15,7 +14,6 @@ def write_log_to_hdf5(held_asset_pose_log, fixed_asset_pose_log, success_log, ev
 
 
 def load_log_from_hdf5(eval_logging_filename):
-
     with h5py.File(eval_logging_filename, "r") as hf:
         held_asset_pose = hf["held_asset_pose"][:]
         fixed_asset_pose = hf["fixed_asset_pose"][:]

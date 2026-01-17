@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -32,6 +32,8 @@ interpretation of the prim paths for different sensor types:
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Imu                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
 +---------------------+---------------------------+---------------------------------------------------------------+
+| Visuo-Tactile Sensor| /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
++---------------------+---------------------------+---------------------------------------------------------------+
 
 """
 
@@ -42,3 +44,4 @@ from .imu import *  # noqa: F401, F403
 from .ray_caster import *  # noqa: F401, F403
 from .sensor_base import SensorBase  # noqa: F401
 from .sensor_base_cfg import SensorBaseCfg  # noqa: F401
+from .tacsl_sensor import *  # noqa: F401, F403

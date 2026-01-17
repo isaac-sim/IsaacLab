@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,9 +7,10 @@
 import glob
 import os
 
+from tensorboard.backend.event_processing import event_accumulator
+
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 from isaacsim.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
-from tensorboard.backend.event_processing import event_accumulator
 
 
 def parse_tf_logs(log_dir: str):

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -56,11 +56,13 @@ def design_scene(sim: sim_utils.SimulationContext) -> tuple[list, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Define origins
-    origins = torch.tensor([
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ]).to(device=sim.device)
+    origins = torch.tensor(
+        [
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    ).to(device=sim.device)
 
     # Robots
     cassie = Articulation(CASSIE_CFG.replace(prim_path="/World/Cassie"))
