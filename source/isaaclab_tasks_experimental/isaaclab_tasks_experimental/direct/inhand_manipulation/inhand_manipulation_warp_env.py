@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,10 +10,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
+from isaaclab_experimental.envs import DirectRLEnvWarp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation  # , RigidObject
-from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 
@@ -194,7 +194,6 @@ def reset_hand(
             rand_delta = delta_min + (delta_max - delta_min) * dof_pos_noise
             pos = default_joint_pos[env_id, dof_id] + reset_dof_pos_noise * rand_delta
 
-
             dof_vel_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
             rng_state[env_id] += wp.uint32(1)
             vel = default_joint_vel[env_id, dof_id] + reset_dof_vel_noise * dof_vel_noise
@@ -254,8 +253,12 @@ def compute_intermediate_values(
     object_pos[env_id] = p - env_origins[env_id]
     object_rot[env_id] = wp.transform_get_rotation(object_root_pose_w[env_id])
     object_velocities[env_id] = object_root_vel_w[env_id]
-    object_linvel[env_id] = wp.vec3f(object_root_vel_w[env_id][0], object_root_vel_w[env_id][1], object_root_vel_w[env_id][2])
-    object_angvel[env_id] = wp.vec3f(object_root_vel_w[env_id][3], object_root_vel_w[env_id][4], object_root_vel_w[env_id][5])
+    object_linvel[env_id] = wp.vec3f(
+        object_root_vel_w[env_id][0], object_root_vel_w[env_id][1], object_root_vel_w[env_id][2]
+    )
+    object_angvel[env_id] = wp.vec3f(
+        object_root_vel_w[env_id][3], object_root_vel_w[env_id][4], object_root_vel_w[env_id][5]
+    )
 
 
 @wp.kernel
@@ -360,7 +363,9 @@ def compute_full_observations(
 
     # hand
     for i in range(num_hand_dofs):
-        observations[env_id, i] = unscale(hand_dof_pos[env_id, i], hand_dof_lower_limits[env_id, i], hand_dof_upper_limits[env_id, i])
+        observations[env_id, i] = unscale(
+            hand_dof_pos[env_id, i], hand_dof_lower_limits[env_id, i], hand_dof_upper_limits[env_id, i]
+        )
 
     offset = num_hand_dofs
     for i in range(num_hand_dofs):
