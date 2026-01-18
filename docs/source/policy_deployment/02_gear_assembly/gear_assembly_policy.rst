@@ -490,7 +490,43 @@ You can monitor training metrics in real-time using TensorBoard. Open a new term
 Replace ``<log_dir>`` with the path to your training logs (e.g., ``logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01``). TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
 
 
-Step 3: Deploy on Real Robot
+Step 3: Validating in Isaac Lab
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After training is complete, validate the trained policy in Isaac Lab before deploying to real hardware:
+
+.. code-block:: bash
+
+    python scripts/reinforcement_learning/rsl_rl/play.py \
+        --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+        --num_envs 1 \
+        --checkpoint <path_to_checkpoint>
+
+Replace ``<path_to_checkpoint>`` with the path to your trained model checkpoint (e.g., ``logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01/model_1499.pt``).
+
+This will run the policy in the simulation viewer where you can visually verify that the gear insertion is working correctly.
+
+.. figure:: ../../_static/policy_deployment/02_gear_assembly/isaaclab_gear_insertion_validation.gif
+    :align: center
+    :figwidth: 100%
+    :alt: Gear insertion policy validation in Isaac Lab
+
+    Validating the trained gear insertion policy in Isaac Lab simulation.
+
+
+Step 4: Validating with Isaac Sim + Isaac ROS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Before deploying to real hardware, you can validate the full ROS integration and deployment workflow using Isaac Sim with Isaac ROS. This allows you to test the complete system including:
+
+- Policy inference with ROS integration
+- Robot control through ROS action interfaces
+- Visualization of the robot behavior
+
+Follow the `Gear Insertion Policy Tutorial with Isaac Sim <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/isaac_sim/tutorial_isaac_sim_gear_insertion_policy.html>`_ to set up and validate the complete pipeline in simulation before moving to real hardware.
+
+
+Step 5: Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_manipulator_ur_dnn_policy/index.html>`_ to deploy your policy.
