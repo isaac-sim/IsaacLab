@@ -155,8 +155,7 @@ def reset_object(
         rng_state[env_id] += wp.uint32(1)
         rot_w = randomize_rotation(rand0, rand1, x_unit_vecs[env_id], y_unit_vecs[env_id])
 
-        # TODO(jichuanh): The following should be equivalent, 
-        #                 but consider using write_root_pose_to_sim and write_root_velocity_to_sim
+        # The following should be equivalent, but consider using write_root_pose_to_sim and write_root_velocity_to_sim
         root_pose_w[env_id] = wp.transform(pos_w, rot_w)
         root_vel_w[env_id] = wp.spatial_vectorf(
             wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(0.0)
@@ -187,13 +186,12 @@ def reset_hand(
     if env_mask[env_id]:
         # Each env runs sequentially inside this kernel (avoids RNG races across DOFs).
         for dof_id in range(num_dofs):
-            dof_pos_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
+            dof_pos_noise = wp.randf(rng_state[env_id], wp.float32(0.0), wp.float32(1.0))
             rng_state[env_id] += wp.uint32(1)
 
             delta_max = upper_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
             delta_min = lower_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
-            # TODO(jichuanh): The sample logic is different from torch env. Need to figure out why
-            rand_delta = delta_min + (delta_max - delta_min) * wp.float32(0.5) * (dof_pos_noise + wp.float32(1.0))
+            rand_delta = delta_min + (delta_max - delta_min) * dof_pos_noise
             pos = default_joint_pos[env_id, dof_id] + reset_dof_pos_noise * rand_delta
 
 
@@ -201,8 +199,8 @@ def reset_hand(
             rng_state[env_id] += wp.uint32(1)
             vel = default_joint_vel[env_id, dof_id] + reset_dof_vel_noise * dof_vel_noise
 
-            # TODO(jichuanh): The following lines should be equivalent to the following:
-            #                 self.hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
+            # The following lines should be equivalent to the following:
+            # self.hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
             joint_pos[env_id, dof_id] = pos
             joint_vel[env_id, dof_id] = vel
 
@@ -309,7 +307,6 @@ def compute_reduced_observations(
     # output
     observations: wp.array2d(dtype=wp.float32),
 ):
-    # TODO(jichuanh): explore more parallelism
     env_id = wp.tid()
 
     idx = int(0)
