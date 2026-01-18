@@ -81,6 +81,7 @@ from torch.utils.data import DataLoader
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 
 def normalize_hdf5_actions(config: Config, log_dir: str) -> str:
@@ -356,28 +357,19 @@ def main(args: argparse.Namespace):
         print(f"Loading configuration for task: {task_name}")
         print(gym.envs.registry.keys())
         print(" ")
-        cfg_entry_point_file = gym.spec(task_name).kwargs.pop(cfg_entry_point_key)
-        # check if entry point exists
-        if cfg_entry_point_file is None:
-            raise ValueError(
-                f"Could not find configuration for the environment: '{task_name}'."
-                f" Please check that the gym registry has the entry point: '{cfg_entry_point_key}'."
+
+        # use the unified configuration loading utility (supports YAML, JSON, and Python classes)
+        ext_cfg = load_cfg_from_registry(task_name, cfg_entry_point_key)
+
+        # ensure the configuration is a dictionary (robomimic expects JSON/YAML dict format)
+        if not isinstance(ext_cfg, dict):
+            raise TypeError(
+                f"Expected robomimic configuration to be a dictionary, but got {type(ext_cfg)}."
+                " Please ensure the configuration file is in JSON or YAML format."
             )
 
-        # resolve module path if needed
-        if ":" in cfg_entry_point_file:
-            mod_name, file_name = cfg_entry_point_file.split(":")
-            mod = importlib.import_module(mod_name)
-            if mod.__file__ is None:
-                raise ValueError(f"Could not find module file for: '{mod_name}'")
-            mod_path = os.path.dirname(mod.__file__)
-            config_file = os.path.join(mod_path, file_name)
-        else:
-            config_file = cfg_entry_point_file
-
-        with open(config_file) as f:
-            ext_cfg = json.load(f)
-            config = config_factory(ext_cfg["algo_name"])
+        # create robomimic config from the loaded dictionary
+        config = config_factory(ext_cfg["algo_name"])
         # update config with external json - this will throw errors if
         # the external config has keys not present in the base algo config
         with config.values_unlocked():
