@@ -16,11 +16,11 @@ import math
 
 import pytest
 
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
@@ -33,7 +33,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
