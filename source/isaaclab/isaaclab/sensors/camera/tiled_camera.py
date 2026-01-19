@@ -144,7 +144,8 @@ class TiledCamera(Camera):
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
         # TODO(OCTI): remove validate_xform_ops=False once prim.py is updated with main
-        self._view = XFormPrim(self.cfg.prim_path, device=self._device, validate_xform_ops=False)
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
+        # self._view.initialize()
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
