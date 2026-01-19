@@ -71,7 +71,6 @@ class LeePosController:
         self.buffer_tensor = torch.zeros((num_envs, 3, 3), device=device)
 
     def compute(self, command):
-
         self.wrench_command_b[:] = 0.0
         acc = self.compute_acceleration(setpoint_position=command[:, 0:3])
         forces = (acc - self.gravity) * self.mass.view(-1, 1)

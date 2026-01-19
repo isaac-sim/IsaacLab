@@ -216,11 +216,7 @@ class NavigationAction(ThrustAction):
 
     Example:
         ```python
-        cfg = NavigationActionCfg(
-            command_type="vel",
-            controller_cfg=LeeVelControllerCfg(...),
-            asset_name="robot"
-        )
+        cfg = NavigationActionCfg(command_type="vel", controller_cfg=LeeVelControllerCfg(...), asset_name="robot")
         nav_action = NavigationAction(cfg, env)
         ```
     """
@@ -229,7 +225,6 @@ class NavigationAction(ThrustAction):
     """The configuration of the action term."""
 
     def __init__(self, cfg: thrust_actions_cfg.NavigationActionCfg, env: ManagerBasedEnv) -> None:
-
         # Initialize parent class (this handles all the thruster setup)
         super().__init__(cfg, env)
 

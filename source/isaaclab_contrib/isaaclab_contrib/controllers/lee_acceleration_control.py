@@ -68,7 +68,6 @@ class LeeAccController:
         self.buffer_tensor = torch.zeros((num_envs, 3, 3), device=device)
 
     def compute(self, command):
-
         self.wrench_command_b[:] = 0.0
         acc = command[:, 0:3].clone()
         forces = (acc - self.gravity) * self.mass.view(-1, 1)

@@ -193,12 +193,12 @@ def test_lee_acc_randomize_params_within_bounds(monkeypatch: pytest.MonkeyPatch,
     K_angvel_min = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
     K_angvel_current = controller.K_angvel_current.to(device)
 
-    assert torch.all(
-        K_angvel_current >= K_angvel_min
-    ), f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
-    assert torch.all(
-        K_angvel_current <= K_angvel_max
-    ), f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
+    assert torch.all(K_angvel_current >= K_angvel_min), (
+        f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
+    )
+    assert torch.all(K_angvel_current <= K_angvel_max), (
+        f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
+    )
 
 
 # Cleanup after all tests complete
