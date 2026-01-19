@@ -377,7 +377,7 @@ class NewtonManager:
         shape_names_expr: str | list[str] | None = None,
         contact_partners_body_expr: str | list[str] | None = None,
         contact_partners_shape_expr: str | list[str] | None = None,
-        prune_noncolliding: bool = False,
+        prune_noncolliding: bool = True,
         verbose: bool = False,
     ):
         """Adds a contact view.

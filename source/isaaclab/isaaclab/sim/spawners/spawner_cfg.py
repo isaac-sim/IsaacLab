@@ -79,6 +79,9 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     mass_props: schemas.MassPropertiesCfg | None = None
     """Mass properties."""
 
+    articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
+    """Articulation properties."""
+
     rigid_props: schemas.RigidBodyPropertiesCfg | None = None
     """Rigid body properties.
 
