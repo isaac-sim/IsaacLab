@@ -133,7 +133,6 @@ class ContactSensor(BaseContactSensor):
             env_ids = slice(None)
         # reset accumulative data buffers
         self._data.net_forces_w[env_ids] = 0.0
-        self._data.net_forces_w_history[env_ids] = 0.0
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids] = 0.0
         # reset force matrix
