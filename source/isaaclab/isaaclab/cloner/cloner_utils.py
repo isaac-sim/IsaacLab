@@ -331,7 +331,6 @@ def newton_replicate(
         swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
         world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
         # Map Newton world IDs (sequential) to destination paths using env_ids
-        # world_roots = {c: destinations[i].format(int(env_ids[c])) for c in world_cols}
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
