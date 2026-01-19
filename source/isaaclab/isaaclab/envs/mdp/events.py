@@ -1035,7 +1035,12 @@ def apply_external_force_torque(
     torques = math_utils.sample_uniform(*torque_range, size, asset.device)
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
-    asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=forces,
+        torques=torques,
+        body_ids=asset_cfg.body_ids,
+        env_ids=env_ids,
+    )
 
 
 def push_by_setting_velocity(
