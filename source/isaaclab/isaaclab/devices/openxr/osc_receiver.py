@@ -29,6 +29,7 @@ BODY_JOINT_NAMES: tuple[str, ...] = (
 NUM_BODY_JOINTS: int = len(BODY_JOINT_NAMES)
 DOF_PER_JOINT: int = 7  # 3 position + 4 rotation (quaternion)
 
+
 def _normalize(v: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     """Normalize a vector, returning unchanged if norm is below epsilon."""
     norm = np.linalg.norm(v)
@@ -115,14 +116,14 @@ class BodyOscReceiver:
 
     # Mapping of joint pairs for heuristic rotation computation: (source, target)
     _ROTATION_PAIRS: tuple[tuple[str, str], ...] = (
-        ("hip", "chest"),       # Hip forward: hip -> chest
-        ("chest", "head"),      # Chest forward: chest -> head
-        ("chest", "head"),      # Head forward: same as chest
-        ("hip", "left_foot"),   # Left foot forward: hip -> left_foot
+        ("hip", "chest"),  # Hip forward: hip -> chest
+        ("chest", "head"),  # Chest forward: chest -> head
+        ("chest", "head"),  # Head forward: same as chest
+        ("hip", "left_foot"),  # Left foot forward: hip -> left_foot
         ("hip", "right_foot"),  # Right foot forward: hip -> right_foot
-        ("hip", "left_knee"),   # Left knee forward: hip -> left_knee
+        ("hip", "left_knee"),  # Left knee forward: hip -> left_knee
         ("hip", "right_knee"),  # Right knee forward: hip -> right_knee
-        ("chest", "left_elbow"),   # Left elbow forward: chest -> left_elbow
+        ("chest", "left_elbow"),  # Left elbow forward: chest -> left_elbow
         ("chest", "right_elbow"),  # Right elbow forward: chest -> right_elbow
     )
 
@@ -186,10 +187,15 @@ class BodyOscReceiver:
 
         # Joint rotation targets based on _ROTATION_PAIRS order
         target_joints = (
-            "hip", "chest", "head",
-            "left_foot", "right_foot",
-            "left_knee", "right_knee",
-            "left_elbow", "right_elbow",
+            "hip",
+            "chest",
+            "head",
+            "left_foot",
+            "right_foot",
+            "left_knee",
+            "right_knee",
+            "left_elbow",
+            "right_elbow",
         )
 
         for target_joint, (source, dest) in zip(target_joints, self._ROTATION_PAIRS):

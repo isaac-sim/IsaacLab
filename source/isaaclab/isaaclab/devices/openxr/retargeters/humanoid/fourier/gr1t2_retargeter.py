@@ -79,7 +79,7 @@ class GR1T2Retargeter(RetargeterBase):
                         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd",
                         scale=(0.01, 0.01, 0.01),
                     ),
-                }
+                },
             )
             # Green spheres for IK targets (after transform)
             ik_target_marker_cfg = VisualizationMarkersCfg(
@@ -134,11 +134,15 @@ class GR1T2Retargeter(RetargeterBase):
             body_joints_position = np.array([pose[:3] for pose in body_poses.values()])
             body_joints_orientation = np.array([pose[3:] for pose in body_poses.values()])
 
-            self._markers.visualize(translations=torch.tensor(joints_position, device=self._sim_device),
-                                    orientations=torch.tensor(joints_orientation, device=self._sim_device))
+            self._markers.visualize(
+                translations=torch.tensor(joints_position, device=self._sim_device),
+                orientations=torch.tensor(joints_orientation, device=self._sim_device),
+            )
 
-            self._sphere_markers.visualize(translations=torch.tensor(body_joints_position, device=self._sim_device),
-                                          orientations=torch.tensor(body_joints_orientation, device=self._sim_device))
+            self._sphere_markers.visualize(
+                translations=torch.tensor(body_joints_position, device=self._sim_device),
+                orientations=torch.tensor(body_joints_orientation, device=self._sim_device),
+            )
 
         # Compute retargeted hand joints using pre-computed index mappings
         retargeted_hand_joints = np.zeros(self._num_joints, dtype=np.float32)
@@ -155,7 +159,7 @@ class GR1T2Retargeter(RetargeterBase):
             ik_targets_quat = np.array([left_wrist_transformed[3:], right_wrist_transformed[3:]])
             self._ik_target_markers.visualize(
                 translations=torch.tensor(ik_targets_pos, device=self._sim_device),
-                orientations=torch.tensor(ik_targets_quat, device=self._sim_device)
+                orientations=torch.tensor(ik_targets_quat, device=self._sim_device),
             )
 
         left_wrist_tensor = torch.tensor(left_wrist_transformed, dtype=torch.float32, device=self._sim_device)

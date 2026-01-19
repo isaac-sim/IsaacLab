@@ -10,11 +10,18 @@ Added
 * Added Fabric backend support to :class:`~isaaclab.sim.views.XformPrimView` for GPU-accelerated
   batch transform operations on all Boundable prims using Warp kernels.
 * Added :mod:`~isaaclab.sim.utils.fabric_utils` module with Warp kernels for efficient Fabric matrix operations.
+* Added :class:`~isaaclab.devices.openxr.BodyOscReceiver` for receiving body tracking data from Meta Quest 3 via OSC protocol.
+* Added support for Meta Quest 3 body tracking in :class:`~isaaclab.devices.OpenXRDevice` with configurable OSC port via ``body_osc_port`` parameter.
+* Added ``BODY`` tracking target to :class:`~isaaclab.devices.DeviceBase` for full-body teleoperation.
+* Added ``BODY_TRACKING`` requirement to :class:`~isaaclab.devices.RetargeterBase` for body-aware retargeters.
+* Added keyboard toggle controls (S key for teleoperation, R key for reset) to :class:`~isaaclab.devices.Se2Keyboard`.
+* Added how-to guide for setting up Meta Quest 3 body tracking with ALVR and SteamVR.
 
 Changed
 ^^^^^^^
 
 * Changed :class:`~isaaclab.sensors.camera.Camera` to use Fabric backend for faster pose queries.
+* Improved :class:`~isaaclab.devices.humanoid.GR1T2Retargeter` with pre-computed joint index mappings for better performance.
 
 
 0.53.2 (2026-01-14)
