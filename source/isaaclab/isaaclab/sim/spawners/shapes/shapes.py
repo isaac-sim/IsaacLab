@@ -279,8 +279,6 @@ def _spawn_geom_from_prim_type(
     # create the geometry prim
     prim_utils.create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes)
     # apply collision properties
-    if cfg.articulation_props is not None:
-        schemas.define_articulation_root_properties(prim_path, cfg.articulation_props)
     if cfg.collision_props is not None:
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
     # apply visual material
