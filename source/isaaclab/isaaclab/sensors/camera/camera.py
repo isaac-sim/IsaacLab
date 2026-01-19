@@ -329,7 +329,7 @@ class Camera(SensorBase):
         up_axis = stage_utils.get_stage_up_axis()
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        self._view.set_world_poses(eyes, orientations[:, [3, 0, 1, 2]], env_ids)
+        self._view.set_world_poses(eyes, orientations, env_ids)
 
     """
     Operations
