@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import numpy as np
-import re
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
@@ -96,16 +95,6 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the camera sensor: {self.cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
@@ -340,7 +329,7 @@ class Camera(SensorBase):
         up_axis = stage_utils.get_stage_up_axis()
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        self._view.set_world_poses(eyes, orientations, env_ids)
+        self._view.set_world_poses(eyes, orientations[:, [3, 0, 1, 2]], env_ids)
 
     """
     Operations
