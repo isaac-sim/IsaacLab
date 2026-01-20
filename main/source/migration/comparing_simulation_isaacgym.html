@@ -1,0 +1,1278 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Comparing Simulations Between Isaac Gym and Isaac Lab &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/migration/comparing_simulation_isaacgym';</script>
+    <link rel="icon" href="../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="From OmniIsaacGymEnvs" href="migrating_from_omniisaacgymenvs.html" />
+    <link rel="prev" title="From IsaacGymEnvs" href="migrating_from_isaacgymenvs.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Jan 20, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="comparing_simulation_isaacgym.html" selected>main</option>
+            <option value="../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab - Newton Beta 2</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Comparing Simulations Between Isaac Gym and Isaac Lab</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/migration/comparing_simulation_isaacgym.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/migration/comparing_simulation_isaacgym.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/source/migration/comparing_simulation_isaacgym.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Comparing Simulations Between Isaac Gym and Isaac Lab</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-to-pxd2-in-isaac-gym-preview-release">Recording to PXD2 in Isaac Gym Preview Release</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-to-ovd-in-isaac-lab">Recording to OVD in Isaac Lab</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inspecting-pxd2-and-ovd-files">Inspecting PXD2 and OVD Files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters-to-verify-during-simulation-comparison">Parameters to Verify During Simulation Comparison</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxarticulationlink">PxArticulationLink</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mass-properties">Mass Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#damping-properties">Damping Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#velocity-properties">Velocity Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-resolution-properties">Contact Resolution Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#state-and-behavior-flags">State and Behavior Flags</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxarticulationjoint">PxArticulationJoint</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-configuration">Joint Configuration</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#drive-properties">Drive Properties</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxshape">PxShape</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#collision-offsets">Collision Offsets</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#geometry-and-materials">Geometry and Materials</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shape-flags">Shape Flags</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxrigiddynamic">PxRigidDynamic</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mass-and-mass-related-properties">Mass and Mass-Related Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#damping-and-velocity-limits">Damping and Velocity Limits</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-resolution-and-impulses">Contact Resolution and Impulses</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#sleep-and-activation-behavior">Sleep and Activation Behavior</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#kinematic-mode-and-locking">Kinematic Mode and Locking</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#forces-and-solver-overrides">Forces and Solver Overrides</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shape-related-aspects">Shape-Related Aspects</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-what-to-inspect-and-why">Summary: What to Inspect and Why</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="comparing-simulations-between-isaac-gym-and-isaac-lab">
+<span id="migrating-from-isaacgymenvs-comparing-simulation"></span><h1>Comparing Simulations Between Isaac Gym and Isaac Lab<a class="headerlink" href="#comparing-simulations-between-isaac-gym-and-isaac-lab" title="Permalink to this heading">#</a></h1>
+<p>When migrating simulations from Isaac Gym to Isaac Lab, it is sometimes helpful to compare
+the simulation configurations in Isaac Gym and Isaac Lab to identify differences between the two setups.
+There may be differences in how default values are interpreted, how the importer treats certain
+hierarchies of bodies, and how values are scaled. The only way to be certain that two simulations
+are equivalent in the eyes of PhysX is to record a simulation trace of both setups and compare
+them by inspecting them side-by-side. This approach works because PhysX is the same underlying
+engine for both Isaac Gym and Isaac Lab, albeit with different versions.</p>
+<section id="recording-to-pxd2-in-isaac-gym-preview-release">
+<h2>Recording to PXD2 in Isaac Gym Preview Release<a class="headerlink" href="#recording-to-pxd2-in-isaac-gym-preview-release" title="Permalink to this heading">#</a></h2>
+<p>Simulation traces in Isaac Gym can be recorded using the built-in PhysX Visual Debugger (PVD)
+file output feature. Set the operating system environment variable <code class="docutils literal notranslate"><span class="pre">GYM_PVD_FILE</span></code> to the
+desired output file path; the <code class="docutils literal notranslate"><span class="pre">.pxd2</span></code> file extension will be appended automatically.</p>
+<p>For detailed instructions, refer to the tuning documentation included with Isaac Gym:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>isaacgym/docs/_sources/programming/tuning.rst.txt
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This file reference is provided because Isaac Gym does not have its documentation available online.</p>
+</div>
+</section>
+<section id="recording-to-ovd-in-isaac-lab">
+<h2>Recording to OVD in Isaac Lab<a class="headerlink" href="#recording-to-ovd-in-isaac-lab" title="Permalink to this heading">#</a></h2>
+<p>To record an OVD simulation trace file in Isaac Lab, you must set the appropriate Isaac Sim Kit
+arguments. It is important that the <code class="docutils literal notranslate"><span class="pre">omniPvdOvdRecordingDirectory</span></code> variable is set <strong>before</strong>
+<code class="docutils literal notranslate"><span class="pre">omniPvdOutputEnabled</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>scripts/benchmarks/benchmark_non_rl.py<span class="w"> </span>--task<span class="w"> </span>&lt;task_name&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--kit_args<span class="o">=</span><span class="s2">&quot;--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/myovds/ \</span>
+<span class="s2">    --/physics/omniPvdOutputEnabled=true&quot;</span>
+</pre></div>
+</div>
+<p>This example outputs a series of OVD files to the <code class="docutils literal notranslate"><span class="pre">/tmp/myovds/</span></code> directory.</p>
+<p>If the <code class="docutils literal notranslate"><span class="pre">--kit_args</span></code> argument does not work in your particular setup, you can set the Kit arguments
+manually by editing the following file directly within the Isaac Sim source code:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>source/extensions/isaacsim.simulation_app/isaacsim/simulation_app/simulation_app.py
+</pre></div>
+</div>
+<p>Append the following lines after the <code class="docutils literal notranslate"><span class="pre">args</span> <span class="pre">=</span> <span class="pre">[]</span></code> block:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--/persistent/physics/omniPvdOvdRecordingDirectory=/path/to/output/ovds/&quot;</span><span class="p">)</span>
+<span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--/physics/omniPvdOutputEnabled=true&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="inspecting-pxd2-and-ovd-files">
+<h2>Inspecting PXD2 and OVD Files<a class="headerlink" href="#inspecting-pxd2-and-ovd-files" title="Permalink to this heading">#</a></h2>
+<p>By opening the PXD2 file in a PVD viewer and the OVD file in OmniPVD (a Kit extension), you can
+manually compare the two simulation runs and their respective parameters.</p>
+<p><strong>PhysX Visual Debugger (PVD) for PXD2 Files</strong></p>
+<p>Download the PVD viewer from the NVIDIA Developer Tools page:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://developer.nvidia.com/tools-downloads#?search=PVD">https://developer.nvidia.com/tools-downloads#?search=PVD</a></p>
+</div></blockquote>
+<p>Both version 2 and version 3 of the PVD viewer are compatible with PXD2 files.</p>
+<p><strong>OmniPVD for OVD Files</strong></p>
+<p>To view OVD files, enable the OmniPVD extension in the Isaac Sim application. For detailed
+instructions, refer to the OmniPVD developer guide:</p>
+<blockquote>
+<div><p><a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/ux/source/omni.physx.pvd/docs/dev_guide/physx_visual_debugger.html">https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/ux/source/omni.physx.pvd/docs/dev_guide/physx_visual_debugger.html</a></p>
+</div></blockquote>
+<p><strong>Inspecting Contact Gizmos in OmniPVD</strong></p>
+<p>To inspect contact points between objects, enable the contact gizmos in OmniPVD. Ensure that the
+simulation frame is set to <strong>PRE</strong> (pre-simulation frames of each simulation step) in the OmniPVD
+timeline, or set the replay mode to <strong>PRE</strong>. This allows you to visualize contact information before
+the solver processes each step.</p>
+<p><strong>Comparing PVD and OVD Files</strong></p>
+<p>Using the PVD viewer and the OmniPVD extension, you can now compare the simulations side-by-side
+to identify configuration differences. On the left is PVD for PXD2 inspection and on the right is the OmniPVD
+extension loaded to inspect OVD files.</p>
+<img alt="../../_images/ovd_pvd_comparison.jpg" src="../../_images/ovd_pvd_comparison.jpg" />
+</section>
+<section id="parameters-to-verify-during-simulation-comparison">
+<h2>Parameters to Verify During Simulation Comparison<a class="headerlink" href="#parameters-to-verify-during-simulation-comparison" title="Permalink to this heading">#</a></h2>
+<p>For PhysX articulations, each attribute is useful to inspect because it reveals how the link or shape
+will actually behave in contact, under drives, and at constraints. Below, each attribute is expanded
+with why it matters for debugging and tuning simulations.</p>
+<section id="pxarticulationlink">
+<h3>PxArticulationLink<a class="headerlink" href="#pxarticulationlink" title="Permalink to this heading">#</a></h3>
+<p>Each link behaves like a rigid body with mass properties, damping, velocity limits, and contact-resolution
+limits. Inspecting these helps explain stability issues, jitter, and odd responses to forces.</p>
+<section id="mass-properties">
+<h4>Mass Properties<a class="headerlink" href="#mass-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Mass</strong></dt><dd><p>Determines how strongly the link accelerates under forces and how it shares impulses in collisions
+and joint constraints.</p>
+<p><em>When to inspect:</em> Understand why a link seems “too heavy” (barely moves when pushed) or “too light”
+(flies around from small impulses), and to detect inconsistent mass distribution across a chain that
+can cause unrealistic motion or joint stress.</p>
+</dd>
+<dt><strong>Center of Mass (pose)</strong></dt><dd><p>Controls where forces effectively act and how the link balances.</p>
+<p><em>When to inspect:</em> A character or mechanism tips over unexpectedly or feels unbalanced; an offset COM
+can cause unrealistic torque for the same contact.</p>
+</dd>
+<dt><strong>Inertia Tensor / Inertia Scale</strong></dt><dd><p>Defines rotational resistance about each axis.</p>
+<p><em>When to inspect:</em> Links are too easy or too hard to spin relative to their mass, which affects joint
+drive tuning and impact responses.</p>
+</dd>
+</dl>
+</section>
+<section id="damping-properties">
+<h4>Damping Properties<a class="headerlink" href="#damping-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Linear Damping</strong></dt><dd><p>Models velocity-proportional drag on translation; higher values make links lose linear speed faster.</p>
+<p><em>When to inspect:</em> Links slide too far (damping too low) or feel “underwater” (damping too high), or
+when articulation energy seems to vanish without obvious contact.</p>
+</dd>
+<dt><strong>Angular Damping</strong></dt><dd><p>Models drag on rotation; higher values make spinning links slow more quickly.</p>
+<p><em>When to inspect:</em> Links keep spinning after impacts or motor drives (too low), or joints feel “sticky”
+and fail to swing freely under gravity (too high).</p>
+</dd>
+</dl>
+</section>
+<section id="velocity-properties">
+<h4>Velocity Properties<a class="headerlink" href="#velocity-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Linear Velocity</strong></dt><dd><p>Instantaneous world-space translational velocity of the link.</p>
+<p><em>When to inspect:</em> Verify whether joint motors, gravity, or contacts are generating expected motion,
+detect numerical explosions (huge spikes), and correlate with CCD thresholds and max linear velocity clamping.</p>
+</dd>
+<dt><strong>Angular Velocity</strong></dt><dd><p>Instantaneous world-space rotational velocity.</p>
+<p><em>When to inspect:</em> Verify joint drives, impacts, or constraints are producing the correct rotation;
+spot runaway spin that can cause instability or tunneling before clamping takes effect.</p>
+</dd>
+<dt><strong>Max Linear Velocity</strong></dt><dd><p>Upper bound PhysX uses to clamp linear speed before solving, intended to prevent numerical issues
+from extremely fast motion.</p>
+<p><em>When to inspect:</em> Objects start tunneling or simulations explode at high speeds. If too high, links
+can move too far in one step; too low, they may appear unnaturally capped like “speed-limited” robots.</p>
+</dd>
+<dt><strong>Max Angular Velocity</strong></dt><dd><p>Upper bound for angular speed; PhysX clamps angular velocity similarly to linear velocity.</p>
+<p><em>When to inspect:</em> Links spin unrealistically fast after collisions or drives (value too large), or
+rotation looks unnaturally limited, especially for wheels or rotors that should rotate quickly (value too small).</p>
+</dd>
+</dl>
+</section>
+<section id="contact-resolution-properties">
+<h4>Contact Resolution Properties<a class="headerlink" href="#contact-resolution-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Max Depenetration Velocity</strong></dt><dd><p>Limits how much corrective velocity the solver may add in one step to resolve penetrations at contacts.</p>
+<p><em>When to inspect:</em> Overlapping links “explode” outward or jitter after starting interpenetrating (too high),
+or embedded links separate too slowly and appear stuck together (too low).</p>
+</dd>
+<dt><strong>Max Contact Impulse</strong></dt><dd><p>Caps the impulse the solver can apply at contacts; per-body limit, with the actual contact limit being
+the minimum of the two bodies’ values.</p>
+<p><em>When to inspect:</em> Contacts feel too soft (bodies interpenetrate deeply or sink into the environment) or
+too rigid (sharp impulses causing ringing or bouncing), or when tuning “soft collisions” like rubber or
+skin-like surfaces.</p>
+</dd>
+</dl>
+</section>
+<section id="state-and-behavior-flags">
+<h4>State and Behavior Flags<a class="headerlink" href="#state-and-behavior-flags" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Kinematic vs Dynamic flag / Disable gravity</strong></dt><dd><p>Indicates whether a link is driven kinematically or fully simulated, and whether gravity affects it.</p>
+<p><em>When to inspect:</em> Parts appear frozen, snap directly to poses, or ignore gravity, which can drastically
+change articulation behavior.</p>
+</dd>
+<dt><strong>Sleep thresholds (linear, angular) and wake counter</strong></dt><dd><p>Control when a link is allowed to go to sleep and stop simulating.</p>
+<p><em>When to inspect:</em> Articulations sleep too early (stopping motion) or never sleep (wasting performance
+and causing low-amplitude jitter).</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="pxarticulationjoint">
+<h3>PxArticulationJoint<a class="headerlink" href="#pxarticulationjoint" title="Permalink to this heading">#</a></h3>
+<p>The inbound joint defines relative motion between a link and its parent. Inspecting motion and related
+parameters explains limits, constraints, and how drives shape articulation pose and stability.</p>
+<section id="joint-configuration">
+<h4>Joint Configuration<a class="headerlink" href="#joint-configuration" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Motion</strong></dt><dd><p>Per-axis setting (locked, limited, free) that defines which degrees of freedom the joint allows and
+whether ranges are restricted.</p>
+<p><em>When to inspect:</em> A link moves in an unexpected direction (axis wrongly set to free), hits a hard stop
+sooner or later than expected (limit vs locked), or seems unconstrained because an axis is mistakenly left free.</p>
+</dd>
+<dt><strong>Joint Type / Axes definition</strong></dt><dd><p>Choice of revolute, prismatic, spherical, etc., and the local joint frames that define axes.</p>
+<p><em>When to inspect:</em> A “hinge” behaves more like a ball joint or slides unexpectedly; incorrect type or
+frame alignment easily produces weird motions.</p>
+</dd>
+<dt><strong>Limits (swing, twist, linear)</strong></dt><dd><p>Specify allowed angular or linear ranges and often include stiffness/damping.</p>
+<p><em>When to inspect:</em> Joints hyper-extend, clip through geometry, or suddenly snap at boundaries; mis-set
+limits cause popping and instability.</p>
+</dd>
+</dl>
+</section>
+<section id="drive-properties">
+<h4>Drive Properties<a class="headerlink" href="#drive-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Drive target position (orientation) and target velocity</strong></dt><dd><p>Desired relative pose and relative velocity that drives the articulation, often using spring-damper models.</p>
+<p><em>When to inspect:</em> Controllers are too slow or overshoot and oscillate—target values and drive parameters
+must match link mass and inertia.</p>
+</dd>
+<dt><strong>Drive stiffness and damping (spring strength, tangential damping)</strong></dt><dd><p>Control how aggressively the joint tries to reach the target pose and how much overshoot is damped.</p>
+<p><em>When to inspect:</em> Joints buzz or oscillate under load (stiffness high, damping low) or feel unresponsive
+and “rubbery” (stiffness low).</p>
+</dd>
+<dt><strong>Joint friction / resistance (if configured)</strong></dt><dd><p>Adds resistance even without explicit damping in drives.</p>
+<p><em>When to inspect:</em> Passive joints keep swinging too long, or appear stuck even without drives.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="pxshape">
+<h3>PxShape<a class="headerlink" href="#pxshape" title="Permalink to this heading">#</a></h3>
+<p>Shapes attached to links determine collision representation and contact behavior. Even if they are internal
+in OmniPhysics, their properties have a strong impact on stability, contact timing, and visual alignment.</p>
+<section id="collision-offsets">
+<h4>Collision Offsets<a class="headerlink" href="#collision-offsets" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Rest Offset</strong></dt><dd><p>Distance at which two shapes come to rest; sum of their rest offsets defines the separation where they “settle”.</p>
+<p><em>When to inspect:</em> Graphics and collision appear misaligned (gaps or visible intersections), or sliding
+over meshes is rough. Small positive offsets can smooth sliding, while zero offset tends to align exactly
+but may catch on geometry.</p>
+</dd>
+<dt><strong>Contact Offset</strong></dt><dd><p>Distance at which contact generation begins; shapes whose distance is less than the sum of contact offsets
+generate contacts.</p>
+<p><em>When to inspect:</em> Contacts appear “too early” (objects seem to collide before visually touching, increasing
+contact count) or “too late” (tunneling or jitter). The difference between contact and rest offsets is
+crucial for predictive, stable contacts.</p>
+</dd>
+</dl>
+</section>
+<section id="geometry-and-materials">
+<h4>Geometry and Materials<a class="headerlink" href="#geometry-and-materials" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Geometry type and dimensions</strong></dt><dd><p>Box, sphere, capsule, convex, mesh, and the associated size parameters.</p>
+<p><em>When to inspect:</em> Collision footprint does not match the visual mesh—overly large shapes cause premature
+contacts; small shapes allow visual intersection and change leverage at contacts.</p>
+</dd>
+<dt><strong>Material(s): friction, restitution, compliance</strong></dt><dd><p>Friction coefficients and restitution define sliding and bounciness.</p>
+<p><em>When to inspect:</em> An articulation foot skids too easily, sticks to the ground, or bounces unexpectedly.
+Wrong materials can make mechanisms unstable or unresponsive.</p>
+</dd>
+</dl>
+</section>
+<section id="shape-flags">
+<h4>Shape Flags<a class="headerlink" href="#shape-flags" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Flag for simulation / query / trigger</strong></dt><dd><p>Whether the shape participates in simulation contacts, raycasts only, or trigger events.</p>
+<p><em>When to inspect:</em> Contacts do not appear (shape set as query only) or triggers unexpectedly create
+physical collisions.</p>
+</dd>
+<dt><strong>Contact density (CCD flags, if used)</strong></dt><dd><p>Continuous collision detection flags affecting how fast-moving links are handled.</p>
+<p><em>When to inspect:</em> Fast articulation parts tunnel through thin obstacles, or CCD is too aggressive and
+reduces performance.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="pxrigiddynamic">
+<h3>PxRigidDynamic<a class="headerlink" href="#pxrigiddynamic" title="Permalink to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">PxRigidDynamic</span></code> is the core simulated rigid body type in PhysX, so inspecting its attributes is crucial
+for understanding individual object behavior, stability, and performance in the scene. Many attributes
+mirror <code class="docutils literal notranslate"><span class="pre">PxArticulationLink</span></code>, but a rigid dynamic is not constrained by articulation joints and can also
+be used in kinematic mode.</p>
+<section id="mass-and-mass-related-properties">
+<h4>Mass and Mass-Related Properties<a class="headerlink" href="#mass-and-mass-related-properties" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Mass</strong></dt><dd><p>Controls translational response to forces and impulses; for the same impulse, lower mass gives higher
+velocity change.</p>
+<p><em>When to inspect:</em> An object barely reacts to hits (mass too large) or flies away from small forces
+(mass too small), or mass ratios between interacting bodies cause overly dominant or easily bullied bodies.</p>
+</dd>
+<dt><strong>Center of Mass (COM) pose</strong></dt><dd><p>Defines where forces effectively act and around which point the body rotates.</p>
+<p><em>When to inspect:</em> Objects tip over unexpectedly, roll in unintuitive ways, or feel “unbalanced.” A COM
+too high or off-center can cause strong torques from small contacts.</p>
+</dd>
+<dt><strong>Inertia tensor / inertia scaling</strong></dt><dd><p>Determines resistance to angular acceleration around each axis for a given torque.</p>
+<p><em>When to inspect:</em> Bodies are too easy or too hard to spin (e.g., a large object spinning quickly from
+small hits), or when anisotropic behavior is needed (e.g., wheels that spin easily around one axis but
+resist others).</p>
+</dd>
+</dl>
+</section>
+<section id="damping-and-velocity-limits">
+<h4>Damping and Velocity Limits<a class="headerlink" href="#damping-and-velocity-limits" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Linear Damping</strong></dt><dd><p>Adds velocity-proportional drag on translation.</p>
+<p><em>When to inspect:</em> Bodies slide too far or for too long (damping too low) or appear as if moving through
+thick fluid (damping too high), and when scenes lose energy faster than friction alone would suggest.</p>
+</dd>
+<dt><strong>Angular Damping</strong></dt><dd><p>Adds drag on rotation, reducing angular velocity over time.</p>
+<p><em>When to inspect:</em> Spinning objects never settle or spin unrealistically long (too low), or they stop
+rotating almost immediately after impact or motor impulses (too high).</p>
+</dd>
+<dt><strong>Linear Velocity</strong></dt><dd><p>Current translational velocity used by the integrator and solver.</p>
+<p><em>When to inspect:</em> Debug impulses, gravity, or applied forces to see whether the body is accelerating
+as expected; detect spikes or non-physical jumps in speed.</p>
+</dd>
+<dt><strong>Angular Velocity</strong></dt><dd><p>Current rotational speed around each axis.</p>
+<p><em>When to inspect:</em> Rotations look jittery, explode numerically, or fail to respond to applied torques.
+High values relative to time step and object scale can indicate instability.</p>
+</dd>
+<dt><strong>Max Linear Velocity</strong></dt><dd><p>Upper bound used to clamp linear velocity before solving.</p>
+<p><em>When to inspect:</em> Very fast bodies cause tunneling or simulation explosions (value too high), or they
+appear unnaturally “speed-limited,” especially projectiles or debris in high-energy scenes (value too low).</p>
+</dd>
+<dt><strong>Max Angular Velocity</strong></dt><dd><p>Upper bound used to clamp angular velocity.</p>
+<p><em>When to inspect:</em> Thin or small bodies spin so fast they destabilize the scene (value too high), or
+spinning elements such as wheels, propellers, or debris appear artificially capped (value too low).</p>
+</dd>
+</dl>
+</section>
+<section id="contact-resolution-and-impulses">
+<h4>Contact Resolution and Impulses<a class="headerlink" href="#contact-resolution-and-impulses" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Max Depenetration Velocity</strong></dt><dd><p>Limits the corrective velocity the solver may introduce in one step to resolve interpenetrations.</p>
+<p><em>When to inspect:</em> Intersecting bodies “explode” apart or jitter violently after overlap (too high), or
+separate very slowly and appear stuck or interpenetrated for several frames (too low).</p>
+</dd>
+<dt><strong>Max Contact Impulse</strong></dt><dd><p>Caps the impulse that can be applied at contacts involving this body; the effective limit is the minimum
+between the two bodies, or the dynamic body for static–dynamic contacts.</p>
+<p><em>When to inspect:</em> Create softer contacts (lower limit) or very rigid, almost unyielding bodies (high or
+default limit); objects sink into each other or bounce unrealistically.</p>
+</dd>
+</dl>
+</section>
+<section id="sleep-and-activation-behavior">
+<h4>Sleep and Activation Behavior<a class="headerlink" href="#sleep-and-activation-behavior" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Sleep Threshold</strong></dt><dd><p>Mass-normalized kinetic energy below which a body becomes a candidate for sleeping.</p>
+<p><em>When to inspect:</em> Bodies fall asleep too early while they should still move (threshold too high) or
+constantly jitter and never sleep (threshold too low), which can hurt performance.</p>
+</dd>
+<dt><strong>Wake Counter / isSleeping flag</strong></dt><dd><p>Internal timer and state indicating whether the body is active.</p>
+<p><em>When to inspect:</em> Bodies refuse to wake up on interactions or wake too easily. Bad sleep behavior can
+make scenes feel “dead” or too noisy.</p>
+</dd>
+</dl>
+</section>
+<section id="kinematic-mode-and-locking">
+<h4>Kinematic Mode and Locking<a class="headerlink" href="#kinematic-mode-and-locking" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Kinematic Flag (PxRigidBodyFlag::eKINEMATIC)</strong></dt><dd><p>When set, the body is moved by <code class="docutils literal notranslate"><span class="pre">setKinematicTarget</span></code> and ignores forces and gravity, while still
+affecting dynamic bodies it touches.</p>
+<p><em>When to inspect:</em> Objects appear to have infinite mass (pushing others but not reacting) or ignore
+gravity and impulses. Mismatched expectations here commonly cause odd behavior in characters, moving
+platforms, or doors.</p>
+</dd>
+<dt><strong>Rigid Dynamic Lock Flags (PxRigidDynamicLockFlag)</strong></dt><dd><p>Per-axis linear and angular DOF locks, effectively constraining motion without a joint.</p>
+<p><em>When to inspect:</em> Bodies unexpectedly move in constrained directions (lock not set) or fail to
+move/rotate where they should (lock set by mistake), especially for 2D-style movement or simple
+constrained mechanisms.</p>
+</dd>
+<dt><strong>Disable Gravity (PxActorFlag::eDISABLE_GRAVITY)</strong></dt><dd><p>Toggles whether the body is affected by scene gravity.</p>
+<p><em>When to inspect:</em> Objects float in mid-air or drop unexpectedly. A common source of confusion in
+mixed setups with some gravity-less bodies.</p>
+</dd>
+</dl>
+</section>
+<section id="forces-and-solver-overrides">
+<h4>Forces and Solver Overrides<a class="headerlink" href="#forces-and-solver-overrides" title="Permalink to this heading">#</a></h4>
+<dl>
+<dt><strong>Applied force and torque (accumulated per step)</strong></dt><dd><p>Net forces/torques that will be integrated into velocity.</p>
+<p><em>When to inspect:</em> Debug gameplay forces (thrusters, character pushes, explosions) to see if the expected
+input is actually reaching the body.</p>
+</dd>
+<dt><strong>Per-body solver iteration counts (minPositionIters, minVelocityIters)</strong></dt><dd><p>Overrides for how many solver iterations this body gets in constraints and contacts.</p>
+<p><em>When to inspect:</em> Certain bodies (e.g., characters, stacked crates, fragile structures) need higher
+stability or more accurate stacking. Low iterations can cause jitter and penetration; too high wastes
+performance.</p>
+</dd>
+</dl>
+</section>
+<section id="shape-related-aspects">
+<h4>Shape-Related Aspects<a class="headerlink" href="#shape-related-aspects" title="Permalink to this heading">#</a></h4>
+<p>While not properties of <code class="docutils literal notranslate"><span class="pre">PxRigidDynamic</span></code> itself, the shapes attached to it heavily influence behavior.</p>
+<dl>
+<dt><strong>Attached Shapes’ Rest and Contact Offsets</strong></dt><dd><p>Control predictive contact generation and visual separation as described earlier.</p>
+<p><em>When to inspect:</em> A dynamic body seems to collide too early/late or appears to float above surfaces
+or intersect them visually.</p>
+</dd>
+<dt><strong>Attached Materials (friction, restitution)</strong></dt><dd><p>Define sliding and bounciness for this body’s contacts.</p>
+<p><em>When to inspect:</em> Rigid dynamics skid, stick, or bounce in unexpected ways. Often the “behavior issue”
+is material configuration rather than mass or damping.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="summary-what-to-inspect-and-why">
+<h3>Summary: What to Inspect and Why<a class="headerlink" href="#summary-what-to-inspect-and-why" title="Permalink to this heading">#</a></h3>
+<p>The table below summarizes the key inspection areas for each PhysX component:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 40.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Key Attributes</p></th>
+<th class="head"><p>Debugging Focus</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Links</strong></p></td>
+<td><p>Mass, damping, velocities, limits</p></td>
+<td><p>Overall energy, stability, and response to joints/contacts</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Joints</strong></p></td>
+<td><p>Motion, limits, drives</p></td>
+<td><p>How articulation pose evolves; over/under-constrained motion</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Shapes</strong></p></td>
+<td><p>Offsets, materials, geometry</p></td>
+<td><p>Contact timing, friction behavior, visual vs physical alignment</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Rigid Dynamics</strong></p></td>
+<td><p>Mass, inertia, damping, velocity limits, sleep, kinematic flags</p></td>
+<td><p>Acceleration, settling, extreme motion, body state</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>All of these attributes together provide a comprehensive picture of why an articulation or rigid body
+behaves as it does and where to adjust parameters for stability, realism, or control performance.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="migrating_from_isaacgymenvs.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">From IsaacGymEnvs</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="migrating_from_omniisaacgymenvs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">From OmniIsaacGymEnvs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-to-pxd2-in-isaac-gym-preview-release">Recording to PXD2 in Isaac Gym Preview Release</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-to-ovd-in-isaac-lab">Recording to OVD in Isaac Lab</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inspecting-pxd2-and-ovd-files">Inspecting PXD2 and OVD Files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters-to-verify-during-simulation-comparison">Parameters to Verify During Simulation Comparison</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxarticulationlink">PxArticulationLink</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mass-properties">Mass Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#damping-properties">Damping Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#velocity-properties">Velocity Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-resolution-properties">Contact Resolution Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#state-and-behavior-flags">State and Behavior Flags</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxarticulationjoint">PxArticulationJoint</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-configuration">Joint Configuration</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#drive-properties">Drive Properties</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxshape">PxShape</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#collision-offsets">Collision Offsets</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#geometry-and-materials">Geometry and Materials</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shape-flags">Shape Flags</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pxrigiddynamic">PxRigidDynamic</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#mass-and-mass-related-properties">Mass and Mass-Related Properties</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#damping-and-velocity-limits">Damping and Velocity Limits</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#contact-resolution-and-impulses">Contact Resolution and Impulses</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#sleep-and-activation-behavior">Sleep and Activation Behavior</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#kinematic-mode-and-locking">Kinematic Mode and Locking</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#forces-and-solver-overrides">Forces and Solver Overrides</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shape-related-aspects">Shape-Related Aspects</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-what-to-inspect-and-why">Summary: What to Inspect and Why</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 20, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
