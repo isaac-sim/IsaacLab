@@ -97,7 +97,9 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """
 
     link_density: float = 0.0
-    """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing in the URDF. Defaults to 0.0."""
+    """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing in the URDF.
+    Defaults to 0.0.
+    """
 
     merge_fixed_joints: bool = True
     """Consolidate links that are connected by fixed joints. Defaults to True."""

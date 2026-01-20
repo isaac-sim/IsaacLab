@@ -5,7 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# Import pinocchio in the main script to force the use of the dependencies
+# installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
@@ -112,9 +113,9 @@ def env_and_cfg(request):
     # Try to infer which is left and which is right
     left_candidates = [f for f in frames if "left" in f.lower()]
     right_candidates = [f for f in frames if "right" in f.lower()]
-    assert (
-        len(left_candidates) == 1 and len(right_candidates) == 1
-    ), f"Could not uniquely identify left/right frames from: {frames}"
+    assert len(left_candidates) == 1 and len(right_candidates) == 1, (
+        f"Could not uniquely identify left/right frames from: {frames}"
+    )
     left_eef_urdf_link_name = left_candidates[0]
     right_eef_urdf_link_name = right_candidates[0]
 

@@ -434,9 +434,9 @@ def test_contact_sensor_threshold(setup_simulation, device):
             threshold_attr = cr_api.GetThresholdAttr()
             if threshold_attr.IsValid():
                 threshold_value = threshold_attr.Get()
-                assert (
-                    pytest.approx(threshold_value, abs=1e-6) == 0.0
-                ), f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
+                assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
+                    f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
+                )
 
 
 # minor gravity force in -z to ensure object stays on ground plane

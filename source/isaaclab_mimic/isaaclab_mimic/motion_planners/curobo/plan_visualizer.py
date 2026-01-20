@@ -879,9 +879,7 @@ class PlanVisualizer:
         """
         if len(plan.position) < 2:
             # If only one waypoint, just return it
-            return [
-                plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])
-            ]  # type: ignore
+            return [plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])]  # type: ignore
 
         interpolated_positions = []
 

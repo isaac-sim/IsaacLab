@@ -221,10 +221,14 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """"This parameter is deprecated, but stated here to support backward compatibility"""
 
     abs_height_noise: tuple[float, float] = (0.0, 0.0)
-    """The minimum and maximum amount of additive noise for the height of the objects. Default is set to 0.0, which is no noise."""
+    """The minimum and maximum amount of additive noise for the height of the objects. Default is set to 0.0,
+    which is no noise.
+    """
 
     rel_height_noise: tuple[float, float] = (1.0, 1.0)
-    """The minimum and maximum amount of multiplicative noise for the height of the objects. Default is set to 1.0, which is no noise."""
+    """The minimum and maximum amount of multiplicative noise for the height of the objects. Default is set to 1.0,
+    which is no noise.
+    """
 
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""

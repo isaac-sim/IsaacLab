@@ -110,7 +110,8 @@ class SceneEntityCfg:
     For more details, see the :meth:`isaaclab.utils.string.resolve_matching_names` function.
 
     .. note::
-        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names` are specified.
+        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names`
+        are specified.
 
     """
 
@@ -129,7 +130,8 @@ class SceneEntityCfg:
             ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.
             ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.
             ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.
-            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and are not consistent.
+            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
+                are not consistent.
         """
         # check if the entity is valid
         if self.name not in scene.keys():

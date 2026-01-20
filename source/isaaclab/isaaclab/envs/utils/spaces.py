@@ -55,8 +55,10 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
     Args:
         space: Gymnasium space.
         device: The device where the tensor should be created.
-        batch_size: Batch size. If the specified value is greater than zero, a batched space will be created and sampled from it.
-        fill_value: The value to fill the created tensors with. If None (default value), tensors will keep their random values.
+        batch_size: Batch size. If the specified value is greater than zero, a batched space
+            will be created and sampled from it.
+        fill_value: The value to fill the created tensors with. If None (default value), tensors
+            will keep their random values.
 
     Returns:
         Tensorized sampled space.
@@ -110,13 +112,15 @@ def serialize_space(space: SpaceType) -> str:
     if isinstance(space, gym.spaces.Discrete):
         return json.dumps({"type": "gymnasium", "space": "Discrete", "n": int(space.n)})
     elif isinstance(space, gym.spaces.Box):
-        return json.dumps({
-            "type": "gymnasium",
-            "space": "Box",
-            "low": space.low.tolist(),
-            "high": space.high.tolist(),
-            "shape": space.shape,
-        })
+        return json.dumps(
+            {
+                "type": "gymnasium",
+                "space": "Box",
+                "low": space.low.tolist(),
+                "high": space.high.tolist(),
+                "shape": space.shape,
+            }
+        )
     elif isinstance(space, gym.spaces.MultiDiscrete):
         return json.dumps({"type": "gymnasium", "space": "MultiDiscrete", "nvec": space.nvec.tolist()})
     elif isinstance(space, gym.spaces.Tuple):

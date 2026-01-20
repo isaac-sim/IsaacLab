@@ -347,15 +347,17 @@ class OpenXRDevice(DeviceBase):
             quatw = quat.GetReal()
 
             # Store in w, x, y, z order to match our convention
-            self._previous_headpose = np.array([
-                position[0],
-                position[1],
-                position[2],
-                quatw,
-                quati[0],
-                quati[1],
-                quati[2],
-            ])
+            self._previous_headpose = np.array(
+                [
+                    position[0],
+                    position[1],
+                    position[2],
+                    quatw,
+                    quati[0],
+                    quati[1],
+                    quati[2],
+                ]
+            )
 
         return self._previous_headpose
 

@@ -123,9 +123,9 @@ def get_joint_mappings(args_cli, action_space_dim):
             else:
                 raise ValueError(f"Joint '{joint_name}' not found in source joint names")
         print(f"[INFO] Loaded joint mapping for policy transfer from YAML: {args_cli.policy_transfer_file}")
-        assert (
-            len(source_to_target) == len(target_to_source) == num_joints
-        ), "Number of source and target joints must match"
+        assert len(source_to_target) == len(target_to_source) == num_joints, (
+            "Number of source and target joints must match"
+        )
     else:
         # Use identity mapping (one-to-one)
         identity_map = list(range(num_joints))

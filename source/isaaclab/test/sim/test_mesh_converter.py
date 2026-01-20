@@ -146,13 +146,16 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
             mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
             collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
             # Convert token to string for comparison
-            assert (
-                collision_approximation == exp_collision_approximation_token
-            ), "Collision approximation is not the same!"
+            assert collision_approximation == exp_collision_approximation_token, (
+                "Collision approximation is not the same!"
+            )
 
 
 def test_no_change(assets):
-    """Call conversion twice on the same input asset. This should not generate a new USD file if the hash is the same."""
+    """Call conversion twice on the same input asset.
+
+    This should not generate a new USD file if the hash is the same.
+    """
     # create an initial USD file from asset
     mesh_config = MeshConverterCfg(asset_path=assets["obj"])
     mesh_converter = MeshConverter(mesh_config)

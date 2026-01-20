@@ -170,7 +170,8 @@ def create_pointcloud_from_rgbd(
 
     The ``rgb`` attribute is used to resolve the corresponding point's color:
 
-    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels encode RGB values.
+    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels
+      encode the RGB values.
     - If a tuple, then the point cloud has a single color specified by the values (r, g, b).
     - If None, then default color is white, i.e. (0, 0, 0).
 

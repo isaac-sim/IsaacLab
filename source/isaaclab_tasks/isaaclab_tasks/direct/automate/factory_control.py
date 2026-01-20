@@ -118,9 +118,7 @@ def get_pose_error(
 
         fingertip_midpoint_quat_norm = torch_utils.quat_mul(
             fingertip_midpoint_quat, torch_utils.quat_conjugate(fingertip_midpoint_quat)
-        )[
-            :, 0
-        ]  # scalar component
+        )[:, 0]  # scalar component
         fingertip_midpoint_quat_inv = torch_utils.quat_conjugate(
             fingertip_midpoint_quat
         ) / fingertip_midpoint_quat_norm.unsqueeze(-1)
@@ -141,7 +139,7 @@ def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     """Get delta Franka DOF position from delta pose using specified IK method."""
     # References:
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf
-    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)
+    # 2) https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2018/RD_HS2018script.pdf (p. 47)  # noqa: E501
 
     if ik_method == "pinv":  # Jacobian pseudoinverse
         k_val = 1.0
