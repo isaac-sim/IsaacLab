@@ -6,8 +6,6 @@
 import tempfile
 import torch
 
-import carb
-
 from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -15,9 +13,6 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -214,7 +209,6 @@ class ActionsCfg:
                 ),
             ],
             fixed_input_tasks=[],
-            xr_enabled=bool(carb.settings.get_settings().get("/app/xr/enabled")),
         ),
     )
 
@@ -313,15 +307,6 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
-    )
-
-    # OpenXR hand tracking has 26 joints per hand
-    NUM_OPENXR_HAND_JOINTS = 26
-
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
@@ -384,33 +369,3 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-                "manusvive": ManusViveCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            num_open_xr_hand_joints=2 * 26,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )

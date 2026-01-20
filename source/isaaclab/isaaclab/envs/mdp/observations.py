@@ -46,7 +46,7 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_pos_w)[:, 2].clone().unsqueeze(-1)
+    return wp.to_torch(asset.data.root_link_pose_w)[:, 2].clone().unsqueeze(-1)
 
 
 @generic_io_descriptor(
@@ -86,7 +86,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_pos_w) - wp.to_torch(env.scene.env_origins)
+    return wp.to_torch(asset.data.root_link_pose_w)[:, :3].clone() - env.scene.env_origins
 
 
 @generic_io_descriptor(
@@ -104,7 +104,7 @@ def root_quat_w(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    quat = wp.to_torch(asset.data.root_quat_w).clone()
+    quat = wp.to_torch(asset.data.root_link_pose_w)[:, 3:7].clone()
     # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 

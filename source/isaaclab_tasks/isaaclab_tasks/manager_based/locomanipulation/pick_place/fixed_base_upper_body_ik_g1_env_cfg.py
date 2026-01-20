@@ -4,16 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_assets.robots.unitree import G1_29DOF_CFG
+from isaaclab_assets.robots.unitree import G1_29_DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
-    G1TriHandUpperBodyRetargeterCfg,
-)
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -45,14 +40,14 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     """
 
     # Table
-    packing_table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
+    # packing_table = AssetBaseCfg(
+    #     prim_path="/World/envs/env_.*/PackingTable",
+    #     init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    #     ),
+    # )
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
@@ -65,7 +60,9 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Unitree G1 Humanoid robot - fixed base configuration
-    robot: ArticulationCfg = G1_29DOF_CFG
+    robot: ArticulationCfg = G1_29_DOF_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot"
+    )
 
     # Ground plane
     ground = AssetBaseCfg(
@@ -109,8 +106,8 @@ class ObservationsCfg:
         )
         robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
         robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        # object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        # object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
 
         left_eef_pos = ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "left_wrist_yaw_link"})
@@ -175,12 +172,6 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.45),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
-    )
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -195,21 +186,3 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        G1TriHandUpperBodyRetargeterCfg(
-                            enable_visualization=True,
-                            # OpenXR hand tracking has 26 joints per hand
-                            num_open_xr_hand_joints=2 * 26,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )

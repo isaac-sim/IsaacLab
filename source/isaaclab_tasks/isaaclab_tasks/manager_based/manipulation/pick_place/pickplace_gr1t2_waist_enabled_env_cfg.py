@@ -6,9 +6,6 @@
 import tempfile
 
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 
@@ -32,15 +29,6 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     commands = None
     rewards = None
     curriculum = None
-
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
-    )
-
-    # OpenXR hand tracking has 26 joints per hand
-    NUM_OPENXR_HAND_JOINTS = 26
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
@@ -67,21 +55,3 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         # Set the URDF and mesh paths for the IK controller
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )

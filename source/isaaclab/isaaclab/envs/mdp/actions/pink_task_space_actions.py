@@ -9,6 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
 from pink.tasks import FrameTask
 
 import isaaclab.utils.math as math_utils
@@ -68,15 +69,15 @@ class PinkInverseKinematicsAction(ActionTerm):
     def _initialize_joint_info(self) -> None:
         """Initialize joint IDs and names based on configuration."""
         # Resolve pink controlled joints
-        self._isaaclab_controlled_joint_ids, self._isaaclab_controlled_joint_names = self._asset.find_joints(
+        _, self._isaaclab_controlled_joint_names, self._isaaclab_controlled_joint_ids = self._asset.find_joints(
             self.cfg.pink_controlled_joint_names
         )
         self.cfg.controller.joint_names = self._isaaclab_controlled_joint_names
-        self._isaaclab_all_joint_ids = list(range(len(self._asset.data.joint_names)))
-        self.cfg.controller.all_joint_names = self._asset.data.joint_names
+        self._isaaclab_all_joint_ids = list(range(len(self._asset.joint_names)))
+        self.cfg.controller.all_joint_names = self._asset.joint_names
 
         # Resolve hand joints
-        self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
+        _, self._hand_joint_names, self._hand_joint_ids = self._asset.find_joints(self.cfg.hand_joint_names)
 
         # Combine all joint information
         self._controlled_joint_ids = self._isaaclab_controlled_joint_ids + self._hand_joint_ids
@@ -103,8 +104,8 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._controlled_joint_ids_tensor = torch.tensor(self._controlled_joint_ids, device=self.device)
 
         # Cache base link index to avoid string lookup every time
-        articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
-        self._base_link_idx = articulation_data.body_names.index(self.cfg.controller.base_link_name)
+        articulation = self._env.scene[self.cfg.controller.articulation_name]
+        self._base_link_idx = articulation.body_names.index(self.cfg.controller.base_link_name)
 
         # Pre-allocate working tensors
         # Count only FrameTask instances in variable_input_tasks (not all tasks)
@@ -217,7 +218,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Get base link frame pose in world origin using cached index
         articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
-        base_link_frame_in_world_origin = articulation_data.body_link_state_w[:, self._base_link_idx, :7]
+        base_link_frame_in_world_origin = wp.to_torch(articulation_data.body_link_state_w)[:, self._base_link_idx, :7]
 
         # Transform to environment origin frame (reuse buffer to avoid allocation)
         torch.sub(
@@ -347,7 +348,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
         for env_index, ik_controller in enumerate(self._ik_controllers):
             # Get current joint positions for this environment
-            current_joint_pos = self._asset.data.joint_pos.cpu().numpy()[env_index]
+            current_joint_pos = wp.to_torch(self._asset.data.joint_pos).cpu().numpy()[env_index]
 
             # Compute IK solution
             joint_pos_des = ik_controller.compute(current_joint_pos, self._sim_dt)

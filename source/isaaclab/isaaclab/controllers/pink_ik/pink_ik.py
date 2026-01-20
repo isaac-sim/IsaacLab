@@ -88,7 +88,7 @@ class PinkIKController:
 
         # Use resolve_matching_names_values to match Pink joint names to joint_pos values
         indices, _, values = resolve_matching_names_values(
-            joint_pos_dict, pink_joint_names, preserve_order=False, strict=False
+            joint_pos_dict, pink_joint_names, preserve_order=False, match_all=False
         )
         self.init_joint_positions = np.zeros(len(pink_joint_names))
         self.init_joint_positions[indices] = np.array(values)

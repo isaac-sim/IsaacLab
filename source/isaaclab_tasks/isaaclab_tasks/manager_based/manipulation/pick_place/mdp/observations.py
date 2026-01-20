@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ def get_robot_joint_state(
 def get_all_robot_link_state(
     env: ManagerBasedRLEnv,
 ) -> torch.Tensor:
-    body_pos_w = env.scene["robot"].data.body_link_state_w[:, :, :]
+    body_pos_w = wp.to_torch(env.scene["robot"].data.body_link_state_w)[:, :, :]
     all_robot_link_pos = body_pos_w
 
     return all_robot_link_pos
