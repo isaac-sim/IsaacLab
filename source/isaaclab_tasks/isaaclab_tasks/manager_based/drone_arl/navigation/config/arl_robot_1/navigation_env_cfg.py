@@ -35,7 +35,6 @@ import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
 from .scenes.obstacle_scenes.obstacle_scene import (
     OBSTACLE_SCENE_CFG,
     generate_obstacle_collection,
-    reset_obstacles_with_individual_ranges,
 )
 
 
@@ -201,7 +200,7 @@ class EventCfg:
     )
 
     reset_obstacles = EventTerm(
-        func=reset_obstacles_with_individual_ranges,
+        func=mdp.events.reset_obstacles_with_individual_ranges,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object_collection"),
