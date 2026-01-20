@@ -124,14 +124,14 @@ class Camera(SensorBase):
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
             rot_offset = rot_offset.squeeze(0).cpu().numpy()
-            # convert from xyzw to wxyz for spawner
-            rot_offset_wxyz = (rot_offset[3], rot_offset[0], rot_offset[1], rot_offset[2])
+            # keep xyzw to match XFormPrim conventions
+            rot_offset_xyzw = (rot_offset[0], rot_offset[1], rot_offset[2], rot_offset[3])
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
             # spawn the asset
             self.cfg.spawn.func(
-                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset_wxyz
+                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset_xyzw
             )
         # check that spawn was successful
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
@@ -292,7 +292,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -393,8 +393,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -600,7 +599,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
@@ -608,9 +607,9 @@ class Camera(SensorBase):
 
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = torch.from_numpy(poses).to(device=self._device)
+        self._data.pos_w[env_ids] = poses.to(device=self._device)
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            torch.from_numpy(quat).to(device=self._device), origin="opengl", target="world"
+            quat.to(device=self._device), origin="opengl", target="world"
         )
 
     def _create_annotator_data(self):

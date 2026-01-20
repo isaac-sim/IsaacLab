@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 from pxr import UsdGeom
 
-from isaaclab.sim.utils.prims import XFormPrim
+from isaaclab.sim.prims import XFormPrim
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -143,8 +143,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
