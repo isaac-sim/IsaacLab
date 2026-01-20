@@ -12,17 +12,17 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
-import torch
+import pytest  # noqa: E402
+import torch  # noqa: E402
 
 try:
     from isaacsim.core.prims import XFormPrim as _IsaacSimXformPrimView
 except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 
-import isaaclab.sim as sim_utils
-from isaaclab.sim.views import XformPrimView as XformPrimView
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.sim.views import XformPrimView as XformPrimView  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +37,7 @@ def test_setup_teardown():
 
     # Teardown: Clear stage after each test
     sim_utils.clear_stage()
+    sim_utils.SimulationContext.clear_instance()
 
 
 """
@@ -54,6 +55,26 @@ def _prepare_indices(index_type, target_indices, num_prims, device):
         return slice(None), list(range(num_prims))
     else:
         raise ValueError(f"Unknown index type: {index_type}")
+
+
+def _skip_if_backend_unavailable(backend: str, device: str):
+    """Skip tests when the requested backend is unavailable."""
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+    if backend == "fabric" and device == "cpu":
+        pytest.skip("Warp fabricarray operations on CPU have known issues")
+
+
+def _prim_type_for_backend(backend: str) -> str:
+    """Return a prim type that is compatible with the backend."""
+    return "Camera" if backend == "fabric" else "Xform"
+
+
+def _create_view(pattern: str, device: str, backend: str) -> XformPrimView:
+    """Create an XformPrimView for the requested backend."""
+    if backend == "fabric":
+        sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    return XformPrimView(pattern, device=device)
 
 
 """
@@ -218,22 +239,31 @@ Tests - Getters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_get_world_poses(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_get_world_poses(device, backend):
     """Test getting world poses from XformPrimView."""
-    if device.startswith("cuda") and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims with known world poses
     expected_positions = [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0)]
     expected_orientations = [(1.0, 0.0, 0.0, 0.0), (0.7071068, 0.0, 0.0, 0.7071068), (0.7071068, 0.7071068, 0.0, 0.0)]
 
     for i, (pos, quat) in enumerate(zip(expected_positions, expected_orientations)):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=pos, orientation=quat, stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
+
+    # Convert expected values to tensors
+    expected_positions_tensor = torch.tensor(expected_positions, dtype=torch.float32, device=device)
+    expected_orientations_tensor = torch.tensor(expected_orientations, dtype=torch.float32, device=device)
+
+    # Fabric is write-first, initialize by writing before reading.
+    if backend == "fabric":
+        view.set_world_poses(expected_positions_tensor, expected_orientations_tensor)
 
     # Get world poses
     positions, orientations = view.get_world_poses()
@@ -241,10 +271,6 @@ def test_get_world_poses(device):
     # Verify shapes
     assert positions.shape == (3, 3)
     assert orientations.shape == (3, 4)
-
-    # Convert expected values to tensors
-    expected_positions_tensor = torch.tensor(expected_positions, dtype=torch.float32, device=device)
-    expected_orientations_tensor = torch.tensor(expected_orientations, dtype=torch.float32, device=device)
 
     # Verify positions
     torch.testing.assert_close(positions, expected_positions_tensor, atol=1e-5, rtol=0)
@@ -257,12 +283,13 @@ def test_get_world_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_get_local_poses(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_get_local_poses(device, backend):
     """Test getting local poses from XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create parent and child prims
     sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
@@ -276,10 +303,10 @@ def test_get_local_poses(device):
     ]
 
     for i, (pos, quat) in enumerate(zip(expected_local_positions, expected_local_orientations)):
-        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=pos, orientation=quat, stage=stage)
+        sim_utils.create_prim(f"/World/Parent/Child_{i}", prim_type, translation=pos, orientation=quat, stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Parent/Child_.*", device=device)
+    view = _create_view("/World/Parent/Child_.*", device=device, backend=backend)
 
     # Get local poses
     translations, orientations = view.get_local_poses()
@@ -303,28 +330,34 @@ def test_get_local_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_get_scales(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_get_scales(device, backend):
     """Test getting scales from XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims with different scales
     expected_scales = [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0), (1.0, 2.0, 3.0)]
 
     for i, scale in enumerate(expected_scales):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=scale, stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, scale=scale, stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
+
+    expected_scales_tensor = torch.tensor(expected_scales, dtype=torch.float32, device=device)
+
+    # Fabric is write-first, initialize by writing before reading.
+    if backend == "fabric":
+        view.set_scales(expected_scales_tensor)
 
     # Get scales
     scales = view.get_scales()
 
     # Verify shape and values
     assert scales.shape == (3, 3)
-    expected_scales_tensor = torch.tensor(expected_scales, dtype=torch.float32, device=device)
     torch.testing.assert_close(scales, expected_scales_tensor, atol=1e-5, rtol=0)
 
 
@@ -359,20 +392,21 @@ Tests - Setters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_world_poses(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_world_poses(device, backend):
     """Test setting world poses in XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims
     num_prims = 5
     for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Set new world poses
     new_positions = torch.tensor(
@@ -404,22 +438,23 @@ def test_set_world_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_world_poses_only_positions(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_world_poses_only_positions(device, backend):
     """Test setting only positions, leaving orientations unchanged."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims with specific orientations
     initial_quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
     for i in range(3):
         sim_utils.create_prim(
-            f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), orientation=initial_quat, stage=stage
+            f"/World/Object_{i}", prim_type, translation=(0.0, 0.0, 0.0), orientation=initial_quat, stage=stage
         )
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Get initial orientations
     _, initial_orientations = view.get_world_poses()
@@ -442,19 +477,20 @@ def test_set_world_poses_only_positions(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_world_poses_only_orientations(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_world_poses_only_orientations(device, backend):
     """Test setting only orientations, leaving positions unchanged."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims with specific positions
     for i in range(3):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=(float(i), 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Get initial positions
     initial_positions, _ = view.get_world_poses()
@@ -480,12 +516,13 @@ def test_set_world_poses_only_orientations(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_world_poses_with_hierarchy(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_world_poses_with_hierarchy(device, backend):
     """Test setting world poses correctly handles parent transformations."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    child_prim_type = _prim_type_for_backend(backend)
 
     # Create parent prims
     for i in range(3):
@@ -495,10 +532,12 @@ def test_set_world_poses_with_hierarchy(device):
             f"/World/Parent_{i}", "Xform", translation=parent_pos, orientation=parent_quat, stage=stage
         )
         # Create child prims
-        sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(
+            f"/World/Parent_{i}/Child", child_prim_type, translation=(0.0, 0.0, 0.0), stage=stage
+        )
 
     # Create view for children
-    view = XformPrimView("/World/Parent_.*/Child", device=device)
+    view = _create_view("/World/Parent_.*/Child", device=device, backend=backend)
 
     # Set world poses for children
     desired_world_positions = torch.tensor([[5.0, 5.0, 0.0], [15.0, 5.0, 0.0], [25.0, 5.0, 0.0]], device=device)
@@ -520,12 +559,13 @@ def test_set_world_poses_with_hierarchy(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_local_poses(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_local_poses(device, backend):
     """Test setting local poses in XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create parent
     sim_utils.create_prim("/World/Parent", "Xform", translation=(5.0, 5.0, 5.0), stage=stage)
@@ -533,10 +573,10 @@ def test_set_local_poses(device):
     # Create children
     num_prims = 4
     for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/Parent/Child_{i}", prim_type, translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Parent/Child_.*", device=device)
+    view = _create_view("/World/Parent/Child_.*", device=device, backend=backend)
 
     # Set new local poses
     new_translations = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0], [4.0, 4.0, 4.0]], device=device)
@@ -564,12 +604,13 @@ def test_set_local_poses(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_local_poses_only_translations(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_local_poses_only_translations(device, backend):
     """Test setting only local translations."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create parent and children with specific orientations
     sim_utils.create_prim("/World/Parent", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
@@ -577,11 +618,15 @@ def test_set_local_poses_only_translations(device):
 
     for i in range(3):
         sim_utils.create_prim(
-            f"/World/Parent/Child_{i}", "Xform", translation=(0.0, 0.0, 0.0), orientation=initial_quat, stage=stage
+            f"/World/Parent/Child_{i}",
+            prim_type,
+            translation=(0.0, 0.0, 0.0),
+            orientation=initial_quat,
+            stage=stage,
         )
 
     # Create view
-    view = XformPrimView("/World/Parent/Child_.*", device=device)
+    view = _create_view("/World/Parent/Child_.*", device=device, backend=backend)
 
     # Get initial orientations
     _, initial_orientations = view.get_local_poses()
@@ -604,20 +649,21 @@ def test_set_local_poses_only_translations(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_scales(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_set_scales(device, backend):
     """Test setting scales in XformPrimView."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims
     num_prims = 5
     for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", scale=(1.0, 1.0, 1.0), stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, scale=(1.0, 1.0, 1.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Set new scales
     new_scales = torch.tensor(
@@ -848,20 +894,21 @@ def test_index_types_set_methods(device, index_type, method):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_indices_single_element(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_indices_single_element(device, backend):
     """Test with a single index."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims
     num_prims = 5
     for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(float(i), 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=(float(i), 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Test with single index
     indices = [3]
@@ -881,20 +928,21 @@ def test_indices_single_element(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_indices_out_of_order(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_indices_out_of_order(device, backend):
     """Test with indices provided in non-sequential order."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims
     num_prims = 10
     for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Use out-of-order indices
     indices = [7, 2, 9, 0, 5]
@@ -915,22 +963,27 @@ def test_indices_out_of_order(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_indices_with_only_positions_or_orientations(device):
+@pytest.mark.parametrize("backend", ["usd", "fabric"])
+def test_indices_with_only_positions_or_orientations(device, backend):
     """Test indices work correctly when setting only positions or only orientations."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
+    _skip_if_backend_unavailable(backend, device)
 
     stage = sim_utils.get_current_stage()
+    prim_type = _prim_type_for_backend(backend)
 
     # Create prims
     num_prims = 5
     for i in range(num_prims):
         sim_utils.create_prim(
-            f"/World/Object_{i}", "Xform", translation=(0.0, 0.0, 0.0), orientation=(1.0, 0.0, 0.0, 0.0), stage=stage
+            f"/World/Object_{i}",
+            prim_type,
+            translation=(0.0, 0.0, 0.0),
+            orientation=(1.0, 0.0, 0.0, 0.0),
+            stage=stage,
         )
 
     # Create view
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     # Get initial poses
     initial_positions, initial_orientations = view.get_world_poses()
@@ -1018,7 +1071,9 @@ def test_index_type_none_equivalent_to_all(device):
     view.set_world_poses(positions=torch.zeros(num_prims, 3, device=device), indices=None)
 
     # Set with slice(None)
-    view.set_world_poses(positions=new_positions, orientations=new_orientations, indices=slice(None))  # type: ignore[arg-type]
+    view.set_world_poses(
+        positions=new_positions, orientations=new_orientations, indices=slice(None)  # type: ignore[arg-type]
+    )
     pos_after_slice, quat_after_slice = view.get_world_poses()
 
     # Should be equivalent
@@ -1380,9 +1435,8 @@ Tests - Fabric Operations.
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_fabric_initialization(device):
-    """Test XformPrimView initialization with use_fabric=True."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
+    """Test XformPrimView initialization with Fabric enabled."""
+    _skip_if_backend_unavailable("fabric", device)
 
     stage = sim_utils.get_current_stage()
 
@@ -1392,267 +1446,12 @@ def test_fabric_initialization(device):
         sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
 
     # Create view with Fabric enabled
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
+    view = _create_view("/World/Cam_.*", device=device, backend="fabric")
 
     # Verify properties
     assert view.count == num_prims
     assert view.device == device
     assert len(view.prims) == num_prims
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_get_world_poses(device):
-    """Test getting world poses using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
-
-    # Get world poses
-    positions, orientations = view.get_world_poses()
-
-    # Verify shapes
-    assert positions.shape == (num_prims, 3)
-    assert orientations.shape == (num_prims, 4)
-
-    # Verify data types
-    assert positions.device.type == device.split(":")[0]
-    assert orientations.device.type == device.split(":")[0]
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_set_world_poses(device):
-    """Test setting world poses using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
-
-    # Set new world poses
-    new_positions = torch.tensor(
-        [[0.0, 1.0, 2.0], [1.0, 1.0, 2.0], [2.0, 1.0, 2.0], [3.0, 1.0, 2.0], [4.0, 1.0, 2.0]],
-        dtype=torch.float32,
-        device=device,
-    )
-    new_orientations = torch.tensor(
-        [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.7071068, 0.0, 0.0, 0.7071068],
-            [1.0, 0.0, 0.0, 0.0],
-            [0.7071068, 0.7071068, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0],
-        ],
-        dtype=torch.float32,
-        device=device,
-    )
-
-    view.set_world_poses(new_positions, new_orientations)
-
-    # Verify by reading back
-    positions, orientations = view.get_world_poses()
-
-    torch.testing.assert_close(positions, new_positions, atol=1e-5, rtol=0)
-    try:
-        torch.testing.assert_close(orientations, new_orientations, atol=1e-5, rtol=0)
-    except AssertionError:
-        torch.testing.assert_close(orientations, -new_orientations, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_get_local_poses(device):
-    """Test getting local poses using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create parent and child prims
-    sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
-
-    num_children = 3
-    for i in range(num_children):
-        sim_utils.create_prim(f"/World/Parent/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 0.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Parent/Cam_.*", device=device, use_fabric=True)
-
-    # Get local poses
-    translations, orientations = view.get_local_poses()
-
-    # Verify shapes
-    assert translations.shape == (num_children, 3)
-    assert orientations.shape == (num_children, 4)
-
-    # Verify data types
-    assert translations.device.type == device.split(":")[0]
-    assert orientations.device.type == device.split(":")[0]
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_set_local_poses(device):
-    """Test setting local poses using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create parent and child prims
-    sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
-
-    num_children = 5
-    for i in range(num_children):
-        sim_utils.create_prim(f"/World/Parent/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 0.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Parent/Cam_.*", device=device, use_fabric=True)
-
-    # Set new local poses
-    new_translations = torch.tensor(
-        [[5.0, 0.0, 0.0], [6.0, 0.0, 0.0], [7.0, 0.0, 0.0], [8.0, 0.0, 0.0], [9.0, 0.0, 0.0]],
-        dtype=torch.float32,
-        device=device,
-    )
-    new_orientations = torch.tensor(
-        [
-            [1.0, 0.0, 0.0, 0.0],
-            [0.7071068, 0.0, 0.0, 0.7071068],
-            [1.0, 0.0, 0.0, 0.0],
-            [0.7071068, 0.7071068, 0.0, 0.0],
-            [1.0, 0.0, 0.0, 0.0],
-        ],
-        dtype=torch.float32,
-        device=device,
-    )
-
-    view.set_local_poses(new_translations, new_orientations)
-
-    # Verify by reading back
-    translations, orientations = view.get_local_poses()
-
-    torch.testing.assert_close(translations, new_translations, atol=1e-5, rtol=0)
-    try:
-        torch.testing.assert_close(orientations, new_orientations, atol=1e-5, rtol=0)
-    except AssertionError:
-        torch.testing.assert_close(orientations, -new_orientations, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_get_scales(device):
-    """Test getting scales using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
-
-    # Get scales
-    scales = view.get_scales()
-
-    # Verify shape
-    assert scales.shape == (num_prims, 3)
-
-    # Verify data type
-    assert scales.device.type == device.split(":")[0]
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_set_scales(device):
-    """Test setting scales using Fabric."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
-
-    # Set new scales
-    new_scales = torch.tensor(
-        [[2.0, 2.0, 2.0], [1.5, 1.5, 1.5], [3.0, 3.0, 3.0], [0.5, 0.5, 0.5], [2.5, 2.5, 2.5]],
-        dtype=torch.float32,
-        device=device,
-    )
-
-    view.set_scales(new_scales)
-
-    # Verify by reading back
-    scales = view.get_scales()
-
-    torch.testing.assert_close(scales, new_scales, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("index_type", ["list", "torch_tensor", "slice_none"])
-def test_fabric_with_indices(device, index_type):
-    """Test Fabric operations with different index types."""
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 10
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric
-    view = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
-
-    # Define target indices
-    target_indices = [0, 2, 4, 6, 8]
-    indices, expected_indices_list = _prepare_indices(index_type, target_indices, num_prims, device)
-
-    # Get world poses with indices
-    positions, orientations = view.get_world_poses(indices)
-
-    # Verify shapes
-    assert positions.shape == (len(expected_indices_list), 3)
-    assert orientations.shape == (len(expected_indices_list), 4)
-
-    # Set new poses with indices
-    new_positions = torch.rand((len(expected_indices_list), 3), dtype=torch.float32, device=device) * 10.0
-    new_orientations = torch.tensor(
-        [[1.0, 0.0, 0.0, 0.0]] * len(expected_indices_list), dtype=torch.float32, device=device
-    )
-
-    view.set_world_poses(new_positions, new_orientations, indices)
-
-    # Verify by reading back
-    positions_after, orientations_after = view.get_world_poses(indices)
-
-    torch.testing.assert_close(positions_after, new_positions, atol=1e-5, rtol=0)
-    try:
-        torch.testing.assert_close(orientations_after, new_orientations, atol=1e-5, rtol=0)
-    except AssertionError:
-        torch.testing.assert_close(orientations_after, -new_orientations, atol=1e-5, rtol=0)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -1664,8 +1463,7 @@ def test_fabric_usd_consistency(device):
     1. Fabric write→read round-trip works correctly
     2. This matches Isaac Sim's Fabric behavior
     """
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
+    _skip_if_backend_unavailable("fabric", device)
 
     stage = sim_utils.get_current_stage()
 
@@ -1681,7 +1479,7 @@ def test_fabric_usd_consistency(device):
         )
 
     # Create Fabric view
-    view_fabric = XformPrimView("/World/Cam_.*", device=device, use_fabric=True)
+    view_fabric = _create_view("/World/Cam_.*", device=device, backend="fabric")
 
     # Test Fabric write→read round-trip (Isaac Sim's intended workflow)
     # Initialize Fabric state by WRITING first

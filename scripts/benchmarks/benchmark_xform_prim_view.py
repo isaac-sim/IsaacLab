@@ -6,8 +6,8 @@
 """Benchmark script comparing XformPrimView implementations across different APIs.
 
 This script tests the performance of batched transform operations using:
-- Isaac Lab's XformPrimView implementation with USD (use_fabric=False)
-- Isaac Lab's XformPrimView implementation with Fabric (use_fabric=True)
+- Isaac Lab's XformPrimView implementation with USD backend
+- Isaac Lab's XformPrimView implementation with Fabric backend
 - Isaac Sim's XformPrimView implementation (legacy)
 - Isaac Sim Experimental's XformPrim implementation (latest)
 
@@ -87,8 +87,8 @@ def benchmark_xform_prim_view(  # noqa: C901
 
     Args:
         api: Which API to benchmark:
-            - "isaaclab-usd": Isaac Lab XformPrimView with USD backend (use_fabric=False)
-            - "isaaclab-fabric": Isaac Lab XformPrimView with Fabric backend (use_fabric=True)
+            - "isaaclab-usd": Isaac Lab XformPrimView with USD backend
+            - "isaaclab-fabric": Isaac Lab XformPrimView with Fabric backend
             - "isaacsim-usd": Isaac Sim legacy XformPrimView with USD (usd=True)
             - "isaacsim-fabric": Isaac Sim legacy XformPrimView with Fabric (usd=False)
             - "isaacsim-exp": Isaac Sim Experimental XformPrim
@@ -108,7 +108,12 @@ def benchmark_xform_prim_view(  # noqa: C901
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=args_cli.device))
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.01,
+        device=args_cli.device,
+        use_fabric=api in ("isaaclab-fabric", "isaacsim-fabric"),
+    )
+    sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
 
     print(f"  Time taken to create simulation context: {time.perf_counter() - start_time} seconds")
@@ -129,9 +134,9 @@ def benchmark_xform_prim_view(  # noqa: C901
     # Create view
     start_time = time.perf_counter()
     if api == "isaaclab-usd":
-        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False, use_fabric=False)
+        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
     elif api == "isaaclab-fabric":
-        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False, use_fabric=True)
+        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
     elif api == "isaacsim-usd":
         xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=True)
     elif api == "isaacsim-fabric":

@@ -15,7 +15,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.sim.utils import fabric_utils
+from isaaclab.utils.warp import fabric as fabric_utils
 
 
 class XformPrimView:
@@ -30,7 +30,7 @@ class XformPrimView:
     - **World poses**: Positions and orientations in the global world frame
     - **Local poses**: Positions and orientations relative to each prim's parent
 
-    When `use_fabric=True`, the class leverages NVIDIA's Fabric API for GPU-accelerated batch operations:
+    When Fabric is enabled, the class leverages NVIDIA's Fabric API for GPU-accelerated batch operations:
 
     - Uses `omni:fabric:worldMatrix` and `omni:fabric:localMatrix` attributes for all Boundable prims
     - Performs batch matrix decomposition/composition using Warp kernels on GPU
@@ -38,14 +38,14 @@ class XformPrimView:
     - Works for both physics-enabled and non-physics prims (cameras, meshes, etc.)
 
     .. warning::
-        **Fabric requires CUDA**: `use_fabric=True` is only supported with `device="cuda"`.
+        **Fabric requires CUDA**: Fabric is only supported with `device="cuda"`.
         Warp's CPU backend for fabricarray writes has known issues, so attempting to use
-        `use_fabric=True` with `device="cpu"` will raise a ValueError at initialization.
+        Fabric with `device="cpu"` will raise a ValueError at initialization.
 
     .. note::
         **Fabric Support:**
 
-        When `use_fabric=True`, this view will automatically ensure all prims have the required
+        When Fabric is enabled, this view will automatically ensure all prims have the required
         Fabric hierarchy attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`).
         These attributes are part of the IFabricHierarchy interface introduced in Kit 106 and
         are available for all Boundable prims when Fabric Scene Delegate is active.
@@ -82,7 +82,6 @@ class XformPrimView:
         device: str = "cpu",
         validate_xform_ops: bool = True,
         stage: Usd.Stage | None = None,
-        use_fabric: bool = False,
     ):
         """Initialize the view with matching prims.
 
@@ -105,11 +104,6 @@ class XformPrimView:
                 Defaults to True.
             stage: USD stage to search for prims. Defaults to None, in which case the current active stage
                 from the simulation context is used.
-            use_fabric: If True, uses Fabric API for GPU-accelerated batch operations on transforms.
-                This works for all Boundable prims (cameras, meshes, etc.), not just physics prims.
-                **Requires device="cuda"** - raises ValueError if used with device="cpu".
-                Defaults to False.
-
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
                 transform operations (translate, orient, scale in that order).
@@ -119,7 +113,12 @@ class XformPrimView:
         # Store configuration
         self._prim_path = prim_path
         self._device = device
-        self._use_fabric = use_fabric
+
+        # Find and validate matching prims
+        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+
+        # Resolve Fabric usage after prim discovery to allow stage-based inference
+        self._use_fabric = self._resolve_use_fabric(stage)
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":
@@ -127,11 +126,8 @@ class XformPrimView:
                 "Fabric mode with Warp fabricarray operations is not supported on CPU device. "
                 "Warp's CPU backend for fabricarray writes has known reliability issues. "
                 "Fabric itself supports CPU, but our GPU-accelerated Warp kernels require CUDA. "
-                "Please use use_fabric=False with device='cpu'."
+                "Please disable Fabric or use device='cuda'."
             )
-
-        # Find and validate matching prims
-        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
 
         # Create indices buffer
         # Since we iterate over the indices, we need to use range instead of torch tensor
@@ -157,6 +153,38 @@ class XformPrimView:
                         f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
                         " Use sim_utils.standardize_xform_ops() to prepare the prim."
                     )
+
+    def _resolve_use_fabric(self, stage: Usd.Stage) -> bool:
+        """Resolve whether Fabric should be used based on stage state."""
+        if self._device == "cpu":
+            return False
+
+        # Prefer SimulationContext state when available.
+        try:
+            sim_context = sim_utils.SimulationContext.instance()
+        except Exception:
+            sim_context = None
+        if sim_context is not None:
+            return sim_context.is_fabric_enabled()
+
+        # Fall back to checking existing Fabric attributes on prims.
+        for prim in self._prims:
+            if prim.HasAttribute("omni:fabric:worldMatrix") or prim.HasAttribute("omni:fabric:localMatrix"):
+                return True
+
+        # Final fallback: check for Fabric attributes on the USDRT stage.
+        try:
+            fabric_stage = sim_utils.get_current_stage(fabric=True)
+            for prim in self._prims:
+                rt_prim = fabric_stage.GetPrimAtPath(prim.GetPath())
+                if rt_prim and (
+                    rt_prim.HasAttribute("omni:fabric:worldMatrix") or rt_prim.HasAttribute("omni:fabric:localMatrix")
+                ):
+                    return True
+        except Exception:
+            pass
+
+        return False
 
     """
     Properties.
@@ -217,8 +245,8 @@ class XformPrimView:
 
         This method sets the position and/or orientation of each prim in world space.
 
-        When use_fabric=True, writes directly to Fabric using GPU-accelerated batch operations.
-        When use_fabric=False, converts to local space and writes to USD attributes.
+        When Fabric is enabled, writes directly to Fabric using GPU-accelerated batch operations.
+        When Fabric is disabled, converts to local space and writes to USD attributes.
 
         Args:
             positions: World-space positions as a tensor of shape (M, 3) where M is the number of prims
@@ -252,7 +280,7 @@ class XformPrimView:
         For workflows mixing Fabric world pose writes with USD local pose queries, note
         that local poses read from USD's xformOp:* attributes, which may not immediately
         reflect Fabric changes. For best performance and consistency, use Fabric methods
-        exclusively (get_world_poses/set_world_poses with use_fabric=True).
+        exclusively (get_world_poses/set_world_poses with Fabric enabled).
         """
         # Lazy initialization
         if not self._fabric_initialized:
@@ -313,7 +341,7 @@ class XformPrimView:
 
         # Note: Fabric writes to omni:fabric:worldMatrix are GPU-resident and propagate
         # through Fabric's hierarchy system. For optimal performance, use Fabric methods
-        # consistently (get_world_poses/set_world_poses with use_fabric=True).
+        # consistently (get_world_poses/set_world_poses with Fabric enabled).
         #
         # Local pose operations (get_local_poses/set_local_poses) fall back to USD for
         # correctness, as they require parent-relative transform computations that are
@@ -419,8 +447,8 @@ class XformPrimView:
         This method sets the position and/or orientation of each prim in local space (relative to
         their parent prims).
 
-        When use_fabric=True, writes directly to Fabric local matrices using GPU-accelerated batch operations.
-        When use_fabric=False, writes directly to USD local transform attributes.
+        When Fabric is enabled, writes directly to Fabric local matrices using GPU-accelerated batch operations.
+        When Fabric is disabled, writes directly to USD local transform attributes.
 
         Args:
             translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims
@@ -499,8 +527,8 @@ class XformPrimView:
 
         This method sets the scale of each prim in the view.
 
-        When use_fabric=True, updates scales in Fabric matrices using GPU-accelerated batch operations.
-        When use_fabric=False, writes to USD scale attributes.
+        When Fabric is enabled, updates scales in Fabric matrices using GPU-accelerated batch operations.
+        When Fabric is disabled, writes to USD scale attributes.
 
         Args:
             scales: Scales as a tensor of shape (M, 3) where M is the number of prims
@@ -636,8 +664,8 @@ class XformPrimView:
         This method retrieves the position and orientation of each prim in world space by computing
         the full transform hierarchy from the prim to the world root.
 
-        When use_fabric=True, uses Fabric batch operations with Warp kernels.
-        When use_fabric=False, uses USD XformCache.
+        When Fabric is enabled, uses Fabric batch operations with Warp kernels.
+        When Fabric is disabled, uses USD XformCache.
 
         Note:
             Scale and skew are ignored. The returned poses contain only translation and rotation.
@@ -890,8 +918,8 @@ class XformPrimView:
         This method retrieves the position and orientation of each prim in local space (relative to
         their parent prims).
 
-        When use_fabric=True, reads from Fabric local matrices using batch operations with Warp kernels.
-        When use_fabric=False, reads directly from USD local transform attributes.
+        When Fabric is enabled, reads from Fabric local matrices using batch operations with Warp kernels.
+        When Fabric is disabled, reads directly from USD local transform attributes.
 
         Note:
             Scale is ignored. The returned poses contain only translation and rotation.
@@ -958,8 +986,8 @@ class XformPrimView:
 
         This method retrieves the scale of each prim in the view.
 
-        When use_fabric=True, extracts scales from Fabric matrices using batch operations with Warp kernels.
-        When use_fabric=False, reads from USD scale attributes.
+        When Fabric is enabled, extracts scales from Fabric matrices using batch operations with Warp kernels.
+        When Fabric is disabled, reads from USD scale attributes.
 
         Args:
             indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved

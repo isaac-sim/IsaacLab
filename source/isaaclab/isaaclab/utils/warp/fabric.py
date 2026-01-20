@@ -1,16 +1,32 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# pyright: ignore
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).  # noqa: E501
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Warp kernels for GPU-accelerated Fabric operations."""
 
+from typing import Any, TYPE_CHECKING
+
 import warp as wp
+
+if TYPE_CHECKING:
+    FabricArrayUInt32 = Any
+    FabricArrayMat44d = Any
+    ArrayUInt32 = Any
+    ArrayUInt32_1d = Any
+    ArrayFloat32_2d = Any
+else:
+    FabricArrayUInt32 = wp.fabricarray(dtype=wp.uint32)
+    FabricArrayMat44d = wp.fabricarray(dtype=wp.mat44d)
+    ArrayUInt32 = wp.array(ndim=1, dtype=wp.uint32)
+    ArrayUInt32_1d = wp.array(dtype=wp.uint32)
+    ArrayFloat32_2d = wp.array(ndim=2, dtype=wp.float32)
 
 
 @wp.kernel(enable_backward=False)
 def set_view_to_fabric_array(
-    fabric_to_view: wp.fabricarray(dtype=wp.uint32), view_to_fabric: wp.array(ndim=1, dtype=wp.uint32)
+    fabric_to_view: FabricArrayUInt32, view_to_fabric: ArrayUInt32
 ):
     """Create bidirectional mapping from view indices to fabric indices."""
     fabric_idx = int(wp.tid())
@@ -19,7 +35,7 @@ def set_view_to_fabric_array(
 
 
 @wp.kernel(enable_backward=False)
-def arange_k(a: wp.array(dtype=wp.uint32)):
+def arange_k(a: ArrayUInt32_1d):
     """Fill array with sequential indices."""
     tid = int(wp.tid())
     a[tid] = wp.uint32(tid)
@@ -27,12 +43,12 @@ def arange_k(a: wp.array(dtype=wp.uint32)):
 
 @wp.kernel(enable_backward=False)
 def decompose_fabric_transformation_matrix_to_warp_arrays(
-    fabric_matrices: wp.fabricarray(dtype=wp.mat44d),
-    array_positions: wp.array(ndim=2, dtype=wp.float32),
-    array_orientations: wp.array(ndim=2, dtype=wp.float32),
-    array_scales: wp.array(ndim=2, dtype=wp.float32),
-    indices: wp.array(ndim=1, dtype=wp.uint32),
-    mapping: wp.array(ndim=1, dtype=wp.uint32),
+    fabric_matrices: FabricArrayMat44d,
+    array_positions: ArrayFloat32_2d,
+    array_orientations: ArrayFloat32_2d,
+    array_scales: ArrayFloat32_2d,
+    indices: ArrayUInt32,
+    mapping: ArrayUInt32,
 ):
     """Decompose Fabric transformation matrices into position, orientation, and scale arrays.
 
@@ -77,15 +93,15 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
 
 @wp.kernel(enable_backward=False)
 def compose_fabric_transformation_matrix_from_warp_arrays(
-    fabric_matrices: wp.fabricarray(dtype=wp.mat44d),
-    array_positions: wp.array(ndim=2, dtype=wp.float32),
-    array_orientations: wp.array(ndim=2, dtype=wp.float32),
-    array_scales: wp.array(ndim=2, dtype=wp.float32),
+    fabric_matrices: FabricArrayMat44d,
+    array_positions: ArrayFloat32_2d,
+    array_orientations: ArrayFloat32_2d,
+    array_scales: ArrayFloat32_2d,
     broadcast_positions: bool,
     broadcast_orientations: bool,
     broadcast_scales: bool,
-    indices: wp.array(ndim=1, dtype=wp.uint32),
-    mapping: wp.array(ndim=1, dtype=wp.uint32),
+    indices: ArrayUInt32,
+    mapping: ArrayUInt32,
 ):
     """Compose Fabric transformation matrices from position, orientation, and scale arrays.
 
@@ -141,11 +157,13 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
         scale[2] = array_scales[index, 2]
     # set transform matrix (need transpose for column-major ordering)
     # Using transform_compose as wp.matrix() is deprecated
-    fabric_matrices[fabric_index] = wp.mat44d(wp.transpose(wp.transform_compose(position, rotation, scale)))
+    fabric_matrices[fabric_index] = wp.mat44d(  # type: ignore[arg-type]
+        wp.transpose(wp.transform_compose(position, rotation, scale))  # type: ignore[arg-type]
+    )
 
 
 @wp.func
-def _decompose_transformation_matrix(m: wp.mat44f):  # -> tuple[wp.vec3f, wp.quatf, wp.vec3f]
+def _decompose_transformation_matrix(m: Any):  # -> tuple[wp.vec3f, wp.quatf, wp.vec3f]
     """Decompose a 4x4 transformation matrix into position, orientation, and scale.
 
     Args:
@@ -178,7 +196,9 @@ def _decompose_transformation_matrix(m: wp.mat44f):  # -> tuple[wp.vec3f, wp.qua
         r21 /= sz
         r22 /= sz
     # extract rotation quaternion from normalized rotation matrix
-    rotation = wp.quat_from_matrix(wp.transpose(wp.mat33f(r00, r01, r02, r10, r11, r12, r20, r21, r22)))
+    rotation = wp.quat_from_matrix(  # type: ignore[arg-type]
+        wp.transpose(wp.mat33f(r00, r01, r02, r10, r11, r12, r20, r21, r22))  # type: ignore[arg-type]
+    )
     # extract scale
     scale = wp.vec3f(sx, sy, sz)
     return position, rotation, scale
