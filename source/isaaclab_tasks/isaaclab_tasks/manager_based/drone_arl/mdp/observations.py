@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 
+from isaaclab_tasks import ISAACLAB_TASKS_EXT_DIR
+
 """
 State.
 """
@@ -74,7 +76,7 @@ class VAEModelManager:
         if cls._model is None:
             import os
 
-            model_path = os.path.join(os.path.dirname(__file__), "vae_model.pt")
+            model_path = os.path.join(ISAACLAB_TASKS_EXT_DIR, "data", "drone_arl", "vae_model.pt")
             cls._model = torch.jit.load(model_path, map_location=device)
             cls._model.eval()
         return cls._model

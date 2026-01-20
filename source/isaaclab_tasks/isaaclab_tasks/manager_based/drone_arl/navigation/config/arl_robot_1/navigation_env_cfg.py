@@ -32,7 +32,7 @@ import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from .obstacles.obstacle_scene import (
+from .scenes.obstacle_scenes.obstacle_scene import (
     OBSTACLE_SCENE_CFG,
     generate_obstacle_collection,
     reset_obstacles_with_individual_ranges,
