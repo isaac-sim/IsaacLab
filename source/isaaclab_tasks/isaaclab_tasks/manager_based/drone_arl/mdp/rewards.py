@@ -50,11 +50,10 @@ def distance_to_goal_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
 
-    target_position_w = command[:, :3].clone()
     current_position = asset.data.root_pos_w - env.scene.env_origins
 
     # compute the error
-    position_error_square = torch.sum(torch.square(target_position_w - current_position), dim=1)
+    position_error_square = torch.sum(torch.square(command[:, :3] - current_position), dim=1)
     return torch.exp(-position_error_square / std**2)
 
 
