@@ -15,7 +15,9 @@ required arguments:
     --output_dir         Directory to save the output MP4 files.
 
 optional arguments:
-    --input_keys         List of input keys to process from the HDF5 file. (default: ["table_cam", "wrist_cam", "table_cam_segmentation", "table_cam_normals", "table_cam_shaded_segmentation"])
+    --input_keys         List of input keys to process from the HDF5 file.
+                         (default: ["table_cam", "wrist_cam", "table_cam_segmentation",
+                                    "table_cam_normals", "table_cam_shaded_segmentation"])
     --video_height       Height of the output video in pixels. (default: 704)
     --video_width        Width of the output video in pixels. (default: 1280)
     --framerate          Frames per second for the output video. (default: 30)

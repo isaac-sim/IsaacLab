@@ -61,7 +61,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         """Initialize ManagerLiveVisualizer.
 
         Args:
-            manager: The manager with terms to be plotted. The manager must have a :meth:`get_active_iterable_terms` method.
+            manager: The manager with terms to be plotted. The manager must have a
+                :meth:`~isaaclab.managers.manager_base.ManagerBase.get_active_iterable_terms` method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
 

@@ -311,9 +311,19 @@ class VisualizationManager:
                 - For TRIGGER_ON_EVENT: {"event_name": str}
                 - For TRIGGER_ON_CHANGE: {"variable_name": str}
                 - For TRIGGER_ON_UPDATE: {}
-            callback: Function to execute when trigger condition is met
-                - For TRIGGER_ON_EVENT: callback(manager: VisualizationManager, data_collector: DataCollector, event_params: Any)
-                - For others: callback(manager: VisualizationManager, data_collector: DataCollector)
+            callback: Function to execute when trigger condition is met. The callback should have
+                the following signatures according to the trigger type:
+                - For TRIGGER_ON_EVENT:
+                    callback(
+                        manager: VisualizationManager,
+                        data_collector: DataCollector,
+                        event_params: Any,
+                    )
+                - For others:
+                    callback(
+                        manager: VisualizationManager,
+                        data_collector: DataCollector,
+                    )
 
         Raises:
             TypeError: If callback signature doesn't match the expected signature for the trigger type

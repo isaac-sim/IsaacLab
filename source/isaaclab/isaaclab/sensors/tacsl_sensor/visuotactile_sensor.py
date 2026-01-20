@@ -48,7 +48,8 @@ class VisuoTactileSensor(SensorBase):
         processes them through the tac-sl GelSight renderer to produce realistic tactile images.
 
         Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
-        then applies penalty-based spring-damper models (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
+        then applies penalty-based spring-damper models
+        (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
         to compute normal and shear forces at discrete tactile points.
 
     **Example Usage:**

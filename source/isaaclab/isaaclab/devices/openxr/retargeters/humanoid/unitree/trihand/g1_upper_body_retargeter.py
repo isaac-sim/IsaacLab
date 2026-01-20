@@ -17,7 +17,8 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-# This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
+# This import exception is suppressed because g1_dex_retargeting_utils depends
+# on pinocchio which is not available on Windows.
 with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import G1TriHandDexRetargeting
 
