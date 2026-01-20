@@ -98,7 +98,8 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
                 subtask_term_offset_range=(
                     25,
                     30,
-                ),  # this should be larger than the other subtasks, because the gripper should be lifted higher than 2 blocks
+                ),  # This should be larger than the other subtasks, because the gripper
+                # should be lifted higher than two blocks
                 # Selection strategy for source subtask segment
                 selection_strategy="nearest_neighbor_object",
                 # Optional parameters for the selection strategy function

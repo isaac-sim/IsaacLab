@@ -402,12 +402,14 @@ def pytest_sessionstart(session):
             - test_status[test_path]["errors"]
             - test_status[test_path]["skipped"]
         )
-        per_test_result_table.add_row([
-            test_path,
-            test_status[test_path]["result"],
-            f"{test_status[test_path]['time_elapsed']:0.2f}",
-            f"{num_tests_passed}/{test_status[test_path]['tests']}",
-        ])
+        per_test_result_table.add_row(
+            [
+                test_path,
+                test_status[test_path]["result"],
+                f"{test_status[test_path]['time_elapsed']:0.2f}",
+                f"{num_tests_passed}/{test_status[test_path]['tests']}",
+            ]
+        )
 
     summary_str += per_test_result_table.get_string()
 

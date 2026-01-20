@@ -89,6 +89,7 @@ class DigitLocoManipRewards(DigitRewards):
 
 @configclass
 class DigitLocoManipObservations:
+    """Configuration for the Digit Locomanipulation environment."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -235,7 +236,6 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
 
 
 class DigitLocoManipEnvCfg_PLAY(DigitLocoManipEnvCfg):
-
     def __post_init__(self) -> None:
         super().__post_init__()
 

@@ -12,6 +12,7 @@ from isaaclab.envs import ManagerBasedRLMimicEnv
 
 
 class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
+    """GR1T2 Pick Place Mimic environment."""
 
     def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """

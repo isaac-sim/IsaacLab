@@ -184,28 +184,34 @@ def apply_sample_visualization():
 
     # Display a panel on the left to display DataCollector data
     # Refresh periodically
-    XRVisualization.set_attrs({
-        "left_panel_id": "/left_panel",
-        "left_panel_translation": Gf.Vec3f(-2, 2.6, 2),
-        "left_panel_updated_times": 0,
-        "right_panel_updated_times": 0,
-    })
+    XRVisualization.set_attrs(
+        {
+            "left_panel_id": "/left_panel",
+            "left_panel_translation": Gf.Vec3f(-2, 2.6, 2),
+            "left_panel_updated_times": 0,
+            "right_panel_updated_times": 0,
+        }
+    )
     XRVisualization.register_callback(TriggerType.TRIGGER_ON_PERIOD, {"period": 1.0}, _sample_update_left_panel)
 
     # Display a panel on the right to display DataCollector data
     # Refresh when camera position changes
-    XRVisualization.set_attrs({
-        "right_panel_id": "/right_panel",
-        "right_panel_translation": Gf.Vec3f(1.5, 2, 2),
-    })
+    XRVisualization.set_attrs(
+        {
+            "right_panel_id": "/right_panel",
+            "right_panel_translation": Gf.Vec3f(1.5, 2, 2),
+        }
+    )
     XRVisualization.register_callback(
         TriggerType.TRIGGER_ON_CHANGE, {"variable_name": "right_panel_data"}, _sample_update_right_panel
     )
 
     # Change error text color every second
-    XRVisualization.set_attrs({
-        "error_text_color": 0xFF0000FF,
-    })
+    XRVisualization.set_attrs(
+        {
+            "error_text_color": 0xFF0000FF,
+        }
+    )
     XRVisualization.register_callback(TriggerType.TRIGGER_ON_UPDATE, {}, _sample_update_error_text_color)
 
 

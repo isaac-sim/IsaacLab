@@ -31,7 +31,6 @@ class DummyData:
 
 
 class DummySensor(SensorBase):
-
     def __init__(self, cfg):
         super().__init__(cfg)
         self._data = DummyData()
@@ -88,7 +87,6 @@ def _populate_scene():
 
 @pytest.fixture
 def create_dummy_sensor(request, device):
-
     # Create a new stage
     sim_utils.create_new_stage()
 

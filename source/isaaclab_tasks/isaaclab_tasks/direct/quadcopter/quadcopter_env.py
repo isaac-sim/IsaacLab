@@ -153,7 +153,9 @@ class QuadcopterEnv(DirectRLEnv):
         self._moment[:, 0, :] = self.cfg.moment_scale * self._actions[:, 1:]
 
     def _apply_action(self):
-        self._robot.set_external_force_and_torque(self._thrust, self._moment, body_ids=self._body_id)
+        self._robot.permanent_wrench_composer.set_forces_and_torques(
+            body_ids=self._body_id, forces=self._thrust, torques=self._moment
+        )
 
     def _get_observations(self) -> dict:
         desired_pos_b, _ = subtract_frame_transforms(

@@ -274,16 +274,18 @@ class PbtTablePrinter:
             if c is None:
                 t.add_row([p, "—", "", "", "", "", "", ""])
             else:
-                t.add_row([
-                    p,
-                    "OK",
-                    self.fmt(c.get("true_objective", "")),
-                    c.get("iteration", ""),
-                    c.get("frame", ""),
-                    c.get("experiment_name", ""),
-                    self.short(c.get("checkpoint", "")),
-                    self.short(c.get("pbt_checkpoint", "")),
-                ])
+                t.add_row(
+                    [
+                        p,
+                        "OK",
+                        self.fmt(c.get("true_objective", "")),
+                        c.get("iteration", ""),
+                        c.get("frame", ""),
+                        c.get("experiment_name", ""),
+                        self.short(c.get("checkpoint", "")),
+                        self.short(c.get("pbt_checkpoint", "")),
+                    ]
+                )
         print(t)
 
     def print_mutation_diff(self, before: dict, after: dict, *, header: str = "Mutated params (changed only)"):

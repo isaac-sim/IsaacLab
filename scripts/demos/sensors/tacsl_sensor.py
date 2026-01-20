@@ -12,7 +12,14 @@ tactile sensing with the gelsight finger setup.
 .. code-block:: bash
 
     # Usage
-    python tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --num_envs 16 --contact_object_type nut --save_viz --enable_cameras
+    python scripts/demos/sensors/tacsl_sensor.py \
+        --use_tactile_rgb \
+        --use_tactile_ff \
+        --tactile_compliance_stiffness 100.0 \
+        --num_envs 16 \
+        --contact_object_type nut \
+        --save_viz \
+        --enable_cameras
 
 """
 
@@ -146,12 +153,14 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         friction_coefficient=args_cli.friction_coefficient,
         tangential_stiffness=args_cli.tangential_stiffness,
         # Camera configuration
+        # Note: the camera is already spawned in the scene, properties are set in the
+        # 'gelsight_r15_finger.usd' USD file
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             height=GELSIGHT_R15_CFG.image_height,
             width=GELSIGHT_R15_CFG.image_width,
             data_types=["distance_to_image_plane"],
-            spawn=None,  # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
+            spawn=None,
         ),
         # Debug Visualization
         trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
@@ -309,7 +318,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         entity_list.append("contact_object")
 
     while simulation_app.is_running():
-
         if count == 122:
             # Reset robot and contact object positions
             count = 0
@@ -363,12 +371,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     # Initialize simulation
+    # Note: We set the gpu_collision_stack_size to prevent buffer overflow in contact-rich environments.
     sim_cfg = sim_utils.SimulationCfg(
         dt=0.005,
         device=args_cli.device,
-        physx=sim_utils.PhysxCfg(
-            gpu_collision_stack_size=2**30,  # Prevent collisionStackSize buffer overflow in contact-rich environments.
-        ),
+        physx=sim_utils.PhysxCfg(gpu_collision_stack_size=2**30),
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
@@ -378,7 +385,8 @@ def main():
     # Create scene based on contact object type
     if args_cli.contact_object_type == "cube":
         scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # disabled force field for cube contact object because a SDF collision mesh cannot be created for the Shape Prims
+        # disabled force field for cube contact object because a SDF collision mesh cannot
+        # be created for the Shape Prims
         scene_cfg.tactile_sensor.enable_force_field = False
     elif args_cli.contact_object_type == "nut":
         scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)

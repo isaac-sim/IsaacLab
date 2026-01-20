@@ -257,9 +257,9 @@ def _validate_articulation_properties_on_prim(
         # convert attribute name in prim to cfg name
         prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
         # validate the values
-        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-            attr_value, abs=1e-5
-        ), f"Failed setting for {prim_prop_name}"
+        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+            f"Failed setting for {prim_prop_name}"
+        )
 
 
 def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: bool = False):
@@ -283,9 +283,9 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                    attr_value, abs=1e-5
-                ), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                    f"Failed setting for {prim_prop_name}"
+                )
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a rigid body.")
 
@@ -312,9 +312,9 @@ def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbos
                     # convert attribute name in prim to cfg name
                     prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"
                     # validate the values
-                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                        attr_value, abs=1e-5
-                    ), f"Failed setting for {prim_prop_name}"
+                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                        f"Failed setting for {prim_prop_name}"
+                    )
             elif verbose:
                 print(f"Skipping prim {mesh_prim.GetPrimPath()} as it is not a collision mesh.")
 
@@ -340,9 +340,9 @@ def _validate_mass_properties_on_prim(prim_path: str, mass_cfg, verbose: bool = 
                 # print(link_prim.GetProperties())
                 prim_prop_name = f"physics:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                    attr_value, abs=1e-5
-                ), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                    f"Failed setting for {prim_prop_name}"
+                )
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a mass api.")
 
@@ -401,8 +401,8 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                             prim_attr_value = prim_attr_value * 180.0 / math.pi
 
                     # validate the values
-                    assert prim_attr_value == pytest.approx(
-                        attr_value, abs=1e-5
-                    ), f"Failed setting for {prim_attr_name}"
+                    assert prim_attr_value == pytest.approx(attr_value, abs=1e-5), (
+                        f"Failed setting for {prim_attr_name}"
+                    )
             elif verbose:
                 print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")
