@@ -26,5 +26,5 @@ class LeeVelControllerCfg(LeeControllerBaseCfg):
     Format: ((min_x, min_y, min_z), (max_x, max_y, max_z))
 
     Example:
-        ((3.5, 3.5, 2.0), (2.5, 2.5, 1.5)) for ARL Robot 1
+        ((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)) for ARL Robot 1
     """

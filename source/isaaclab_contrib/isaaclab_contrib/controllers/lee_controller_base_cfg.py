@@ -31,7 +31,7 @@ class LeeControllerBaseCfg:
     To disable randomization, set both tuples to the same values.
 
     Example (with randomization):
-        ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25)) for ARL Robot 1
+        ((1.6, 1.6, 0.25), (1.85, 1.85, 0.4)) for ARL Robot 1
 
     Example (without randomization):
         ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4)) for fixed gains
@@ -46,7 +46,7 @@ class LeeControllerBaseCfg:
     To disable randomization, set both tuples to the same values.
 
     Example (with randomization):
-        ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075)) for ARL Robot 1
+        ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09)) for ARL Robot 1
 
     Example (without randomization):
         ((0.5, 0.5, 0.09), (0.5, 0.5, 0.09)) for fixed gains

@@ -26,5 +26,5 @@ class LeePosControllerCfg(LeeControllerBaseCfg):
     Format: ((min_x, min_y, min_z), (max_x, max_y, max_z))
 
     Example:
-        ((4.0, 4.0, 2.5), (3.0, 3.0, 2.0)) for ARL Robot 1
+        ((3.0, 3.0, 2.0), (4.0, 4.0, 2.5)) for ARL Robot 1
     """
