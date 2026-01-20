@@ -1705,8 +1705,6 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
         # -- body properties
         self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())
-        print(f"Body com: {wp.to_torch(self._sim_bind_body_com_pos_b)}")
-        print(f"Body com shape: {wp.to_torch(self._sim_bind_body_com_pos_b).shape}")
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(NewtonManager.get_state_0())
         self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(NewtonManager.get_state_0())
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", NewtonManager.get_model())

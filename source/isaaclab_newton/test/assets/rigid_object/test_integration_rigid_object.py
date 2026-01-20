@@ -235,46 +235,29 @@ def test_external_force_buffer(device):
 
             # initiate force tensor
             external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
-            external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
 
             if step == 0 or step == 3:
                 # set a non-zero force
                 force = 1
-                position = 1
-                is_global = True
             else:
                 # set a zero force
                 force = 0
-                position = 0
-                is_global = False
 
             # set force value
             external_wrench_b[:, :, 0] = force
             external_wrench_b[:, :, 3] = force
-            external_wrench_positions_b[:, :, 0] = position
 
             # apply force
-            if step == 0 or step == 3:
-                cube_object.set_external_force_and_torque(
-                    external_wrench_b[..., :3],
-                    external_wrench_b[..., 3:],
-                    body_ids=body_ids,
-                    positions=external_wrench_positions_b,
-                    is_global=is_global,
-                )
-            else:
-                cube_object.set_external_force_and_torque(
-                    external_wrench_b[..., :3],
-                    external_wrench_b[..., 3:],
-                    body_ids=body_ids,
-                    is_global=is_global,
-                )
+            cube_object.set_external_force_and_torque(
+                external_wrench_b[..., :3],
+                external_wrench_b[..., 3:],
+                body_ids=body_ids,
+            )
 
-            # check if the cube's force and torque buffers are correctly updated
-            assert wp.to_torch(cube_object._external_force_b)[0, 0, 0].item() == force
-            assert wp.to_torch(cube_object._external_torque_b)[0, 0, 0].item() == force
-            # assert cube_object.data._sim_bind_body_external_wrench_positions[0, 0, 0].item() == position
-            # assert cube_object._use_global_wrench_frame == (step == 0 or step == 3)
+            # check if the articulation's force and torque buffers are correctly updated
+            for i in range(cube_object.num_instances):
+                assert wp.to_torch(cube_object.permanent_wrench_composer.composed_force)[i, 0, 0].item() == force
+                assert wp.to_torch(cube_object.permanent_wrench_composer.composed_torque)[i, 0, 0].item() == force
 
             # apply action to the object
             cube_object.write_data_to_sim()
@@ -350,7 +333,6 @@ def test_external_force_on_single_body(num_cubes, device):
             assert torch.all(wp.to_torch(cube_object.data.root_pos_w)[1::2, 2] < 1.0)
 
 
-@pytest.mark.skip(reason="Waiting on Wrench Composers here too...")
 @pytest.mark.parametrize("num_cubes", [2, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_single_body_at_position(num_cubes, device):
@@ -370,19 +352,19 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
         sim.reset()
 
         # Find bodies to apply the force
-        body_ids, body_names = cube_object.find_bodies(".*")
+        body_mask, body_names, body_ids = cube_object.find_bodies(".*")
 
         # Sample a force equal to the weight of the object
         external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
         external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
         # Every 2nd cube should have a force applied to it
-        external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
+        external_wrench_b[0::2, :, 2] = 9.81 * wp.to_torch(cube_object.data.body_mass)[0, 0]
         external_wrench_positions_b[0::2, :, 1] = 1.0
 
         # Now we are ready!
         for _ in range(5):
             # reset root state
-            root_state = cube_object.data.default_root_state.clone()
+            root_state = wp.to_torch(cube_object.data.default_root_state).clone()
 
             # need to shift the position of the cubes otherwise they will be on top of each other
             root_state[:, :3] = origins
@@ -411,9 +393,9 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
                 cube_object.update(sim.cfg.dt)
 
             # The first object should be rotating around it's X axis
-            assert torch.all(torch.abs(cube_object.data.root_ang_vel_b[0::2, 0]) > 0.1)
+            assert torch.all(torch.abs(wp.to_torch(cube_object.data.root_ang_vel_w)[0::2, 0]) > 0.1)
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-            assert torch.all(cube_object.data.root_pos_w[1::2, 2] < 1.0)
+            assert torch.all(wp.to_torch(cube_object.data.root_pos_w)[1::2, 2] < 1.0)
 
 
 # FIXME: Bug here, CPU only too... It seems that when setting to the state, it can get ignored. It looks like the
@@ -532,12 +514,14 @@ def test_reset_rigid_object(num_cubes, device):
                 cube_object.reset()
 
                 # Reset should zero external forces and torques
-                assert not cube_object.has_external_wrench
-                assert torch.count_nonzero(wp.to_torch(cube_object._external_force_b)) == 0
-                assert torch.count_nonzero(wp.to_torch(cube_object._external_torque_b)) == 0
+                assert not cube_object.instantaneous_wrench_composer.active
+                assert not cube_object.permanent_wrench_composer.active
+                assert torch.count_nonzero(wp.to_torch(cube_object.instantaneous_wrench_composer.composed_force)) == 0
+                assert torch.count_nonzero(wp.to_torch(cube_object.instantaneous_wrench_composer.composed_torque)) == 0
+                assert torch.count_nonzero(wp.to_torch(cube_object.permanent_wrench_composer.composed_force)) == 0
+                assert torch.count_nonzero(wp.to_torch(cube_object.permanent_wrench_composer.composed_torque)) == 0
 
 
-@pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -553,15 +537,21 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         sim.reset()
 
         # Set material properties
-        static_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        dynamic_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
+        num_shapes_per_body = cube_object.num_shapes_per_body
+        shape_material_mu = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 1.0
+        shape_material_rolling_friction = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 2.0
+        shape_material_torsional_friction = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 3.0
+        shape_material_ke = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 4.0
+        shape_material_kd = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 5.0
 
-        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int)
         # Add friction to cube
-        cube_object.root_physx_view.set_material_properties(materials, indices)
+        cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), shape_material_mu)
+        cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), shape_material_rolling_friction)
+        cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), shape_material_torsional_friction)
+        cube_object.root_view.set_attribute("shape_material_ke", NewtonManager.get_model(), shape_material_ke)
+        cube_object.root_view.set_attribute("shape_material_kd", NewtonManager.get_model(), shape_material_kd)
+        NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+
 
         # Simulate physics
         # perform rendering
@@ -570,10 +560,18 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         cube_object.update(sim.cfg.dt)
 
         # Get material properties
-        materials_to_check = cube_object.root_physx_view.get_material_properties()
+        shape_material_mu_to_check = cube_object.root_view.get_attribute("shape_material_mu", NewtonManager.get_model())
+        shape_material_rolling_friction_to_check = cube_object.root_view.get_attribute("shape_material_rolling_friction", NewtonManager.get_model())
+        shape_material_torsional_friction_to_check = cube_object.root_view.get_attribute("shape_material_torsional_friction", NewtonManager.get_model())
+        shape_material_ke_to_check = cube_object.root_view.get_attribute("shape_material_ke", NewtonManager.get_model())
+        shape_material_kd_to_check = cube_object.root_view.get_attribute("shape_material_kd", NewtonManager.get_model())
 
         # Check if material properties are set correctly
-        torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
+        torch.testing.assert_close(wp.to_torch(shape_material_mu_to_check), shape_material_mu)
+        torch.testing.assert_close(wp.to_torch(shape_material_rolling_friction_to_check), shape_material_rolling_friction)
+        torch.testing.assert_close(wp.to_torch(shape_material_torsional_friction_to_check), shape_material_torsional_friction)
+        torch.testing.assert_close(wp.to_torch(shape_material_ke_to_check), shape_material_ke)
+        torch.testing.assert_close(wp.to_torch(shape_material_kd_to_check), shape_material_kd)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])

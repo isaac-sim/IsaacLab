@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
+from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets.utils.shared import find_bodies
 from isaaclab_newton.kernels import (
     project_link_velocity_to_com_frame_masked_root,
@@ -136,6 +137,35 @@ class RigidObject(BaseRigidObject):
         """
         return self._root_view
 
+    @property
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+
+        Note:
+            Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+            applied to the simulation.
+        """
+        return self._instantaneous_wrench_composer
+
+    @property
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+
+        Note:
+            Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+            applied to the simulation.
+        """
+        return self._permanent_wrench_composer
+
     """
     Operations.
     """
@@ -148,32 +178,10 @@ class RigidObject(BaseRigidObject):
         elif env_mask is not None:
             if isinstance(env_mask, torch.Tensor):
                 env_mask = wp.from_torch(env_mask, dtype=wp.bool)
-        else:
-            env_mask = self._data.ALL_ENV_MASK
-        # reset external wrench
-        self.has_external_wrench = False
-        wp.launch(
-            update_array2D_with_value_masked,
-            dim=(self.num_instances, self.num_bodies),
-            device=self.device,
-            inputs=[
-                wp.vec3f(0.0, 0.0, 0.0),
-                self._external_force_b,
-                env_mask,
-                self._data.ALL_BODY_MASK,
-            ],
-        )
-        wp.launch(
-            update_array2D_with_value_masked,
-            dim=(self.num_instances, self.num_bodies),
-            device=self.device,
-            inputs=[
-                wp.vec3f(0.0, 0.0, 0.0),
-                self._external_torque_b,
-                env_mask,
-                self._data.ALL_BODY_MASK,
-            ],
-        )
+
+        # reset external wrenches.
+        self._instantaneous_wrench_composer.reset(env_mask=env_mask)
+        self._permanent_wrench_composer.reset(env_mask=env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -182,31 +190,62 @@ class RigidObject(BaseRigidObject):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # FIXME: This is a temporary solution to write the external wrench to the simulation.
-        # We could use slicing instead, so this comes for free? Or a single update at least?
-        if self.has_external_wrench:
-            wp.launch(
-                update_wrench_array_with_force,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    self._external_force_b,
-                    self._data._sim_bind_body_external_wrench,
-                    self._data.ALL_ENV_MASK,
-                    self._data.ALL_BODY_MASK,
-                ],
-            )
-            wp.launch(
-                update_wrench_array_with_torque,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    self._external_torque_b,
-                    self._data._sim_bind_body_external_wrench,
-                    self._data.ALL_ENV_MASK,
-                    self._data.ALL_BODY_MASK,
-                ],
-            )
+        # write external wrench
+        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
+            if self._instantaneous_wrench_composer.active:
+                # Compose instantaneous wrench with permanent wrench
+                self._instantaneous_wrench_composer.add_forces_and_torques(
+                    forces=self._permanent_wrench_composer.composed_force,
+                    torques=self._permanent_wrench_composer.composed_torque,
+                )
+                # Apply both instantaneous and permanent wrench to the simulation
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._instantaneous_wrench_composer.composed_force,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._instantaneous_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+            else:
+                # Apply permanent wrench to the simulation
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._permanent_wrench_composer.composed_force,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._permanent_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+        self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
         self._data.update(dt)
@@ -373,9 +412,7 @@ class RigidObject(BaseRigidObject):
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # set into simulation
-        print(f"Pose: {wp.to_torch(pose)}")
         self._update_array_with_array_masked(pose, self._data.root_link_pose_w, env_mask, self.num_instances)
-        print(f"Root link pose: {wp.to_torch(self._data.root_link_pose_w)}")
         # invalidate the root com pose
         self._data._root_com_pose_w.timestamp = -1.0
 
@@ -664,36 +701,17 @@ class RigidObject(BaseRigidObject):
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
                 the external wrench is applied in the link frame of the articulations' bodies.
         """
-        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        env_mask_ = None
-        body_mask_ = None
-        if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor):
-            if forces is not None:
-                forces = make_complete_data_from_torch_dual_index(
-                    forces, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
-                )
-            if torques is not None:
-                torques = make_complete_data_from_torch_dual_index(
-                    torques, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
-                )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        # solve for None masks
-        if env_mask_ is None:
-            env_mask_ = self._data.ALL_ENV_MASK
-        if body_mask_ is None:
-            body_mask_ = self._data.ALL_BODY_MASK
-        # set into simulation
-        if (forces is not None) or (torques is not None):
-            self.has_external_wrench = True
-            if forces is not None:
-                self._update_batched_array_with_batched_array_masked(
-                    forces, self._external_force_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
-                )
-            if torques is not None:
-                self._update_batched_array_with_batched_array_masked(
-                    torques, self._external_torque_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
-                )
+        # Write to wrench composer
+        self._permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            body_ids=body_ids,
+            env_ids=env_ids,
+            body_mask=body_mask,
+            env_mask=env_mask,
+            is_global=is_global,
+        )
 
     """
     Internal helper.
@@ -764,9 +782,9 @@ class RigidObject(BaseRigidObject):
 
     def _create_buffers(self):
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self.has_external_wrench = False
-        self._external_force_b = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
-        self._external_torque_b = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        # external wrench composers
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
 
         # Assign body names to the data
         self._data.body_names = self.body_names

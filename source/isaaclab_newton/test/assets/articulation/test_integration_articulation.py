@@ -1670,7 +1670,6 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     assert ctypes.c_long.from_address(id(articulation)).value == 1, "Boundedness of articulation is incorrect"
     # Play sim
     sim.reset()
-    print(NewtonManager._gravity_vector)
     # Check if articulation is initialized
     assert articulation.is_initialized, "Articulation is not initialized"
     # Check that fixed base
@@ -1926,7 +1925,6 @@ def test_setting_articulation_root_prim_path(sim, device):
     sim._app_control_on_stop_handle = None
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    print(articulation_cfg.spawn.usd_path)
     articulation_cfg.articulation_root_prim_path = "/torso"
     articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
@@ -1946,7 +1944,6 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     sim._app_control_on_stop_handle = None
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    print(articulation_cfg.spawn.usd_path)
     articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 

@@ -182,8 +182,6 @@ class MockNewtonArticulationView:
         return self._attributes[name]
 
     def set_root_transforms(self, state, transforms: wp.array):
-        print(f"Setting root transforms: {transforms}")
-        print(f"Root transforms: {self._root_transforms}")
         self._root_transforms.assign(transforms)
 
     def set_root_velocities(self, state, velocities: wp.array):

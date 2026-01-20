@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from ..asset_base import AssetBase
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 if TYPE_CHECKING:
     from .rigid_object_cfg import RigidObjectCfg
@@ -97,6 +98,18 @@ class BaseRigidObject(AssetBase):
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer for the articulation."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer for the articulation."""
         raise NotImplementedError()
 
     """
