@@ -111,9 +111,9 @@ def _device_param(device_str: str) -> torch.device:
 def _create_vel_cfg() -> LeeVelControllerCfg:
     """Create velocity controller config with required parameters."""
     cfg = LeeVelControllerCfg()
-    cfg.K_vel_range = ((3.3, 3.3, 1.7), (2.7, 2.7, 1.3))
-    cfg.K_rot_range = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))
-    cfg.K_angvel_range = ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075))
+    cfg.K_vel_range = ((2.7, 2.7, 1.3), (3.3, 3.3, 1.7))
+    cfg.K_rot_range = ((1.6, 1.6, 0.25), (1.85, 1.85, 0.4))
+    cfg.K_angvel_range = ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09))
     cfg.max_inclination_angle_rad = 1.0471975511965976
     cfg.max_yaw_rate = 1.0471975511965976
     return cfg
@@ -122,9 +122,9 @@ def _create_vel_cfg() -> LeeVelControllerCfg:
 def _create_pos_cfg() -> LeePosControllerCfg:
     """Create position controller config with required parameters."""
     cfg = LeePosControllerCfg()
-    cfg.K_pos_range = ((4.0, 4.0, 2.5), (3.0, 3.0, 2.0))
-    cfg.K_rot_range = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))
-    cfg.K_angvel_range = ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075))
+    cfg.K_pos_range = ((3.0, 3.0, 2.0), (4.0, 4.0, 2.5))
+    cfg.K_rot_range = ((1.6, 1.6, 0.25), (1.85, 1.85, 0.4))
+    cfg.K_angvel_range = ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09))
     cfg.max_inclination_angle_rad = 1.0471975511965976
     cfg.max_yaw_rate = 1.0471975511965976
     return cfg
@@ -133,8 +133,8 @@ def _create_pos_cfg() -> LeePosControllerCfg:
 def _create_acc_cfg() -> LeeAccControllerCfg:
     """Create acceleration controller config with required parameters."""
     cfg = LeeAccControllerCfg()
-    cfg.K_rot_range = ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25))
-    cfg.K_angvel_range = ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075))
+    cfg.K_rot_range = ((1.6, 1.6, 0.25), (1.85, 1.85, 0.4))
+    cfg.K_angvel_range = ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09))
     cfg.max_inclination_angle_rad = 1.0471975511965976
     cfg.max_yaw_rate = 1.0471975511965976
     return cfg
@@ -207,8 +207,8 @@ def test_lee_vel_randomize_params_within_bounds(
     controller.reset_idx(env_ids=None)
 
     # Ensure tensors are on the correct device
-    K_vel_max = torch.tensor(cfg.K_vel_range[0], device=device, dtype=torch.float32)
-    K_vel_min = torch.tensor(cfg.K_vel_range[1], device=device, dtype=torch.float32)
+    K_vel_min = torch.tensor(cfg.K_vel_range[0], device=device, dtype=torch.float32)
+    K_vel_max = torch.tensor(cfg.K_vel_range[1], device=device, dtype=torch.float32)
 
     # Move controller gains to same device if needed
     K_vel_current = controller.K_vel_current.to(device)
@@ -240,8 +240,8 @@ def test_lee_pos_randomize_params_within_bounds(
     controller.reset_idx(env_ids=None)
 
     # Check K_pos gains
-    K_pos_max = torch.tensor(cfg.K_pos_range[0], device=device, dtype=torch.float32)
-    K_pos_min = torch.tensor(cfg.K_pos_range[1], device=device, dtype=torch.float32)
+    K_pos_min = torch.tensor(cfg.K_pos_range[0], device=device, dtype=torch.float32)
+    K_pos_max = torch.tensor(cfg.K_pos_range[1], device=device, dtype=torch.float32)
     K_pos_current = controller.K_pos_current.to(device)
 
     assert K_pos_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_pos_current.shape}"
@@ -271,8 +271,8 @@ def test_lee_acc_randomize_params_within_bounds(
     controller.reset_idx(env_ids=None)
 
     # Check K_rot gains
-    K_rot_max = torch.tensor(cfg.K_rot_range[0], device=device, dtype=torch.float32)
-    K_rot_min = torch.tensor(cfg.K_rot_range[1], device=device, dtype=torch.float32)
+    K_rot_min = torch.tensor(cfg.K_rot_range[0], device=device, dtype=torch.float32)
+    K_rot_max = torch.tensor(cfg.K_rot_range[1], device=device, dtype=torch.float32)
     K_rot_current = controller.K_rot_current.to(device)
 
     assert K_rot_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_rot_current.shape}"
@@ -280,8 +280,8 @@ def test_lee_acc_randomize_params_within_bounds(
     assert torch.all(K_rot_current <= K_rot_max), f"K_rot above maximum: {K_rot_current.max()} > {K_rot_max.max()}"
 
     # Check K_angvel gains
-    K_angvel_max = torch.tensor(cfg.K_angvel_range[0], device=device, dtype=torch.float32)
-    K_angvel_min = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
+    K_angvel_min = torch.tensor(cfg.K_angvel_range[0], device=device, dtype=torch.float32)
+    K_angvel_max = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
     K_angvel_current = controller.K_angvel_current.to(device)
 
     assert K_angvel_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_angvel_current.shape}"

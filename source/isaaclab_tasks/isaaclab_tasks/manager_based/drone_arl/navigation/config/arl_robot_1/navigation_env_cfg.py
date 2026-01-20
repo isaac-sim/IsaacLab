@@ -131,9 +131,9 @@ class ActionsCfg:
         use_default_offset=False,
         command_type="vel",
         controller_cfg=LeeVelControllerCfg(
-            K_vel_range=((3.5, 3.5, 2.0), (2.5, 2.5, 1.5)),
-            K_rot_range=((1.85, 1.85, 0.4), (1.6, 1.6, 0.25)),
-            K_angvel_range=((0.5, 0.5, 0.09), (0.4, 0.4, 0.075)),
+            K_vel_range=((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)),
+            K_rot_range=((1.6, 1.6, 0.25), (1.85, 1.85, 0.4)),
+            K_angvel_range=((0.4, 0.4, 0.075), (0.5, 0.5, 0.09)),
             max_inclination_angle_rad=1.0471975511965976,
             max_yaw_rate=1.0471975511965976,
             randomize_params=True,
