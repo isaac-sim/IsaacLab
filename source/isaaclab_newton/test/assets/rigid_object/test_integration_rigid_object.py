@@ -9,6 +9,8 @@
 import ctypes
 import torch
 from typing import Literal
+from isaaclab.sim._impl.newton_manager import NewtonManager
+from newton.solvers import SolverNotifyFlags
 
 import pytest
 import warp as wp
@@ -574,7 +576,6 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
 
 
-@pytest.mark.skip(reason="For now let's not do that...")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -584,7 +585,7 @@ def test_rigid_body_no_friction(num_cubes, device):
     with build_simulation_context(auto_add_lighting=True, sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+        cube_object, translation = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
         # Create ground plane with no friction
         cfg = sim_utils.GroundPlaneCfg(
@@ -599,25 +600,27 @@ def test_rigid_body_no_friction(num_cubes, device):
         # Play sim
         sim.reset()
 
+        num_shapes_per_body = cube_object.num_shapes_per_body
+
         # Set material friction properties to be all zero
-        static_friction = torch.zeros(num_cubes, 1)
-        dynamic_friction = torch.zeros(num_cubes, 1)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
+        dynamic_friction = torch.zeros(num_cubes, num_shapes_per_body[0]) + 1e-4
+        restitution = torch.FloatTensor(num_cubes, num_shapes_per_body[0]).uniform_(0.0, 0.2)
 
-        cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-        indices = torch.tensor(range(num_cubes), dtype=torch.int)
-
-        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+        cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), dynamic_friction)
+        cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction)
+        cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction)
+        NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
 
         # Set initial velocity
         # Initial velocity in X to get the block moving
         initial_velocity = torch.zeros((num_cubes, 6), device=sim.cfg.device)
-        initial_velocity[:, 0] = 0.1
+        initial_velocity[:, 0] = 1.0
 
         cube_object.write_root_velocity_to_sim(initial_velocity)
+        
 
         # Simulate physics
-        for _ in range(5):
+        for _ in range(20):
             # perform rendering
             sim.step(render=False)
             # update object
@@ -630,11 +633,11 @@ def test_rigid_body_no_friction(num_cubes, device):
                 tolerance = 1e-5
 
             torch.testing.assert_close(
-                cube_object.data.root_lin_vel_w, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
+                wp.to_torch(cube_object.data.root_lin_vel_w)[:, 0], initial_velocity[:, 0], rtol=1e-5, atol=tolerance
             )
 
 
-@pytest.mark.skip(reason="For now let's not do that...")
+@pytest.mark.skip(reason="No support for static friction in Newton yet. Could use Hydroelastic properties instead.")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -717,8 +720,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
             if force == "above_mu":
                 assert (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
-
-@pytest.mark.skip(reason="For now let's not do that...")
+@pytest.mark.skip(reason="MujocoWarp does not support restitution directly. Couldn't tune it to work as expected.")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -750,8 +752,6 @@ def test_rigid_body_with_restitution(num_cubes, device):
             )
             cfg.func("/World/GroundPlane", cfg)
 
-            indices = torch.tensor(range(num_cubes), dtype=torch.int)
-
             # Play sim
             sim.reset()
 
@@ -765,23 +765,28 @@ def test_rigid_body_with_restitution(num_cubes, device):
             cube_object.write_root_pose_to_sim(root_state[:, :7])
             cube_object.write_root_velocity_to_sim(root_state[:, 7:])
 
-            static_friction = torch.zeros(num_cubes, 1)
-            dynamic_friction = torch.zeros(num_cubes, 1)
-            restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
-
-            cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
+            num_shapes_per_body = cube_object.num_shapes_per_body
 
             # Add restitution to cube
-            cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+            dynamic_friction = torch.zeros(num_cubes, num_shapes_per_body[0]) + 1e-4
+            restitution = torch.zeros(num_cubes, num_shapes_per_body[0])
+            ke = restitution + 1e9
+            kd = restitution + 1e5
+            cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), dynamic_friction)
+            cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction)
+            cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction)
+            cube_object.root_view.set_attribute("shape_material_ke", NewtonManager.get_model(), ke)
+            cube_object.root_view.set_attribute("shape_material_kd", NewtonManager.get_model(), kd)
+            NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
 
-            curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+            curr_z_velocity = wp.to_torch(cube_object.data.root_lin_vel_w)[:, 2].clone()
 
             for _ in range(100):
                 sim.step(render=False)
 
                 # update object
                 cube_object.update(sim.cfg.dt)
-                curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
+                curr_z_velocity = wp.to_torch(cube_object.data.root_lin_vel_w)[:, 2].clone()
 
                 if expected_collision_type == "inelastic":
                     # assert that the block has not bounced by checking that the z velocity is less than or equal to 0
