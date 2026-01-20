@@ -121,18 +121,14 @@ def image_latents(
 
     # rgb/depth/normals image normalization
     if normalize:
-        if data_type == "rgb":
-            images = images.float() / 255.0
-            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-            images -= mean_tensor
-        elif "distance_to" in data_type or "depth" in data_type:
+        if data_type == "distance_to_image_plane":
             images[images == float("inf")] = 10.0
             images[images == -float("inf")] = 10.0
             images[images > 10.0] = 10.0
             images = images / 10.0  # normalize to 0-1
             images[images < 0.02] = -1.0  # set very close values to -1
-        elif "normals" in data_type:
-            images = (images + 1.0) * 0.5
+        else:
+            raise ValueError(f"Image data type: {data_type} not supported")
 
     _vae_model = VAEModelManager.get_model(env.device)
 
