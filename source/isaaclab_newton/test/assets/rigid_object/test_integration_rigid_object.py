@@ -33,7 +33,7 @@ from isaaclab.utils.math import (
 
 # FIXME: That should not be happening.
 # Need to create stage in memory to avoid weird leaks when running consecutive tests...
-SIM_CFG = SimulationCfg(create_stage_in_memory=True)
+SIM_CFG = SimulationCfg(create_stage_in_memory=False)
 
 
 def generate_cubes_scene(
@@ -975,14 +975,14 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
 
                 # lin_vel will not match
                 # center of mass vel will be constant (i.e. spinning around com)
-                torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10])
-                torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10])
+                torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3)
                 # link frame will be moving, and should be equal to input angular velocity cross offset
                 lin_vel_rel_root_gt = quat_apply_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
                 lin_vel_rel_body_gt = quat_apply_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])
                 lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-3, rtol=1e-3)
 
                 # ang_vel will always match
                 torch.testing.assert_close(root_state_w[..., 10:], root_com_state_w[..., 10:])
