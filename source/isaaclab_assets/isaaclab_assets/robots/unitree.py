@@ -139,8 +139,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
 
 UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
-        usd_path="omniverse://isaac-dev.ov.nvidia.com/Projects/isaacsim/Assets/unitree/go2_description/go2_description.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
