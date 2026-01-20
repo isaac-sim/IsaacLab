@@ -292,17 +292,6 @@ def invoke_tuning_run(
                 "provide them as arguments to tuner.py instead."
             )
 
-    if progress_reporter is not None:
-        os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
-        if (
-            getattr(progress_reporter, "_metric", None) is not None
-            or getattr(progress_reporter, "_mode", None) is not None
-        ):
-            raise ValueError(
-                "Do not set <metric> or <mode> directly in the custom progress reporter class, "
-                "provide them as arguments to tuner.py instead."
-            )
-
     if args.run_mode == "local":  # Standard config, to file
         run_config = air.RunConfig(
             storage_path="/tmp/ray",
