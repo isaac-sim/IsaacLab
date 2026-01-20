@@ -14,5 +14,6 @@ from .cartpole import *
 from .cassie import *
 from .franka import *
 from .humanoid import *
+from .kuka_allegro import *
 from .unitree import *
 from .universal_robots import *

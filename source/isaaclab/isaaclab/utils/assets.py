@@ -116,7 +116,11 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             if not os.path.isfile(target_path) or force_download:
-                result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
+                result = omni.client.copy(
+                    cur_url.replace("collisions_convex_hull", "collisions"),
+                    target_path,
+                    omni.client.CopyBehavior.OVERWRITE,
+                )  # HACK for kuka allegro....... definitely remove before merge
                 if result != omni.client.Result.OK and force_download:
                     raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
 
