@@ -39,7 +39,7 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 
 def main():
-    """Main function to spawn robot and rotate camera."""
+    """Main function to spawn arl_robot_1."""
 
     # Create simulation context
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device="cuda:0" if torch.cuda.is_available() else "cpu")
@@ -55,7 +55,7 @@ def main():
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
 
-    # Spawn robot - fix the missing dt field
+    # Spawn robot
     robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
     robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
     robot = Multirotor(robot_cfg)
@@ -67,8 +67,14 @@ def main():
     device = sim_cfg.device
 
     # Create Lee velocity controller
-    controller_cfg = LeeVelControllerCfg()
-    controller_cfg.randomize_params = False
+    controller_cfg = LeeVelControllerCfg(
+        K_vel_range=((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)),
+        K_rot_range=((1.6, 1.6, 0.25), (1.85, 1.85, 0.4)),
+        K_angvel_range=((0.4, 0.4, 0.075), (0.5, 0.5, 0.09)),
+        max_inclination_angle_rad=1.0471975511965976,
+        max_yaw_rate=1.0471975511965976,
+        randomize_params=False,
+    )
     controller = LeeVelController(controller_cfg, robot, num_envs=1, device=str(device))
 
     # Get allocation matrix and compute pseudoinverse
