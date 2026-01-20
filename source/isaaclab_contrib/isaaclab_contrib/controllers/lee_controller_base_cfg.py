@@ -15,7 +15,7 @@ class LeeControllerBaseCfg:
     Unless otherwise noted, vectors are ordered as (x, y, z) in the simulation world/body frames.
     When :attr:`randomize_params` is True, gains are sampled uniformly per environment between
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
-    
+
     Note:
         To disable randomization, set the min and max values to be identical instead of setting
         :attr:`randomize_params` to False. For example:
@@ -24,60 +24,60 @@ class LeeControllerBaseCfg:
 
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = MISSING
     """Orientation (rotation) error proportional gain range about body axes [unitless].
-    
+
     This is a tuple of two tuples containing the minimum and maximum gains for roll, pitch, and yaw.
     Format: ((min_roll, min_pitch, min_yaw), (max_roll, max_pitch, max_yaw))
-    
+
     To disable randomization, set both tuples to the same values.
-    
+
     Example (with randomization):
         ((1.85, 1.85, 0.4), (1.6, 1.6, 0.25)) for ARL Robot 1
-    
+
     Example (without randomization):
         ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4)) for fixed gains
     """
 
     K_angvel_range: tuple[tuple[float, float, float], tuple[float, float, float]] = MISSING
     """Body angular-velocity error proportional gain range [unitless].
-    
+
     This is a tuple of two tuples containing the minimum and maximum gains for roll, pitch, and yaw rates.
     Format: ((min_roll_rate, min_pitch_rate, min_yaw_rate), (max_roll_rate, max_pitch_rate, max_yaw_rate))
-    
+
     To disable randomization, set both tuples to the same values.
-    
+
     Example (with randomization):
         ((0.5, 0.5, 0.09), (0.4, 0.4, 0.075)) for ARL Robot 1
-    
+
     Example (without randomization):
         ((0.5, 0.5, 0.09), (0.5, 0.5, 0.09)) for fixed gains
     """
 
     max_inclination_angle_rad: float = MISSING
     """Maximum allowed roll/pitch magnitude (inclination) in radians.
-    
+
     This limits the maximum tilt angle of the quadrotor during control.
     Typical range: 0.5 to 1.57 radians (30° to 90°)
-    
+
     Example:
         1.0471975511965976 (60° in radians) for ARL Robot 1
     """
 
     max_yaw_rate: float = MISSING
     """Maximum allowed yaw rate command [rad/s].
-    
+
     This limits the maximum rotational velocity about the z-axis.
     Typical range: 0.5 to 2.0 rad/s
-    
+
     Example:
         1.0471975511965976 (60°/s in radians) for ARL Robot 1
     """
 
     randomize_params: bool = MISSING
     """If True, sample controller gains uniformly between the provided min/max bounds at resets.
-    
+
     Warning:
         This parameter is only effective if min and max values differ. If they are identical,
         gains will always be the same regardless of this setting.
-    
+
     Useful for domain randomization in training scenarios.
     """

@@ -77,7 +77,7 @@ class LeeControllerBase:
 
     def _randomize_params(self, env_ids: slice | torch.Tensor):
         """Randomize controller gains for the given environments if enabled.
-        
+
         Override in subclass to implement parameter randomization.
         """
         pass
