@@ -232,12 +232,22 @@ def object_too_far_from_robot(
 
     This checks the distance between the robot's root position and the object's position.
     If the distance exceeds max_distance, the task is considered failed.
+
+
+    Args:
+        env: The RL environment instance.
+        robot_cfg: Configuration for the robot entity.
+        object_cfg: Configuration for the object entity.
+        max_distance: Maximum distance between the robot and the object for task completion.
+
+    Returns:
+        Boolean tensor indicating which environments have completed the task.
     """
-    robot: Articulation = env.scene[robot_cfg.name]
-    obj: RigidObject = env.scene[object_cfg.name]
+    robot: RigidObject = env.scene[robot_cfg.name]
+    object: RigidObject = env.scene[object_cfg.name]
 
     robot_pos = robot.data.root_pos_w[:, :3]  # [num_envs, 3]
-    object_pos = obj.data.root_pos_w[:, :3]   # [num_envs, 3]
+    object_pos = object.data.root_pos_w[:, :3]  # [num_envs, 3]
 
     distance = torch.norm(robot_pos - object_pos, dim=1)
 

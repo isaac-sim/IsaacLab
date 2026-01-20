@@ -732,8 +732,8 @@ To generate the locomanipulation dataset, use the following command:
 
 The key parameters for locomanipulation dataset generation are:
 
-* ``--lift_step 70``: Number of steps for the lifting phase of the manipulation task.  This should mark the point immediately after the robot has grasped the object.
-* ``--navigate_step 120``: Number of steps for the navigation phase between locations.  This should make the point where the robot has lifted the object and is ready to walk.
+* ``--lift_step 60``: Number of steps for the lifting phase of the manipulation task. This should mark the point immediately after the robot has grasped the object.
+* ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should make the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
 This process creates a dataset where the robot performs the manipulation task at different locations, requiring it to navigate between points while maintaining the learned manipulation behaviors. The resulting dataset can be used to train policies that combine both locomotion and manipulation capabilities.
@@ -760,6 +760,35 @@ in the GR00T N1.5 repository.  An example closed-loop policy rollout is shown in
 
 The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
 The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
+
+Load Background from NuRec USD Assets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+`NuRec assets <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/assets/usd_assets_nurec.html#neural-volume-rendering>`__
+are neural volumes derived from real-world images that can be loaded and rendered in Isaac Sim.
+`PhysicalAI Robotics NuRec <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`__ is
+a dataset that contains a set of NuRec assets. By loading into locomanipulation SDG workflow, the USD file
+can be used to render the background, the mesh file can be used to support collision detection,
+and the occupancy map file can be used to support path planning for navigation.
+
+Downlaod the `hand_hold-endeavor-wormhole <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/main>`__
+asset and place it under `<PATH_TO_USD_ASSET>`. Then use the following command to generate data with the NuRec asset:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
+       --device cpu \
+       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --task="Isaac-G1-SteeringWheel-Locomanipulation" \
+       --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
+       --num_runs 1 \
+       --lift_step 60 \
+       --navigate_step 130 \
+       --enable_pinocchio \
+       --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
+       --enable_cameras \
+       --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
+       --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml
 
 
 Demo 3: Visuomotor Policy for a Humanoid Robot

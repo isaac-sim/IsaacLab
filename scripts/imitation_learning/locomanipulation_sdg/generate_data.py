@@ -10,7 +10,6 @@
 
 import argparse
 import os
-import time
 
 from isaaclab.app import AppLauncher
 
@@ -113,7 +112,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--high_res_video",
-    type=bool,
+    action="store_true",
     default=False,
     help="Whether to use high resolution video for the robot's POV camera.",
 )
@@ -129,10 +128,9 @@ if args_cli.enable_pinocchio:
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-from dataclasses import dataclass
-
 import enum
 import random
+from dataclasses import dataclass
 
 import gymnasium as gym
 import torch
@@ -207,6 +205,21 @@ class LocomanipulationSDGControlConfig:
     approach_distance: float = 1.0
     """Buffer distance from final goal (m)"""
 
+
+@dataclass
+class NavigationScene:
+    """Navigation scene data class."""
+
+    """The occupancy map of the navigation scene."""
+    occupancy_map: OccupancyMap
+    """The base path helper of the navigation scene."""
+    base_path_helper: ParameterizedPath
+    """The base goal of the navigation scene."""
+    base_goal: RelativePose
+    """The approach goal of the navigation scene."""
+    base_goal_approach: RelativePose
+
+
 def compute_navigation_velocity(
     current_pose: torch.Tensor, target_xy: torch.Tensor, config: LocomanipulationSDGControlConfig
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -269,29 +282,28 @@ def load_and_transform_recording_data(
 
     return left_hand_pose, right_hand_pose
 
-@dataclass
-class NavigationScene:
-    """Navigation scene data class."""
 
-    """The occupancy map of the navigation scene."""
-    occupancy_map: OccupancyMap
-    """The base path helper of the navigation scene."""
-    base_path_helper: ParameterizedPath
-    """The base goal of the navigation scene."""
-    base_goal: RelativePose
-    """The approach goal of the navigation scene."""
-    base_goal_approach: RelativePose
+def sync_simulation_state(env: LocomanipulationSDGEnv):
+    """Push USD pose updates into physics, advance the sim, and sync back
 
-
-def sync_simulation_state(env: LocomanipulationSDGEnv) -> None:
-    """Push USD pose updates into physics, advance the sim, and sync back."""
+    Args:
+        env: The locomanipulation SDG environment
+    """
     env.scene.write_data_to_sim()
     env.sim.step(render=False)
     env.scene.update(dt=env.physics_dt)
 
-# initialize_state_from_episode similar functionality with new name
-def project_robot_state_into_env(env: LocomanipulationSDGEnv) -> torch.Tensor:
-    """Project the recorded robot pose and joint state into the current environment."""
+
+def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
+    """Project the recorded robot pose and joint state into the current environment.
+
+    Args:
+        env: The locomanipulation SDG environment
+        input_episode_data: Input episode data
+
+    Returns:
+        The new robot pose
+    """
     initial_state = env.load_input_data(input_episode_data, 0)
     recording_initial_state = input_episode_data.get_initial_state()
 
@@ -300,20 +312,28 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv) -> torch.Tensor:
         transform_mul(transform_inv(initial_state.fixture_pose), initial_state.base_pose),
     )
 
-    env.scene['robot'].write_root_pose_to_sim(new_robot_pose)
-    env.scene['robot'].write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
-    env.scene['robot'].data.default_root_state[0, 0:7] = new_robot_pose[0]
-    env.scene['robot'].data.default_root_state[0, 7:] = 0.0
+    env.scene["robot"].write_root_pose_to_sim(new_robot_pose)
+    env.scene["robot"].write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
+    env.scene["robot"].data.default_root_state[0, 0:7] = new_robot_pose[0]
+    env.scene["robot"].data.default_root_state[0, 7:] = 0.0
 
-    robot_state = recording_initial_state['articulation']['robot']
-    env.scene['robot'].data.default_joint_pos[0] = robot_state['joint_position'][0]
-    env.scene['robot'].data.default_joint_vel[0] = robot_state['joint_velocity'][0]
+    robot_state = recording_initial_state["articulation"]["robot"]
+    env.scene["robot"].data.default_joint_pos[0] = robot_state["joint_position"][0]
+    env.scene["robot"].data.default_joint_vel[0] = robot_state["joint_velocity"][0]
 
     return new_robot_pose
 
 
-def project_object_state_into_env(env: LocomanipulationSDGEnv) -> torch.Tensor:
-    """Project the recorded object pose into the current environment."""
+def project_object_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
+    """Project the recorded object pose into the current environment.
+
+    Args:
+        env: The locomanipulation SDG environment
+        input_episode_data: Input episode data
+
+    Returns:
+        The new object pose
+    """
     initial_state = env.load_input_data(input_episode_data, 0)
 
     new_object_pose = transform_mul(
@@ -321,10 +341,10 @@ def project_object_state_into_env(env: LocomanipulationSDGEnv) -> torch.Tensor:
         transform_mul(transform_inv(initial_state.fixture_pose), initial_state.object_pose),
     )
 
-    env.scene['object'].write_root_pose_to_sim(new_object_pose)
-    env.scene['object'].write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
-    env.scene['object'].data.default_root_state[0, 0:7] = new_object_pose[0]
-    env.scene['object'].data.default_root_state[0, 7:] = 0.0
+    env.scene["object"].write_root_pose_to_sim(new_object_pose)
+    env.scene["object"].write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
+    env.scene["object"].data.default_root_state[0, 0:7] = new_object_pose[0]
+    env.scene["object"].data.default_root_state[0, 7:] = 0.0
 
     return new_object_pose
 
@@ -355,10 +375,12 @@ def setup_navigation_scene(
         if not randomize_placement:
             raise ValueError("randomize_placement needs to be True when background_usd_path is provided")
     else:
-        occupancy_map = merge_occupancy_maps([
-            OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
-            env.get_start_fixture().get_occupancy_map()
-        ])
+        occupancy_map = merge_occupancy_maps(
+            [
+                OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
+                env.get_start_fixture().get_occupancy_map(),
+            ]
+        )
 
         fixtures = [env.get_end_fixture()] + env.get_obstacle_fixtures()
 
@@ -367,8 +389,6 @@ def setup_navigation_scene(
             if not place_randomly(fixture, occupancy_map.buffered_meters(0.5), num_iter=5000):
                 print(f"Failed to randomize fixture placement for {fixture.entity_name}", flush=True)
                 return None
-            current_pose = fixture.get_pose()
-            print(f'set fixture {fixture.entity_name} pose:', current_pose, flush=True)
 
             sync_simulation_state(env)
             occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
@@ -384,12 +404,15 @@ def setup_navigation_scene(
         parent=base_goal,
     )
 
-    project_robot_state_into_env(env)
-    project_object_state_into_env(env)
+    project_robot_state_into_env(env, input_episode_data)
+    project_object_state_into_env(env, input_episode_data)
 
     base_path = plan_path(
         start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(0.15)
     )
+
+    if base_path is None:
+        return None
 
     base_path_helper = ParameterizedPath(base_path)
     if len(base_path_helper.points) <= 2:
@@ -689,7 +712,7 @@ def populate_output_data(
     base_goal: RelativePose,
     base_goal_approach: RelativePose,
     base_path: torch.Tensor,
-) -> None:
+):
     """Populate remaining output data fields.
 
     Args:
@@ -786,7 +809,6 @@ def replay(
 
     # Main simulation loop with state machine
     while simulation_app.is_running() and not simulation_app.is_exiting():
-
         if current_state != previous_state:
             print(f"State changed: {current_state.name}, Recording step: {recording_step}", flush=True)
             previous_state = current_state
@@ -804,7 +826,13 @@ def replay(
 
         elif current_state == LocomanipulationSDGDataGenerationState.NAVIGATE:
             current_state = handle_navigate_state(
-                env, input_episode_data, recording_step, nav_scene.base_path_helper, nav_scene.base_goal_approach, config, output_data
+                env,
+                input_episode_data,
+                recording_step,
+                nav_scene.base_path_helper,
+                nav_scene.base_goal_approach,
+                config,
+                output_data,
             )
 
         elif current_state == LocomanipulationSDGDataGenerationState.APPROACH:
@@ -821,7 +849,9 @@ def replay(
             current_state = next_state
 
         # Populate additional output data fields
-        populate_output_data(env, output_data, nav_scene.base_goal, nav_scene.base_goal_approach, nav_scene.base_path_helper.points)
+        populate_output_data(
+            env, output_data, nav_scene.base_goal, nav_scene.base_goal_approach, nav_scene.base_path_helper.points
+        )
 
         # Attach output data to environment for recording
         env._locomanipulation_sdg_output_data = output_data
@@ -857,7 +887,7 @@ if __name__ == "__main__":
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
 
-        if args_cli.background_usd_path != "" and args_cli.background_occupancy_yaml_file != "":
+        if args_cli.background_usd_path is not None and args_cli.background_occupancy_yaml_file is not None:
             env_cfg.background_usd_path = args_cli.background_usd_path
             env_cfg.background_occupancy_yaml_file = args_cli.background_occupancy_yaml_file
 
@@ -873,7 +903,6 @@ if __name__ == "__main__":
         success_runs = 0
 
         while success_runs < args_cli.num_runs:
-
             if args_cli.demo is None:
                 demo = random.choice(list(input_dataset_file_handler.get_episode_names()))
             else:

@@ -171,7 +171,7 @@ class ParameterizedPath:
         return min_pt, min_pt_dist_along_path, min_pt_seg, min_pt_dist_to_seg
 
 
-def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> torch.Tensor:
+def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> torch.Tensor | None:
     """Plan collision-free path between start and end positions.
 
     Args:
@@ -198,14 +198,22 @@ def plan_path(start: HasPose2d, end: HasPose2d, occupancy_map: OccupancyMap) -> 
 
     # Check if end_yx_pixels are inside the occupancy map bounds
     map_height, map_width = occupancy_map.freespace_mask().shape
+    start_y, start_x = int(start_yx_pixels[0]), int(start_yx_pixels[1])
     end_y, end_x = int(end_yx_pixels[0]), int(end_yx_pixels[1])
+
+    if not occupancy_map.check_pixel_in_bounds(start_x, start_y):
+        print(
+            f"Warning: start_yx_pixels ({start_y}, {start_x}) is outside occupancy map bounds "
+            f"(height={map_height}, width={map_width})"
+        )
+        return None
 
     if not occupancy_map.check_pixel_in_bounds(end_x, end_y):
         print(
-            f'Warning: end_yx_pixels ({end_y}, {end_x}) is outside occupancy map bounds '
-            f'(height={map_height}, width={map_width})'
+            f"Warning: end_yx_pixels ({end_y}, {end_x}) is outside occupancy map bounds "
+            f"(height={map_height}, width={map_width})"
         )
-        return torch.tensor(start_yx_pixels)
+        return None
 
     # Generate path using the mobility path planner
     path_planner_output = generate_paths(start=start_yx_pixels, freespace=occupancy_map.freespace_mask())

@@ -90,6 +90,6 @@ class LocomanipulationSDGEnv(ManagerBasedRLEnv):
         """Get the set of obstacle fixtures."""
         raise NotImplementedError
 
-    def get_background_fixture(self) -> SceneFixture:
+    def get_background_fixture(self) -> SceneFixture | None:
         """Get the background fixture body."""
         raise NotImplementedError

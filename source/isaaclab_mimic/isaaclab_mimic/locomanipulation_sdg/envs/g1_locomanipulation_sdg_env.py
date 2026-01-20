@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 
-from pxr import UsdGeom, UsdPhysics, PhysxSchema
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -91,7 +91,6 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
             )
             setattr(self, f"forklift_{i}", forklift)
 
-
     def add_boxes(self, num_boxes: int):
         for i in range(num_boxes):
             box = AssetBaseCfg(
@@ -157,7 +156,6 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
-
         if cfg.background_usd_path is not None:
             self._num_forklifts = 0
             self._num_boxes = 0
@@ -177,7 +175,7 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         cfg.scene.add_boxes(self._num_boxes)
 
         if remove_virtual_ground:
-            delattr(cfg.scene, 'ground')
+            delattr(cfg.scene, "ground")
 
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
@@ -193,11 +191,11 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         """Hide the mesh object under background/volume/mesh and enable collision."""
         stage = sim_utils.get_current_stage()
 
-        if 'background' in self.scene.keys():
-            background_prim_paths = self.scene['background'].prim_paths
+        if "background" in self.scene.keys():
+            background_prim_paths = self.scene["background"].prim_paths
 
             for background_path in background_prim_paths:
-                mesh_prim_path = background_path + '/volume/mesh'
+                mesh_prim_path = background_path + "/volume/mesh"
                 mesh_prim = stage.GetPrimAtPath(mesh_prim_path)
 
                 if mesh_prim.IsValid():
@@ -303,55 +301,50 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         return SceneBody(self.scene, "object", "sm_steeringwheel_a01_01")
 
     def get_start_fixture(self) -> SceneFixture:
-        return SceneFixture(
+        return SceneFixture.from_boundary(
             self.scene,
             "packing_table",
-            occupancy_map_boundary=np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
-            occupancy_map_resolution=0.05,
+            np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
+            0.05,
         )
 
     def get_end_fixture(self) -> SceneFixture:
-        return SceneFixture(
+        return SceneFixture.from_boundary(
             self.scene,
             "packing_table_2",
-            occupancy_map_boundary=np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
-            occupancy_map_resolution=0.05,
+            np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
+            0.05,
         )
 
     def get_obstacle_fixtures(self):
         obstacles = [
-            SceneFixture(
+            SceneFixture.from_boundary(
                 self.scene,
                 f"forklift_{i}",
-                occupancy_map_boundary=np.array([[-1.0, -1.9], [1.0, -1.9], [1.0, 2.1], [-1.0, 2.1]]),
-                occupancy_map_resolution=0.05,
+                np.array([[-1.0, -1.9], [1.0, -1.9], [1.0, 2.1], [-1.0, 2.1]]),
+                0.05,
             )
             for i in range(self._num_forklifts)
         ]
 
         obstacles += [
-            SceneFixture(
-                self.scene,
-                f"box_{i}",
-                occupancy_map_boundary=np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]),
-                occupancy_map_resolution=0.05,
-            )
+                SceneFixture.from_boundary(
+                    self.scene,
+                    f"box_{i}",
+                    np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]),
+                    0.05,
+                )
             for i in range(self._num_boxes)
         ]
 
         return obstacles
 
     def get_background_fixture(self) -> SceneFixture | None:
-        if 'background' not in self.scene.keys():
+        if "background" not in self.scene.keys():
             return None
 
-        background_fixture = SceneFixture(
-            self.scene,
-            "background",
-            occupancy_map_boundary=None,  # type: ignore
-            occupancy_map_resolution=None,  # type: ignore
+        background_map = OccupancyMap.from_ros_yaml(
+            ros_yaml_path=self.cfg.background_occupancy_yaml_file,
         )
-        background_fixture.set_local_occupancy_map(OccupancyMap.from_ros_yaml(
-            ros_yaml_path=self.cfg.background_occupancy_yaml_file,  # type: ignore
-        ))
+        background_fixture = SceneFixture(self.scene, "background", background_map)
         return background_fixture
