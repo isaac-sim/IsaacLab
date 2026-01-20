@@ -146,7 +146,7 @@ class H1RoughDemo:
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
             # Arrow keys map to pre-defined command vectors to control navigation of robot
             if event.input.name in self._key_to_control:
-                if self._selected_id:
+                if self._selected_id is not None:
                     self.commands[self._selected_id] = self._key_to_control[event.input.name]
             # Escape key exits out of the current selected robot view
             elif event.input.name == "ESCAPE":
@@ -160,7 +160,7 @@ class H1RoughDemo:
                         self.viewport.set_active_camera(self.camera_path)
         # On key release, the robot stops moving
         elif event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            if self._selected_id:
+            if self._selected_id is not None:
                 self.commands[self._selected_id] = self._key_to_control["ZEROS"]
 
     def update_selected_object(self):

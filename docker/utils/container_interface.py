@@ -298,8 +298,8 @@ class ContainerInterface:
     """
 
     def _resolve_image_extension(self, yamls: list[str] | None = None, envs: list[str] | None = None):
-        """
-        Resolve the image extension by setting up YAML files, profiles, and environment files for the Docker compose command.
+        """Resolve the image extension by setting up YAML files, profiles, and environment files for the
+        Docker compose command.
 
         Args:
             yamls: A list of yaml files to extend ``docker-compose.yaml`` settings. These are extended in the order

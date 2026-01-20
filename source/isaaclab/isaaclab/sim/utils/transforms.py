@@ -394,7 +394,8 @@ def convert_world_pose_to_local(
         A tuple of (local_translation, local_orientation) where:
 
         - local_translation is a tuple of (x, y, z) in local space relative to ref_prim
-        - local_orientation is a tuple of (w, x, y, z) in local space relative to ref_prim, or None if no orientation was provided
+        - local_orientation is a tuple of (w, x, y, z) in local space relative to ref_prim,
+          or None if no orientation was provided
 
     Raises:
         ValueError: If the reference prim is not a valid USD prim.

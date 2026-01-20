@@ -30,7 +30,8 @@ class CameraCfg(SensorBaseCfg):
         convention: Literal["opengl", "ros", "world"] = "ros"
         """The convention in which the frame offset is applied. Defaults to "ros".
 
-        - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera) convention.
+        - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera)
+          convention.
         - ``"ros"``    - forward axis: ``+Z`` - up axis: ``-Y`` - Offset is applied in the ROS convention.
         - ``"world"``  - forward axis: ``+X`` - up axis: ``+Z`` - Offset is applied in the World Frame convention.
 
