@@ -679,12 +679,12 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         # initialize goal marker
         self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
 
-        # track successes
-        self.successes = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
-        self.consecutive_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
         # Reduction buffers for consecutive_successes update (Warp-only).
         self._num_resets = wp.zeros(1, dtype=wp.float32, device=self.device)
         self._finished_cons_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
+        # track successes
+        self.successes = wp.zeros(self.num_envs, dtype=wp.float32, device=self.device)
+        self.consecutive_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
 
         # Persistent RL buffers (Warp).
         self.actions = wp.zeros((self.num_envs, self.cfg.action_space), dtype=wp.float32, device=self.device)
@@ -814,7 +814,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             ],
             device=self.device,
         )
-        # Warp-native consecutive_successes reduction + EMA update (graphable).
+
+        # A separate kernel is needed as Warp does not support thread synchronization for reductions.
         wp.launch(
             update_consecutive_successes_from_stats,
             dim=1,
@@ -826,6 +827,11 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             ],
             device=self.device,
         )
+
+        if "log" not in self.extras:
+            self.extras["log"] = dict()
+        # .mean() cannot be called here as it causes problems on stream
+        self.extras["log"]["consecutive_successes"] = wp.to_torch(self.consecutive_successes)
 
         # Reset goals for envs that reached the target (mask is `reset_goal_buf`).
         # This avoids Torch-side index extraction and keeps the step graphable.

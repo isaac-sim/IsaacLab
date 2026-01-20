@@ -30,8 +30,6 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # TODO(jichaunh): What's the rational between the cartpole env and warpEnv that might
-    #                 be transferable here? Is it more on performance gains?
     solver_cfg = MJWarpSolverCfg(
         solver="newton",
         integrator="implicit",
@@ -41,7 +39,8 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
         cone="elliptic",
         update_data_interval=2,
         iterations=100,
-        ls_iterations=5,
+        ls_iterations=15,
+        ls_parallel=True,
         # save_to_mjcf="AllegroHand.xml",
     )
 
