@@ -59,7 +59,7 @@ class UrdfConverter(AssetConverterBase):
         """
         manager = omni.kit.app.get_app().get_extension_manager()
         if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf")
+            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
         from isaacsim.asset.importer.urdf._urdf import acquire_urdf_interface
 
         self._urdf_interface = acquire_urdf_interface()

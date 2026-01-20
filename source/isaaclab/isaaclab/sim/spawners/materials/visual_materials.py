@@ -65,7 +65,6 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
                 parent_path=prim_path,
                 identifier="UsdPreviewSurface",
                 stage_or_context=stage,
-                name="Shader",
             ).do()
             # bind the shader graph to the material
             if shader_prim:
