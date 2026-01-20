@@ -133,9 +133,7 @@ def benchmark_xform_prim_view(  # noqa: C901
 
     # Create view
     start_time = time.perf_counter()
-    if api == "isaaclab-usd":
-        xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
-    elif api == "isaaclab-fabric":
+    if api == "isaaclab-usd" or api == "isaaclab-fabric":
         xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
     elif api == "isaacsim-usd":
         xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=True)

@@ -532,9 +532,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
             f"/World/Parent_{i}", "Xform", translation=parent_pos, orientation=parent_quat, stage=stage
         )
         # Create child prims
-        sim_utils.create_prim(
-            f"/World/Parent_{i}/Child", child_prim_type, translation=(0.0, 0.0, 0.0), stage=stage
-        )
+        sim_utils.create_prim(f"/World/Parent_{i}/Child", child_prim_type, translation=(0.0, 0.0, 0.0), stage=stage)
 
     # Create view for children
     view = _create_view("/World/Parent_.*/Child", device=device, backend=backend)
@@ -1072,7 +1070,9 @@ def test_index_type_none_equivalent_to_all(device):
 
     # Set with slice(None)
     view.set_world_poses(
-        positions=new_positions, orientations=new_orientations, indices=slice(None)  # type: ignore[arg-type]
+        positions=new_positions,
+        orientations=new_orientations,
+        indices=slice(None),  # type: ignore[arg-type]
     )
     pos_after_slice, quat_after_slice = view.get_world_poses()
 

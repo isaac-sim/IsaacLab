@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # pyright: ignore
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).  # noqa: E501
 # All rights reserved.
@@ -6,7 +11,7 @@
 
 """Warp kernels for GPU-accelerated Fabric operations."""
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
@@ -25,9 +30,7 @@ else:
 
 
 @wp.kernel(enable_backward=False)
-def set_view_to_fabric_array(
-    fabric_to_view: FabricArrayUInt32, view_to_fabric: ArrayUInt32
-):
+def set_view_to_fabric_array(fabric_to_view: FabricArrayUInt32, view_to_fabric: ArrayUInt32):
     """Create bidirectional mapping from view indices to fabric indices."""
     fabric_idx = int(wp.tid())
     view_idx = int(fabric_to_view[fabric_idx])
