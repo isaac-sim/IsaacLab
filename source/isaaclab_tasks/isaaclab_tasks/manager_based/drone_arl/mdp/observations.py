@@ -144,28 +144,23 @@ Actions.
 
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
-def last_action_navigation(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
-    """The last input action to the environment.
+def last_action_navigation(env: ManagerBasedEnv, action_name: str = "velocity_commands") -> torch.Tensor:
+    """The last processed velocity commands from the navigation action term.
 
-    The name of the action term for which the action is required. If None, the
-    entire action tensor is returned.
+    This function accesses the velocity commands (vx, vy, vz, yaw_rate) that
+    were computed by the NavigationAction term. This avoids duplicating the
+    action processing logic.
+
+    Args:
+        env: Manager-based environment providing the action manager.
+        action_name: Name of the navigation action term. Defaults to "velocity_commands".
+
+    Returns:
+        torch.Tensor: Shape (num_envs, 4) containing [vx, vy, vz, yaw_rate] commands.
     """
-    clamped_action = torch.clamp(env.action_manager.action, min=-1.0, max=1.0)
-    processed_actions = torch.zeros(env.num_envs, 4, device=env.device)
-    max_speed = 2.0  # [m/s]
-    max_yawrate = torch.pi / 3.0  # [rad/s]
-    max_inclination_angle = torch.pi / 4.0  # [rad]
-
-    clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
-    processed_actions[:, 0] = (
-        clamped_action[:, 0] * torch.cos(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
-    )
-    processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
-    processed_actions[:, 2] = (
-        clamped_action[:, 0] * torch.sin(max_inclination_angle * clamped_action[:, 1]) * max_speed / 2.0
-    )
-    processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
-    return processed_actions
+    action_term = env.action_manager.get_term(action_name)
+    # Access the velocity_commands property from NavigationAction
+    return action_term.prev_velocity_commands
 
 
 """

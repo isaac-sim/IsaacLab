@@ -248,9 +248,17 @@ class NavigationAction(ThrustAction):
                 cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
             )
 
+        # Add buffer to store velocity commands for observations)
+        self._velocity_commands = torch.zeros(self.num_envs, 4, device=self.device)
+        self._prev_velocity_commands = torch.zeros(self.num_envs, 4, device=self.device)
+
     @property
     def action_dim(self) -> int:
         return self.cfg.action_dim[self.cfg.command_type]
+
+    @property
+    def prev_velocity_commands(self) -> torch.Tensor:
+        return self._prev_velocity_commands
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
@@ -261,7 +269,16 @@ class NavigationAction(ThrustAction):
         descriptor.action_type = "NavigationAction"
         return descriptor
 
+    def process_actions(self, actions: torch.Tensor):
+        """Process actions by applying scaling, offset, and clipping."""
+        # Call parent to handle basic processing
+        super().process_actions(actions)
+
+        self._has_actions_updated = False
+
     def apply_actions(self):
+        print("last action", self._prev_velocity_commands[0])
+        print("current action", self._velocity_commands[0])
         """Apply the processed actions as velocity commands."""
         # process the actions to be in the correct range
         clamped_action = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
@@ -281,6 +298,12 @@ class NavigationAction(ThrustAction):
         )
         processed_actions[:, 3] = clamped_action[:, 2] * max_yawrate
 
+        # Store velocity commands for observations
+        if not self._has_actions_updated:
+            self._prev_velocity_commands[:] = self._velocity_commands
+            self._velocity_commands[:] = processed_actions
+            self._has_actions_updated = True
+
         # Compute wrench command using controller
         wrench_command = self._lc.compute(processed_actions)
 
@@ -295,3 +318,10 @@ class NavigationAction(ThrustAction):
         super().reset(env_ids)
         # Reset controller internal states
         self._lc.reset_idx(env_ids)
+
+        if env_ids is not None:
+            self._velocity_commands[env_ids] = 0.0
+            self._prev_velocity_commands[env_ids] = 0.0
+        else:
+            self._velocity_commands[:] = 0.0
+            self._prev_velocity_commands[:] = 0.0
