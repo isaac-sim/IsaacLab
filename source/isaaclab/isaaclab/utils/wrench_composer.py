@@ -5,15 +5,14 @@
 
 from __future__ import annotations
 
+import torch
 from typing import TYPE_CHECKING
 
 import warp as wp
-import torch
 
-from isaaclab.utils.math import convert_quat
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
-from isaaclab.utils.warp.utils import make_masks_from_torch_ids, make_complete_data_from_torch_dual_index
 from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
+from isaaclab.utils.warp.utils import make_complete_data_from_torch_dual_index, make_masks_from_torch_ids
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -66,7 +65,6 @@ class WrenchComposer:
         self._temp_positions_torch = wp.to_torch(self._temp_positions_wp)
         self._temp_forces_torch = wp.to_torch(self._temp_forces_wp)
         self._temp_torques_torch = wp.to_torch(self._temp_torques_wp)
-
 
     @property
     def active(self) -> bool:
@@ -135,13 +133,22 @@ class WrenchComposer:
                 env_mask = make_masks_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
                 body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
                 if forces is not None:
-                    forces = make_complete_data_from_torch_dual_index(forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+                    forces = make_complete_data_from_torch_dual_index(
+                        forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                    )
                 if torques is not None:
-                    torques = make_complete_data_from_torch_dual_index(torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+                    torques = make_complete_data_from_torch_dual_index(
+                        torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                    )
                 if positions is not None:
-                    positions = make_complete_data_from_torch_dual_index(positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+                    positions = make_complete_data_from_torch_dual_index(
+                        positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                    )
             except Exception as e:
-                raise RuntimeError(f"Provided inputs are not supported: {e}. When using torch tensors, we expect partial data to be provided. And all the tensors to come from torch.")
+                raise RuntimeError(
+                    f"Provided inputs are not supported: {e}. When using torch tensors, we expect partial data to be"
+                    " provided. And all the tensors to come from torch."
+                )
 
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK_WP
@@ -201,11 +208,17 @@ class WrenchComposer:
         """
 
         if isinstance(forces, torch.Tensor):
-            forces = make_complete_data_from_torch_dual_index(forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+            forces = make_complete_data_from_torch_dual_index(
+                forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+            )
         if isinstance(torques, torch.Tensor):
-            torques = make_complete_data_from_torch_dual_index(torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+            torques = make_complete_data_from_torch_dual_index(
+                torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+            )
         if isinstance(positions, torch.Tensor):
-            positions = make_complete_data_from_torch_dual_index(positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device)
+            positions = make_complete_data_from_torch_dual_index(
+                positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+            )
 
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
         if body_mask is None:

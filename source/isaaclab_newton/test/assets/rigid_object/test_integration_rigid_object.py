@@ -9,17 +9,17 @@
 import ctypes
 import torch
 from typing import Literal
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from newton.solvers import SolverNotifyFlags
 
 import pytest
 import warp as wp
 from flaky import flaky
+from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -546,12 +546,15 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         # Add friction to cube
         cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), shape_material_mu)
-        cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), shape_material_rolling_friction)
-        cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), shape_material_torsional_friction)
+        cube_object.root_view.set_attribute(
+            "shape_material_rolling_friction", NewtonManager.get_model(), shape_material_rolling_friction
+        )
+        cube_object.root_view.set_attribute(
+            "shape_material_torsional_friction", NewtonManager.get_model(), shape_material_torsional_friction
+        )
         cube_object.root_view.set_attribute("shape_material_ke", NewtonManager.get_model(), shape_material_ke)
         cube_object.root_view.set_attribute("shape_material_kd", NewtonManager.get_model(), shape_material_kd)
         NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
-
 
         # Simulate physics
         # perform rendering
@@ -561,15 +564,23 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         # Get material properties
         shape_material_mu_to_check = cube_object.root_view.get_attribute("shape_material_mu", NewtonManager.get_model())
-        shape_material_rolling_friction_to_check = cube_object.root_view.get_attribute("shape_material_rolling_friction", NewtonManager.get_model())
-        shape_material_torsional_friction_to_check = cube_object.root_view.get_attribute("shape_material_torsional_friction", NewtonManager.get_model())
+        shape_material_rolling_friction_to_check = cube_object.root_view.get_attribute(
+            "shape_material_rolling_friction", NewtonManager.get_model()
+        )
+        shape_material_torsional_friction_to_check = cube_object.root_view.get_attribute(
+            "shape_material_torsional_friction", NewtonManager.get_model()
+        )
         shape_material_ke_to_check = cube_object.root_view.get_attribute("shape_material_ke", NewtonManager.get_model())
         shape_material_kd_to_check = cube_object.root_view.get_attribute("shape_material_kd", NewtonManager.get_model())
 
         # Check if material properties are set correctly
         torch.testing.assert_close(wp.to_torch(shape_material_mu_to_check), shape_material_mu)
-        torch.testing.assert_close(wp.to_torch(shape_material_rolling_friction_to_check), shape_material_rolling_friction)
-        torch.testing.assert_close(wp.to_torch(shape_material_torsional_friction_to_check), shape_material_torsional_friction)
+        torch.testing.assert_close(
+            wp.to_torch(shape_material_rolling_friction_to_check), shape_material_rolling_friction
+        )
+        torch.testing.assert_close(
+            wp.to_torch(shape_material_torsional_friction_to_check), shape_material_torsional_friction
+        )
         torch.testing.assert_close(wp.to_torch(shape_material_ke_to_check), shape_material_ke)
         torch.testing.assert_close(wp.to_torch(shape_material_kd_to_check), shape_material_kd)
 
@@ -602,11 +613,14 @@ def test_rigid_body_no_friction(num_cubes, device):
 
         # Set material friction properties to be all zero
         dynamic_friction = torch.zeros(num_cubes, num_shapes_per_body[0]) + 1e-4
-        restitution = torch.FloatTensor(num_cubes, num_shapes_per_body[0]).uniform_(0.0, 0.2)
 
         cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), dynamic_friction)
-        cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction)
-        cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction)
+        cube_object.root_view.set_attribute(
+            "shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction
+        )
+        cube_object.root_view.set_attribute(
+            "shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction
+        )
         NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
 
         # Set initial velocity
@@ -615,7 +629,6 @@ def test_rigid_body_no_friction(num_cubes, device):
         initial_velocity[:, 0] = 1.0
 
         cube_object.write_root_velocity_to_sim(initial_velocity)
-        
 
         # Simulate physics
         for _ in range(20):
@@ -718,6 +731,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
             if force == "above_mu":
                 assert (cube_object.data.root_state_w[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
+
 @pytest.mark.skip(reason="MujocoWarp does not support restitution directly. Couldn't tune it to work as expected.")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -771,8 +785,12 @@ def test_rigid_body_with_restitution(num_cubes, device):
             ke = restitution + 1e9
             kd = restitution + 1e5
             cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), dynamic_friction)
-            cube_object.root_view.set_attribute("shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction)
-            cube_object.root_view.set_attribute("shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction)
+            cube_object.root_view.set_attribute(
+                "shape_material_rolling_friction", NewtonManager.get_model(), dynamic_friction
+            )
+            cube_object.root_view.set_attribute(
+                "shape_material_torsional_friction", NewtonManager.get_model(), dynamic_friction
+            )
             cube_object.root_view.set_attribute("shape_material_ke", NewtonManager.get_model(), ke)
             cube_object.root_view.set_attribute("shape_material_kd", NewtonManager.get_model(), kd)
             NewtonManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
@@ -978,8 +996,12 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
 
                 # lin_vel will not match
                 # center of mass vel will be constant (i.e. spinning around com)
-                torch.testing.assert_close(torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3)
-                torch.testing.assert_close(torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(
+                    torch.zeros_like(root_com_state_w[..., 7:10]), root_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3
+                )
+                torch.testing.assert_close(
+                    torch.zeros_like(body_com_state_w[..., 7:10]), body_com_state_w[..., 7:10], atol=1e-3, rtol=1e-3
+                )
                 # link frame will be moving, and should be equal to input angular velocity cross offset
                 lin_vel_rel_root_gt = quat_apply_inverse(root_link_state_w[..., 3:7], root_link_state_w[..., 7:10])
                 lin_vel_rel_body_gt = quat_apply_inverse(body_link_state_w[..., 3:7], body_link_state_w[..., 7:10])

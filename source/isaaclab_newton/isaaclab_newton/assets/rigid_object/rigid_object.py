@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
-from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets.utils.shared import find_bodies
 from isaaclab_newton.kernels import (
     project_link_velocity_to_com_frame_masked_root,
@@ -35,13 +34,13 @@ from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
     update_array1D_with_value,
     update_array2D_with_array2D_masked,
-    update_array2D_with_value_masked,
 )
 from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_dual_index,
     make_complete_data_from_torch_single_index,
     make_masks_from_torch_ids,
 )
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg

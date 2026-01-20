@@ -9,8 +9,9 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
-import pytest
 import torch
+
+import pytest
 import warp as wp
 
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -447,14 +448,16 @@ def test_torch_add_forces_at_positions(device: str, num_envs: int, num_bodies: i
             forces_np = rng.uniform(low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)).astype(
                 np.float32
             )
-            positions_np = rng.uniform(
-                low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)
-            ).astype(np.float32)
+            positions_np = rng.uniform(low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)).astype(
+                np.float32
+            )
 
             forces = torch.from_numpy(forces_np).to(device=device, dtype=torch.float32)
             positions = torch.from_numpy(positions_np).to(device=device, dtype=torch.float32)
 
-            wrench_composer.add_forces_and_torques(forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids)
+            wrench_composer.add_forces_and_torques(
+                forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids
+            )
 
             hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
             torques_from_forces = np.cross(positions_np, forces_np)
@@ -494,9 +497,9 @@ def test_torch_add_forces_and_torques_at_position(device: str, num_envs: int, nu
             torques_np = rng.uniform(low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)).astype(
                 np.float32
             )
-            positions_np = rng.uniform(
-                low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)
-            ).astype(np.float32)
+            positions_np = rng.uniform(low=-100.0, high=100.0, size=(num_envs_selected, num_bodies_selected, 3)).astype(
+                np.float32
+            )
 
             forces = torch.from_numpy(forces_np).to(device=device, dtype=torch.float32)
             torques = torch.from_numpy(torques_np).to(device=device, dtype=torch.float32)
@@ -586,9 +589,9 @@ def test_warp_global_forces_with_rotation(device: str, num_envs: int, num_bodies
         expected_forces_local = quat_rotate_inv_np(com_quat_np, forces_global_np)
 
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
-            f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5
+        ), f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -613,9 +616,9 @@ def test_warp_global_torques_with_rotation(device: str, num_envs: int, num_bodie
         expected_torques_local = quat_rotate_inv_np(com_quat_np, torques_global_np)
 
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
-            f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5
+        ), f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -656,12 +659,12 @@ def test_warp_global_forces_at_global_position(device: str, num_envs: int, num_b
         composed_force_np = wrench_composer.composed_force.numpy()
         composed_torque_np = wrench_composer.composed_torque.numpy()
 
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -718,9 +721,9 @@ def test_warp_90_degree_rotation_global_force(device: str):
     expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
-        f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_force_local, atol=1e-5
+    ), f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -748,9 +751,9 @@ def test_warp_composition_mixed_local_and_global(device: str):
     expected_total = forces_local_np + global_forces_in_local
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
-        f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_total, atol=1e-4, rtol=1e-5
+    ), f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -846,9 +849,9 @@ def test_torch_global_forces_with_rotation(device: str, num_envs: int, num_bodie
         expected_forces_local = quat_rotate_inv_np(com_quat_np, forces_global_np)
 
         composed_force_np = wrench_composer.composed_force.numpy()
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
-            f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5
+        ), f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -873,9 +876,9 @@ def test_torch_global_torques_with_rotation(device: str, num_envs: int, num_bodi
         expected_torques_local = quat_rotate_inv_np(com_quat_np, torques_global_np)
 
         composed_torque_np = wrench_composer.composed_torque.numpy()
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
-            f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5
+        ), f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -908,12 +911,12 @@ def test_torch_global_forces_at_global_position(device: str, num_envs: int, num_
         composed_force_np = wrench_composer.composed_force.numpy()
         composed_torque_np = wrench_composer.composed_torque.numpy()
 
-        assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
-        )
-        assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
-            f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
-        )
+        assert np.allclose(
+            composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
+        assert np.allclose(
+            composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4
+        ), f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -967,9 +970,9 @@ def test_torch_90_degree_rotation_global_force(device: str):
     expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
-        f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_force_local, atol=1e-5
+    ), f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -997,9 +1000,9 @@ def test_torch_composition_mixed_local_and_global(device: str):
     expected_total = forces_local_np + global_forces_in_local
 
     composed_force_np = wrench_composer.composed_force.numpy()
-    assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
-        f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
-    )
+    assert np.allclose(
+        composed_force_np, expected_total, atol=1e-4, rtol=1e-5
+    ), f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

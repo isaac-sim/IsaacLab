@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from ..asset_base import AssetBase
 from isaaclab.utils.wrench_composer import WrenchComposer
+
+from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
     from .rigid_object_cfg import RigidObjectCfg

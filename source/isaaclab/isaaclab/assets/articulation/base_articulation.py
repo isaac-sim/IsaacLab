@@ -18,9 +18,10 @@ import warp as wp
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
+    from isaaclab.utils.wrench_composer import WrenchComposer
+
     from .articulation_cfg import ArticulationCfg
     from .articulation_data import ArticulationData
-    from isaaclab.utils.wrench_composer import WrenchComposer
 
 
 class BaseArticulation(AssetBase):

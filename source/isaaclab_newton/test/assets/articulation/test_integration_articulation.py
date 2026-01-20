@@ -7,9 +7,9 @@
 # pyright: reportPrivateUsage=none
 
 import ctypes
+import torch
 
 import pytest
-import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
@@ -20,17 +20,18 @@ from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG # isort:skip
-#from isaaclab_assets import SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
+
+# from isaaclab_assets import SHADOW_HAND_CFG  # isort:skip
 
 SOLVER_CFGs = {
     "anymal": MJWarpSolverCfg(
@@ -41,6 +42,7 @@ SOLVER_CFGs = {
         impratio=100,
     )
 }
+
 
 def generate_articulation_cfg(
     articulation_type: str,
@@ -88,7 +90,7 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         pytest.skip("Shadow hand is not supported yet.")
-        #articulation_cfg = SHADOW_HAND_CFG
+        # articulation_cfg = SHADOW_HAND_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -199,7 +201,7 @@ def sim(request):
             else:
                 sim_cfg.gravity = (0.0, 0.0, 0.0)
         else:
-            sim_cfg.gravity = (0.0, 0.0, -9.81) # default to gravity enabled
+            sim_cfg.gravity = (0.0, 0.0, -9.81)  # default to gravity enabled
     if "add_ground_plane" in request.fixturenames:
         add_ground_plane = request.getfixturevalue("add_ground_plane")
     else:
@@ -327,6 +329,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
         # update articulation
         articulation.update(sim.cfg.dt)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -389,7 +392,8 @@ def test_initialization_fixed_base(sim, num_articulations, device):
 
         torch.testing.assert_close(wp.to_torch(articulation.data.root_state_w), default_root_state)
 
-#FIXME: https://github.com/newton-physics/newton/issues/1377
+
+# FIXME: https://github.com/newton-physics/newton/issues/1377
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
@@ -456,6 +460,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
 
         torch.testing.assert_close(wp.to_torch(articulation.data.root_state_w), default_root_state)
 
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
@@ -508,6 +513,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         sim.step(render=False)
         # update articulation
         articulation.update(sim.cfg.dt)
+
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -654,6 +660,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
     # Play sim
     with pytest.raises(ValueError):
         sim.reset()
+
 
 # FIXME: https://github.com/newton-physics/newton/issues/1380
 @pytest.mark.skip("https://github.com/newton-physics/newton/issues/1380")
@@ -878,9 +885,10 @@ def test_external_force_buffer(sim, num_articulations, device, newton_cfg):
         # update buffers
         articulation.update(sim.cfg.dt)
 
-#FIXME: CPU is failing here. It looks like it's related to the value override we've seen before in the RigidObject
+
+# FIXME: CPU is failing here. It looks like it's related to the value override we've seen before in the RigidObject
 # tests.
-#FIXME: Do we want to error out when the shapes provided by the user are incorrect? We would need an extra check
+# FIXME: Do we want to error out when the shapes provided by the user are incorrect? We would need an extra check
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("newton_cfg", [NewtonCfg(solver_cfg=SOLVER_CFGs["anymal"])])
@@ -940,6 +948,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, newton_cf
         # check condition that the articulations have fallen down
         for i in range(num_articulations):
             assert wp.to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
+
 
 # FIXME: CPU is failing here. It looks like it's related to the value override we've seen before in the RigidObject
 # tests.
@@ -1040,6 +1049,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         for i in range(num_articulations):
             assert wp.to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
 
+
 # FIXME: Why is the behavior so different from PhysX? We should make a simpler test. Something with fixed joints.
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1105,6 +1115,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, newto
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
             assert wp.to_torch(articulation.data.root_ang_vel_w)[i, 0].item() > 0.1
+
 
 # FIXME: Why is the behavior so different from PhysX? We should make a simpler test. Something with fixed joints.
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1328,6 +1339,7 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device):
     torch.testing.assert_close(wp.to_torch(articulation.data.joint_stiffness), expected_stiffness)
     torch.testing.assert_close(wp.to_torch(articulation.data.joint_damping), expected_damping)
 
+
 # FIXME: Waiting on: https://github.com/newton-physics/newton/pull/1392
 # FIXME: What do we want to do about velocity limits. Vel_limit_sim and vel_limit.
 # FIXME: We should probably wait for the new actuators to do this test.
@@ -1366,13 +1378,16 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # read the values set into the simulation. No such thin
-    newton_vel_limit = wp.to_torch(articulation.root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))
+    newton_vel_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model())
+    )
     # check data buffer
     torch.testing.assert_close(wp.to_torch(articulation.data.joint_vel_limits), newton_vel_limit)
 
     # check max velocity is what we set
     expected_velocity_limit = torch.full_like(newton_vel_limit, vel_limit)
     torch.testing.assert_close(newton_vel_limit, expected_velocity_limit)
+
 
 # FIXME: Waiting on: https://github.com/newton-physics/newton/pull/1392
 # FIXME: What do we want to do about velocity limits. Vel_limit_sim and vel_limit.
@@ -1399,7 +1414,9 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # collect limit init values
-    newton_vel_limit = wp.to_torch(articulation.root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))
+    newton_vel_limit = wp.to_torch(
+        articulation.root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model())
+    )
     actuator_vel_limit = articulation.data.joint_vel_limits
 
     # check data buffer for joint_velocity_limits_sim
@@ -1416,19 +1433,20 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
         # check actuator is set
         torch.testing.assert_close(actuator_vel_limit, expected_actuator_vel_limit)
         # check physx is not velocity_limit
-        assert not torch.allclose(actuator_vel_limit, physx_vel_limit)
+        assert not torch.allclose(actuator_vel_limit, newton_vel_limit)
     else:
         # check actuator velocity_limit is the same as the PhysX default
-        torch.testing.assert_close(actuator_vel_limit, physx_vel_limit)
+        torch.testing.assert_close(actuator_vel_limit, newton_vel_limit)
 
     # simulation velocity limit is set to USD value unless user overrides
     if vel_limit_sim is not None:
         limit = vel_limit_sim
-    else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+    # else:
+    #    limit = articulation_cfg.spawn.joint_drive_props.max_velocity
     # check physx is set to expected value
-    expected_vel_limit = torch.full_like(physx_vel_limit, limit)
-    torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
+    expected_vel_limit = torch.full_like(newton_vel_limit, limit)
+    torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
+
 
 # FIXME: Waiting on: https://github.com/newton-physics/newton/pull/1392
 # FIXME: What do we want to do about effort limits. Effort_limit_sim and effort_limit.
@@ -1593,13 +1611,17 @@ def test_reset(sim, num_articulations, device):
         assert articulation.instantaneous_wrench_composer.active
         assert articulation.permanent_wrench_composer.active
         assert (
-            torch.count_nonzero(wp.to_torch(articulation.instantaneous_wrench_composer.composed_force)) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation.instantaneous_wrench_composer.composed_force))
+            == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(wp.to_torch(articulation.instantaneous_wrench_composer.composed_torque)) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation.instantaneous_wrench_composer.composed_torque))
+            == num_bodies * 3
         )
         assert torch.count_nonzero(wp.to_torch(articulation.permanent_wrench_composer.composed_force)) == num_bodies * 3
-        assert torch.count_nonzero(wp.to_torch(articulation.permanent_wrench_composer.composed_torque)) == num_bodies * 3
+        assert (
+            torch.count_nonzero(wp.to_torch(articulation.permanent_wrench_composer.composed_torque)) == num_bodies * 3
+        )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1640,6 +1662,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # the articulation moved. We can't check that it reached its desired joint position as the gains
     # are not properly tuned
     assert not torch.allclose(wp.to_torch(articulation.data.joint_pos), joint_pos)
+
 
 # FIXME: This test is not working as expected. It looks like the pendulum is not spinning at all.
 # FIXME: Could also be related to inertia update issues in MujocoWarp.
@@ -1833,6 +1856,7 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         elif state_location == "link":
             torch.testing.assert_close(rand_state, wp.to_torch(articulation.data.root_link_state_w))
 
+
 # FIXME: Functionality is not available yet.
 @pytest.mark.skip(reason="Functionality is not available yet.")
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1954,6 +1978,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     with pytest.raises(KeyError):
         sim.reset()
 
+
 # FIXME: Articulation.write_joint_position_limit_to_sim should not take two variables as arguments. but a single one.
 # FIXME: Should have a new method that can do both.
 # FIXME: Forward Kinematics call is needed to update the body_state after writing the joint position limits.
@@ -1989,8 +2014,12 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
 
     from torch.distributions import Uniform
 
-    pos_dist = Uniform(wp.to_torch(articulation.data.joint_pos_limits)[..., 0], wp.to_torch(articulation.data.joint_pos_limits)[..., 1])
-    vel_dist = Uniform(-wp.to_torch(articulation.data.joint_vel_limits), wp.to_torch(articulation.data.joint_vel_limits))
+    pos_dist = Uniform(
+        wp.to_torch(articulation.data.joint_pos_limits)[..., 0], wp.to_torch(articulation.data.joint_pos_limits)[..., 1]
+    )
+    vel_dist = Uniform(
+        -wp.to_torch(articulation.data.joint_vel_limits), wp.to_torch(articulation.data.joint_vel_limits)
+    )
 
     original_body_states = wp.to_torch(articulation.data.body_state_w).clone()
 
@@ -2007,10 +2036,15 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
         len(original_body_states[:, 1:]) / 2
     )
     # validate body - link consistency
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_state_w)[..., :7], wp.to_torch(articulation.data.body_link_state_w)[..., :7])
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_state_w)[..., :7], wp.to_torch(articulation.data.body_link_state_w)[..., :7]
+    )
     # skip 7:10 because they differs from link frame, this should be fine because we are only checking
     # if velocity update is triggered, which can be determined by comparing angular velocity
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_state_w)[..., 10:], wp.to_torch(articulation.data.body_link_state_w)[..., 10:])
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_state_w)[..., 10:],
+        wp.to_torch(articulation.data.body_link_state_w)[..., 10:],
+    )
 
     # validate link - com conistency
     expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
@@ -2019,29 +2053,56 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
         wp.to_torch(articulation.data.body_com_pos_b).view(-1, 3),
         wp.to_torch(articulation.data.body_com_quat_b).view(-1, 4),
     )
-    torch.testing.assert_close(expected_com_pos.view(len(env_idx), -1, 3), wp.to_torch(articulation.data.body_com_pos_w))
-    torch.testing.assert_close(expected_com_quat.view(len(env_idx), -1, 4), wp.to_torch(articulation.data.body_com_quat_w))
+    torch.testing.assert_close(
+        expected_com_pos.view(len(env_idx), -1, 3), wp.to_torch(articulation.data.body_com_pos_w)
+    )
+    torch.testing.assert_close(
+        expected_com_quat.view(len(env_idx), -1, 4), wp.to_torch(articulation.data.body_com_quat_w)
+    )
 
     # validate body - com consistency
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_state_w)[..., 7:10], wp.to_torch(articulation.data.body_com_lin_vel_w))
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_state_w)[..., 10:], wp.to_torch(articulation.data.body_com_ang_vel_w))
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_state_w)[..., 7:10], wp.to_torch(articulation.data.body_com_lin_vel_w)
+    )
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_state_w)[..., 10:], wp.to_torch(articulation.data.body_com_ang_vel_w)
+    )
 
     # validate pos_w, quat_w, pos_b, quat_b is consistent with pose_w and pose_b
-    expected_com_pose_w = torch.cat((wp.to_torch(articulation.data.body_com_pos_w), wp.to_torch(articulation.data.body_com_quat_w)), dim=2)
-    expected_com_pose_b = torch.cat((wp.to_torch(articulation.data.body_com_pos_b), wp.to_torch(articulation.data.body_com_quat_b)), dim=2)
-    expected_body_pose_w = torch.cat((wp.to_torch(articulation.data.body_pos_w), wp.to_torch(articulation.data.body_quat_w)), dim=2)
-    expected_body_link_pose_w = torch.cat((wp.to_torch(articulation.data.body_link_pos_w), wp.to_torch(articulation.data.body_link_quat_w)), dim=2)
+    expected_com_pose_w = torch.cat(
+        (wp.to_torch(articulation.data.body_com_pos_w), wp.to_torch(articulation.data.body_com_quat_w)), dim=2
+    )
+    expected_com_pose_b = torch.cat(
+        (wp.to_torch(articulation.data.body_com_pos_b), wp.to_torch(articulation.data.body_com_quat_b)), dim=2
+    )
+    expected_body_pose_w = torch.cat(
+        (wp.to_torch(articulation.data.body_pos_w), wp.to_torch(articulation.data.body_quat_w)), dim=2
+    )
+    expected_body_link_pose_w = torch.cat(
+        (wp.to_torch(articulation.data.body_link_pos_w), wp.to_torch(articulation.data.body_link_quat_w)), dim=2
+    )
     torch.testing.assert_close(wp.to_torch(articulation.data.body_com_pose_w), expected_com_pose_w)
     torch.testing.assert_close(wp.to_torch(articulation.data.body_com_pose_b), expected_com_pose_b)
     torch.testing.assert_close(wp.to_torch(articulation.data.body_pose_w), expected_body_pose_w)
     torch.testing.assert_close(wp.to_torch(articulation.data.body_link_pose_w), expected_body_link_pose_w)
 
     # validate pose_w is consistent state[..., :7]
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_pose_w), wp.to_torch(articulation.data.body_state_w)[..., :7])
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_vel_w), wp.to_torch(articulation.data.body_state_w)[..., 7:])
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_link_pose_w), wp.to_torch(articulation.data.body_link_state_w)[..., :7])
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_com_pose_w), wp.to_torch(articulation.data.body_com_state_w)[..., :7])
-    torch.testing.assert_close(wp.to_torch(articulation.data.body_vel_w), wp.to_torch(articulation.data.body_state_w)[..., 7:])
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_pose_w), wp.to_torch(articulation.data.body_state_w)[..., :7]
+    )
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_vel_w), wp.to_torch(articulation.data.body_state_w)[..., 7:]
+    )
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_link_pose_w), wp.to_torch(articulation.data.body_link_state_w)[..., :7]
+    )
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_com_pose_w), wp.to_torch(articulation.data.body_com_state_w)[..., :7]
+    )
+    torch.testing.assert_close(
+        wp.to_torch(articulation.data.body_vel_w), wp.to_torch(articulation.data.body_state_w)[..., 7:]
+    )
+
 
 @pytest.mark.skip(reason="Functionality is not available yet.")
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -2059,9 +2120,6 @@ def test_spatial_tendons(sim, num_articulations, device):
         device: The device to run the simulation on
     """
     # skip test if Isaac Sim version is less than 5.0
-    if get_isaac_sim_version().major < 5:
-        pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
-        return
     articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
@@ -2078,8 +2136,8 @@ def test_spatial_tendons(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 3)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.inertia.shape == (num_articulations, articulation.num_bodies, 9)
     assert articulation.num_spatial_tendons == 1
 
     articulation.set_spatial_tendon_stiffness(torch.tensor([10.0]))
@@ -2093,6 +2151,7 @@ def test_spatial_tendons(sim, num_articulations, device):
         sim.step(render=False)
         # update articulation
         articulation.update(sim.cfg.dt)
+
 
 # FIXME: Functionality is not available yet.
 @pytest.mark.skip(reason="Functionality is not available yet.")
@@ -2136,59 +2195,55 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # update buffers
         articulation.update(sim.cfg.dt)
 
-    if get_isaac_sim_version().major >= 5:
-        friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
-        joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
-        joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
-        joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
-        assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
-        assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
-    else:
-        joint_friction_coeff_sim = articulation.root_physx_view.get_dof_friction_properties()
+    friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
+    joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
+    joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
+    joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
+    assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
+    assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
 
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
 
     # For Isaac Sim >= 5.0: also test the combined API that can set dynamic and viscous via
     # write_joint_friction_coefficient_to_sim; reset the sim to isolate this path.
-    if get_isaac_sim_version().major >= 5:
-        # Reset simulator to ensure a clean state for the alternative API path
-        sim.reset()
+    # Reset simulator to ensure a clean state for the alternative API path
+    sim.reset()
 
-        # Warm up a few steps to populate buffers
-        for _ in range(100):
-            sim.step(render=False)
-            articulation.update(sim.cfg.dt)
+    # Warm up a few steps to populate buffers
+    for _ in range(100):
+        sim.step(render=False)
+        articulation.update(sim.cfg.dt)
 
-        # New random coefficients
-        dynamic_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
-        viscous_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
-        friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+    # New random coefficients
+    dynamic_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+    viscous_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
+    friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
 
-        # Guarantee that the dynamic friction is not greater than the static friction
-        dynamic_friction_2 = torch.min(dynamic_friction_2, friction_2)
+    # Guarantee that the dynamic friction is not greater than the static friction
+    dynamic_friction_2 = torch.min(dynamic_friction_2, friction_2)
 
-        # Use the combined setter to write all three at once
-        articulation.write_joint_friction_coefficient_to_sim(
-            joint_friction_coeff=friction_2,
-            joint_dynamic_friction_coeff=dynamic_friction_2,
-            joint_viscous_friction_coeff=viscous_friction_2,
-        )
-        articulation.write_data_to_sim()
+    # Use the combined setter to write all three at once
+    articulation.write_joint_friction_coefficient_to_sim(
+        joint_friction_coeff=friction_2,
+        joint_dynamic_friction_coeff=dynamic_friction_2,
+        joint_viscous_friction_coeff=viscous_friction_2,
+    )
+    articulation.write_data_to_sim()
 
-        # Step to let sim ingest new params and refresh data buffers
-        for _ in range(100):
-            sim.step(render=False)
-            articulation.update(sim.cfg.dt)
+    # Step to let sim ingest new params and refresh data buffers
+    for _ in range(100):
+        sim.step(render=False)
+        articulation.update(sim.cfg.dt)
 
-        friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
-        joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
-        friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
-        friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
+    friction_props_from_sim_2 = articulation.root_view.get_dof_friction_properties()
+    joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
+    friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
+    friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
 
-        # Validate values propagated
-        assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2.cpu())
-        assert torch.allclose(friction_dynamic_coef_sim_2, dynamic_friction_2.cpu())
-        assert torch.allclose(joint_friction_coeff_sim_2, friction_2.cpu())
+    # Validate values propagated
+    assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2.cpu())
+    assert torch.allclose(friction_dynamic_coef_sim_2, dynamic_friction_2.cpu())
+    assert torch.allclose(joint_friction_coeff_sim_2, friction_2.cpu())
 
 
 if __name__ == "__main__":

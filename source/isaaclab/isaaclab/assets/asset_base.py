@@ -10,11 +10,12 @@ import contextlib
 import inspect
 import re
 import torch
-import warp as wp
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
+
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils

@@ -11,7 +11,7 @@ import math
 
 # import omni.physx.scripts.utils as physx_utils
 # from omni.physx.scripts import deformableUtils as deformable_utils
-from pxr import Usd, UsdPhysics, UsdGeom, Gf, Sdf
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
@@ -1215,10 +1215,6 @@ def create_joint(
         component = UsdPhysics.DistanceJoint.Define(stage, joint_path)
         component.CreateMinDistanceAttr(0.0)
         component.CreateMaxDistanceAttr(0.0)
-    elif joint_type == "Gear":
-        component = PhysxSchema.PhysxPhysicsGearJoint.Define(stage, joint_path)
-    elif joint_type == "RackAndPinion":
-        component = PhysxSchema.PhysxPhysicsRackAndPinionJoint.Define(stage, joint_path)
     else:
         component = UsdPhysics.Joint.Define(stage, joint_path)
         prim = component.GetPrim()

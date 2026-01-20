@@ -15,7 +15,7 @@ from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg, ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim

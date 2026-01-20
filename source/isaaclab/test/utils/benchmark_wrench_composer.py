@@ -753,7 +753,9 @@ def warmup_all_kernels(wrench_composer: WrenchComposer, config: BenchmarkConfig,
 
         for mode in modes:
             input_generator = (
-                method_benchmark.input_generator_warp if mode == InputMode.WARP else method_benchmark.input_generator_torch
+                method_benchmark.input_generator_warp
+                if mode == InputMode.WARP
+                else method_benchmark.input_generator_torch
             )
 
             # Run multiple warmup iterations to ensure kernel is fully compiled

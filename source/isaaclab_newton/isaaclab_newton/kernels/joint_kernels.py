@@ -397,14 +397,14 @@ def update_default_joint_pos(
     joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
     joint_pos: wp.array2d(dtype=wp.float32),
 ):
-    """Update the default joint position for the given environment and joint indices.
-    """
+    """Update the default joint position for the given environment and joint indices."""
     env_index, joint_index = wp.tid()
     joint_pos[env_index, joint_index] = wp.clamp(
         joint_pos[env_index, joint_index],
         joint_pos_limits_lower[env_index, joint_index],
         joint_pos_limits_upper[env_index, joint_index],
     )
+
 
 """
 Kernels to derive joint acceleration from velocity.

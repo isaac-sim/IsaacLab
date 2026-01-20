@@ -17,15 +17,14 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.actuators import ActuatorBase, ImplicitActuator
-from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 from isaaclab_newton.kernels import (
     project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose_and_velocity,
     transform_CoM_pose_to_link_frame_masked_root,
-    update_soft_joint_pos_limits,
     update_default_joint_pos,
+    update_soft_joint_pos_limits,
     update_wrench_array_with_force,
     update_wrench_array_with_torque,
     vec13f,
@@ -53,6 +52,7 @@ from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_single_index,
     make_masks_from_torch_ids,
 )
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 if TYPE_CHECKING:
     from isaaclab.actuators.actuator_cfg import ActuatorBaseCfg
@@ -1151,7 +1151,7 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the joint properties have been updated
         NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
-    #FIXME: What do we do of the dynamic and viscous friction coefficients?
+    # FIXME: What do we do of the dynamic and viscous friction coefficients?
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: wp.array | float,
@@ -1216,13 +1216,17 @@ class Articulation(BaseArticulation):
                 (self.num_instances, self.num_joints),
             )
         if joint_dynamic_friction_coeff is not None:
-            self.write_joint_dynamic_friction_coefficient_to_sim(joint_dynamic_friction_coeff, joint_ids, env_ids, joint_mask, env_mask)
+            self.write_joint_dynamic_friction_coefficient_to_sim(
+                joint_dynamic_friction_coeff, joint_ids, env_ids, joint_mask, env_mask
+            )
         if joint_viscous_friction_coeff is not None:
-            self.write_joint_viscous_friction_coefficient_to_sim(joint_viscous_friction_coeff, joint_ids, env_ids, joint_mask, env_mask)
+            self.write_joint_viscous_friction_coefficient_to_sim(
+                joint_viscous_friction_coeff, joint_ids, env_ids, joint_mask, env_mask
+            )
         # tell the physics engine that some of the joint properties have been updated
         NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
-    #FIXME: This is not implemented in Newton.
+    # FIXME: This is not implemented in Newton.
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
         joint_dynamic_friction_coeff: wp.array | float,
@@ -1269,7 +1273,7 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the joint properties have been updated
         NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
-    #FIXME: This is not implemented in Newton.
+    # FIXME: This is not implemented in Newton.
     def write_joint_viscous_friction_coefficient_to_sim(
         self,
         joint_viscous_friction_coeff: wp.array | float,
