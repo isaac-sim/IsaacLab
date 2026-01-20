@@ -272,4 +272,5 @@ class ActuatorBase(ABC):
                 self._env_mask,
                 self.joint_mask,
             ],
+            device=self._device,
         )

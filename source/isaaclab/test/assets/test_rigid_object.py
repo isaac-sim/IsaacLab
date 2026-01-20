@@ -6,9 +6,6 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-
-"""Rest everything follows."""
-
 import ctypes
 import torch
 from typing import Literal

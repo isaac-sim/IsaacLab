@@ -140,16 +140,16 @@ class RigidObject(BaseRigidObject):
     Operations.
     """
 
-    def reset(self, ids: Sequence[int] | None = None, mask: wp.array | None = None):
-        if ids is not None and mask is None:
-            mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-            mask[ids] = True
-            mask = wp.from_torch(mask, dtype=wp.bool)
-        elif mask is not None:
-            if isinstance(mask, torch.Tensor):
-                mask = wp.from_torch(mask, dtype=wp.bool)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        if env_ids is not None and env_mask is None:
+            env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+            env_mask[env_ids] = True
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
+        elif env_mask is not None:
+            if isinstance(env_mask, torch.Tensor):
+                env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         else:
-            mask = self._data.ALL_ENV_MASK
+            env_mask = self._data.ALL_ENV_MASK
         # reset external wrench
         self.has_external_wrench = False
         wp.launch(
@@ -159,7 +159,7 @@ class RigidObject(BaseRigidObject):
             inputs=[
                 wp.vec3f(0.0, 0.0, 0.0),
                 self._external_force_b,
-                mask,
+                env_mask,
                 self._data.ALL_BODY_MASK,
             ],
         )
@@ -170,7 +170,7 @@ class RigidObject(BaseRigidObject):
             inputs=[
                 wp.vec3f(0.0, 0.0, 0.0),
                 self._external_torque_b,
-                mask,
+                env_mask,
                 self._data.ALL_BODY_MASK,
             ],
         )
@@ -542,13 +542,12 @@ class RigidObject(BaseRigidObject):
             masses = make_complete_data_from_torch_dual_index(
                 masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device
             )
-        print(self.num_instances, self.num_bodies)
-        print(f"Masses: {wp.to_torch(masses)}")
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        print(f"Env mask: {env_mask}")
-        print(f"Body mask: {body_mask}")
-        print(f"Masses: {wp.to_torch(masses)}")
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             masses, self._data.body_mass, env_mask, body_mask, (self.num_instances, self.num_bodies)
@@ -577,7 +576,11 @@ class RigidObject(BaseRigidObject):
                 coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             coms, self._data.body_com_pos_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
@@ -606,7 +609,11 @@ class RigidObject(BaseRigidObject):
                 inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             inertias, self._data.body_inertia, env_mask, body_mask, (self.num_instances, self.num_bodies)

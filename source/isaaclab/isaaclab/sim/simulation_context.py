@@ -1341,6 +1341,11 @@ class SimulationContext:
             # close all visualizers
             if hasattr(cls._instance, "_visualizers"):
                 cls._instance.close_visualizers()
+            # detach the stage from the USD stage cache
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
+            if stage_id > 0:
+                stage_cache.Erase(cls._instance._initial_stage)
             # clear stage references
             if hasattr(cls._instance, "_initial_stage"):
                 cls._instance._initial_stage = None

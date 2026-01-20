@@ -348,20 +348,20 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
         """Resets the scene entities.
 
         Args:
-            env_ids: The indices of the environments to reset.
-                Defaults to None (all instances).
+            env_ids: The indices of the environments to reset. Defaults to None (all instances).
+            env_mask: The mask of the environments to reset. Defaults to None (all instances).
         """
         # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(ids=env_ids, mask=mask)
+            articulation.reset(env_ids=env_ids, env_mask=env_mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids=env_ids, env_mask=mask)
+            sensor.reset(env_ids=env_ids, env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.actuators import ActuatorBase, ImplicitActuator
+from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 from isaaclab_newton.kernels import (
@@ -222,33 +223,51 @@ class Articulation(BaseArticulation):
         """Newton model for the asset."""
         return self._root_view.model
 
-    # TODO: Plug-in the Wrench code from Isaac Lab once the PR gets in.
+    @property
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+
+        Note:
+            Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+            applied to the simulation.
+        """
+        return self._instantaneous_wrench_composer
+
+    @property
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+
+        Note:
+            Permanent wrenches are composed into the instantaneous wrench before the instantaneous wrenches are
+            applied to the simulation.
+        """
+        return self._permanent_wrench_composer
 
     """
     Operations.
     """
 
-    def reset(self, ids: Sequence[int] | None = None, mask: wp.array | None = None):
-        if ids is not None and mask is None:
-            mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-            mask[ids] = True
-            mask = wp.from_torch(mask, dtype=wp.bool)
-        elif mask is not None:
-            if isinstance(mask, torch.Tensor):
-                mask = wp.from_torch(mask, dtype=wp.bool)
-        else:
-            mask = self._data.ALL_BODY_MASK
-        # reset external wrench
-        wp.launch(
-            update_array2D_with_value_masked,
-            dim=(self.num_instances, self.num_bodies),
-            inputs=[
-                wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-                self._data._sim_bind_body_external_wrench,
-                self._data.ALL_ENV_MASK,
-                mask,
-            ],
-        )
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        if env_ids is not None and env_mask is None:
+            env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
+            env_mask[env_ids] = True
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
+        elif env_mask is not None:
+            if isinstance(env_mask, torch.Tensor):
+                env_mask = wp.from_torch(env_mask, dtype=wp.bool)
+
+        # reset external wrenches.
+        self._instantaneous_wrench_composer.reset(env_mask=env_mask)
+        self._permanent_wrench_composer.reset(env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -260,11 +279,6 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # Wrenches are automatically applied by set_external_force_and_torque.
-        # apply actuator models. Actuator models automatically write the joint efforts into the simulation.
-        self._apply_actuator_model()
-        # Write the actuator targets into the simulation
-        # TODO: Move this to the implicit actuator model.
         if self._has_implicit_actuators:
             self._root_view.set_attribute(
                 "joint_target_pos", NewtonManager.get_control(), self.data.actuator_position_target
@@ -272,6 +286,66 @@ class Articulation(BaseArticulation):
             self._root_view.set_attribute(
                 "joint_target_vel", NewtonManager.get_control(), self.data.actuator_velocity_target
             )
+        # write external wrench
+        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
+            if self._instantaneous_wrench_composer.active:
+                # Compose instantaneous wrench with permanent wrench
+                self._instantaneous_wrench_composer.add_forces_and_torques(
+                    forces=self._permanent_wrench_composer.composed_force,
+                    torques=self._permanent_wrench_composer.composed_torque,
+                )
+                # Apply both instantaneous and permanent wrench to the simulation
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._instantaneous_wrench_composer.composed_force,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._instantaneous_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+            else:
+                # Apply permanent wrench to the simulation
+                wp.launch(
+                    update_wrench_array_with_force,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._permanent_wrench_composer.composed_force,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+                wp.launch(
+                    update_wrench_array_with_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._permanent_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._data.ALL_ENV_MASK,
+                        self._data.ALL_BODY_MASK,
+                    ],
+                )
+        self._instantaneous_wrench_composer.reset()
+        # apply actuator models. Actuator models automatically write the joint efforts into the simulation.
+        self._apply_actuator_model()
+        # Write the actuator targets into the simulation
+        # TODO: Move this to the implicit actuator model.
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -677,7 +751,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -716,7 +794,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -752,7 +834,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         self._update_batched_array_with_batched_array_masked(
@@ -792,7 +878,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(stiffness, float):
@@ -835,7 +925,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(damping, float):
@@ -890,7 +984,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         self._write_joint_position_limit_to_sim(lower_limits, upper_limits, joint_mask, env_mask)
@@ -935,7 +1033,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(limits, float):
@@ -981,7 +1083,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(limits, float):
@@ -1027,7 +1133,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(armature, float):
@@ -1041,9 +1151,12 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the joint properties have been updated
         NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
+    #FIXME: What do we do of the dynamic and viscous friction coefficients?
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: wp.array | float,
+        joint_dynamic_friction_coeff: wp.array | float | None = None,
+        joint_viscous_friction_coeff: wp.array | float | None = None,
         joint_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
         joint_mask: wp.array | None = None,
@@ -1079,7 +1192,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(joint_friction_coeff, float):
@@ -1098,9 +1215,14 @@ class Articulation(BaseArticulation):
                 joint_mask,
                 (self.num_instances, self.num_joints),
             )
+        if joint_dynamic_friction_coeff is not None:
+            self.write_joint_dynamic_friction_coefficient_to_sim(joint_dynamic_friction_coeff, joint_ids, env_ids, joint_mask, env_mask)
+        if joint_viscous_friction_coeff is not None:
+            self.write_joint_viscous_friction_coefficient_to_sim(joint_viscous_friction_coeff, joint_ids, env_ids, joint_mask, env_mask)
         # tell the physics engine that some of the joint properties have been updated
         NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
+    #FIXME: This is not implemented in Newton.
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
         joint_dynamic_friction_coeff: wp.array | float,
@@ -1121,7 +1243,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
         # set into simulation
         if isinstance(joint_dynamic_friction_coeff, float):
@@ -1136,6 +1262,53 @@ class Articulation(BaseArticulation):
             self._update_batched_array_with_batched_array_masked(
                 joint_dynamic_friction_coeff,
                 self._data.joint_dynamic_friction_coeff,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints),
+            )
+        # tell the physics engine that some of the joint properties have been updated
+        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
+    #FIXME: This is not implemented in Newton.
+    def write_joint_viscous_friction_coefficient_to_sim(
+        self,
+        joint_viscous_friction_coeff: wp.array | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
+        if isinstance(joint_viscous_friction_coeff, torch.Tensor):
+            joint_viscous_friction_coeff = make_complete_data_from_torch_dual_index(
+                joint_viscous_friction_coeff,
+                self.num_instances,
+                self.num_joints,
+                env_ids,
+                joint_ids,
+                dtype=wp.float32,
+                device=self.device,
+            )
+        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
+        joint_mask = make_masks_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        if joint_mask is None:
+            joint_mask = self._data.ALL_JOINT_MASK
+        # None masks are handled within the kernel.
+        # set into simulation
+        if isinstance(joint_viscous_friction_coeff, float):
+            self._update_batched_array_with_value_masked(
+                joint_viscous_friction_coeff,
+                self._data.joint_viscous_friction_coeff,
+                env_mask,
+                joint_mask,
+                (self.num_instances, self.num_joints),
+            )
+        else:
+            self._update_batched_array_with_batched_array_masked(
+                joint_viscous_friction_coeff,
+                self._data.joint_viscous_friction_coeff,
                 env_mask,
                 joint_mask,
                 (self.num_instances, self.num_joints),
@@ -1221,12 +1394,16 @@ class Articulation(BaseArticulation):
                 masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             masses, self._data.body_mass, env_mask, body_mask, (self.num_instances, self.num_bodies)
         )
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms(
         self,
@@ -1250,12 +1427,16 @@ class Articulation(BaseArticulation):
                 coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             coms, self._data.body_com_pos_b, env_mask, body_mask, (self.num_instances, self.num_bodies)
         )
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias(
         self,
@@ -1279,12 +1460,16 @@ class Articulation(BaseArticulation):
                 inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device
             )
         env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        if env_mask is None:
+            env_mask = self._data.ALL_ENV_MASK
         body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        if body_mask is None:
+            body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
         self._update_batched_array_with_batched_array_masked(
             inertias, self._data.body_inertia, env_mask, body_mask, (self.num_instances, self.num_bodies)
         )
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_PROPERTIES)
+        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     # TODO: Plug-in the Wrench code from Isaac Lab once the PR gets in.
     def set_external_force_and_torque(
@@ -1330,50 +1515,18 @@ class Articulation(BaseArticulation):
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
                 the external wrench is applied in the link frame of the articulations' bodies.
         """
-        # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-        env_mask_ = None
-        body_mask_ = None
-        if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor):
-            if forces is not None:
-                forces = make_complete_data_from_torch_dual_index(
-                    forces, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
-                )
-            if torques is not None:
-                torques = make_complete_data_from_torch_dual_index(
-                    torques, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
-                )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
-        # solve for None masks
-        if env_mask_ is None:
-            env_mask_ = self._data.ALL_ENV_MASK
-        if body_mask_ is None:
-            body_mask_ = self._data.ALL_BODY_MASK
-        # set into simulation
-        if (forces is not None) or (torques is not None):
-            self.has_external_wrench = True
-            if forces is not None:
-                wp.launch(
-                    update_wrench_array_with_force,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        forces,
-                        self._data._sim_bind_body_external_wrench,
-                        env_mask_,
-                        body_mask_,
-                    ],
-                )
-            if torques is not None:
-                wp.launch(
-                    update_wrench_array_with_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[
-                        torques,
-                        self._data._sim_bind_body_external_wrench,
-                        env_mask_,
-                        body_mask_,
-                    ],
-                )
+
+        # Write to wrench composer
+        self._permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            body_ids=body_ids,
+            env_ids=env_ids,
+            body_mask=body_mask,
+            env_mask=env_mask,
+            is_global=is_global,
+        )
 
     def set_joint_position_target(
         self,
@@ -1412,6 +1565,7 @@ class Articulation(BaseArticulation):
                 env_mask,
                 joint_mask,
             ],
+            device=self.device,
         )
 
     def set_joint_velocity_target(
@@ -1845,6 +1999,10 @@ class Articulation(BaseArticulation):
         # Assign joint and body names to the data
         self._data.joint_names = self.joint_names
         self._data.body_names = self.body_names
+
+        # external wrench composers
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
