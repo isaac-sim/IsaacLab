@@ -277,8 +277,6 @@ class NavigationAction(ThrustAction):
         self._has_actions_updated = False
 
     def apply_actions(self):
-        print("last action", self._prev_velocity_commands[0])
-        print("current action", self._velocity_commands[0])
         """Apply the processed actions as velocity commands."""
         # process the actions to be in the correct range
         clamped_action = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
