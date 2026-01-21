@@ -15,7 +15,7 @@ methods in the RigidObject class. Each method is benchmarked under two scenarios
    conversion from Torch to Warp and from indices to masks.
 
 Usage:
-    python benchmark_rigid_object.py [--num_iterations N] [--warmup_steps W] [--num_instances I] 
+    python benchmark_rigid_object.py [--num_iterations N] [--warmup_steps W] [--num_instances I]
 
 Example:
     python benchmark_rigid_object.py --num_iterations 1000 --warmup_steps 10
@@ -41,10 +41,10 @@ from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_newton.kernels import vec13f
 
+from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+
 # Import mock classes from shared module (reusing articulation's mock_interface)
 from .mock_interface import MockNewtonArticulationView, MockNewtonModel
-
-from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
 # Initialize Warp
 wp.init()

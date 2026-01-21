@@ -159,7 +159,9 @@ class TestRootLinkPoseW:
         assert rigid_object_data.root_link_pose_w.dtype == wp.transformf
 
         # Mock data is initialized to zeros
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.zeros((num_instances, 7), device=device))
+        assert torch.all(
+            wp.to_torch(rigid_object_data.root_link_pose_w) == torch.zeros((num_instances, 7), device=device)
+        )
 
         # Get the property
         root_link_pose_w = rigid_object_data.root_link_pose_w
@@ -168,13 +170,17 @@ class TestRootLinkPoseW:
         rigid_object_data.root_link_pose_w.fill_(1.0)
 
         # Check that the property returns the new value (reference behavior)
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device))
+        assert torch.all(
+            wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device)
+        )
 
         # Assign a different value to the pointers
         root_link_pose_w.fill_(2.0)
 
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device) * 2.0)
+        assert torch.all(
+            wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device) * 2.0
+        )
 
 
 class TestRootLinkVelW:
