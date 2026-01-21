@@ -12,6 +12,8 @@ commands to be sent to the robot.
 """
 
 from .lee_controller_utils import *
+from .lee_attitude_control import LeeAttController
+from .lee_attitude_control_cfg import LeeAttControllerCfg
 from .lee_acceleration_control import LeeAccController
 from .lee_acceleration_control_cfg import LeeAccControllerCfg
 from .lee_controller_base import LeeControllerBase
