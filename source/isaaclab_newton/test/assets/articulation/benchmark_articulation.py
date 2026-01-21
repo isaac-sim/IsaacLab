@@ -36,7 +36,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-
 from isaaclab_newton.assets.articulation.articulation import Articulation
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.kernels import vec13f
@@ -775,8 +774,12 @@ def gen_joint_damping_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_joint_position_limit_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "lower_limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * -3.14,
-        "upper_limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 3.14,
+        "lower_limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * -3.14
+        ),
+        "upper_limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 3.14
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
     }
@@ -792,7 +795,9 @@ def gen_joint_velocity_limit_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_joint_effort_limit_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0,
+        "limits": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 100.0
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
     }
@@ -800,7 +805,9 @@ def gen_joint_effort_limit_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_joint_armature_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "armature": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1,
+        "armature": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.1
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
     }
@@ -808,7 +815,9 @@ def gen_joint_armature_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_joint_friction_coefficient_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "joint_friction_coeff": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5,
+        "joint_friction_coeff": (
+            torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 0.5
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "joint_ids": make_tensor_joint_ids(config.num_joints, config.device),
     }
@@ -856,7 +865,9 @@ def gen_coms_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "inertias": torch.rand(config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32),
+        "inertias": torch.rand(
+            config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
     }

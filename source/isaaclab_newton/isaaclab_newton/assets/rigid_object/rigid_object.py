@@ -296,8 +296,7 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
-                out=self._temp_root_state
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -333,8 +332,7 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
-                out=self._temp_root_state
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -369,8 +367,7 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
-                out=self._temp_root_state
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device, out=self._temp_root_state
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -421,8 +418,7 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_pose is None:
                 self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
             pose = make_complete_data_from_torch_single_index(
-                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device,
-                out=self._temp_root_pose
+                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device, out=self._temp_root_pose
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -456,8 +452,12 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_pose is None:
                 self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
             root_pose = make_complete_data_from_torch_single_index(
-                root_pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device,
-                out=self._temp_root_pose
+                root_pose,
+                self.num_instances,
+                ids=env_ids,
+                dtype=wp.transformf,
+                device=self.device,
+                out=self._temp_root_pose,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -521,8 +521,12 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_velocity is None:
                 self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
-                out=self._temp_root_velocity
+                root_velocity,
+                self.num_instances,
+                ids=env_ids,
+                dtype=wp.spatial_vectorf,
+                device=self.device,
+                out=self._temp_root_velocity,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -555,8 +559,12 @@ class RigidObject(BaseRigidObject):
             if self._temp_root_velocity is None:
                 self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
-                out=self._temp_root_velocity
+                root_velocity,
+                self.num_instances,
+                ids=env_ids,
+                dtype=wp.spatial_vectorf,
+                device=self.device,
+                out=self._temp_root_velocity,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -611,10 +619,18 @@ class RigidObject(BaseRigidObject):
         # raise NotImplementedError()
         if isinstance(masses, torch.Tensor):
             if self._temp_body_data_float is None:
-                self._temp_body_data_float = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device)
+                self._temp_body_data_float = wp.zeros(
+                    (self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device
+                )
             masses = make_complete_data_from_torch_dual_index(
-                masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device,
-                out=self._temp_body_data_float
+                masses,
+                self.num_instances,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.float32,
+                device=self.device,
+                out=self._temp_body_data_float,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -651,10 +667,18 @@ class RigidObject(BaseRigidObject):
         """
         if isinstance(coms, torch.Tensor):
             if self._temp_body_data_vec3 is None:
-                self._temp_body_data_vec3 = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+                self._temp_body_data_vec3 = wp.zeros(
+                    (self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device
+                )
             coms = make_complete_data_from_torch_dual_index(
-                coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device,
-                out=self._temp_body_data_vec3
+                coms,
+                self.num_instances,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_body_data_vec3,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
@@ -691,10 +715,18 @@ class RigidObject(BaseRigidObject):
         """
         if isinstance(inertias, torch.Tensor):
             if self._temp_body_data_mat33 is None:
-                self._temp_body_data_mat33 = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.mat33f, device=self.device)
+                self._temp_body_data_mat33 = wp.zeros(
+                    (self.num_instances, self.num_bodies), dtype=wp.mat33f, device=self.device
+                )
             inertias = make_complete_data_from_torch_dual_index(
-                inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device,
-                out=self._temp_body_data_mat33
+                inertias,
+                self.num_instances,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.mat33f,
+                device=self.device,
+                out=self._temp_body_data_mat33,
             )
         env_mask = make_mask_from_torch_ids(
             self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK

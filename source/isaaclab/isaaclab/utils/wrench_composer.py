@@ -130,18 +130,36 @@ class WrenchComposer:
                 )
                 if forces is not None:
                     forces = make_complete_data_from_torch_dual_index(
-                        forces, self.num_envs, self.num_bodies, env_ids, body_ids,
-                        dtype=wp.vec3f, device=self.device, out=self._temp_forces_wp
+                        forces,
+                        self.num_envs,
+                        self.num_bodies,
+                        env_ids,
+                        body_ids,
+                        dtype=wp.vec3f,
+                        device=self.device,
+                        out=self._temp_forces_wp,
                     )
                 if torques is not None:
                     torques = make_complete_data_from_torch_dual_index(
-                        torques, self.num_envs, self.num_bodies, env_ids, body_ids,
-                        dtype=wp.vec3f, device=self.device, out=self._temp_torques_wp
+                        torques,
+                        self.num_envs,
+                        self.num_bodies,
+                        env_ids,
+                        body_ids,
+                        dtype=wp.vec3f,
+                        device=self.device,
+                        out=self._temp_torques_wp,
                     )
                 if positions is not None:
                     positions = make_complete_data_from_torch_dual_index(
-                        positions, self.num_envs, self.num_bodies, env_ids, body_ids,
-                        dtype=wp.vec3f, device=self.device, out=self._temp_positions_wp
+                        positions,
+                        self.num_envs,
+                        self.num_bodies,
+                        env_ids,
+                        body_ids,
+                        dtype=wp.vec3f,
+                        device=self.device,
+                        out=self._temp_positions_wp,
                     )
             except Exception as e:
                 raise RuntimeError(
@@ -208,18 +226,36 @@ class WrenchComposer:
 
         if isinstance(forces, torch.Tensor):
             forces = make_complete_data_from_torch_dual_index(
-                forces, self.num_envs, self.num_bodies, env_ids, body_ids,
-                dtype=wp.vec3f, device=self.device, out=self._temp_forces_wp
+                forces,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_forces_wp,
             )
         if isinstance(torques, torch.Tensor):
             torques = make_complete_data_from_torch_dual_index(
-                torques, self.num_envs, self.num_bodies, env_ids, body_ids,
-                dtype=wp.vec3f, device=self.device, out=self._temp_torques_wp
+                torques,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_torques_wp,
             )
         if isinstance(positions, torch.Tensor):
             positions = make_complete_data_from_torch_dual_index(
-                positions, self.num_envs, self.num_bodies, env_ids, body_ids,
-                dtype=wp.vec3f, device=self.device, out=self._temp_positions_wp
+                positions,
+                self.num_envs,
+                self.num_bodies,
+                env_ids,
+                body_ids,
+                dtype=wp.vec3f,
+                device=self.device,
+                out=self._temp_positions_wp,
             )
 
         body_mask = make_mask_from_torch_ids(

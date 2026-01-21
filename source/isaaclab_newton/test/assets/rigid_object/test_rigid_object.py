@@ -25,6 +25,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import warp as wp
+
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_newton.kernels import vec13f
@@ -33,9 +36,6 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
 # TODO: Move these functions to the test utils so they can't be changed in the future.
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
-
-# Import mock classes from common test utilities
-from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()

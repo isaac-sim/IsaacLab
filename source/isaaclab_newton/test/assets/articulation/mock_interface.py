@@ -17,8 +17,8 @@ from common.mock_newton import (
     MockNewtonArticulationView,
     MockNewtonModel,
     MockSharedMetaDataType,
-    create_mock_newton_manager as _create_mock_newton_manager,
 )
+from common.mock_newton import create_mock_newton_manager as _create_mock_newton_manager
 
 __all__ = [
     "MockNewtonModel",

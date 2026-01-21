@@ -36,7 +36,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-
 from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_newton.kernels import vec13f

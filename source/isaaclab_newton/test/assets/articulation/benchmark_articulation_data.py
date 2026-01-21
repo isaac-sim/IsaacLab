@@ -28,7 +28,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 
 # Add test directory to path for common module imports

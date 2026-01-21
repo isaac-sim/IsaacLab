@@ -12,13 +12,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import warp as wp
+
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 
 # TODO: Remove this import
 from isaaclab.utils import math as math_utils
-
-# Import mock classes from common test utilities
-from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()
