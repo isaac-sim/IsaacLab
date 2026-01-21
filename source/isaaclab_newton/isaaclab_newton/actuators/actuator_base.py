@@ -209,7 +209,6 @@ class ActuatorBase(ABC):
         # parse the parameter
         if cfg_value is not None:
             if isinstance(cfg_value, (float, int)):
-                print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
                 if isinstance(cfg_value, IntEnum):
                     cfg_value = int(cfg_value.value)
                 if original_value.dtype is wp.float32:

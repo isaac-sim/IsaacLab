@@ -18,13 +18,13 @@ if TYPE_CHECKING:
 
 
 class RigidObject(FactoryBase, BaseRigidObject):
-    """Factory for creating articulation instances."""
+    """Factory for creating rigid object instances."""
 
     data: BaseRigidObjectData | NewtonRigidObjectData
 
     def __new__(cls, *args, **kwargs) -> BaseRigidObject | NewtonRigidObject:
-        """Create a new instance of an articulation based on the backend."""
+        """Create a new instance of a rigid object based on the backend."""
         # The `FactoryBase` __new__ method will handle the logic and return
-        # an instance of the correct backend-specific articulation class,
+        # an instance of the correct backend-specific rigid object class,
         # which is guaranteed to be a subclass of `BaseArticulation` by convention.
         return super().__new__(cls, *args, **kwargs)

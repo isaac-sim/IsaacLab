@@ -72,7 +72,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # Set the parameters
         self.device = device
-        # Set the root articulation view
+        # Set the root rigid object view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
         self._root_view: NewtonArticulationView = weakref.proxy(root_view)
@@ -96,20 +96,20 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def is_primed(self) -> bool:
-        """Whether the articulation data is fully instantiated and ready to use."""
+        """Whether the rigid object data is fully instantiated and ready to use."""
         return self._is_primed
 
     @is_primed.setter
     def is_primed(self, value: bool):
-        """Set whether the articulation data is fully instantiated and ready to use.
+        """Set whether the rigid object data is fully instantiated and ready to use.
 
         ..note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
-            value: Whether the articulation data is fully instantiated and ready to use.
+            value: Whether the rigid object data is fully instantiated and ready to use.
 
         Raises:
-            RuntimeError: If the articulation data is already fully instantiated and ready to use.
+            RuntimeError: If the rigid object data is already fully instantiated and ready to use.
         """
         if self._is_primed:
             raise RuntimeError("Cannot set is_primed after instantiation.")
@@ -144,7 +144,7 @@ class RigidObjectData(BaseRigidObjectData):
             value: Default root pose ``[pos, quat]`` in the local environment frame.
 
         Raises:
-            RuntimeError: If the articulation data is already fully instantiated and ready to use.
+            RuntimeError: If the rigid object data is already fully instantiated and ready to use.
         """
         if self._is_primed:
             raise RuntimeError("Cannot set default root pose after instantiation.")
@@ -168,7 +168,7 @@ class RigidObjectData(BaseRigidObjectData):
             value: Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         Raises:
-            RuntimeError: If the articulation data is already fully instantiated and ready to use.
+            RuntimeError: If the rigid object data is already fully instantiated and ready to use.
         """
         if self._is_primed:
             raise RuntimeError("Cannot set default root velocity after instantiation.")
@@ -630,7 +630,7 @@ class RigidObjectData(BaseRigidObjectData):
     def root_link_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link linear velocity in base frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's actor frame with respect to the
+        This quantity is the linear velocity of the rigid object root's actor frame with respect to the
         its actor frame.
         """
         # Call the lazy buffer to make sure it is up to date
@@ -673,7 +673,7 @@ class RigidObjectData(BaseRigidObjectData):
     def root_link_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root link angular velocity in base world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's actor frame with respect to the
+        This quantity is the angular velocity of the rigid object root's actor frame with respect to the
         its actor frame.
         """
         # Call the lazy buffer to make sure it is up to date
@@ -716,7 +716,7 @@ class RigidObjectData(BaseRigidObjectData):
     def root_com_lin_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
+        This quantity is the linear velocity of the rigid object root's center of mass frame with respect to the
         its actor frame.
         """
         # Call the lazy buffer to make sure it is up to date
@@ -759,7 +759,7 @@ class RigidObjectData(BaseRigidObjectData):
     def root_com_ang_vel_b(self) -> wp.array(dtype=wp.vec3f):
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
+        This quantity is the angular velocity of the rigid object root's center of mass frame with respect to the
         its actor frame.
         """
         # Call the lazy buffer to make sure it is up to date
@@ -946,7 +946,7 @@ class RigidObjectData(BaseRigidObjectData):
                 )
             else:
                 # Create a new buffer
-                self._root_link_ang_vel_w = wp.zeros((self._root_view.count), dtype=wp.vec3f, device=self.device)
+                self._root_link_ang_vel_w = wp.zeros((self._root_view.count,), dtype=wp.vec3f, device=self.device)
 
         # If the data is not contiguous, we need to launch a kernel to update the buffer
         if not data.is_contiguous:
@@ -991,6 +991,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 split_transform_array_to_position_array,
                 dim=self._root_view.count,
+                device=self.device,
                 inputs=[
                     data,
                     self._root_com_pos_w,
@@ -1089,7 +1090,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Not a lazy buffer, so we do not need to call it to make sure it is up to date
         # Initialize the buffer if it is not already initialized
         if self._root_com_ang_vel_w is None:
-            if self.root_com_vel_w.is_contiguous:
+            if self._sim_bind_root_com_vel_w.is_contiguous:
                 # Create a memory view of the data
                 self._root_com_ang_vel_w = wp.array(
                     ptr=self._sim_bind_root_com_vel_w.ptr + 3 * 4,
@@ -1724,12 +1725,12 @@ class RigidObjectData(BaseRigidObjectData):
         self.ENV_MASK = wp.zeros((n_view,), dtype=wp.bool, device=self.device)
         self.BODY_MASK = wp.zeros((n_link,), dtype=wp.bool, device=self.device)
 
-        # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
+        # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
             self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))
         else:
-            logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected.")
+            logger.warning("Failed to get root com velocity. If the rigid object is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
             logger.warning("Setting root com velocity to zeros.")
             self._sim_bind_root_com_vel_w = wp.zeros((n_view), dtype=wp.spatial_vectorf, device=self.device)

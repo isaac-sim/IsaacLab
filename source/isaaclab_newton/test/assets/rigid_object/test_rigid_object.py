@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for Articulation class using mocked dependencies.
+"""Tests for RigidObject class using mocked dependencies.
 
-This module provides unit tests for the Articulation class that bypass the heavy
+This module provides unit tests for the RigidObject class that bypass the heavy
 initialization process (`_initialize_impl`) which requires a USD stage and real
 simulation infrastructure.
 
 The key technique is to:
-1. Create the Articulation object without calling __init__ using object.__new__
+1. Create the RigidObject object without calling __init__ using object.__new__
 2. Manually set up the required internal state with mock objects
 3. Test individual methods in isolation
 
@@ -42,7 +42,7 @@ wp.init()
 
 
 ##
-# Test Factory - Creates Articulation instances without full initialization
+# Test Factory - Creates RigidObject instances without full initialization
 ##
 
 
@@ -74,7 +74,7 @@ def create_test_rigid_object(
     if body_names is None:
         body_names = [f"body_{i}" for i in range(num_bodies)]
 
-    # Create the Articulation without calling __init__
+    # Create the RigidObject without calling __init__
     rigid_object = object.__new__(RigidObject)
 
     # Set up the configuration
@@ -94,7 +94,7 @@ def create_test_rigid_object(
     )
     mock_view.set_mock_data()
 
-    # Set the view on the articulation (using object.__setattr__ to bypass type checking)
+    # Set the view on the rigid object (using object.__setattr__ to bypass type checking)
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
 
@@ -108,7 +108,7 @@ def create_test_rigid_object(
     mock_newton_manager.get_control.return_value = mock_control
     mock_newton_manager.get_dt.return_value = 0.01
 
-    # Create ArticulationData with the mock view
+    # Create RigidObjectData with the mock view
     with patch("isaaclab_newton.assets.rigid_object.rigid_object_data.NewtonManager", mock_newton_manager):
         data = RigidObjectData(mock_view, device)
         # Set the names on the data object (normally done by RigidObject._initialize_impl)
@@ -130,7 +130,7 @@ def mock_newton_manager():
     mock_state = MagicMock()
     mock_control = MagicMock()
 
-    # Patch where NewtonManager is used (in the articulation module)
+    # Patch where NewtonManager is used (in the rigid object module)
     with patch("isaaclab_newton.assets.rigid_object.rigid_object.NewtonManager") as MockManager:
         MockManager.get_model.return_value = mock_model
         MockManager.get_state_0.return_value = mock_state
@@ -198,6 +198,7 @@ class TestReset:
     def test_reset(self):
         """Test that reset method works properly."""
         rigid_object, _, _ = create_test_rigid_object()
+        rigid_object._create_buffers()
         rigid_object.set_external_force_and_torque(
             forces=torch.ones(rigid_object.num_instances, rigid_object.num_bodies, 3),
             torques=torch.ones(rigid_object.num_instances, rigid_object.num_bodies, 3),
@@ -207,12 +208,12 @@ class TestReset:
             env_mask=None,
             is_global=False,
         )
-        assert wp.to_torch(rigid_object.data._sim_bind_body_external_wrench).allclose(
-            torch.ones_like(wp.to_torch(rigid_object.data._sim_bind_body_external_wrench))
+        assert wp.to_torch(rigid_object.permanent_wrench_composer.composed_force).allclose(
+            torch.ones_like(wp.to_torch(rigid_object.permanent_wrench_composer.composed_force))
         )
         rigid_object.reset()
-        assert wp.to_torch(rigid_object.data._sim_bind_body_external_wrench).allclose(
-            torch.zeros_like(wp.to_torch(rigid_object.data._sim_bind_body_external_wrench))
+        assert wp.to_torch(rigid_object.permanent_wrench_composer.composed_force).allclose(
+            torch.zeros_like(wp.to_torch(rigid_object.permanent_wrench_composer.composed_force))
         )
 
 
@@ -346,13 +347,13 @@ class TestStateWriters:
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_write_root_state_to_sim_warp(self, device: str, env_ids, num_instances: int):
         """Test that write_root_state_to_sim method works properly."""
-        articulation, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
+        rigid_object, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
                 env_ids = [0]
         # Set a non-zero body CoM offset to test the velocity transformation
         body_com_offset = torch.tensor([0.1, 0.01, 0.05], device=device)
-        body_comdata = body_com_offset.unsqueeze(0).unsqueeze(0).expand(num_instances, articulation.num_bodies, 3)
+        body_comdata = body_com_offset.unsqueeze(0).unsqueeze(0).expand(num_instances, rigid_object.num_bodies, 3)
         root_transforms = torch.rand((num_instances, 7), device=device)
         root_transforms[:, 3:7] = torch.nn.functional.normalize(root_transforms[:, 3:7], p=2.0, dim=-1)
         mock_view.set_mock_data(
@@ -364,10 +365,10 @@ class TestStateWriters:
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
-                articulation.write_root_state_to_sim(wp.from_torch(data, dtype=vec13f))
-                assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_state_w).allclose(data, atol=1e-6, rtol=1e-6)
+                rigid_object.write_root_state_to_sim(wp.from_torch(data, dtype=vec13f))
+                assert rigid_object.data._root_link_vel_w.timestamp == -1.0
+                assert rigid_object.data._root_com_pose_w.timestamp == -1.0
+                assert wp.to_torch(rigid_object.data.root_state_w).allclose(data, atol=1e-6, rtol=1e-6)
             elif isinstance(env_ids, list):
                 data = torch.rand((len(env_ids), 13), device=device)
                 data[:, 3:7] = torch.nn.functional.normalize(data[:, 3:7], p=2.0, dim=-1)
@@ -379,11 +380,11 @@ class TestStateWriters:
                 data_warp = wp.from_torch(data_warp, dtype=vec13f)
                 mask_warp = wp.from_torch(mask_warp, dtype=wp.bool)
                 # Write to simulation
-                articulation.write_root_state_to_sim(data_warp, env_mask=mask_warp)
+                rigid_object.write_root_state_to_sim(data_warp, env_mask=mask_warp)
                 # Check results
-                assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_state_w)[env_ids].allclose(data, atol=1e-6, rtol=1e-6)
+                assert rigid_object.data._root_link_vel_w.timestamp == -1.0
+                assert rigid_object.data._root_com_pose_w.timestamp == -1.0
+                assert wp.to_torch(rigid_object.data.root_state_w)[env_ids].allclose(data, atol=1e-6, rtol=1e-6)
             else:
                 # Update all envs
                 data = torch.rand((num_instances, 13), device=device)
@@ -391,10 +392,10 @@ class TestStateWriters:
                 # Generate warp data
                 data_warp = wp.from_torch(data.clone(), dtype=vec13f)
                 mask_warp = wp.ones((num_instances,), dtype=wp.bool, device=device)
-                articulation.write_root_state_to_sim(data_warp, env_mask=mask_warp)
-                assert articulation.data._root_link_vel_w.timestamp == -1.0
-                assert articulation.data._root_com_pose_w.timestamp == -1.0
-                assert wp.to_torch(articulation.data.root_state_w).allclose(data, atol=1e-6, rtol=1e-6)
+                rigid_object.write_root_state_to_sim(data_warp, env_mask=mask_warp)
+                assert rigid_object.data._root_link_vel_w.timestamp == -1.0
+                assert rigid_object.data._root_com_pose_w.timestamp == -1.0
+                assert wp.to_torch(rigid_object.data.root_state_w).allclose(data, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0], torch.tensor([0, 1, 2], dtype=torch.int32)])
@@ -652,11 +653,11 @@ class TestVelocityWriters:
     - write_root_com_velocity_to_sim
     """
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    @pytest.mark.parametrize("device", ["cpu", "cuda"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_root_link_state_to_sim_torch(self, device: str, env_ids, num_instances: int):
-        """Test that write_root_link_state_to_sim method works properly."""
+    def test_write_root_link_velocity_to_sim_torch(self, device: str, env_ids, num_instances: int):
+        """Test that write_root_link_velocity_to_sim method works properly."""
         rigid_object, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
         if num_instances == 1:
             if (env_ids is not None) and (not isinstance(env_ids, slice)):
@@ -815,7 +816,7 @@ class TestVelocityWriters:
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
-    def test_write_root_com_state_to_sim_torch(self, device: str, env_ids, num_instances: int):
+    def test_write_root_com_velocity_to_sim_torch(self, device: str, env_ids, num_instances: int):
         """Test that write_root_com_state_to_sim method works properly."""
         rigid_object, mock_view, _ = create_test_rigid_object(num_instances=num_instances, device=device)
         if num_instances == 1:

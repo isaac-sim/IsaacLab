@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for ArticulationData class comparing Newton implementation against PhysX reference."""
+"""Tests for RigidObjectData class comparing Newton implementation against PhysX reference."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def mock_newton_manager():
     mock_state = MagicMock()
     mock_control = MagicMock()
 
-    # Patch where NewtonManager is used (in the articulation_data module)
+    # Patch where NewtonManager is used (in the rigid object data module)
     with patch("isaaclab_newton.assets.rigid_object.rigid_object_data.NewtonManager") as MockManager:
         MockManager.get_model.return_value = mock_model
         MockManager.get_state_0.return_value = mock_state
@@ -75,8 +75,8 @@ class TestDefaults:
     @pytest.mark.parametrize("num_instances", [1, 2])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_zero_instantiated(self, mock_newton_manager, num_instances: int, device: str):
-        """Test zero instantiated articulation data."""
-        # Setup the articulation data
+        """Test zero instantiated rigid object data."""
+        # Setup the rigid object data
         rigid_object_data = self._setup_method(num_instances, device)
         # Check the types are correct
         assert rigid_object_data.default_root_pose.dtype is wp.transformf
@@ -96,8 +96,8 @@ class TestDefaults:
     @pytest.mark.parametrize("num_dofs", [1, 2])
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_settable(self, mock_newton_manager, num_instances: int, num_dofs: int, device: str):
-        """Test that the articulation data is settable."""
-        # Setup the articulation data
+        """Test that the rigid object data is settable."""
+        # Setup the rigid object data
         rigid_object_data = self._setup_method(num_instances, device)
         # Set the default values
         rigid_object_data.default_root_pose = wp.ones(num_instances, dtype=wp.transformf, device=device)
@@ -113,7 +113,7 @@ class TestDefaults:
             wp.to_torch(rigid_object_data.default_root_pose) == torch.ones(num_instances, 7, device=device)
         )
         assert torch.all(wp.to_torch(rigid_object_data.default_root_vel) == torch.ones(num_instances, 6, device=device))
-        # Prime the articulation data
+        # Prime the rigid object data
         rigid_object_data.is_primed = True
         # Check that the values cannot be changed
         with pytest.raises(RuntimeError):
@@ -159,7 +159,7 @@ class TestRootLinkPoseW:
         assert rigid_object_data.root_link_pose_w.dtype == wp.transformf
 
         # Mock data is initialized to zeros
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.zeros((1, 7), device=device))
+        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.zeros((num_instances, 7), device=device))
 
         # Get the property
         root_link_pose_w = rigid_object_data.root_link_pose_w
@@ -168,13 +168,13 @@ class TestRootLinkPoseW:
         rigid_object_data.root_link_pose_w.fill_(1.0)
 
         # Check that the property returns the new value (reference behavior)
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((1, 7), device=device))
+        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device))
 
         # Assign a different value to the pointers
         root_link_pose_w.fill_(2.0)
 
         # Check that the internal data has been updated
-        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((1, 7), device=device) * 2.0)
+        assert torch.all(wp.to_torch(rigid_object_data.root_link_pose_w) == torch.ones((num_instances, 7), device=device) * 2.0)
 
 
 class TestRootLinkVelW:
@@ -236,25 +236,25 @@ class TestRootLinkVelW:
                 vel[:, 3:], math_utils.quat_apply(root_link_pose[:, 3:], -body_com_pos[:, 0]), dim=-1
             )
 
-            # Compare the computed value to the one from the articulation data
+            # Compare the computed value to the one from the rigid object data
             assert torch.allclose(wp.to_torch(rigid_object_data.root_link_vel_w), vel, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     def test_update_timestamp(self, mock_newton_manager, device: str):
         """Test that the timestamp is updated correctly."""
-        articulation_data, mock_view = self._setup_method(1, device)
+        rigid_object_data, mock_view = self._setup_method(1, device)
 
         # Check that the timestamp is initialized to -1.0
-        assert articulation_data._root_link_vel_w.timestamp == -1.0
+        assert rigid_object_data._root_link_vel_w.timestamp == -1.0
 
         # Check that the data class timestamp is initialized to 0.0
-        assert articulation_data._sim_timestamp == 0.0
+        assert rigid_object_data._sim_timestamp == 0.0
 
         # Request the property
-        value = wp.to_torch(articulation_data.root_link_vel_w).clone()
+        value = wp.to_torch(rigid_object_data.root_link_vel_w).clone()
 
         # Check that the timestamp is updated. The timestamp should be the same as the data class timestamp.
-        assert articulation_data._root_link_vel_w.timestamp == articulation_data._sim_timestamp
+        assert rigid_object_data._root_link_vel_w.timestamp == rigid_object_data._sim_timestamp
 
         # Update the root_com_vel_w
         mock_view.set_mock_data(
@@ -262,16 +262,16 @@ class TestRootLinkVelW:
         )
 
         # Check that the property value was not updated
-        assert torch.all(wp.to_torch(articulation_data.root_link_vel_w) == value)
+        assert torch.all(wp.to_torch(rigid_object_data.root_link_vel_w) == value)
 
         # Update the data class timestamp
-        articulation_data._sim_timestamp = 1.0
+        rigid_object_data._sim_timestamp = 1.0
 
         # Check that the property timestamp was not updated
-        assert articulation_data._root_link_vel_w.timestamp != articulation_data._sim_timestamp
+        assert rigid_object_data._root_link_vel_w.timestamp != rigid_object_data._sim_timestamp
 
         # Check that the property value was updated
-        assert torch.all(wp.to_torch(articulation_data.root_link_vel_w) != value)
+        assert torch.all(wp.to_torch(rigid_object_data.root_link_vel_w) != value)
 
 
 class TestRootComPoseW:
@@ -338,7 +338,7 @@ class TestRootComPoseW:
             # ---
             root_com_pose = torch.cat((pos, quat), dim=-1)
 
-            # Compare the computed value to the one from the articulation data
+            # Compare the computed value to the one from the rigid object data
             assert torch.allclose(wp.to_torch(rigid_object_data.root_com_pose_w), root_com_pose, atol=1e-6, rtol=1e-6)
 
     @pytest.mark.parametrize("device", ["cpu", "cuda:0"])

@@ -107,10 +107,10 @@ class RigidObject(BaseRigidObject):
 
     @property
     def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in the articulation.
+        """Number of collision shapes per body in the rigid object.
 
         This property returns a list where each element represents the number of collision
-        shapes for the corresponding body in the articulation. This is cached for efficient
+        shapes for the corresponding body in the rigid object. This is cached for efficient
         access during material property randomization and other operations.
 
         Returns:
@@ -698,7 +698,7 @@ class RigidObject(BaseRigidObject):
             positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
                 Defaults to None. If None, the external wrench is applied at the center of mass of the body.
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the articulations' bodies.
+                the external wrench is applied in the link frame of the rigid objects' bodies.
         """
         # Write to wrench composer
         self._permanent_wrench_composer.set_forces_and_torques(
@@ -776,7 +776,7 @@ class RigidObject(BaseRigidObject):
         self._process_cfg()
         # update the robot data
         self.update(0.0)
-        # Let the articulation data know that it is fully instantiated and ready to use.
+        # Let the rigid object data know that it is fully instantiated and ready to use.
         self._data.is_primed = True
 
     def _create_buffers(self):

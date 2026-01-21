@@ -462,10 +462,10 @@ def benchmark_property(
     property_name: str,
     config: BenchmarkConfig,
 ) -> BenchmarkResult:
-    """Benchmark a single property of ArticulationData.
+    """Benchmark a single property of RigidObjectData.
 
     Args:
-        articulation_data: The ArticulationData instance.
+        rigid_object_data: The RigidObjectData instance.
         mock_view: The mock view for setting random data.
         property_name: Name of the property to benchmark.
         config: Benchmark configuration.
@@ -576,7 +576,7 @@ def benchmark_property(
 
 
 def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict]:
-    """Run all benchmarks for ArticulationData.
+    """Run all benchmarks for RigidObjectData.
 
     Args:
         config: Benchmark configuration.
