@@ -119,6 +119,8 @@ class GR1T2Retargeter(RetargeterBase):
         left_palm = left_hand_poses.get("palm")
         right_palm = right_hand_poses.get("palm")
 
+        left_wrist = left_wrist.copy()
+        right_wrist = right_wrist.copy()
         left_wrist[3:] = left_palm[3:]
         right_wrist[3:] = right_palm[3:]
 

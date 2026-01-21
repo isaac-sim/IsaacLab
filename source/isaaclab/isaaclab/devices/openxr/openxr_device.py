@@ -394,10 +394,8 @@ class OpenXRDevice(DeviceBase):
             self._osc_receiver = BodyOscReceiver(port=self._body_osc_port)
             logger.info(f"Initialized body OSC receiver on port {self._body_osc_port}")
 
+        # Head is tracked via OpenXR, not OSC
         for tracker_name in BODY_TRACKER_NAMES:
-            if tracker_name == "head":
-                # Head is tracked via OpenXR, not OSC
-                continue
             try:
                 tracker_pose = self._osc_receiver.get_pose(tracker_name)
                 position = tracker_pose[:3]
