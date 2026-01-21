@@ -1719,7 +1719,7 @@ class RigidObjectData(BaseRigidObjectData):
         n_view = self._root_view.count
         n_link = self._root_view.link_count
 
-        # MASKS
+        # MASKS (used as default all-True masks and temp buffers for partial indexing)
         self.ALL_ENV_MASK = wp.ones((n_view,), dtype=wp.bool, device=self.device)
         self.ALL_BODY_MASK = wp.ones((n_link,), dtype=wp.bool, device=self.device)
         self.ENV_MASK = wp.zeros((n_view,), dtype=wp.bool, device=self.device)

@@ -34,8 +34,8 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 # TODO: Move these functions to the test utils so they can't be changed in the future.
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
 
-# Import mock classes from shared module
-from .mock_interface import MockNewtonArticulationView, MockNewtonModel
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()
@@ -119,10 +119,10 @@ def create_test_articulation(
     # Create ArticulationData with the mock view
     with patch("isaaclab_newton.assets.articulation.articulation_data.NewtonManager", mock_newton_manager):
         data = ArticulationData(mock_view, device)
-        # Set the names on the data object (normally done by Articulation._initialize_impl)
-        data.joint_names = joint_names
-        data.body_names = body_names
         object.__setattr__(articulation, "_data", data)
+
+    # Call _create_buffers() to initialize temp buffers and wrench composers
+    articulation._create_buffers()
 
     return articulation, mock_view, mock_newton_manager
 

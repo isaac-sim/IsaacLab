@@ -415,9 +415,6 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
-    stage = sim.stage
-    stage.Flatten().Export("test_flattened_stage_2.usda")
-
     # Check that boundedness of articulation is correct
     assert ctypes.c_long.from_address(id(articulation)).value == 1
 
@@ -561,8 +558,6 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     # -- link names (check within articulation ordering is correct)
     prim_path_body_names = articulation.root_view.body_names
     assert prim_path_body_names == articulation.body_names
-
-    sim.stage.Flatten().Export("test_flattened_stage_4.usda")
 
     # Simulate physics
     for _ in range(10):

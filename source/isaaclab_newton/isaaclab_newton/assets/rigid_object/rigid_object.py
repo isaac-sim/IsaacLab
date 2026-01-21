@@ -293,10 +293,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -325,10 +330,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -356,10 +366,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -403,10 +418,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(pose, torch.Tensor):
+            if self._temp_root_pose is None:
+                self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
             pose = make_complete_data_from_torch_single_index(
-                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
+                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device,
+                out=self._temp_root_pose
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -433,10 +453,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_pose, torch.Tensor):
+            if self._temp_root_pose is None:
+                self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
             root_pose = make_complete_data_from_torch_single_index(
-                root_pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
+                root_pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device,
+                out=self._temp_root_pose
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -493,10 +518,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
+            if self._temp_root_velocity is None:
+                self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
+                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
+                out=self._temp_root_velocity
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -522,10 +552,15 @@ class RigidObject(BaseRigidObject):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
+            if self._temp_root_velocity is None:
+                self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
+                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
+                out=self._temp_root_velocity
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -575,13 +610,20 @@ class RigidObject(BaseRigidObject):
         """
         # raise NotImplementedError()
         if isinstance(masses, torch.Tensor):
+            if self._temp_body_data_float is None:
+                self._temp_body_data_float = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device)
             masses = make_complete_data_from_torch_dual_index(
-                masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device
+                masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device,
+                out=self._temp_body_data_float
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(
+            self.num_bodies, body_ids, body_mask, device=self.device, out=self._data.BODY_MASK
+        )
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
@@ -608,13 +650,20 @@ class RigidObject(BaseRigidObject):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         if isinstance(coms, torch.Tensor):
+            if self._temp_body_data_vec3 is None:
+                self._temp_body_data_vec3 = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
             coms = make_complete_data_from_torch_dual_index(
-                coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device,
+                out=self._temp_body_data_vec3
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(
+            self.num_bodies, body_ids, body_mask, device=self.device, out=self._data.BODY_MASK
+        )
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
@@ -641,13 +690,20 @@ class RigidObject(BaseRigidObject):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         if isinstance(inertias, torch.Tensor):
+            if self._temp_body_data_mat33 is None:
+                self._temp_body_data_mat33 = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.mat33f, device=self.device)
             inertias = make_complete_data_from_torch_dual_index(
-                inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device
+                inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device,
+                out=self._temp_body_data_mat33
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(
+            self.num_bodies, body_ids, body_mask, device=self.device, out=self._data.BODY_MASK
+        )
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
@@ -787,6 +843,15 @@ class RigidObject(BaseRigidObject):
 
         # Assign body names to the data
         self._data.body_names = self.body_names
+
+        # Temp buffers for torch-to-warp conversion (lazy allocation - only created when needed)
+        # These are reused to avoid per-call allocations when users pass torch tensors with indices
+        self._temp_root_state: wp.array | None = None
+        self._temp_root_pose: wp.array | None = None
+        self._temp_root_velocity: wp.array | None = None
+        self._temp_body_data_float: wp.array | None = None
+        self._temp_body_data_vec3: wp.array | None = None
+        self._temp_body_data_mat33: wp.array | None = None
 
     def _process_cfg(self) -> None:
         """Post processing of configuration parameters."""

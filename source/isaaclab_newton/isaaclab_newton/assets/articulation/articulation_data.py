@@ -2221,7 +2221,7 @@ class ArticulationData(BaseArticulationData):
         n_link = self._root_view.link_count
         n_dof = self._root_view.joint_dof_count
 
-        # MASKS
+        # MASKS (used as default all-True masks and temp buffers for partial indexing)
         self.ALL_ENV_MASK = wp.ones((n_view,), dtype=wp.bool, device=self.device)
         self.ALL_BODY_MASK = wp.ones((n_link,), dtype=wp.bool, device=self.device)
         self.ALL_JOINT_MASK = wp.ones((n_dof,), dtype=wp.bool, device=self.device)

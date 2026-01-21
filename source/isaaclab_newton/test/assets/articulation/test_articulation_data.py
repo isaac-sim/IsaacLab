@@ -17,8 +17,8 @@ from isaaclab_newton.assets.articulation.articulation_data import ArticulationDa
 # TODO: Remove this import
 from isaaclab.utils import math as math_utils
 
-# Import mock classes from shared module
-from .mock_interface import MockNewtonArticulationView, MockNewtonModel
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()

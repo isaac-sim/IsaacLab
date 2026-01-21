@@ -452,10 +452,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -484,10 +489,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -515,10 +525,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            if self._temp_root_state is None:
+                self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
-                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
+                root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device,
+                out=self._temp_root_state
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -562,10 +577,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(pose, torch.Tensor):
+            if self._temp_root_pose is None:
+                self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
             pose = make_complete_data_from_torch_single_index(
-                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
+                pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device,
+                out=self._temp_root_pose
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -652,10 +672,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
+            if self._temp_root_velocity is None:
+                self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
+                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
+                out=self._temp_root_velocity
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -681,10 +706,15 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_velocity, torch.Tensor):
+            if self._temp_root_velocity is None:
+                self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
             root_velocity = make_complete_data_from_torch_single_index(
-                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
+                root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device,
+                out=self._temp_root_velocity
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -732,6 +762,10 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(position, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
+            if self._temp_joint_vel is None:
+                self._temp_joint_vel = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             position = make_complete_data_from_torch_dual_index(
                 position,
                 self.num_instances,
@@ -740,6 +774,7 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
             velocity = make_complete_data_from_torch_dual_index(
                 velocity,
@@ -749,11 +784,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -784,6 +824,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(position, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             position = make_complete_data_from_torch_dual_index(
                 position,
                 self.num_instances,
@@ -792,11 +834,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -824,6 +871,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(velocity, torch.Tensor):
+            if self._temp_joint_vel is None:
+                self._temp_joint_vel = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             velocity = make_complete_data_from_torch_dual_index(
                 velocity,
                 self.num_instances,
@@ -832,11 +881,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -868,6 +922,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(stiffness, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             stiffness = make_complete_data_from_torch_dual_index(
                 stiffness,
                 self.num_instances,
@@ -876,11 +932,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -915,6 +976,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(damping, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             damping = make_complete_data_from_torch_dual_index(
                 damping,
                 self.num_instances,
@@ -923,11 +986,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -964,6 +1032,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(upper_limits, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             upper_limits = make_complete_data_from_torch_dual_index(
                 upper_limits,
                 self.num_instances,
@@ -972,8 +1042,11 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
         if isinstance(lower_limits, torch.Tensor):
+            if self._temp_joint_vel is None:
+                self._temp_joint_vel = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             lower_limits = make_complete_data_from_torch_dual_index(
                 lower_limits,
                 self.num_instances,
@@ -982,11 +1055,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_vel,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -1023,6 +1101,8 @@ class Articulation(BaseArticulation):
             warnings.warn("write_joint_velocity_limit_to_sim is ignored by the solver when using Mujoco.")
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(limits, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             limits = make_complete_data_from_torch_dual_index(
                 limits,
                 self.num_instances,
@@ -1031,11 +1111,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -1073,6 +1158,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(limits, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             limits = make_complete_data_from_torch_dual_index(
                 limits,
                 self.num_instances,
@@ -1081,11 +1168,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -1123,6 +1215,8 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(armature, torch.Tensor):
+            if self._temp_joint_pos is None:
+                self._temp_joint_pos = wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device)
             armature = make_complete_data_from_torch_dual_index(
                 armature,
                 self.num_instances,
@@ -1131,11 +1225,16 @@ class Articulation(BaseArticulation):
                 joint_ids,
                 dtype=wp.float32,
                 device=self.device,
+                out=self._temp_joint_pos,
             )
-        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_instances, env_ids, env_mask, device=self.device, out=self._data.ENV_MASK
+        )
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        joint_mask = make_mask_from_torch_ids(self.num_joints, joint_ids, joint_mask, device=self.device)
+        joint_mask = make_mask_from_torch_ids(
+            self.num_joints, joint_ids, joint_mask, device=self.device, out=self._data.JOINT_MASK
+        )
         if joint_mask is None:
             joint_mask = self._data.ALL_JOINT_MASK
         # None masks are handled within the kernel.
@@ -2009,6 +2108,17 @@ class Articulation(BaseArticulation):
         # external wrench composers
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
+
+        # Temp buffers for torch-to-warp conversion (lazy allocation - only created when needed)
+        # These are reused to avoid per-call allocations when users pass torch tensors with indices
+        self._temp_root_state: wp.array | None = None
+        self._temp_root_pose: wp.array | None = None
+        self._temp_root_velocity: wp.array | None = None
+        self._temp_joint_pos: wp.array | None = None
+        self._temp_joint_vel: wp.array | None = None
+        self._temp_body_data_float: wp.array | None = None
+        self._temp_body_data_vec3: wp.array | None = None
+        self._temp_body_data_mat33: wp.array | None = None
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""

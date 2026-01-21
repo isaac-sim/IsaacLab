@@ -34,8 +34,8 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 # TODO: Move these functions to the test utils so they can't be changed in the future.
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
 
-# Import mock classes from shared module
-from .mock_interface import MockNewtonArticulationView, MockNewtonModel
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()
@@ -111,9 +111,10 @@ def create_test_rigid_object(
     # Create RigidObjectData with the mock view
     with patch("isaaclab_newton.assets.rigid_object.rigid_object_data.NewtonManager", mock_newton_manager):
         data = RigidObjectData(mock_view, device)
-        # Set the names on the data object (normally done by RigidObject._initialize_impl)
-        data.body_names = body_names
         object.__setattr__(rigid_object, "_data", data)
+
+    # Call _create_buffers() to initialize temp buffers and wrench composers
+    rigid_object._create_buffers()
 
     return rigid_object, mock_view, mock_newton_manager
 

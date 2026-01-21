@@ -34,7 +34,7 @@ class WrenchComposer:
         if hasattr(asset, "num_bodies"):
             self.num_bodies = asset.num_bodies
         else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
+            raise ValueError(f"Unsupported asset type: {asset.__class__.__name__}")
         self.device = asset.device
         self._asset = asset
         self._active = False
@@ -48,23 +48,15 @@ class WrenchComposer:
         # Create buffers
         self._composed_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._composed_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
-        self._ALL_ENV_MASK_WP = wp.ones((self.num_envs), dtype=wp.bool, device=self.device)
-        self._ALL_BODY_MASK_WP = wp.ones((self.num_bodies), dtype=wp.bool, device=self.device)
-        # Temporary buffers for the masks, positions, and forces/torques
-        self._temp_env_mask_wp = wp.zeros((self.num_envs), dtype=wp.bool, device=self.device)
-        self._temp_body_mask_wp = wp.zeros((self.num_bodies), dtype=wp.bool, device=self.device)
-        self._temp_positions_wp = wp.zeros((self.num_envs, self.num_bodies, 3), dtype=wp.vec3f, device=self.device)
-        self._temp_forces_wp = wp.zeros((self.num_envs, self.num_bodies, 3), dtype=wp.vec3f, device=self.device)
-        self._temp_torques_wp = wp.zeros((self.num_envs, self.num_bodies, 3), dtype=wp.vec3f, device=self.device)
+        self._ALL_ENV_MASK_WP = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
+        self._ALL_BODY_MASK_WP = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
-        # Torch tensors (These are pinned to the warp arrays, no direct overwrite)
-        self._ALL_ENV_MASK_TORCH = wp.to_torch(self._ALL_ENV_MASK_WP)
-        self._ALL_BODY_MASK_TORCH = wp.to_torch(self._ALL_BODY_MASK_WP)
-        self._temp_env_mask_torch = wp.to_torch(self._temp_env_mask_wp)
-        self._temp_body_mask_torch = wp.to_torch(self._temp_body_mask_wp)
-        self._temp_positions_torch = wp.to_torch(self._temp_positions_wp)
-        self._temp_forces_torch = wp.to_torch(self._temp_forces_wp)
-        self._temp_torques_torch = wp.to_torch(self._temp_torques_wp)
+        # Temporary buffers for the masks, positions, and forces/torques (reused to avoid allocations)
+        self._temp_env_mask_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
+        self._temp_body_mask_wp = wp.zeros((self.num_bodies,), dtype=wp.bool, device=self.device)
+        self._temp_positions_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._temp_forces_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        self._temp_torques_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
     @property
     def active(self) -> bool:
@@ -130,19 +122,26 @@ class WrenchComposer:
         """
         if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor) or isinstance(positions, torch.Tensor):
             try:
-                env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
-                body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+                env_mask = make_mask_from_torch_ids(
+                    self.num_envs, env_ids, env_mask, device=self.device, out=self._temp_env_mask_wp
+                )
+                body_mask = make_mask_from_torch_ids(
+                    self.num_bodies, body_ids, body_mask, device=self.device, out=self._temp_body_mask_wp
+                )
                 if forces is not None:
                     forces = make_complete_data_from_torch_dual_index(
-                        forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                        forces, self.num_envs, self.num_bodies, env_ids, body_ids,
+                        dtype=wp.vec3f, device=self.device, out=self._temp_forces_wp
                     )
                 if torques is not None:
                     torques = make_complete_data_from_torch_dual_index(
-                        torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                        torques, self.num_envs, self.num_bodies, env_ids, body_ids,
+                        dtype=wp.vec3f, device=self.device, out=self._temp_torques_wp
                     )
                 if positions is not None:
                     positions = make_complete_data_from_torch_dual_index(
-                        positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                        positions, self.num_envs, self.num_bodies, env_ids, body_ids,
+                        dtype=wp.vec3f, device=self.device, out=self._temp_positions_wp
                     )
             except Exception as e:
                 raise RuntimeError(
@@ -209,21 +208,28 @@ class WrenchComposer:
 
         if isinstance(forces, torch.Tensor):
             forces = make_complete_data_from_torch_dual_index(
-                forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                forces, self.num_envs, self.num_bodies, env_ids, body_ids,
+                dtype=wp.vec3f, device=self.device, out=self._temp_forces_wp
             )
         if isinstance(torques, torch.Tensor):
             torques = make_complete_data_from_torch_dual_index(
-                torques, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                torques, self.num_envs, self.num_bodies, env_ids, body_ids,
+                dtype=wp.vec3f, device=self.device, out=self._temp_torques_wp
             )
         if isinstance(positions, torch.Tensor):
             positions = make_complete_data_from_torch_dual_index(
-                positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
+                positions, self.num_envs, self.num_bodies, env_ids, body_ids,
+                dtype=wp.vec3f, device=self.device, out=self._temp_positions_wp
             )
 
-        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(
+            self.num_bodies, body_ids, body_mask, device=self.device, out=self._temp_body_mask_wp
+        )
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK_WP
-        env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(
+            self.num_envs, env_ids, env_mask, device=self.device, out=self._temp_env_mask_wp
+        )
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK_WP
 
