@@ -76,7 +76,7 @@ Installing dependencies
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.3.2 --extra-index-url https://pypi.nvidia.com
 
 -  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11 enabled fork:
