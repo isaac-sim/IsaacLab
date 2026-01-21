@@ -452,6 +452,7 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            # Lazy initialization of the temporary root state.
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
@@ -489,6 +490,7 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            # Lazy initialization of the temporary root state.
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
@@ -525,6 +527,7 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(root_state, torch.Tensor):
+            # Lazy initialization of the temporary root state.
             if self._temp_root_state is None:
                 self._temp_root_state = wp.zeros((self.num_instances,), dtype=vec13f, device=self.device)
             root_state = make_complete_data_from_torch_single_index(
@@ -1334,6 +1337,17 @@ class Articulation(BaseArticulation):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
+        """Write joint dynamic friction coefficients into the simulation.
+
+        Args:
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            joint_mask: The joint mask. Shape is (num_joints).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        logger.warning("Setting joint dynamic friction coefficients are not supported in Newton. This operation will" \
+        "update the internal buffers, but not the simulation.")
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(joint_dynamic_friction_coeff, torch.Tensor):
             joint_dynamic_friction_coeff = make_complete_data_from_torch_dual_index(
@@ -1381,6 +1395,17 @@ class Articulation(BaseArticulation):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
+        """Write joint viscous friction coefficients into the simulation.
+
+        Args:
+            joint_viscous_friction_coeff: Joint viscous friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            joint_mask: The joint mask. Shape is (num_joints).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        logger.warning("Setting joint viscous friction coefficients are not supported in Newton. This operation will" \
+        "update the internal buffers, but not the simulation.")
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
         if isinstance(joint_viscous_friction_coeff, torch.Tensor):
             joint_viscous_friction_coeff = make_complete_data_from_torch_dual_index(
