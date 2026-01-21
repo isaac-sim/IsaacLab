@@ -10,8 +10,13 @@ BUILDDIR      = _build
 
 .PHONY: multi-docs
 multi-docs:
+	@echo "Generating version switcher..."
+	@python3 generate_switcher.py
+	@echo "Building multi-version documentation..."
 	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	@echo "Copying redirect page..."
 	@cp _redirect/index.html $(BUILDDIR)/index.html
+	@echo "Documentation built successfully!"
 
 .PHONY: current-docs
 current-docs:
