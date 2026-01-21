@@ -261,10 +261,6 @@ def test_get_world_poses(device, backend):
     expected_positions_tensor = torch.tensor(expected_positions, dtype=torch.float32, device=device)
     expected_orientations_tensor = torch.tensor(expected_orientations, dtype=torch.float32, device=device)
 
-    # Fabric is write-first, initialize by writing before reading.
-    if backend == "fabric":
-        view.set_world_poses(expected_positions_tensor, expected_orientations_tensor)
-
     # Get world poses
     positions, orientations = view.get_world_poses()
 
@@ -348,10 +344,6 @@ def test_get_scales(device, backend):
     view = _create_view("/World/Object_.*", device=device, backend=backend)
 
     expected_scales_tensor = torch.tensor(expected_scales, dtype=torch.float32, device=device)
-
-    # Fabric is write-first, initialize by writing before reading.
-    if backend == "fabric":
-        view.set_scales(expected_scales_tensor)
 
     # Get scales
     scales = view.get_scales()

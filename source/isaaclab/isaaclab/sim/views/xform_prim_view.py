@@ -35,7 +35,8 @@ class XformPrimView:
     - Uses `omni:fabric:worldMatrix` and `omni:fabric:localMatrix` attributes for all Boundable prims
     - Performs batch matrix decomposition/composition using Warp kernels on GPU
     - Achieves performance comparable to Isaac Sim's XFormPrim implementation
-    - Works for both physics-enabled and non-physics prims (cameras, meshes, etc.)
+    - Works for both physics-enabled and non-physics prims (cameras, meshes, etc.).
+      Note: renderers typically consume USD-authored camera transforms.
 
     .. warning::
         **Fabric requires CUDA**: Fabric is only supported with `device="cuda"`.
@@ -45,10 +46,10 @@ class XformPrimView:
     .. note::
         **Fabric Support:**
 
-        When Fabric is enabled, this view will automatically ensure all prims have the required
-        Fabric hierarchy attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`).
-        These attributes are part of the IFabricHierarchy interface introduced in Kit 106 and
-        are available for all Boundable prims when Fabric Scene Delegate is active.
+        When Fabric is enabled, this view ensures prims have the required Fabric hierarchy
+        attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`). On first Fabric
+        read, USD-authored transforms initialize Fabric state. Fabric writes can optionally
+        be mirrored back to USD via :attr:`sync_usd_on_fabric_write`.
 
         For more information, see the `Fabric Hierarchy documentation`_.
 
@@ -81,6 +82,7 @@ class XformPrimView:
         prim_path: str,
         device: str = "cpu",
         validate_xform_ops: bool = True,
+        sync_usd_on_fabric_write: bool = False,
         stage: Usd.Stage | None = None,
     ):
         """Initialize the view with matching prims.
@@ -102,6 +104,9 @@ class XformPrimView:
                 ``"cuda:0"``. Defaults to ``"cpu"``.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
+            sync_usd_on_fabric_write: Whether Fabric pose/scale writes should also be mirrored
+                to USD. Defaults to False; set True when USD consumers (e.g., rendering cameras)
+                must observe pose updates.
             stage: USD stage to search for prims. Defaults to None, in which case the current active stage
                 from the simulation context is used.
         Raises:
@@ -116,9 +121,7 @@ class XformPrimView:
 
         # Find and validate matching prims
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
-
-        # Resolve Fabric usage after prim discovery to allow stage-based inference
-        self._use_fabric = self._resolve_use_fabric(stage)
+        self._use_fabric = self._device != "cpu"
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":
@@ -133,8 +136,13 @@ class XformPrimView:
         # Since we iterate over the indices, we need to use range instead of torch tensor
         self._ALL_INDICES = list(range(len(self._prims)))
 
+        # Some prims (e.g., Cameras) require USD-authored transforms for rendering.
+        # When enabled, mirror Fabric pose writes to USD for those prims.
+        self._sync_usd_on_fabric_write = sync_usd_on_fabric_write
+
         # Fabric batch infrastructure (initialized lazily on first use)
         self._fabric_initialized = False
+        self._fabric_usd_sync_done = False
         self._fabric_selection = None
         self._fabric_to_view: wp.array | None = None
         self._view_to_fabric: wp.array | None = None
@@ -154,37 +162,14 @@ class XformPrimView:
                         " Use sim_utils.standardize_xform_ops() to prepare the prim."
                     )
 
-    def _resolve_use_fabric(self, stage: Usd.Stage) -> bool:
-        """Resolve whether Fabric should be used based on stage state."""
-        if self._device == "cpu":
-            return False
-
-        # Prefer SimulationContext state when available.
-        try:
-            sim_context = sim_utils.SimulationContext.instance()
-        except Exception:
-            sim_context = None
-        if sim_context is not None:
-            return sim_context.is_fabric_enabled()
-
-        # Fall back to checking existing Fabric attributes on prims.
-        for prim in self._prims:
-            if prim.HasAttribute("omni:fabric:worldMatrix") or prim.HasAttribute("omni:fabric:localMatrix"):
-                return True
-
-        # Final fallback: check for Fabric attributes on the USDRT stage.
-        try:
-            fabric_stage = sim_utils.get_current_stage(fabric=True)
-            for prim in self._prims:
-                rt_prim = fabric_stage.GetPrimAtPath(prim.GetPath())
-                if rt_prim and (
-                    rt_prim.HasAttribute("omni:fabric:worldMatrix") or rt_prim.HasAttribute("omni:fabric:localMatrix")
-                ):
-                    return True
-        except Exception:
-            pass
-
-        return False
+    def _resolve_indices_wp(self, indices: Sequence[int] | None) -> wp.array:
+        """Resolve view indices as a Warp array."""
+        if indices is None or indices == slice(None):
+            if self._default_view_indices is None:
+                raise RuntimeError("Fabric indices are not initialized.")
+            return self._default_view_indices
+        indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+        return wp.array(indices_list, dtype=wp.uint32).to(self._device)
 
     """
     Properties.
@@ -286,15 +271,11 @@ class XformPrimView:
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # Use cached Fabric hierarchy (avoids expensive lookups!)
+        # Use cached Fabric hierarchy
         fabric_hierarchy = self._fabric_hierarchy
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
-        if indices is None or indices == slice(None):
-            indices_wp = self._default_view_indices
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-            indices_wp = wp.array(indices_list, dtype=wp.uint32).to(self._device)
+        indices_wp = self._resolve_indices_wp(indices)
 
         count = indices_wp.shape[0]
 
@@ -312,10 +293,10 @@ class XformPrimView:
         # Dummy array for scales (not modifying)
         scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
-        # Use cached fabricarray for world matrices (ZERO overhead!)
+        # Use cached fabricarray for world matrices
         world_matrices = self._fabric_world_matrices
 
-        # Batch compose matrices with single kernel launch (FAST!)
+        # Batch compose matrices with a single kernel launch
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
@@ -338,14 +319,13 @@ class XformPrimView:
 
         # Update world transforms within Fabric hierarchy
         fabric_hierarchy.update_world_xforms()
+        # Fabric now has authoritative data; skip future USD syncs
+        self._fabric_usd_sync_done = True
+        # Mirror to USD for renderer-facing prims when enabled.
+        if self._sync_usd_on_fabric_write:
+            self._set_world_poses_usd(positions, orientations, indices)
 
-        # Note: Fabric writes to omni:fabric:worldMatrix are GPU-resident and propagate
-        # through Fabric's hierarchy system. For optimal performance, use Fabric methods
-        # consistently (get_world_poses/set_world_poses with Fabric enabled).
-        #
-        # Local pose operations (get_local_poses/set_local_poses) fall back to USD for
-        # correctness, as they require parent-relative transform computations that are
-        # best handled through USD's XformCache.
+        # Fabric writes are GPU-resident; local pose operations still use USD.
 
     def _set_world_poses_usd(
         self,
@@ -353,7 +333,7 @@ class XformPrimView:
         orientations: torch.Tensor | None = None,
         indices: Sequence[int] | None = None,
     ):
-        """Set world poses to USD (original method)."""
+        """Set world poses to USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
@@ -492,7 +472,7 @@ class XformPrimView:
         orientations: torch.Tensor | None = None,
         indices: Sequence[int] | None = None,
     ):
-        """Set local poses to USD (original method)."""
+        """Set local poses to USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
@@ -550,15 +530,11 @@ class XformPrimView:
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # Use cached Fabric hierarchy (avoids expensive lookups!)
+        # Use cached Fabric hierarchy
         fabric_hierarchy = self._fabric_hierarchy
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
-        if indices is None or indices == slice(None):
-            indices_wp = self._default_view_indices
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-            indices_wp = wp.array(indices_list, dtype=wp.uint32).to(self._device)
+        indices_wp = self._resolve_indices_wp(indices)
 
         count = indices_wp.shape[0]
 
@@ -569,10 +545,10 @@ class XformPrimView:
         positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
         orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
 
-        # Use cached fabricarray for world matrices (ZERO overhead!)
+        # Use cached fabricarray for world matrices
         world_matrices = self._fabric_world_matrices
 
-        # Batch compose matrices on GPU with single kernel launch (FAST!)
+        # Batch compose matrices on GPU with a single kernel launch
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
@@ -595,13 +571,14 @@ class XformPrimView:
 
         # Update world transforms to propagate changes
         fabric_hierarchy.update_world_xforms()
-
-        # Note: Fabric writes to omni:fabric:worldMatrix are GPU-resident and may not
-        # be immediately visible to USD readers. For Fabric-only workflows this is fine,
-        # but mixed Fabric/USD workflows should use Fabric consistently.
+        # Fabric now has authoritative data; skip future USD syncs
+        self._fabric_usd_sync_done = True
+        # Mirror to USD for renderer-facing prims when enabled.
+        if self._sync_usd_on_fabric_write:
+            self._set_scales_usd(scales, indices)
 
     def _set_scales_usd(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
-        """Set scales to USD (original method)."""
+        """Set scales to USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
@@ -691,13 +668,12 @@ class XformPrimView:
         # Lazy initialization of Fabric infrastructure
         if not self._fabric_initialized:
             self._initialize_fabric()
+        # Sync once from USD to ensure reads see the latest authored transforms
+        if not self._fabric_usd_sync_done:
+            self._sync_fabric_from_usd_once()
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
-        if indices is None or indices == slice(None):
-            indices_wp = self._default_view_indices
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-            indices_wp = wp.array(indices_list, dtype=wp.uint32).to(self._device)
+        indices_wp = self._resolve_indices_wp(indices)
 
         count = indices_wp.shape[0]
 
@@ -714,11 +690,11 @@ class XformPrimView:
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
             scales_wp = self._fabric_dummy_buffer  # Always use dummy for scales
 
-        # Use cached fabricarray for world matrices (ZERO overhead!)
+        # Use cached fabricarray for world matrices
         # This eliminates the 0.06-0.30ms variability from creating fabricarray each call
         world_matrices = self._fabric_world_matrices
 
-        # Launch GPU kernel to decompose matrices in parallel (FAST!)
+        # Launch GPU kernel to decompose matrices in parallel
         wp.launch(
             kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
             dim=count,
@@ -746,7 +722,7 @@ class XformPrimView:
             return positions, orientations
 
     def _get_world_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get world poses from USD (original fallback method)."""
+        """Get world poses from USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
@@ -827,11 +803,7 @@ class XformPrimView:
             if not has_attr:
                 rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
 
-            # Sync current USD transform to Fabric
-            # NOTE: This may initialize the matrix to identity rather than copying USD transforms.
-            # Fabric's omni:fabric:worldMatrix is managed by the hierarchy system.
-            # For correct initialization from existing USD scene, use set_world_poses() to
-            # explicitly write the desired transforms through Fabric after creation.
+            # Best-effort USD->Fabric sync; authoritative initialization happens on first read.
             rt_xformable.SetWorldXformFromUsd()
 
             # Create view index attribute for batch operations
@@ -886,13 +858,12 @@ class XformPrimView:
         # Synchronize to ensure mapping is ready before any operations
         wp.synchronize()
 
-        # Pre-allocate reusable output buffers for read operations (ZERO-COPY strategy!)
-        # We create PyTorch tensors and wrap them with wp.from_torch() to avoid wp.to_torch() copies
+        # Pre-allocate reusable output buffers for read operations
         self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
         self._fabric_orientations_torch = torch.zeros((self.count, 4), dtype=torch.float32, device=self._device)
         self._fabric_scales_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
 
-        # Create Warp views of the PyTorch tensors (zero-copy wrapping!)
+        # Create Warp views of the PyTorch tensors
         self._fabric_positions_buffer = wp.from_torch(self._fabric_positions_torch, dtype=wp.float32)
         self._fabric_orientations_buffer = wp.from_torch(self._fabric_orientations_torch, dtype=wp.float32)
         self._fabric_scales_buffer = wp.from_torch(self._fabric_scales_torch, dtype=wp.float32)
@@ -900,9 +871,7 @@ class XformPrimView:
         # Dummy array for unused outputs (always empty)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
-        # Cache fabricarray for world matrices to avoid recreation overhead!
-        # Based on NVIDIA's RtPrimSelection API pattern (see links below)
-        # This eliminates the 0.06-0.30ms overhead of creating fabricarray on every call
+        # Cache fabricarray for world matrices to avoid recreation overhead
         # Refs: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usdrt_prim_selection.html
         #       https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/scenegraph_use.html
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
@@ -911,6 +880,30 @@ class XformPrimView:
         self._fabric_stage = fabric_stage
 
         self._fabric_initialized = True
+        # Force a one-time USD->Fabric sync on first read to pick up any USD edits
+        # made after the view was constructed.
+        self._fabric_usd_sync_done = False
+
+    def _sync_fabric_from_usd_once(self) -> None:
+        """Sync Fabric world matrices from USD once, on the first read."""
+        # Ensure Fabric is initialized
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+
+        # Ensure authored USD transforms are flushed before reading into Fabric.
+        sim_utils.update_stage()
+
+        # Read authoritative transforms from USD and write once into Fabric.
+        positions_usd, orientations_usd = self._get_world_poses_usd()
+        scales_usd = self._get_scales_usd()
+
+        prev_sync = self._sync_usd_on_fabric_write
+        self._sync_usd_on_fabric_write = False
+        self._set_world_poses_fabric(positions_usd, orientations_usd)
+        self._set_scales_fabric(scales_usd)
+        self._sync_usd_on_fabric_write = prev_sync
+
+        self._fabric_usd_sync_done = True
 
     def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get local-space poses for prims in the view.
@@ -954,7 +947,7 @@ class XformPrimView:
         return self._get_local_poses_usd(indices)
 
     def _get_local_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get local poses from USD (original method)."""
+        """Get local poses from USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
@@ -1006,13 +999,12 @@ class XformPrimView:
         # Lazy initialization
         if not self._fabric_initialized:
             self._initialize_fabric()
+        # Sync once from USD to ensure reads see the latest authored transforms
+        if not self._fabric_usd_sync_done:
+            self._sync_fabric_from_usd_once()
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
-        if indices is None or indices == slice(None):
-            indices_wp = self._default_view_indices
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-            indices_wp = wp.array(indices_list, dtype=wp.uint32).to(self._device)
+        indices_wp = self._resolve_indices_wp(indices)
 
         count = indices_wp.shape[0]
 
@@ -1029,10 +1021,10 @@ class XformPrimView:
         positions_wp = self._fabric_dummy_buffer
         orientations_wp = self._fabric_dummy_buffer
 
-        # Use cached fabricarray for world matrices (ZERO overhead!)
+        # Use cached fabricarray for world matrices
         world_matrices = self._fabric_world_matrices
 
-        # Launch GPU kernel to decompose matrices in parallel (FAST!)
+        # Launch GPU kernel to decompose matrices in parallel
         wp.launch(
             kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
             dim=count,
@@ -1057,7 +1049,7 @@ class XformPrimView:
             return wp.to_torch(scales_wp)
 
     def _get_scales_usd(self, indices: Sequence[int] | None = None) -> torch.Tensor:
-        """Get scales from USD (original method)."""
+        """Get scales from USD."""
         # Resolve indices
         if indices is None or indices == slice(None):
             indices_list = self._ALL_INDICES
