@@ -257,6 +257,15 @@ class Articulation(BaseArticulation):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        """Reset the articulation.
+
+        Note: If both env_ids and env_mask are provided, then env_mask will be used. For performance reasons, it is
+        recommended to use the env_mask instead of env_ids.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
         if env_ids is not None and env_mask is None:
             env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
             env_mask[env_ids] = True
@@ -1303,6 +1312,8 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_friction_coeff: Joint friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_viscous_friction_coeff: Joint viscous friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
             joint_mask: The joint mask. Shape is (num_joints).
@@ -1365,6 +1376,9 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write joint dynamic friction coefficients into the simulation.
 
+        Warning: Setting joint dynamic friction coefficients are not supported in Newton. This operation will
+        update the internal buffers, but not the simulation.
+
         Args:
             joint_dynamic_friction_coeff: Joint dynamic friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
@@ -1424,6 +1438,9 @@ class Articulation(BaseArticulation):
         env_mask: wp.array | None = None,
     ) -> None:
         """Write joint viscous friction coefficients into the simulation.
+
+        Warning: Setting joint viscous friction coefficients are not supported in Newton. This operation will
+        update the internal buffers, but not the simulation.
 
         Args:
             joint_viscous_friction_coeff: Joint viscous friction coefficients. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).

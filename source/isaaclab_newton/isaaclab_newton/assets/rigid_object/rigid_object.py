@@ -170,6 +170,15 @@ class RigidObject(BaseRigidObject):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        """Reset the rigid object.
+
+        Note: If both env_ids and env_mask are provided, then env_mask will be used. For performance reasons, it is
+        recommended to use the env_mask instead of env_ids.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
         if env_ids is not None and env_mask is None:
             env_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
             env_mask[env_ids] = True
