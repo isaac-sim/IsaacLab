@@ -38,7 +38,7 @@ from isaaclab.utils.warp.update_kernels import (
 from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_dual_index,
     make_complete_data_from_torch_single_index,
-    make_masks_from_torch_ids,
+    make_mask_from_torch_ids,
 )
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -296,7 +296,7 @@ class RigidObject(BaseRigidObject):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -328,7 +328,7 @@ class RigidObject(BaseRigidObject):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -359,7 +359,7 @@ class RigidObject(BaseRigidObject):
             root_state = make_complete_data_from_torch_single_index(
                 root_state, self.num_instances, ids=env_ids, dtype=vec13f, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
         # split the state into pose and velocity
@@ -406,7 +406,7 @@ class RigidObject(BaseRigidObject):
             pose = make_complete_data_from_torch_single_index(
                 pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -436,7 +436,7 @@ class RigidObject(BaseRigidObject):
             root_pose = make_complete_data_from_torch_single_index(
                 root_pose, self.num_instances, ids=env_ids, dtype=wp.transformf, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -496,7 +496,7 @@ class RigidObject(BaseRigidObject):
             root_velocity = make_complete_data_from_torch_single_index(
                 root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -525,7 +525,7 @@ class RigidObject(BaseRigidObject):
             root_velocity = make_complete_data_from_torch_single_index(
                 root_velocity, self.num_instances, ids=env_ids, dtype=wp.spatial_vectorf, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         # solve for None masks
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
@@ -578,10 +578,10 @@ class RigidObject(BaseRigidObject):
             masses = make_complete_data_from_torch_dual_index(
                 masses, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.float32, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
@@ -611,10 +611,10 @@ class RigidObject(BaseRigidObject):
             coms = make_complete_data_from_torch_dual_index(
                 coms, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.
@@ -644,10 +644,10 @@ class RigidObject(BaseRigidObject):
             inertias = make_complete_data_from_torch_dual_index(
                 inertias, self.num_instances, self.num_bodies, env_ids, body_ids, dtype=wp.mat33f, device=self.device
             )
-        env_mask = make_masks_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_instances, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._data.ALL_ENV_MASK
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
         if body_mask is None:
             body_mask = self._data.ALL_BODY_MASK
         # None masks are handled within the kernel.

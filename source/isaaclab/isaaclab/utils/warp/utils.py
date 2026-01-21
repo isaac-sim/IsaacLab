@@ -95,31 +95,28 @@ def make_complete_data_from_torch_dual_index(
     return value
 
 
-def make_masks_from_torch_ids(
+def make_mask_from_torch_ids(
     N: int,
-    first_ids: Sequence[int] | torch.Tensor | None = None,
-    first_mask: wp.array | torch.Tensor | None = None,
+    ids: Sequence[int] | torch.Tensor | None = None,
+    mask: wp.array | torch.Tensor | None = None,
     device: str = "cuda:0",
 ) -> wp.array | None:
-    """Converts any Torch frontend data into warp data with dual index support.
+    """Converts any Torch frontend ids into warp mask.
 
     Args:
-        value: The value to convert. Shape is (N, M) or (len(first_ids), len(second_ids)).
-        first_ids: The first index ids.
-        second_ids: The second index ids.
-        first_mask: The first index mask.
-        second_mask: The second index mask.
-        dtype: The dtype of the value.
+        N: The number of elements in the array.
+        ids: The index ids.
+        mask: The index mask.
         device: The device to use for the conversion.
 
     Returns:
-        A tuple of warp data with its two masks.
+        A warp mask. None if no ids are provided.
     """
-    if (first_ids is not None) and (first_mask is None):
+    if (ids is not None) and (mask is None):
         # Create a mask from scratch
-        first_mask = torch.zeros(N, dtype=torch.bool, device=device)
-        first_mask[first_ids] = True
-        first_mask = wp.from_torch(first_mask, dtype=wp.bool)
-    elif isinstance(first_mask, torch.Tensor):
-        first_mask = wp.from_torch(first_mask, dtype=wp.bool)
-    return first_mask
+        mask = torch.zeros(N, dtype=torch.bool, device=device)
+        mask[ids] = True
+        mask = wp.from_torch(mask, dtype=wp.bool)
+    elif isinstance(mask, torch.Tensor):
+        mask = wp.from_torch(mask, dtype=wp.bool)
+    return mask

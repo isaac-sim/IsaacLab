@@ -12,7 +12,7 @@ import warp as wp
 
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 from isaaclab.utils.warp.update_kernels import update_array2D_with_value_masked
-from isaaclab.utils.warp.utils import make_complete_data_from_torch_dual_index, make_masks_from_torch_ids
+from isaaclab.utils.warp.utils import make_complete_data_from_torch_dual_index, make_mask_from_torch_ids
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -130,8 +130,8 @@ class WrenchComposer:
         """
         if isinstance(forces, torch.Tensor) or isinstance(torques, torch.Tensor) or isinstance(positions, torch.Tensor):
             try:
-                env_mask = make_masks_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
-                body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+                env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
+                body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
                 if forces is not None:
                     forces = make_complete_data_from_torch_dual_index(
                         forces, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
@@ -220,10 +220,10 @@ class WrenchComposer:
                 positions, self.num_envs, self.num_bodies, env_ids, body_ids, dtype=wp.vec3f, device=self.device
             )
 
-        body_mask = make_masks_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
+        body_mask = make_mask_from_torch_ids(self.num_bodies, body_ids, body_mask, device=self.device)
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK_WP
-        env_mask = make_masks_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
+        env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK_WP
 
@@ -261,7 +261,7 @@ class WrenchComposer:
             self._active = False
         else:
             if env_ids is not None:
-                env_mask = make_masks_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
+                env_mask = make_mask_from_torch_ids(self.num_envs, env_ids, env_mask, device=self.device)
 
             wp.launch(
                 update_array2D_with_value_masked,
