@@ -572,12 +572,8 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         articulation.update(sim.cfg.dt)
 
         # check that the root is at the correct state - its default state as it is fixed base
-        print(f"default_root_state: {wp.to_torch(articulation.data.default_root_state)}")
-        print(f"translations: {translations}")
         default_root_state = wp.to_torch(articulation.data.default_root_state).clone()
         default_root_state[:, :3] = default_root_state[:, :3] + translations
-        print(f"default_root_state: {default_root_state}")
-        print(f"wp.to_torch(articulation.data.root_state_w): {wp.to_torch(articulation.data.root_state_w)}")
 
         torch.testing.assert_close(wp.to_torch(articulation.data.root_state_w), default_root_state)
 

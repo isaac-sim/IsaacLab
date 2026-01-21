@@ -2057,9 +2057,6 @@ class Articulation(BaseArticulation):
                 ],
             )
 
-        print(f"default_root_state: {wp.to_torch(self._data.default_root_state)}")
-        print(f"root_state_w: {wp.to_torch(self._data.root_state_w)}")
-
     """
     Internal simulation callbacks.
     """
