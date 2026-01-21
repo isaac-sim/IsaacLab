@@ -15,6 +15,7 @@ from .anymal import *
 from .cart_double_pendulum import *
 from .cartpole import *
 from .cassie import *
+from .flexiv_rizon import *
 from .fourier import *
 from .franka import *
 from .galbot import *
