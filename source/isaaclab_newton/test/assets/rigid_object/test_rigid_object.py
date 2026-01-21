@@ -199,7 +199,6 @@ class TestReset:
     def test_reset(self):
         """Test that reset method works properly."""
         rigid_object, _, _ = create_test_rigid_object()
-        rigid_object._create_buffers()
         rigid_object.set_external_force_and_torque(
             forces=torch.ones(rigid_object.num_instances, rigid_object.num_bodies, 3),
             torques=torch.ones(rigid_object.num_instances, rigid_object.num_bodies, 3),
@@ -654,7 +653,7 @@ class TestVelocityWriters:
     - write_root_com_velocity_to_sim
     """
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda"])
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
     @pytest.mark.parametrize("env_ids", [None, [0, 1, 2], slice(None), [0]])
     @pytest.mark.parametrize("num_instances", [1, 4])
     def test_write_root_link_velocity_to_sim_torch(self, device: str, env_ids, num_instances: int):

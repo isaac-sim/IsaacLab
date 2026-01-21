@@ -249,7 +249,6 @@ class TestReset:
     def test_reset(self):
         """Test that reset method works properly."""
         articulation, _, _ = create_test_articulation()
-        articulation._create_buffers()
         articulation.set_external_force_and_torque(
             forces=torch.ones(articulation.num_instances, articulation.num_bodies, 3),
             torques=torch.ones(articulation.num_instances, articulation.num_bodies, 3),

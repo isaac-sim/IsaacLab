@@ -231,9 +231,10 @@ def add_forces_and_torques_at_position(
             )
             # if there is a position offset, add a torque to the composed torque.
             if positions:
-                composed_torques_b[tid_env, tid_body] += wp.skew(
-                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global)
-                ) @ cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global)
+                composed_torques_b[tid_env, tid_body] += wp.cross(
+                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                    cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                )
         if torques:
             composed_torques_b[tid_env, tid_body] += cast_torque_to_com_frame(
                 torques[tid_env, tid_body], com_poses[tid_env, tid_body], is_global

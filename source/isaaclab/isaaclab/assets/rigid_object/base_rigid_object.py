@@ -104,13 +104,13 @@ class BaseRigidObject(AssetBase):
     @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the articulation."""
+        """Instantaneous wrench composer for the rigid object."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the articulation."""
+        """Permanent wrench composer for the rigid object."""
         raise NotImplementedError()
 
     """
@@ -119,6 +119,15 @@ class BaseRigidObject(AssetBase):
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
+        """Reset the rigid object.
+
+        Note: If both env_ids and env_mask are provided, then env_mask will be used. For performance reasons, it is
+        recommended to use the env_mask instead of env_ids.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
         raise NotImplementedError()
 
     @abstractmethod

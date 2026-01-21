@@ -2691,17 +2691,19 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of pose and velocity. Shape is (num_instances, 7) and (num_instances, 6) respectively.
         """
-        tmp_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self._device)
-        tmp_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self._device)
+        if self._temp_root_pose is None:
+            self._temp_root_pose = wp.zeros((self.num_instances,), dtype=wp.transformf, device=self.device)
+        if self._temp_root_velocity is None:
+            self._temp_root_velocity = wp.zeros((self.num_instances,), dtype=wp.spatial_vectorf, device=self.device)
 
         wp.launch(
             split_state_to_pose_and_velocity,
             dim=self.num_instances,
             inputs=[
                 state,
-                tmp_pose,
-                tmp_velocity,
+                self._temp_root_pose,
+                self._temp_root_velocity,
             ],
             device=self.device,
         )
-        return tmp_pose, tmp_velocity
+        return self._temp_root_pose, self._temp_root_velocity

@@ -654,7 +654,7 @@ def test_rigid_body_no_friction(num_cubes, device):
 
 @pytest.mark.skip(reason="No support for static friction in Newton yet. Could use Hydroelastic properties instead.")
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
 def test_rigid_body_with_static_friction(num_cubes, device):
     """Test that static friction applied to rigid object works as expected.
