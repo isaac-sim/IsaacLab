@@ -13,7 +13,7 @@ import isaaclab.utils.math as math_utils
 
 from .lee_acceleration_control_cfg import LeeAccControllerCfg
 from .lee_controller_base import LeeControllerBase
-from .lee_controller_utils import compute_body_torque, compute_desired_orientation
+from .lee_controller_utils import compute_body_torque, compute_desired_orientation, yaw_rate_to_body_angvel
 
 if TYPE_CHECKING:
     from isaaclab.assets import Multirotor
@@ -51,7 +51,7 @@ class LeeAccController(LeeControllerBase):
         """Compute wrench command from acceleration setpoint.
 
         Args:
-            command: (num_envs, 3) acceleration command in world frame [m/s^2].
+            command: (num_envs, 4) acceleration command command [ax, ay, az, yaw_rate] in body frame.
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.
@@ -59,19 +59,18 @@ class LeeAccController(LeeControllerBase):
         self.wrench_command_b.zero_()
 
         # Use command directly as acceleration setpoint
-        acc = command[:, :3].clone()
-        forces_w = (acc - self.gravity) * self.mass.view(-1, 1)
+        forces_w = (command[:, :3] - self.gravity) * self.mass.view(-1, 1)
 
         # Project forces to body z-axis for thrust command
         body_z_w = math_utils.matrix_from_quat(self.robot.data.root_quat_w)[:, :, 2]
         self.wrench_command_b[:, 2] = torch.sum(forces_w * body_z_w, dim=1)
 
         # Get current yaw and compute desired orientation
-        _, _, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
+        roll, pitch, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
         desired_quat = compute_desired_orientation(forces_w, yaw, self.rotation_matrix_buffer)
 
-        # Zero angular velocity setpoint (hover)
-        desired_angvel_b = torch.zeros((self.num_envs, 3), device=self.device)
+        # Compute desired angular velocity in body frame from yaw rate command
+        desired_angvel_b = yaw_rate_to_body_angvel(command[:, 3], roll, pitch, self.device)
 
         # Compute torque command
         self.wrench_command_b[:, 3:6] = compute_body_torque(

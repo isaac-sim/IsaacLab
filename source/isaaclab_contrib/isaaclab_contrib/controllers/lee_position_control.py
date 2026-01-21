@@ -53,7 +53,7 @@ class LeePosController(LeeControllerBase):
         """Compute wrench command from position setpoint.
 
         Args:
-            command: (num_envs, 3) position command in world frame.
+            command: (num_envs, 4) [x, y, z, yaw] in body frame.
 
         Returns:
             (num_envs, 6) wrench command [fx, fy, fz, tx, ty, tz] in body frame.
@@ -69,8 +69,7 @@ class LeePosController(LeeControllerBase):
         self.wrench_command_b[:, 2] = torch.sum(forces_w * body_z_w, dim=1)
 
         # Get current yaw and compute desired orientation
-        _, _, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)
-        desired_quat = compute_desired_orientation(forces_w, yaw, self.rotation_matrix_buffer)
+        desired_quat = compute_desired_orientation(forces_w, command[:, 3], self.rotation_matrix_buffer)
 
         # Zero angular velocity setpoint (hover)
         desired_angvel_b = torch.zeros((self.num_envs, 3), device=self.device)
