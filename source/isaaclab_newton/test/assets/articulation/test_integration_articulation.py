@@ -514,6 +514,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         # update articulation
         articulation.update(sim.cfg.dt)
 
+
 # FIXME: Weird error on that one. Would need more time to look into it.
 @pytest.mark.skip("Weird error on that one. Would need more time to look into it")
 @pytest.mark.parametrize("num_articulations", [1, 2])
