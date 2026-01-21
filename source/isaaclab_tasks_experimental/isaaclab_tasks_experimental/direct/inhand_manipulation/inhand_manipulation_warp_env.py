@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -30,22 +31,6 @@ def initialize_rng_state(
 ):
     env_id = wp.tid()
     state[env_id] = wp.rand_init(seed, wp.int32(env_id))
-
-
-@wp.kernel
-def initialize_goal_constants(
-    # input
-    default_object_root_pose: wp.array(dtype=wp.transformf),
-    # output
-    in_hand_pos: wp.array(dtype=wp.vec3f),
-    goal_pos: wp.array(dtype=wp.vec3f),
-    goal_rot: wp.array(dtype=wp.quatf),
-):
-    env_id = wp.tid()
-    p = wp.transform_get_translation(default_object_root_pose[env_id])
-    in_hand_pos[env_id] = wp.vec3f(p[0], p[1], p[2] - wp.float32(0.04))
-    goal_pos[env_id] = wp.vec3f(wp.float32(-0.2), wp.float32(-0.45), wp.float32(0.68))
-    goal_rot[env_id] = wp.quatf(wp.float32(0.0), wp.float32(0.0), wp.float32(0.0), wp.float32(1.0))
 
 
 @wp.kernel
@@ -324,7 +309,7 @@ def compute_reduced_observations(
     observations[env_id, idx + 2] = object_pos[env_id][2]
     idx += 3
 
-    rel = quat_mul(object_rot[env_id], quat_conjugate(goal_rot[env_id]))
+    rel = object_rot[env_id] * wp.quat_inverse(goal_rot[env_id])
     observations[env_id, idx + 0] = rel[0]
     observations[env_id, idx + 1] = rel[1]
     observations[env_id, idx + 2] = rel[2]
@@ -406,7 +391,7 @@ def compute_full_observations(
     observations[env_id, offset + 3] = goal_rot[env_id][3]
     offset += 4
 
-    rel = quat_mul(object_rot[env_id], quat_conjugate(goal_rot[env_id]))
+    rel = object_rot[env_id] * wp.quat_inverse(goal_rot[env_id])
     observations[env_id, offset + 0] = rel[0]
     observations[env_id, offset + 1] = rel[1]
     observations[env_id, offset + 2] = rel[2]
@@ -548,40 +533,14 @@ def unscale(x: wp.float32, lower: wp.float32, upper: wp.float32) -> wp.float32:
 
 
 @wp.func
-def quat_conjugate(q: wp.quatf) -> wp.quatf:
-    return wp.quatf(-q[0], -q[1], -q[2], q[3])
-
-
-@wp.func
-def quat_mul(q1: wp.quatf, q2: wp.quatf) -> wp.quatf:
-    # Hamilton product for quaternions in (x, y, z, w).
-    x1, y1, z1, w1 = q1[0], q1[1], q1[2], q1[3]
-    x2, y2, z2, w2 = q2[0], q2[1], q2[2], q2[3]
-    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
-    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
-    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-    return wp.quatf(x, y, z, w)
-
-
-@wp.func
-def quat_from_angle_axis(angle: wp.float32, axis: wp.vec3f) -> wp.quatf:
-    # axis assumed to be unit-length in this task.
-    half = angle * wp.float32(0.5)
-    s = wp.sin(half)
-    c = wp.cos(half)
-    return wp.quatf(axis[0] * s, axis[1] * s, axis[2] * s, c)
-
-
-@wp.func
 def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y_axis: wp.vec3f) -> wp.quatf:
-    return quat_mul(quat_from_angle_axis(rand0 * wp.pi, x_axis), quat_from_angle_axis(rand1 * wp.pi, y_axis))
+    return wp.quat_from_axis_angle(x_axis, rand0 * wp.pi) * wp.quat_from_axis_angle(y_axis, rand1 * wp.pi)
 
 
 @wp.func
 def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
     # Orientation alignment for the cube in hand and goal cube
-    quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
+    quat_diff = object_rot * wp.quat_inverse(target_rot)
     # Match Torch env convention: uses indices [1:4] for the vector part (see `rotation_distance` in Torch env).
     v_norm = wp.sqrt(quat_diff[1] * quat_diff[1] + quat_diff[2] * quat_diff[2] + quat_diff[3] * quat_diff[3])
     v_norm = wp.min(v_norm, wp.float32(1.0))
@@ -663,18 +622,19 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.goal_rot = wp.zeros(self.num_envs, dtype=wp.quatf, device=self.device)
         self.goal_pos = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
         self.goal_pos_w = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        # Initialize goal constants (in-hand reference pos, goal pose).
-        wp.launch(
-            initialize_goal_constants,
-            dim=self.num_envs,
-            inputs=[
-                self.object.data.default_root_pose,
-                self.in_hand_pos,
-                self.goal_pos,
-                self.goal_rot,
-            ],
-            device=self.device,
-        )
+
+        # Initialize goal constants from Torch (avoid a one-off kernel launch).
+        default_root_pose = wp.to_torch(self.object.data.default_root_pose).to(self.device)
+        in_hand_pos = default_root_pose[:, 0:3].clone()
+        in_hand_pos[:, 2] -= 0.04
+        self.in_hand_pos.assign(wp.from_torch(in_hand_pos, dtype=wp.vec3f))
+
+        goal_pos = torch.tensor([-0.2, -0.45, 0.68], device=self.device, dtype=torch.float32).repeat((self.num_envs, 1))
+        self.goal_pos.assign(wp.from_torch(goal_pos, dtype=wp.vec3f))
+
+        goal_rot = torch.zeros((self.num_envs, 4), device=self.device, dtype=torch.float32)
+        goal_rot[:, 3] = 1.0  # (x, y, z, w)
+        self.goal_rot.assign(wp.from_torch(goal_rot, dtype=wp.quatf))
 
         # initialize goal marker
         self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
@@ -759,7 +719,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
                 self.actuated_dof_indices,
-                float(self.cfg.act_moving_average),
+                self.cfg.act_moving_average,
                 self.prev_targets,
                 self.cur_targets,
             ],
@@ -796,16 +756,16 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.object_rot,
                 self.in_hand_pos,
                 self.goal_rot,
-                float(self.cfg.dist_reward_scale),
-                float(self.cfg.rot_reward_scale),
-                float(self.cfg.rot_eps),
+                self.cfg.dist_reward_scale,
+                self.cfg.rot_reward_scale,
+                self.cfg.rot_eps,
                 self.actions,
-                float(self.cfg.action_penalty_scale),
-                float(self.cfg.success_tolerance),
-                float(self.cfg.reach_goal_bonus),
-                float(self.cfg.fall_dist),
-                float(self.cfg.fall_penalty),
-                int(self.cfg.action_space),
+                self.cfg.action_penalty_scale,
+                self.cfg.success_tolerance,
+                self.cfg.reach_goal_bonus,
+                self.cfg.fall_dist,
+                self.cfg.fall_penalty,
+                self.cfg.action_space,
                 self.reset_goal_buf,
                 self.successes,
                 self._num_resets,
@@ -822,7 +782,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             inputs=[
                 self._num_resets,
                 self._finished_cons_successes,
-                float(self.cfg.av_factor),
+                self.cfg.av_factor,
                 self.consecutive_successes,
             ],
             device=self.device,
@@ -849,9 +809,9 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.object_rot,
                 self.in_hand_pos,
                 self.goal_rot,
-                float(self.cfg.fall_dist),
-                float(self.cfg.success_tolerance),
-                int(self.cfg.max_consecutive_success),
+                self.cfg.fall_dist,
+                self.cfg.success_tolerance,
+                self.cfg.max_consecutive_success,
                 self.successes,
                 self.episode_length_buf,
                 self.reset_terminated,
@@ -878,7 +838,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             inputs=[
                 self.object.data.default_root_pose,
                 self.env_origins,
-                float(self.cfg.reset_position_noise),
+                self.cfg.reset_position_noise,
                 self.x_unit_vecs,
                 self.y_unit_vecs,
                 mask,
@@ -898,8 +858,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.hand.data.default_joint_vel,
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
-                float(self.cfg.reset_dof_pos_noise),
-                float(self.cfg.reset_dof_vel_noise),
+                self.cfg.reset_dof_pos_noise,
+                self.cfg.reset_dof_vel_noise,
                 mask,
                 self.num_hand_dofs,
                 self.rng_state,
@@ -1022,7 +982,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.hand.data.joint_vel,
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
-                float(self.cfg.vel_obs_scale),
+                self.cfg.vel_obs_scale,
                 self.object_pos,
                 self.object_rot,
                 self.object_linvel,
