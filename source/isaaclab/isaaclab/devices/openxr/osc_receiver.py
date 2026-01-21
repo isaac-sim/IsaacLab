@@ -146,6 +146,16 @@ class BodyOscReceiver:
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 
+    def shutdown(self) -> None:
+        """Stop the OSC server and clean up resources."""
+        if self._server is not None:
+            self._server.shutdown()
+            self._server = None
+
+    def __del__(self):
+        """Clean up resources when the object is destroyed."""
+        self.shutdown()
+
     def _on_position(self, addr: str, *args) -> None:
         """Handle incoming OSC position messages.
 

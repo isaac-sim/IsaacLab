@@ -119,7 +119,7 @@ class TestBodyOscReceiver:
         receiver = BodyOscReceiver(ip="127.0.0.1", port=19000)
         yield receiver
         # Cleanup: stop the server
-        receiver._server.shutdown()
+        receiver.shutdown()
 
     def test_initialization(self, receiver):
         """Test receiver initializes with correct data shape."""

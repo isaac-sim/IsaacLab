@@ -258,9 +258,12 @@ def main() -> None:
 
     print("Teleoperation started. Press 'R' to reset the environment.")
 
-    keyboard = Se2Keyboard(Se2KeyboardCfg())
-    keyboard.add_callback("R", reset_recording_instance)
-    keyboard.add_callback("S", toggle_teleoperation)
+    # Create separate keyboard listener for non-keyboard teleop devices (e.g., handtracking, spacemouse)
+    # to allow R/S key controls without conflicting with the main teleop interface
+    if not isinstance(teleop_interface, (Se3Keyboard, Se3Gamepad)):
+        keyboard = Se2Keyboard(Se2KeyboardCfg())
+        keyboard.add_callback("R", reset_recording_instance)
+        keyboard.add_callback("S", toggle_teleoperation)
 
     # simulate environment
     while simulation_app.is_running():
