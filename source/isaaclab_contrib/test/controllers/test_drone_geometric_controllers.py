@@ -170,7 +170,6 @@ def test_lee_controllers_basic(
     robot = _DummyRobot(num_envs, num_bodies, device)
 
     cfg = cfg_factory()
-    cfg.randomize_params = False
     controller = getattr(mod_name, controller_cls)(cfg, robot, num_envs=num_envs, device=str(device))
 
     if controller_cls == "LeeVelController":
@@ -201,7 +200,6 @@ def test_lee_vel_randomize_params_within_bounds(
     robot = _DummyRobot(num_envs, num_bodies, device)
 
     cfg = _create_vel_cfg()
-    cfg.randomize_params = True
     controller = vel_mod.LeeVelController(cfg, robot, num_envs=num_envs, device=str(device))
 
     controller.reset_idx(env_ids=None)
@@ -234,7 +232,6 @@ def test_lee_pos_randomize_params_within_bounds(
     robot = _DummyRobot(num_envs, num_bodies, device)
 
     cfg = _create_pos_cfg()
-    cfg.randomize_params = True
     controller = pos_mod.LeePosController(cfg, robot, num_envs=num_envs, device=str(device))
 
     controller.reset_idx(env_ids=None)
@@ -265,7 +262,6 @@ def test_lee_acc_randomize_params_within_bounds(
     robot = _DummyRobot(num_envs, num_bodies, device)
 
     cfg = _create_acc_cfg()
-    cfg.randomize_params = True
     controller = acc_mod.LeeAccController(cfg, robot, num_envs=num_envs, device=str(device))
 
     controller.reset_idx(env_ids=None)

@@ -89,8 +89,6 @@ class LeeAccController(LeeControllerBase):
 
     def _randomize_params(self, env_ids: slice | torch.Tensor):
         """Randomize controller gains for the given environments if enabled."""
-        if not self.cfg.randomize_params:
-            return
         self.K_rot_current[env_ids] = math_utils.sample_uniform(
             self.K_rot_range[env_ids, 0], self.K_rot_range[env_ids, 1], self.K_rot_range[env_ids, 0].shape, self.device
         )

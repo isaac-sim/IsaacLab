@@ -13,13 +13,12 @@ class LeeControllerBaseCfg:
     """Base configuration for Lee-style geometric quadrotor controllers.
 
     Unless otherwise noted, vectors are ordered as (x, y, z) in the simulation world/body frames.
-    When :attr:`randomize_params` is True, gains are sampled uniformly per environment between
+    The controller gains are sampled uniformly per environment between
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
 
     Note:
-        To disable randomization, set the min and max values to be identical instead of setting
-        :attr:`randomize_params` to False. For example:
-        K_rot_range = ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4))
+        To disable randomization, set the min and max values to be identical.
+        For example: K_rot_range = ((1.85, 1.85, 0.4), (1.85, 1.85, 0.4))
     """
 
     K_rot_range: tuple[tuple[float, float, float], tuple[float, float, float]] = MISSING
@@ -70,14 +69,4 @@ class LeeControllerBaseCfg:
 
     Example:
         1.0471975511965976 (60°/s in radians) for ARL Robot 1
-    """
-
-    randomize_params: bool = MISSING
-    """If True, sample controller gains uniformly between the provided min/max bounds at resets.
-
-    Warning:
-        This parameter is only effective if min and max values differ. If they are identical,
-        gains will always be the same regardless of this setting.
-
-    Useful for domain randomization in training scenarios.
     """

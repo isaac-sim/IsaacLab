@@ -14,7 +14,7 @@ class LeeAccControllerCfg(LeeControllerBaseCfg):
     """Configuration for a Lee-style geometric quadrotor acceleration controller.
 
     Unless otherwise noted, vectors are ordered as (x, y, z) in the simulation world/body frames.
-    When :attr:`randomize_params` is True, gains are sampled uniformly per environment between
+    The acceleration controller gains are sampled uniformly per environment between
     their corresponding ``*_min`` and ``*_max`` bounds at reset.
     """
 

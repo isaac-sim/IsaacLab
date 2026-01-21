@@ -73,7 +73,6 @@ def main():
         K_angvel_range=((0.4, 0.4, 0.075), (0.5, 0.5, 0.09)),
         max_inclination_angle_rad=1.0471975511965976,
         max_yaw_rate=1.0471975511965976,
-        randomize_params=False,
     )
     controller = LeeVelController(controller_cfg, robot, num_envs=1, device=str(device))
 
