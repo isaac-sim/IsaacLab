@@ -81,7 +81,7 @@ class NavigationActionCfg(ActionTermCfg):
     "acc" for acceleration commands. Defaults to "vel".
     """
 
-    action_dim: dict[str, int] = {"vel": 3, "pos": 4, "acc": 4}
+    action_dim: dict[str, int] = {"vel": 3, "pos": 3, "acc": 3}
     """Dimension of the action space for each command type."""
 
     controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING

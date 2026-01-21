@@ -111,7 +111,7 @@ class LeeVelController(LeeControllerBase):
             setpoint_velocity: (num_envs, 3) desired velocity in body frame.
 
         Returns:
-            (num_envs, 3) desired acceleration in world frame.
+            (num_envs, 3) desired acceleration in body frame.
         """
         # Get yaw-only orientation (vehicle frame)
         _, _, yaw = math_utils.euler_xyz_from_quat(self.robot.data.root_quat_w)

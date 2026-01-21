@@ -26,8 +26,9 @@ simulation_app = app_launcher.app
 
 import torch
 from isaaclab_contrib.assets import Multirotor
-from isaaclab_contrib.controllers.lee_velocity_control import LeeVelController
-from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
+
+from isaaclab_contrib.controllers.lee_position_control import LeePosController
+from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
 
 import omni.usd
 from pxr import Gf, UsdLux
@@ -66,30 +67,32 @@ def main():
     # Get device
     device = sim_cfg.device
 
-    # Create Lee velocity controller
-    controller_cfg = LeeVelControllerCfg(
+    # Create Lee position controller
+    controller_cfg = LeePosControllerCfg(
+        K_pos_range=((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)),
         K_vel_range=((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)),
         K_rot_range=((1.6, 1.6, 0.25), (1.85, 1.85, 0.4)),
         K_angvel_range=((0.4, 0.4, 0.075), (0.5, 0.5, 0.09)),
         max_inclination_angle_rad=1.0471975511965976,
         max_yaw_rate=1.0471975511965976,
     )
-    controller = LeeVelController(controller_cfg, robot, num_envs=1, device=str(device))
+    controller = LeePosController(controller_cfg, robot, num_envs=1, device=str(device))
 
     # Get allocation matrix and compute pseudoinverse
     allocation_matrix = torch.tensor(robot_cfg.allocation_matrix, device=device, dtype=torch.float32)
     # allocation_matrix is (6, num_thrusters), we need pseudoinverse for wrench -> thrust
     alloc_pinv = torch.linalg.pinv(allocation_matrix)  # Shape: (num_thrusters, 6)
 
-    # Velocity command: hover in place (zero velocity, zero yaw rate)
-    vel_command = torch.zeros((1, 4), device=device)  # [vx, vy, vz, yaw_rate]
+    # Position command: hover in place (zero position, zero yaw)
+    pos_command = torch.zeros((1, 4), device=device)  # [x, y, z, yaw]
+    pos_command[0, 2] = 1.0  # Hover at 1 meter height
 
     # Simulation loop
-    print("[INFO] Starting camera rotation with Lee velocity controller. Press Ctrl+C to stop.")
+    print("[INFO] Starting demo with Lee Position Controller. Press Ctrl+C to stop.")
 
     while simulation_app.is_running():
         # Compute wrench from velocity controller
-        wrench = controller.compute(vel_command)  # Shape: (1, 6)
+        wrench = controller.compute(pos_command)  # Shape: (1, 6)
 
         # Allocate wrench to thrusters: thrust = pinv(A) @ wrench
         thrust_cmd = torch.matmul(wrench, alloc_pinv.T)  # Shape: (1, num_thrusters)

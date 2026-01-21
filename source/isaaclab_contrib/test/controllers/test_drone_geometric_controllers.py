@@ -123,6 +123,7 @@ def _create_pos_cfg() -> LeePosControllerCfg:
     """Create position controller config with required parameters."""
     cfg = LeePosControllerCfg()
     cfg.K_pos_range = ((3.0, 3.0, 2.0), (4.0, 4.0, 2.5))
+    cfg.K_vel_range = ((2.5, 2.5, 1.5), (3.5, 3.5, 2.0))
     cfg.K_rot_range = ((1.6, 1.6, 0.25), (1.85, 1.85, 0.4))
     cfg.K_angvel_range = ((0.4, 0.4, 0.075), (0.5, 0.5, 0.09))
     cfg.max_inclination_angle_rad = 1.0471975511965976
@@ -172,10 +173,7 @@ def test_lee_controllers_basic(
     cfg = cfg_factory()
     controller = getattr(mod_name, controller_cls)(cfg, robot, num_envs=num_envs, device=str(device))
 
-    if controller_cls == "LeeVelController":
-        command = torch.zeros((num_envs, 4), device=device)  # vx, vy, vz, yaw_rate
-    else:
-        command = torch.zeros((num_envs, 3), device=device)  # position or acceleration setpoint
+    command = torch.zeros((num_envs, 4), device=device)
 
     wrench = controller.compute(command)
 
