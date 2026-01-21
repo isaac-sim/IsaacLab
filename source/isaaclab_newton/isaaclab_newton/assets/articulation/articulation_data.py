@@ -883,17 +883,21 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        out = wp.zeros((self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device)
+        if self._body_com_pose_b is None:
+            self._body_com_pose_b = wp.zeros(
+                (self._root_view.count, self._root_view.link_count), dtype=wp.transformf, device=self.device
+            )
+
         wp.launch(
             generate_pose_from_position_with_unit_quaternion_batched,
             dim=(self._root_view.count, self._root_view.link_count),
             device=self.device,
             inputs=[
                 self._sim_bind_body_com_pos_b,
-                out,
+                self._body_com_pose_b,
             ],
         )
-        return out
+        return self._body_com_pose_b
 
     # TODO: Make sure this is implemented when the feature is available in Newton.
     # TODO: Waiting on https://github.com/newton-physics/newton/pull/1161 ETA: early JAN 2026.
@@ -2311,6 +2315,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_ang_vel_w = None
         self._body_com_lin_acc_w = None
         self._body_com_ang_acc_w = None
+        self._body_com_pose_b = None
 
     def update(self, dt: float):
         # update the simulation timestamp
