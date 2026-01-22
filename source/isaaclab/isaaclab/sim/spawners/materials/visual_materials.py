@@ -65,6 +65,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
                 parent_path=prim_path,
                 identifier="UsdPreviewSurface",
                 stage_or_context=stage,
+                prim_name="Shader",
             ).do()
             # bind the shader graph to the material
             if shader_prim:
@@ -81,7 +82,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}")
+    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # check prim is valid
     if not prim.IsValid():
         raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")
