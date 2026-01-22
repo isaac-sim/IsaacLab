@@ -55,6 +55,8 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab_contrib/isaaclab_contrib.mdp';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -673,9 +675,9 @@
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.clip</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.preserve_order</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.use_default_offset</span></code></a></li>
 </ul>
@@ -696,9 +698,9 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.raw_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.raw_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.processed_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.processed_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ThrustAction.IO_descriptor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset"><code class="docutils literal notranslate"><span class="pre">ThrustAction.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.process_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.apply_actions()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset"><code class="docutils literal notranslate"><span class="pre">ThrustAction.reset()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -716,8 +718,13 @@
                   
   <section id="module-isaaclab_contrib.mdp">
 <span id="isaaclab-contrib-mdp"></span><h1>isaaclab_contrib.mdp<a class="headerlink" href="#module-isaaclab_contrib.mdp" title="Permalink to this heading">#</a></h1>
+<p>Sub-package for MDP (Markov Decision Process) components contributed by the community.</p>
 <section id="module-isaaclab_contrib.mdp.actions">
 <span id="actions"></span><h2>Actions<a class="headerlink" href="#module-isaaclab_contrib.mdp.actions" title="Permalink to this heading">#</a></h2>
+<p>Action terms for multirotor control.</p>
+<p>This module provides action terms specifically designed for controlling multirotor
+vehicles through thrust commands. These action terms integrate with Isaac Lab’s
+MDP framework and <a class="reference internal" href="isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor" title="isaaclab_contrib.assets.Multirotor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Multirotor</span></code></a> assets.</p>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -738,7 +745,58 @@
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.mdp.actions.thrust_actions_cfg.</span></span><span class="sig-name descname"><span class="pre">ThrustActionCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions_cfg.html#ThrustActionCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ActionTermCfg" title="isaaclab.managers.manager_term_cfg.ActionTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTermCfg</span></code></a></p>
 <p>Configuration for the thrust action term.</p>
-<p>See <code class="xref py py-class docutils literal notranslate"><span class="pre">ThrustAction</span></code> for more details.</p>
+<p>This configuration class specifies how policy actions are transformed into thruster
+commands for multirotor control. It provides extensive customization of the action
+processing pipeline including scaling, offsetting, and clipping.</p>
+<p>The action term is designed to work with <a class="reference internal" href="isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor" title="isaaclab_contrib.assets.Multirotor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Multirotor</span></code></a>
+assets and uses their thruster configuration to determine which thrusters to control.</p>
+<dl>
+<dt>Key Configuration Options:</dt><dd><ul class="simple">
+<li><p><strong>scale</strong>: Multiplies raw actions to adjust command magnitude</p></li>
+<li><p><strong>offset</strong>: Adds a baseline value (e.g., hover thrust) to actions</p></li>
+<li><p><strong>clip</strong>: Constrains actions to safe operational ranges</p></li>
+<li><p><strong>use_default_offset</strong>: Automatically uses hover thrust as offset</p></li>
+</ul>
+</dd>
+<dt>Example Configurations:</dt><dd><p><strong>Normalized thrust control around hover</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">thrust_action</span> <span class="o">=</span> <span class="n">ThrustActionCfg</span><span class="p">(</span>
+    <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span>
+    <span class="n">scale</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>  <span class="c1"># Actions in [-1,1] become [-2,2] N</span>
+    <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Add hover thrust (e.g., 5N)</span>
+    <span class="n">clip</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">)},</span>  <span class="c1"># Final thrust in [0, 10] N</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Direct thrust control with per-thruster scaling</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">thrust_action</span> <span class="o">=</span> <span class="n">ThrustActionCfg</span><span class="p">(</span>
+    <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span>
+    <span class="n">scale</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;rotor_[0-1]&quot;</span><span class="p">:</span> <span class="mf">8.0</span><span class="p">,</span>  <span class="c1"># Front rotors: stronger</span>
+        <span class="s2">&quot;rotor_[2-3]&quot;</span><span class="p">:</span> <span class="mf">7.0</span><span class="p">,</span>  <span class="c1"># Rear rotors: weaker</span>
+    <span class="p">},</span>
+    <span class="n">offset</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Differential thrust control</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">thrust_action</span> <span class="o">=</span> <span class="n">ThrustActionCfg</span><span class="p">(</span>
+    <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span>
+    <span class="n">scale</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+    <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Center around hover</span>
+    <span class="n">clip</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">)},</span>  <span class="c1"># Allow +/-2N deviation</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<ul class="simple">
+<li><p><code class="xref py py-class docutils literal notranslate"><span class="pre">ThrustAction</span></code>: Implementation of this action term</p></li>
+<li><p><a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ActionTermCfg" title="isaaclab.managers.ActionTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTermCfg</span></code></a>: Base action term configuration</p></li>
+</ul>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -746,22 +804,22 @@
 <td><p>Name or regex expression of the asset that the action will be mapped to.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">scale</span></code></a></p></td>
-<td><p>Scale factor for the action (float or dict of regex expressions).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
-<td><p>Whether to visualize debug information.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
-<td><p>Clip range for the action (dict of regex expressions).</p></td>
+<td><p>Scale factor for the action.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">offset</span></code></a></p></td>
-<td><p>Offset factor for the action (float or dict of regex expressions).</p></td>
+<td><p>Offset factor for the action.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize debug information.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">clip</span></code></a></p></td>
+<td><p>Clipping ranges for processed actions.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preserve_order</span></code></a></p></td>
 <td><p>Whether to preserve the order of the asset names in the action output.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_default_offset</span></code></a></p></td>
-<td><p>Whether to use default thrust (e.g.</p></td>
+<td><p>Whether to use default thrust configured in the multirotor asset as offset.</p></td>
 </tr>
 </tbody>
 </table>
@@ -770,12 +828,58 @@
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.asset_name">
 <span class="sig-name descname"><span class="pre">asset_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.asset_name" title="Permalink to this definition">#</a></dt>
 <dd><p>Name or regex expression of the asset that the action will be mapped to.</p>
+<p>This should match the name given to the multirotor asset in the scene configuration.
+For example, if the robot is defined as <code class="docutils literal notranslate"><span class="pre">robot</span> <span class="pre">=</span> <span class="pre">MultirotorCfg(...)</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">asset_name</span></code> should be <code class="docutils literal notranslate"><span class="pre">&quot;robot&quot;</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale">
 <span class="sig-name descname"><span class="pre">scale</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale" title="Permalink to this definition">#</a></dt>
-<dd><p>Scale factor for the action (float or dict of regex expressions). Defaults to 1.0.</p>
+<dd><p>Scale factor for the action. Default is <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, which means no scaling.</p>
+<p>This multiplies the raw action values to adjust the command magnitude. It can be:</p>
+<ul class="simple">
+<li><p>A float: uniform scaling for all thrusters (e.g., <code class="docutils literal notranslate"><span class="pre">2.0</span></code>)</p></li>
+<li><p>A dict: per-thruster scaling using regex patterns (e.g., <code class="docutils literal notranslate"><span class="pre">{&quot;rotor_.*&quot;:</span> <span class="pre">2.5}</span></code>)</p></li>
+</ul>
+<p>For normalized actions in [-1, 1], the scale determines the maximum deviation
+from the offset value.</p>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Uniform scaling</span>
+<span class="n">scale</span> <span class="o">=</span> <span class="mf">5.0</span>  <span class="c1"># Actions of ±1 become ±5N</span>
+
+<span class="c1"># Per-thruster scaling</span>
+<span class="n">scale</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;rotor_[0-1]&quot;</span><span class="p">:</span> <span class="mf">8.0</span><span class="p">,</span>   <span class="c1"># Front rotors</span>
+    <span class="s2">&quot;rotor_[2-3]&quot;</span><span class="p">:</span> <span class="mf">6.0</span><span class="p">,</span>   <span class="c1"># Rear rotors</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset">
+<span class="sig-name descname"><span class="pre">offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Offset factor for the action. Default is <code class="docutils literal notranslate"><span class="pre">0.0</span></code>, which means no offset.</p>
+<p>This value is added to the scaled actions to establish a baseline thrust.
+It can be:</p>
+<ul class="simple">
+<li><p>A float: uniform offset for all thrusters (e.g., <code class="docutils literal notranslate"><span class="pre">5.0</span></code> for 5N hover thrust)</p></li>
+<li><p>A dict: per-thruster offset using regex patterns</p></li>
+</ul>
+<p>If <a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">use_default_offset</span></code></a> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, this value is overwritten by the
+default thruster RPS from the multirotor configuration.</p>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Uniform offset (5N baseline thrust)</span>
+<span class="n">offset</span> <span class="o">=</span> <span class="mf">5.0</span>
+
+<span class="c1"># Per-thruster offset</span>
+<span class="n">offset</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;rotor_0&quot;</span><span class="p">:</span> <span class="mf">5.2</span><span class="p">,</span>
+    <span class="s2">&quot;rotor_1&quot;</span><span class="p">:</span> <span class="mf">4.8</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -786,29 +890,40 @@
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip">
-<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip" title="Permalink to this definition">#</a></dt>
-<dd><p>Clip range for the action (dict of regex expressions). Defaults to None.</p>
-</dd></dl>
+<span class="sig-name descname"><span class="pre">clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip" title="Permalink to this definition">#</a></dt>
+<dd><p>Clipping ranges for processed actions. Default is <code class="docutils literal notranslate"><span class="pre">None</span></code>, which means no clipping.</p>
+<p>This constrains the final thrust commands to safe operational ranges after
+scaling and offset are applied. It must be specified as a dictionary mapping
+regex patterns to (min, max) tuples.</p>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clip all thrusters to [0, 10] N</span>
+<span class="n">clip</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">)}</span>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset">
-<span class="sig-name descname"><span class="pre">offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="Permalink to this definition">#</a></dt>
-<dd><p>Offset factor for the action (float or dict of regex expressions). Defaults to 0.0.</p>
+<span class="c1"># Different limits for different thrusters</span>
+<span class="n">clip</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;rotor_[0-1]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">),</span>  <span class="c1"># Front rotors</span>
+    <span class="s2">&quot;rotor_[2-3]&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">),</span>   <span class="c1"># Rear rotors</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order">
 <span class="sig-name descname"><span class="pre">preserve_order</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to preserve the order of the asset names in the action output. Defaults to False.</p>
+<dd><p>Whether to preserve the order of the asset names in the action output. Default is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, the thruster ordering matches the regex pattern order exactly.
+If <code class="docutils literal notranslate"><span class="pre">False</span></code>, ordering is determined by the USD scene traversal order.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset">
 <span class="sig-name descname"><span class="pre">use_default_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.
-Defaults to True.</p>
-<p>If True, this flag results in overwriting the values of <a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a> to the default thrust values
-from the articulation asset.</p>
+<dd><p>Whether to use default thrust configured in the multirotor asset as offset. Default is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">True</span></code>, the <a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a> value is overwritten with the default thruster
+RPS values from <code class="xref py py-attr docutils literal notranslate"><span class="pre">MultirotorCfg.init_state.rps</span></code>. This is useful for
+controlling thrust as deviations from the hover state.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">False</span></code>, the manually specified <a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset" title="isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">offset</span></code></a> value is used.</p>
 </dd></dl>
 
 </dd></dl>
@@ -820,8 +935,46 @@ from the articulation asset.</p>
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.mdp.actions.thrust_actions.</span></span><span class="sig-name descname"><span class="pre">ThrustAction</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions.html#ThrustAction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ActionTerm" title="isaaclab.managers.action_manager.ActionTerm"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionTerm</span></code></a></p>
-<p>Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an
-affine transformation (scaling and offset) and clipping.</p>
+<p>Thrust action term that applies the processed actions as thrust commands.</p>
+<p>This action term is designed specifically for controlling multirotor vehicles by mapping
+action inputs to thruster commands. It provides flexible preprocessing of actions through:</p>
+<ul class="simple">
+<li><p><strong>Scaling</strong>: Multiply actions by a scale factor to adjust command magnitudes</p></li>
+<li><p><strong>Offset</strong>: Add an offset to center actions around a baseline (e.g., hover thrust)</p></li>
+<li><p><strong>Clipping</strong>: Constrain actions to valid ranges to prevent unsafe commands</p></li>
+</ul>
+<p>The action term integrates with Isaac Lab’s <a class="reference internal" href="../lab/isaaclab.managers.html#isaaclab.managers.ActionManager" title="isaaclab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">ActionManager</span></code></a>
+framework and is specifically designed to work with <a class="reference internal" href="isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor" title="isaaclab_contrib.assets.Multirotor"><code class="xref py py-class docutils literal notranslate"><span class="pre">Multirotor</span></code></a>
+assets.</p>
+<dl class="simple">
+<dt>Key Features:</dt><dd><ul class="simple">
+<li><p>Supports per-thruster or uniform scaling and offsets</p></li>
+<li><p>Optional automatic offset computation based on hover thrust</p></li>
+<li><p>Action clipping for safety and constraint enforcement</p></li>
+<li><p>Regex-based thruster selection for flexible control schemes</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.envs</span><span class="w"> </span><span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_contrib.mdp.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThrustActionCfg</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+    <span class="c1"># ... other configuration ...</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">ActionsCfg</span><span class="p">:</span>
+        <span class="c1"># Direct thrust control (normalized actions)</span>
+        <span class="n">thrust</span> <span class="o">=</span> <span class="n">ThrustActionCfg</span><span class="p">(</span>
+            <span class="n">asset_name</span><span class="o">=</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span>
+            <span class="n">scale</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>  <span class="c1"># Convert [-1, 1] to [-5, 5] N</span>
+            <span class="n">use_default_offset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Add hover thrust as offset</span>
+            <span class="n">clip</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">)},</span>  <span class="c1"># Clip to safe thrust range</span>
+        <span class="p">)</span>
+</pre></div>
+</div>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -867,14 +1020,14 @@ affine transformation (scaling and offset) and clipping.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.set_debug_vis" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Sets whether to visualize the action term data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_actions</span></code></a>(actions)</p></td>
-<td><p>Process actions by applying scaling, offset, and clipping.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_actions</span></code></a>()</p></td>
-<td><p>Apply the processed actions as thrust commands.</p></td>
-</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Reset the action term.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_actions</span></code></a>(actions)</p></td>
+<td><p>Process actions by applying scaling, offset, and clipping.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_actions</span></code></a>()</p></td>
+<td><p>Apply the processed actions as thrust commands.</p></td>
 </tr>
 </tbody>
 </table>
@@ -967,21 +1120,51 @@ not support debug visualization.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions.html#ThrustAction.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the action term.</p>
+<p>This method resets the raw actions to zero for the specified environments.
+The processed actions will be recomputed during the next <a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions"><code class="xref py py-meth docutils literal notranslate"><span class="pre">process_actions()</span></code></a> call.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – Environment indices to reset. Defaults to None (all environments).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions">
 <span class="sig-name descname"><span class="pre">process_actions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions.html#ThrustAction.process_actions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions" title="Permalink to this definition">#</a></dt>
 <dd><p>Process actions by applying scaling, offset, and clipping.</p>
+<p>This method transforms raw policy actions into thrust commands through
+an affine transformation followed by optional clipping. The transformation is:</p>
+<div class="math notranslate nohighlight">
+\[\text{processed} = \text{raw} \times \text{scale} + \text{offset}\]</div>
+<p>If clipping is configured, the processed actions are then clamped:</p>
+<div class="math notranslate nohighlight">
+\[\text{processed} = \text{clamp}(\text{processed}, \text{min}, \text{max})\]</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>actions</strong> – Raw action tensor from the policy. Shape is <code class="docutils literal notranslate"><span class="pre">(num_envs,</span> <span class="pre">action_dim)</span></code>.
+Typically in the range [-1, 1] for normalized policies.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The processed actions are stored internally and applied during the next
+<a class="reference internal" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions" title="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply_actions()</span></code></a> call.</p>
+</div>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions">
 <span class="sig-name descname"><span class="pre">apply_actions</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions.html#ThrustAction.apply_actions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions" title="Permalink to this definition">#</a></dt>
 <dd><p>Apply the processed actions as thrust commands.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset">
-<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/mdp/actions/thrust_actions.html#ThrustAction.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset" title="Permalink to this definition">#</a></dt>
-<dd><p>Reset the action term.</p>
+<p>This method sets the processed actions as thrust targets on the multirotor
+asset. The thrust targets are then used by the thruster actuator models
+to compute actual thrust forces during the simulation step.</p>
+<p>The method calls <a class="reference internal" href="isaaclab_contrib.assets.html#isaaclab_contrib.assets.Multirotor.set_thrust_target" title="isaaclab_contrib.assets.Multirotor.set_thrust_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_thrust_target()</span></code></a>
+on the multirotor asset with the appropriate thruster IDs.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1040,9 +1223,9 @@ not support debug visualization.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.asset_name"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.asset_name</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.scale"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.scale</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.debug_vis</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.clip"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.clip</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.offset</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.preserve_order"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.preserve_order</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg.use_default_offset"><code class="docutils literal notranslate"><span class="pre">ThrustActionCfg.use_default_offset</span></code></a></li>
 </ul>
@@ -1063,9 +1246,9 @@ not support debug visualization.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.raw_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.raw_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.processed_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.processed_actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.IO_descriptor"><code class="docutils literal notranslate"><span class="pre">ThrustAction.IO_descriptor</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset"><code class="docutils literal notranslate"><span class="pre">ThrustAction.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.process_actions()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions"><code class="docutils literal notranslate"><span class="pre">ThrustAction.apply_actions()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset"><code class="docutils literal notranslate"><span class="pre">ThrustAction.reset()</span></code></a></li>
 </ul>
 </li>
 </ul>

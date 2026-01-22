@@ -634,8 +634,47 @@
 
 
 <div class="viewcode-block" id="ThrustAction"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ThrustAction</span><span class="p">(</span><span class="n">ActionTerm</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an</span>
-<span class="sd">    affine transformation (scaling and offset) and clipping.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thrust action term that applies the processed actions as thrust commands.</span>
+
+<span class="sd">    This action term is designed specifically for controlling multirotor vehicles by mapping</span>
+<span class="sd">    action inputs to thruster commands. It provides flexible preprocessing of actions through:</span>
+
+<span class="sd">    - **Scaling**: Multiply actions by a scale factor to adjust command magnitudes</span>
+<span class="sd">    - **Offset**: Add an offset to center actions around a baseline (e.g., hover thrust)</span>
+<span class="sd">    - **Clipping**: Constrain actions to valid ranges to prevent unsafe commands</span>
+
+<span class="sd">    The action term integrates with Isaac Lab&#39;s :class:`~isaaclab.managers.ActionManager`</span>
+<span class="sd">    framework and is specifically designed to work with :class:`~isaaclab_contrib.assets.Multirotor`</span>
+<span class="sd">    assets.</span>
+
+<span class="sd">    Key Features:</span>
+<span class="sd">        - Supports per-thruster or uniform scaling and offsets</span>
+<span class="sd">        - Optional automatic offset computation based on hover thrust</span>
+<span class="sd">        - Action clipping for safety and constraint enforcement</span>
+<span class="sd">        - Regex-based thruster selection for flexible control schemes</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            from isaaclab.envs import ManagerBasedRLEnvCfg</span>
+<span class="sd">            from isaaclab_contrib.mdp.actions import ThrustActionCfg</span>
+
+
+<span class="sd">            @configclass</span>
+<span class="sd">            class MyEnvCfg(ManagerBasedRLEnvCfg):</span>
+<span class="sd">                # ... other configuration ...</span>
+
+<span class="sd">                @configclass</span>
+<span class="sd">                class ActionsCfg:</span>
+<span class="sd">                    # Direct thrust control (normalized actions)</span>
+<span class="sd">                    thrust = ThrustActionCfg(</span>
+<span class="sd">                        asset_name=&quot;robot&quot;,</span>
+<span class="sd">                        scale=5.0,  # Convert [-1, 1] to [-5, 5] N</span>
+<span class="sd">                        use_default_offset=True,  # Add hover thrust as offset</span>
+<span class="sd">                        clip={&quot;.*&quot;: (-2.0, 8.0)},  # Clip to safe thrust range</span>
+<span class="sd">                    )</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">cfg</span><span class="p">:</span> <span class="n">thrust_actions_cfg</span><span class="o">.</span><span class="n">ThrustActionCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration of the action term.&quot;&quot;&quot;</span>
@@ -715,6 +754,10 @@
             <span class="c1"># Use default thruster RPS as offset</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_thruster_rps</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thruster_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span></div>
 
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Properties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">action_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_thrusters</span>
@@ -749,8 +792,43 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_IO_descriptor</span><span class="o">.</span><span class="n">clip</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_IO_descriptor</span>
 
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Methods</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ThrustAction.reset"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the action term.</span>
+
+<span class="sd">        This method resets the raw actions to zero for the specified environments.</span>
+<span class="sd">        The processed actions will be recomputed during the next :meth:`process_actions` call.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: Environment indices to reset. Defaults to None (all environments).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_raw_actions</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
+
 <div class="viewcode-block" id="ThrustAction.process_actions"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.process_actions">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">process_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process actions by applying scaling, offset, and clipping.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Process actions by applying scaling, offset, and clipping.</span>
+
+<span class="sd">        This method transforms raw policy actions into thrust commands through</span>
+<span class="sd">        an affine transformation followed by optional clipping. The transformation is:</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            \text{processed} = \text{raw} \times \text{scale} + \text{offset}</span>
+
+<span class="sd">        If clipping is configured, the processed actions are then clamped:</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            \text{processed} = \text{clamp}(\text{processed}, \text{min}, \text{max})</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            actions: Raw action tensor from the policy. Shape is ``(num_envs, action_dim)``.</span>
+<span class="sd">                Typically in the range [-1, 1] for normalized policies.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            The processed actions are stored internally and applied during the next</span>
+<span class="sd">            :meth:`apply_actions` call.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># store the raw actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_raw_actions</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">actions</span>
         <span class="c1"># apply the affine transformations</span>
@@ -762,13 +840,17 @@
             <span class="p">)</span></div>
 
 <div class="viewcode-block" id="ThrustAction.apply_actions"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.apply_actions">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">apply_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the processed actions as thrust commands.&quot;&quot;&quot;</span>
-        <span class="c1"># Set thrust targets using thruster IDs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_asset</span><span class="o">.</span><span class="n">set_thrust_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">processed_actions</span><span class="p">,</span> <span class="n">thruster_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_thruster_ids</span><span class="p">)</span></div>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the processed actions as thrust commands.</span>
 
-<div class="viewcode-block" id="ThrustAction.reset"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions.ThrustAction.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the action term.&quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_raw_actions</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div></div>
+<span class="sd">        This method sets the processed actions as thrust targets on the multirotor</span>
+<span class="sd">        asset. The thrust targets are then used by the thruster actuator models</span>
+<span class="sd">        to compute actual thrust forces during the simulation step.</span>
+
+<span class="sd">        The method calls :meth:`~isaaclab_contrib.assets.Multirotor.set_thrust_target`</span>
+<span class="sd">        on the multirotor asset with the appropriate thruster IDs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Set thrust targets using thruster IDs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_asset</span><span class="o">.</span><span class="n">set_thrust_target</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">processed_actions</span><span class="p">,</span> <span class="n">thruster_ids</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_thruster_ids</span><span class="p">)</span></div></div>
 </pre></div>
 
                 </article>

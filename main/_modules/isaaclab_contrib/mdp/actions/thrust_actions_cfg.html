@@ -617,38 +617,161 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">thrust_actions</span>
 
-<span class="c1">##</span>
-<span class="c1"># Drone actions.</span>
-<span class="c1">##</span>
-
 
 <div class="viewcode-block" id="ThrustActionCfg"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html#isaaclab_contrib.mdp.actions.thrust_actions_cfg.ThrustActionCfg">[docs]</a><span class="nd">@configclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ThrustActionCfg</span><span class="p">(</span><span class="n">ActionTermCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the thrust action term.</span>
 
-<span class="sd">    See :class:`ThrustAction` for more details.</span>
+<span class="sd">    This configuration class specifies how policy actions are transformed into thruster</span>
+<span class="sd">    commands for multirotor control. It provides extensive customization of the action</span>
+<span class="sd">    processing pipeline including scaling, offsetting, and clipping.</span>
+
+<span class="sd">    The action term is designed to work with :class:`~isaaclab_contrib.assets.Multirotor`</span>
+<span class="sd">    assets and uses their thruster configuration to determine which thrusters to control.</span>
+
+<span class="sd">    Key Configuration Options:</span>
+<span class="sd">        - **scale**: Multiplies raw actions to adjust command magnitude</span>
+<span class="sd">        - **offset**: Adds a baseline value (e.g., hover thrust) to actions</span>
+<span class="sd">        - **clip**: Constrains actions to safe operational ranges</span>
+<span class="sd">        - **use_default_offset**: Automatically uses hover thrust as offset</span>
+
+<span class="sd">    Example Configurations:</span>
+<span class="sd">        **Normalized thrust control around hover**:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            thrust_action = ThrustActionCfg(</span>
+<span class="sd">                asset_name=&quot;robot&quot;,</span>
+<span class="sd">                scale=2.0,  # Actions in [-1,1] become [-2,2] N</span>
+<span class="sd">                use_default_offset=True,  # Add hover thrust (e.g., 5N)</span>
+<span class="sd">                clip={&quot;.*&quot;: (0.0, 10.0)},  # Final thrust in [0, 10] N</span>
+<span class="sd">            )</span>
+
+<span class="sd">        **Direct thrust control with per-thruster scaling**:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            thrust_action = ThrustActionCfg(</span>
+<span class="sd">                asset_name=&quot;robot&quot;,</span>
+<span class="sd">                scale={</span>
+<span class="sd">                    &quot;rotor_[0-1]&quot;: 8.0,  # Front rotors: stronger</span>
+<span class="sd">                    &quot;rotor_[2-3]&quot;: 7.0,  # Rear rotors: weaker</span>
+<span class="sd">                },</span>
+<span class="sd">                offset=0.0,</span>
+<span class="sd">                use_default_offset=False,</span>
+<span class="sd">            )</span>
+
+<span class="sd">        **Differential thrust control**:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            thrust_action = ThrustActionCfg(</span>
+<span class="sd">                asset_name=&quot;robot&quot;,</span>
+<span class="sd">                scale=3.0,</span>
+<span class="sd">                use_default_offset=True,  # Center around hover</span>
+<span class="sd">                clip={&quot;.*&quot;: (-2.0, 8.0)},  # Allow +/-2N deviation</span>
+<span class="sd">            )</span>
+
+<span class="sd">    .. seealso::</span>
+<span class="sd">        - :class:`~isaaclab_contrib.mdp.actions.ThrustAction`: Implementation of this action term</span>
+<span class="sd">        - :class:`~isaaclab.managers.ActionTermCfg`: Base action term configuration</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">ActionTerm</span><span class="p">]</span> <span class="o">=</span> <span class="n">thrust_actions</span><span class="o">.</span><span class="n">ThrustAction</span>
 
     <span class="n">asset_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name or regex expression of the asset that the action will be mapped to.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Name or regex expression of the asset that the action will be mapped to.</span>
+
+<span class="sd">    This should match the name given to the multirotor asset in the scene configuration.</span>
+<span class="sd">    For example, if the robot is defined as ``robot = MultirotorCfg(...)``, then</span>
+<span class="sd">    ``asset_name`` should be ``&quot;robot&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the action (float or dict of regex expressions). Defaults to 1.0.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the action. Default is ``1.0``, which means no scaling.</span>
+
+<span class="sd">    This multiplies the raw action values to adjust the command magnitude. It can be:</span>
+
+<span class="sd">    - A float: uniform scaling for all thrusters (e.g., ``2.0``)</span>
+<span class="sd">    - A dict: per-thruster scaling using regex patterns (e.g., ``{&quot;rotor_.*&quot;: 2.5}``)</span>
+
+<span class="sd">    For normalized actions in [-1, 1], the scale determines the maximum deviation</span>
+<span class="sd">    from the offset value.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            # Uniform scaling</span>
+<span class="sd">            scale = 5.0  # Actions of ±1 become ±5N</span>
+
+<span class="sd">            # Per-thruster scaling</span>
+<span class="sd">            scale = {</span>
+<span class="sd">                &quot;rotor_[0-1]&quot;: 8.0,   # Front rotors</span>
+<span class="sd">                &quot;rotor_[2-3]&quot;: 6.0,   # Rear rotors</span>
+<span class="sd">            }</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Offset factor for the action (float or dict of regex expressions). Defaults to 0.0.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Offset factor for the action. Default is ``0.0``, which means no offset.</span>
+
+<span class="sd">    This value is added to the scaled actions to establish a baseline thrust.</span>
+<span class="sd">    It can be:</span>
+
+<span class="sd">    - A float: uniform offset for all thrusters (e.g., ``5.0`` for 5N hover thrust)</span>
+<span class="sd">    - A dict: per-thruster offset using regex patterns</span>
+
+<span class="sd">    If :attr:`use_default_offset` is ``True``, this value is overwritten by the</span>
+<span class="sd">    default thruster RPS from the multirotor configuration.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            # Uniform offset (5N baseline thrust)</span>
+<span class="sd">            offset = 5.0</span>
+
+<span class="sd">            # Per-thruster offset</span>
+<span class="sd">            offset = {</span>
+<span class="sd">                &quot;rotor_0&quot;: 5.2,</span>
+<span class="sd">                &quot;rotor_1&quot;: 4.8,</span>
+<span class="sd">            }</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">clip</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Clipping ranges for processed actions. Default is ``None``, which means no clipping.</span>
+
+<span class="sd">    This constrains the final thrust commands to safe operational ranges after</span>
+<span class="sd">    scaling and offset are applied. It must be specified as a dictionary mapping</span>
+<span class="sd">    regex patterns to (min, max) tuples.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            # Clip all thrusters to [0, 10] N</span>
+<span class="sd">            clip = {&quot;.*&quot;: (0.0, 10.0)}</span>
+
+<span class="sd">            # Different limits for different thrusters</span>
+<span class="sd">            clip = {</span>
+<span class="sd">                &quot;rotor_[0-1]&quot;: (0.0, 12.0),  # Front rotors</span>
+<span class="sd">                &quot;rotor_[2-3]&quot;: (0.0, 8.0),   # Rear rotors</span>
+<span class="sd">            }</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to preserve the order of the asset names in the action output. Defaults to False.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to preserve the order of the asset names in the action output. Default is ``False``.</span>
+
+<span class="sd">    If ``True``, the thruster ordering matches the regex pattern order exactly.</span>
+<span class="sd">    If ``False``, ordering is determined by the USD scene traversal order.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">use_default_offset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.</span>
-<span class="sd">    Defaults to True.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to use default thrust configured in the multirotor asset as offset. Default is ``True``.</span>
 
-<span class="sd">    If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values</span>
-<span class="sd">    from the articulation asset.</span>
+<span class="sd">    If ``True``, the :attr:`offset` value is overwritten with the default thruster</span>
+<span class="sd">    RPS values from :attr:`MultirotorCfg.init_state.rps`. This is useful for</span>
+<span class="sd">    controlling thrust as deviations from the hover state.</span>
+
+<span class="sd">    If ``False``, the manually specified :attr:`offset` value is used.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 

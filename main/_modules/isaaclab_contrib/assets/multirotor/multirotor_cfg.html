@@ -625,36 +625,214 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MultirotorCfg</span><span class="p">(</span><span class="n">ArticulationCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for a multirotor articulation.</span>
 
-<span class="sd">    This extends the base articulation configuration to support multirotor-specific</span>
-<span class="sd">    settings.</span>
+<span class="sd">    This configuration class extends :class:`~isaaclab.assets.ArticulationCfg` to add</span>
+<span class="sd">    multirotor-specific parameters including thruster actuators, allocation matrices,</span>
+<span class="sd">    and thruster-specific initial states.</span>
+
+<span class="sd">    Unlike standard articulations that use joint actuators, multirotors are configured</span>
+<span class="sd">    with :class:`~isaaclab_contrib.actuators.ThrusterCfg` actuators that model individual</span>
+<span class="sd">    rotor/propeller dynamics.</span>
+
+<span class="sd">    Key Configuration Parameters:</span>
+<span class="sd">        - **actuators**: Dictionary mapping actuator names to :class:`~isaaclab_contrib.actuators.ThrusterCfg`</span>
+<span class="sd">          configurations. Each configuration defines a group of thrusters with shared properties.</span>
+<span class="sd">        - **allocation_matrix**: Maps individual thruster forces to 6D body wrenches. This matrix</span>
+<span class="sd">          encodes the geometric configuration and should have shape (6, num_thrusters).</span>
+<span class="sd">        - **thruster_force_direction**: Direction vector in body frame that thrusters push along.</span>
+<span class="sd">          Typically (0, 0, 1) for upward-facing thrusters.</span>
+<span class="sd">        - **rotor_directions**: Spin direction of each rotor (1 for CCW, -1 for CW). Used for</span>
+<span class="sd">          computing reaction torques.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            from isaaclab_contrib.assets import MultirotorCfg</span>
+<span class="sd">            from isaaclab_contrib.actuators import ThrusterCfg</span>
+<span class="sd">            import isaaclab.sim as sim_utils</span>
+
+<span class="sd">            # Quadcopter configuration</span>
+<span class="sd">            quadcopter_cfg = MultirotorCfg(</span>
+<span class="sd">                prim_path=&quot;/World/envs/env_.*/Quadcopter&quot;,</span>
+<span class="sd">                spawn=sim_utils.UsdFileCfg(</span>
+<span class="sd">                    usd_path=&quot;path/to/quadcopter.usd&quot;,</span>
+<span class="sd">                ),</span>
+<span class="sd">                init_state=MultirotorCfg.InitialStateCfg(</span>
+<span class="sd">                    pos=(0.0, 0.0, 1.0),  # Start 1m above ground</span>
+<span class="sd">                    rps={&quot;.*&quot;: 110.0},  # All thrusters at 110 RPS (hover)</span>
+<span class="sd">                ),</span>
+<span class="sd">                actuators={</span>
+<span class="sd">                    &quot;thrusters&quot;: ThrusterCfg(</span>
+<span class="sd">                        thruster_names_expr=[&quot;rotor_[0-3]&quot;],</span>
+<span class="sd">                        thrust_range=(0.0, 12.0),  # 0-12N per thruster</span>
+<span class="sd">                        rise_time_constant=0.12,</span>
+<span class="sd">                        fall_time_constant=0.25,</span>
+<span class="sd">                    ),</span>
+<span class="sd">                },</span>
+<span class="sd">                allocation_matrix=[</span>
+<span class="sd">                    [1.0, 1.0, 1.0, 1.0],  # Vertical thrust</span>
+<span class="sd">                    [0.0, 0.0, 0.0, 0.0],  # Lateral force X</span>
+<span class="sd">                    [0.0, 0.0, 0.0, 0.0],  # Lateral force Y</span>
+<span class="sd">                    [0.0, 0.13, 0.0, -0.13],  # Roll torque</span>
+<span class="sd">                    [-0.13, 0.0, 0.13, 0.0],  # Pitch torque</span>
+<span class="sd">                    [0.01, -0.01, 0.01, -0.01],  # Yaw torque</span>
+<span class="sd">                ],</span>
+<span class="sd">                rotor_directions=[1, -1, 1, -1],  # Alternating CW/CCW</span>
+<span class="sd">            )</span>
+
+<span class="sd">    .. seealso::</span>
+<span class="sd">        - :class:`~isaaclab.assets.ArticulationCfg`: Base articulation configuration</span>
+<span class="sd">        - :class:`~isaaclab_contrib.actuators.ThrusterCfg`: Thruster actuator configuration</span>
+<span class="sd">        - :class:`Multirotor`: Multirotor asset class</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Multirotor</span>
 
 <div class="viewcode-block" id="MultirotorCfg.InitialStateCfg"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorCfg.InitialStateCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span><span class="w"> </span><span class="nc">InitialStateCfg</span><span class="p">(</span><span class="n">ArticulationCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initial state of the multirotor articulation.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initial state of the multirotor articulation.</span>
+
+<span class="sd">        This extends the base articulation initial state to include thruster-specific</span>
+<span class="sd">        initial conditions. The thruster initial state is particularly important for</span>
+<span class="sd">        multirotor stability, as it determines the starting thrust levels.</span>
+
+<span class="sd">        For hovering multirotors, the initial RPS should be set to values that produce</span>
+<span class="sd">        enough thrust to counteract gravity.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># multirotor-specific initial state</span>
         <span class="n">rps</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="mf">100.0</span><span class="p">}</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Revolutions per second in [1/s] of the thrusters. Defaults to 100.0 for all thrusters.&quot;&quot;&quot;</span></div>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Revolutions per second (RPS) of the thrusters. Default is 100 RPS.</span>
+
+<span class="sd">        This can be specified as:</span>
+
+<span class="sd">        - A dictionary mapping regex patterns to RPS values</span>
+<span class="sd">        - A single wildcard pattern like ``{&quot;.*&quot;: 100.0}`` for uniform RPS</span>
+<span class="sd">        - Explicit per-thruster values like ``{&quot;rotor_0&quot;: 95.0, &quot;rotor_1&quot;: 105.0}``</span>
+
+<span class="sd">        The RPS values are used to initialize the thruster states and determine the</span>
+<span class="sd">        default thrust targets when the multirotor is reset.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                # Uniform RPS for all thrusters</span>
+<span class="sd">                rps = {&quot;.*&quot;: 110.0}</span>
+
+<span class="sd">                # Different RPS for different thruster groups</span>
+<span class="sd">                rps = {&quot;rotor_[0-1]&quot;: 105.0, &quot;rotor_[2-3]&quot;: 115.0}</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            The actual thrust produced depends on the thruster model&#39;s thrust curve</span>
+<span class="sd">            and other parameters in :class:`~isaaclab_contrib.actuators.ThrusterCfg`.</span>
+<span class="sd">        &quot;&quot;&quot;</span></div>
 
     <span class="c1"># multirotor-specific configuration</span>
     <span class="n">init_state</span><span class="p">:</span> <span class="n">InitialStateCfg</span> <span class="o">=</span> <span class="n">InitialStateCfg</span><span class="p">()</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial state of the multirotor object.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial state of the multirotor object.</span>
+
+<span class="sd">    This includes both the base articulation state (position, orientation, velocities)</span>
+<span class="sd">    and multirotor-specific state (thruster RPS). See :class:`InitialStateCfg` for details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">actuators</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ThrusterCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thruster actuators for the multirotor with corresponding thruster names.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thruster actuators for the multirotor with corresponding thruster names.</span>
+
+<span class="sd">    This dictionary maps actuator group names to their configurations. Each</span>
+<span class="sd">    :class:`~isaaclab_contrib.actuators.ThrusterCfg` defines a group of thrusters</span>
+<span class="sd">    with shared dynamic properties (rise/fall times, thrust limits, etc.).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            actuators = {</span>
+<span class="sd">                &quot;thrusters&quot;: ThrusterCfg(</span>
+<span class="sd">                    thruster_names_expr=[&quot;rotor_.*&quot;],  # Regex to match thruster bodies</span>
+<span class="sd">                    thrust_range=(0.0, 10.0),</span>
+<span class="sd">                    rise_time_constant=0.1,</span>
+<span class="sd">                    fall_time_constant=0.2,</span>
+<span class="sd">                )</span>
+<span class="sd">            }</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        Unlike standard articulations, multirotors should only contain thruster actuators.</span>
+<span class="sd">        Mixing joint-based and thrust-based actuators is not currently supported.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># multirotor force application settings</span>
     <span class="n">thruster_force_direction</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default force direction in body-local frame for thrusters. Defaults to Z-axis (upward).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default force direction in body-local frame for thrusters. Default is ``(0.0, 0.0, 1.0)``,</span>
+<span class="sd">    which is upward along the Z-axis.</span>
+
+<span class="sd">    This 3D unit vector specifies the direction in which thrusters generate force</span>
+<span class="sd">    in the multirotor&#39;s body frame. For standard configurations:</span>
+
+<span class="sd">    - ``(0.0, 0.0, 1.0)``: Thrusters push upward (Z-axis, typical for quadcopters)</span>
+<span class="sd">    - ``(0.0, 0.0, -1.0)``: Thrusters push downward</span>
+<span class="sd">    - ``(1.0, 0.0, 0.0)``: Thrusters push forward (X-axis)</span>
+
+<span class="sd">    This is used in conjunction with the allocation matrix to compute the wrench</span>
+<span class="sd">    produced by each thruster.</span>
+
+<span class="sd">    Default: ``(0.0, 0.0, 1.0)`` (upward along Z-axis)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">allocation_matrix</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;allocation matrix for control allocation&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Allocation matrix for control allocation. Default is ``None``, which means that the thrusters</span>
+<span class="sd">    are not used for control allocation.</span>
+
+<span class="sd">    This matrix maps individual thruster forces to the 6D wrench (force + torque)</span>
+<span class="sd">    applied to the multirotor&#39;s base link. It has shape ``(6, num_thrusters)``:</span>
+
+<span class="sd">    - **Rows 0-2**: Force contributions in body frame (Fx, Fy, Fz)</span>
+<span class="sd">    - **Rows 3-5**: Torque contributions in body frame (Tx, Ty, Tz)</span>
+
+<span class="sd">    The allocation matrix encodes the geometric configuration of the multirotor,</span>
+<span class="sd">    including thruster positions, orientations, and moment arms.</span>
+
+<span class="sd">    Example for a quadcopter (4 thrusters in + configuration):</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            allocation_matrix = [</span>
+<span class="sd">                [1.0,  1.0,  1.0,  1.0],     # Total vertical thrust</span>
+<span class="sd">                [0.0,  0.0,  0.0,  0.0],     # No lateral force</span>
+<span class="sd">                [0.0,  0.0,  0.0,  0.0],     # No lateral force</span>
+<span class="sd">                [0.0,  0.13, 0.0, -0.13],    # Roll moment (left/right)</span>
+<span class="sd">                [-0.13, 0.0, 0.13, 0.0],     # Pitch moment (forward/back)</span>
+<span class="sd">                [0.01,-0.01, 0.01,-0.01],    # Yaw moment (rotation)</span>
+<span class="sd">            ]</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If ``None``, forces must be applied through other means. For typical</span>
+<span class="sd">        multirotor control, this should always be specified.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">rotor_directions</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sequence of rotor directions, -1 for clockwise, 1 for counter-clockwise.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sequence of rotor directions for each thruster. Default is ``None``, which means that the rotor directions</span>
+<span class="sd">    are not specified.</span>
+
+<span class="sd">    This specifies the spin direction of each rotor, which affects the reaction</span>
+<span class="sd">    torques generated. Values should be:</span>
+
+<span class="sd">    - ``1``: Counter-clockwise (CCW) rotation</span>
+<span class="sd">    - ``-1``: Clockwise (CW) rotation</span>
+
+<span class="sd">    For a quadcopter, a typical configuration is alternating directions to</span>
+<span class="sd">    cancel reaction torques during hover: ``[1, -1, 1, -1]``.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            # Quadcopter with alternating rotor directions</span>
+<span class="sd">            rotor_directions = [1, -1, 1, -1]</span>
+
+<span class="sd">            # Hexacopter</span>
+<span class="sd">            rotor_directions = [1, -1, 1, -1, 1, -1]</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The length must match the total number of thrusters defined in the</span>
+<span class="sd">        actuators configuration, otherwise a ``ValueError`` will be raised</span>
+<span class="sd">        during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization validation.&quot;&quot;&quot;</span>

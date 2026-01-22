@@ -618,24 +618,60 @@
 <div class="viewcode-block" id="MultirotorData"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.assets.html#isaaclab_contrib.assets.MultirotorData">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">MultirotorData</span><span class="p">(</span><span class="n">ArticulationData</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for a multirotor articulation.</span>
 
-<span class="sd">    This class extends the base articulation data container to include multirotor-specific</span>
-<span class="sd">    data such as thruster states and forces.</span>
+<span class="sd">    This class extends the base :class:`~isaaclab.assets.ArticulationData` container to include</span>
+<span class="sd">    multirotor-specific data such as thruster states, thrust targets, and computed forces.</span>
+<span class="sd">    It provides access to all the state information needed for monitoring and controlling</span>
+<span class="sd">    multirotor vehicles.</span>
+
+<span class="sd">    The data container is automatically created and managed by the :class:`~isaaclab_contrib.assets.Multirotor`</span>
+<span class="sd">    class. Users typically access this data through the :attr:`Multirotor.data` property.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        All tensor attributes have shape ``(num_instances, num_thrusters)`` where</span>
+<span class="sd">        ``num_instances`` is the number of environment instances and ``num_thrusters``</span>
+<span class="sd">        is the total number of thrusters per multirotor.</span>
+
+<span class="sd">    .. seealso::</span>
+<span class="sd">        - :class:`~isaaclab.assets.ArticulationData`: Base articulation data container</span>
+<span class="sd">        - :class:`~isaaclab_contrib.assets.Multirotor`: Multirotor asset class</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">thruster_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of thruster names in the multirotor.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of thruster names in the multirotor.</span>
+
+<span class="sd">    This list contains the ordered names of all thrusters, matching the order used</span>
+<span class="sd">    for indexing in the thrust tensors. The names correspond to the USD body prim names</span>
+<span class="sd">    matched by the thruster name expressions in the actuator configuration.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        ``[&quot;rotor_0&quot;, &quot;rotor_1&quot;, &quot;rotor_2&quot;, &quot;rotor_3&quot;]`` for a quadcopter</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_thruster_rps</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default thruster RPS state of all thrusters. Shape is (num_instances, num_thrusters).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default thruster RPS (revolutions per second) state of all thrusters. Shape is (num_instances, num_thrusters).</span>
 
-<span class="sd">    This quantity is configured through the :attr:`isaaclab.assets.MultirotorCfg.init_state` parameter.</span>
+<span class="sd">    This quantity is configured through the :attr:`MultirotorCfg.init_state.rps` parameter</span>
+<span class="sd">    and represents the baseline/hover RPS for each thruster. It is used to initialize</span>
+<span class="sd">    thruster states during reset operations.</span>
+
+<span class="sd">    For a hovering multirotor, these values should produce enough collective thrust</span>
+<span class="sd">    to counteract gravity.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        For a 1kg quadcopter with 4 thrusters, if each thruster produces 2.5N at 110 RPS,</span>
+<span class="sd">        the default might be ``[[110.0, 110.0, 110.0, 110.0]]`` for hover.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">thrust_target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thrust targets commanded by the user. Shape is (num_instances, num_thrusters).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Thrust targets commanded by the user or controller. Shape is ``(num_instances, num_thrusters)``</span>
 
-<span class="sd">    This quantity contains the target thrust values set by the user through the</span>
-<span class="sd">    :meth:`isaaclab.assets.Multirotor.set_thrust_target` method.</span>
+<span class="sd">    This quantity contains the target thrust values set through the</span>
+<span class="sd">    :meth:`~isaaclab_contrib.assets.Multirotor.set_thrust_target` method or by</span>
+<span class="sd">    action terms in RL environments. These targets are processed by the thruster</span>
+<span class="sd">    actuator models to compute actual applied thrusts.</span>
+
+<span class="sd">    The units depend on the actuator model configuration (typically Newtons for</span>
+<span class="sd">    force or RPS for rotational speed).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
@@ -643,17 +679,36 @@
     <span class="c1">##</span>
 
     <span class="n">computed_thrust</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computed thrust from the actuator model (before clipping). Shape is (num_instances, num_thrusters).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computed thrust from the actuator model before clipping. Shape is (num_instances, num_thrusters).</span>
 
 <span class="sd">    This quantity contains the thrust values computed by the thruster actuator models</span>
-<span class="sd">    before any clipping or saturation is applied.</span>
+<span class="sd">    before any clipping or saturation is applied. It represents the &quot;desired&quot; thrust</span>
+<span class="sd">    based on the actuator dynamics (rise/fall times) but may exceed physical limits.</span>
+
+<span class="sd">    The difference between :attr:`computed_thrust` and :attr:`applied_thrust` indicates</span>
+<span class="sd">    when the actuator is saturating at its limits.</span>
+
+<span class="sd">    Example Use:</span>
+<span class="sd">        Monitor actuator saturation by comparing computed vs applied thrust:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            saturation = multirotor.data.computed_thrust - multirotor.data.applied_thrust</span>
+<span class="sd">            is_saturated = saturation.abs() &gt; 1e-6</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">applied_thrust</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Applied thrust from the actuator model (after clipping). Shape is (num_instances, num_thrusters).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Applied thrust from the actuator model after clipping. Shape is (num_instances, num_thrusters).</span>
 
-<span class="sd">    This quantity contains the final thrust values that are applied to the simulation</span>
-<span class="sd">    after all actuator model processing, including clipping and saturation.</span>
+<span class="sd">    This quantity contains the final thrust values that are actually applied to the</span>
+<span class="sd">    simulation after all actuator model processing, including:</span>
+
+<span class="sd">    - Dynamic response (rise/fall time constants)</span>
+<span class="sd">    - Clipping to thrust range limits</span>
+<span class="sd">    - Any other actuator model constraints</span>
+
+<span class="sd">    This is the &quot;ground truth&quot; thrust that affects the multirotor&#39;s motion in the</span>
+<span class="sd">    physics simulation.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
