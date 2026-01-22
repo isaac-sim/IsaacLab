@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,18 +31,18 @@ simulation_app = SimulationApp({"headless": args_cli.headless})
 """Rest everything follows."""
 
 import logging
+
 import torch
 
+import isaacsim.core.utils.nucleus as nucleus_utils
+import isaacsim.core.utils.prims as prim_utils
+import isaacsim.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx
 from isaacsim.core.api.world import World
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema, UsdPhysics
-
-import isaaclab.sim.utils.nucleus as nucleus_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
 
 # import logger
 logger = logging.getLogger(__name__)

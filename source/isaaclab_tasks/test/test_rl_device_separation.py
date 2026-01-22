@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -44,11 +44,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import pytest
 import torch
 
 import carb
 import omni.usd
-import pytest
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -96,28 +96,28 @@ def _verify_unwrapped_env(env, sim_device: str):
         env: Unwrapped gym environment
         sim_device: Expected simulation device
     """
-    assert (
-        env.unwrapped.device == sim_device
-    ), f"Environment device mismatch: expected {sim_device}, got {env.unwrapped.device}"
+    assert env.unwrapped.device == sim_device, (
+        f"Environment device mismatch: expected {sim_device}, got {env.unwrapped.device}"
+    )
 
     # Verify reset returns data on sim device
     obs_dict, _ = env.reset()
     for key, value in obs_dict.items():
         if isinstance(value, torch.Tensor):
-            assert (
-                value.device.type == torch.device(sim_device).type
-            ), f"Unwrapped env obs '{key}' should be on {sim_device}, got {value.device}"
+            assert value.device.type == torch.device(sim_device).type, (
+                f"Unwrapped env obs '{key}' should be on {sim_device}, got {value.device}"
+            )
 
     # Verify step returns data on sim device
     action_space = env.unwrapped.single_action_space
     test_action = torch.zeros(NUM_ENVS, action_space.shape[0], device=sim_device)
     obs_dict, rew, term, trunc, extras = env.step(test_action)
-    assert (
-        rew.device.type == torch.device(sim_device).type
-    ), f"Unwrapped env rewards should be on {sim_device}, got {rew.device}"
-    assert (
-        term.device.type == torch.device(sim_device).type
-    ), f"Unwrapped env terminated should be on {sim_device}, got {term.device}"
+    assert rew.device.type == torch.device(sim_device).type, (
+        f"Unwrapped env rewards should be on {sim_device}, got {rew.device}"
+    )
+    assert term.device.type == torch.device(sim_device).type, (
+        f"Unwrapped env terminated should be on {sim_device}, got {term.device}"
+    )
 
 
 def _verify_tensor_device(data, expected_device: str, name: str):
@@ -129,15 +129,15 @@ def _verify_tensor_device(data, expected_device: str, name: str):
         name: Name for error messages
     """
     if isinstance(data, torch.Tensor):
-        assert (
-            data.device.type == torch.device(expected_device).type
-        ), f"{name} should be on {expected_device}, got {data.device}"
+        assert data.device.type == torch.device(expected_device).type, (
+            f"{name} should be on {expected_device}, got {data.device}"
+        )
     elif isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, torch.Tensor):
-                assert (
-                    value.device.type == torch.device(expected_device).type
-                ), f"{name}['{key}'] should be on {expected_device}, got {value.device}"
+                assert value.device.type == torch.device(expected_device).type, (
+                    f"{name}['{key}'] should be on {expected_device}, got {value.device}"
+                )
 
 
 def _test_rsl_rl_device_separation(sim_device: str, rl_device: str):

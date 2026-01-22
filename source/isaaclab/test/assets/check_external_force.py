@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -106,6 +106,7 @@ def main():
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.reset()
             # apply force
+            # TODO: Replace with wrench composer once the deprecation is complete
             robot.set_external_force_and_torque(
                 external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
             )

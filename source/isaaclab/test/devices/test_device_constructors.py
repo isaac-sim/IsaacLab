@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,10 +14,10 @@ simulation_app = AppLauncher(headless=True).app
 
 import importlib
 import json
-import torch
 from typing import cast
 
 import pytest
+import torch
 
 # Import device classes to test
 from isaaclab.devices import (
@@ -376,17 +376,21 @@ def test_haply_constructors(mock_environment, mocker):
 
     # Create sample WebSocket response data
     ws_response = {
-        "inverse3": [{
-            "device_id": "test_inverse3_123",
-            "state": {"cursor_position": {"x": 0.1, "y": 0.2, "z": 0.3}},
-        }],
-        "wireless_verse_grip": [{
-            "device_id": "test_versegrip_456",
-            "state": {
-                "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-                "buttons": {"a": False, "b": False, "c": False},
-            },
-        }],
+        "inverse3": [
+            {
+                "device_id": "test_inverse3_123",
+                "state": {"cursor_position": {"x": 0.1, "y": 0.2, "z": 0.3}},
+            }
+        ],
+        "wireless_verse_grip": [
+            {
+                "device_id": "test_versegrip_456",
+                "state": {
+                    "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                    "buttons": {"a": False, "b": False, "c": False},
+                },
+            }
+        ],
     }
 
     # Configure websocket mock to return JSON data

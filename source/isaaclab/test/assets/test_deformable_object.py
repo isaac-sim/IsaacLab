@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,14 +17,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
-import torch
 
-import carb
 import pytest
+import torch
 from flaky import flaky
 
+import carb
+
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
@@ -58,7 +58,7 @@ def generate_cubes_scene(
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
     if has_api:

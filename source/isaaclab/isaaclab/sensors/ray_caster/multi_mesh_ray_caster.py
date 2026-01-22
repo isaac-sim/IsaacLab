@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,25 +6,25 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import re
-import torch
-import trimesh
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
-import carb
-import omni.physics.tensors.impl.api as physx
+import numpy as np
+import torch
+import trimesh
 import warp as wp
-from isaacsim.core.prims import XFormPrim
+
+import omni.physics.tensors.impl.api as physx
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import matrix_from_quat, quat_mul
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
-from .prim_utils import obtain_world_pose_from_view
+from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -79,7 +79,7 @@ class MultiMeshRayCaster(RayCaster):
 
     mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
 
-    mesh_views: ClassVar[dict[str, XFormPrim | physx.ArticulationView | physx.RigidBodyView]] = {}
+    mesh_views: ClassVar[dict[str, XformPrimView | physx.ArticulationView | physx.RigidBodyView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
 
     The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.
@@ -168,7 +168,7 @@ class MultiMeshRayCaster(RayCaster):
             target_prim_path = target_cfg.prim_expr
             # # check if mesh already casted into warp mesh and skip if so.
             if target_prim_path in multi_mesh_ids:
-                carb.log_warn(
+                logger.warning(
                     f"Mesh at target prim path '{target_prim_path}' already exists in the mesh cache. Duplicate entries"
                     " in `mesh_prim_paths`? This mesh will be skipped."
                 )
@@ -179,9 +179,9 @@ class MultiMeshRayCaster(RayCaster):
             if len(target_prims) == 0:
                 raise RuntimeError(f"Failed to find a prim at path expression: {target_prim_path}")
 
-            is_global_prim = (
-                len(target_prims) == 1
-            )  # If only one prim is found, treat it as a global prim. Either it's a single global object (e.g. ground) or we are only using one env.
+            # If only one prim is found, treat it as a global prim.
+            # Either it's a single global object (e.g. ground) or we are only using one env.
+            is_global_prim = len(target_prims) == 1
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []
@@ -214,7 +214,7 @@ class MultiMeshRayCaster(RayCaster):
                     )
                     for prim in sim_utils.get_all_matching_child_prims(target_prim.GetPath(), lambda prim: True):
                         warn_msg += f"\n - Available prim '{prim.GetPath()}' of type '{prim.GetTypeName()}'"
-                    carb.log_warn(warn_msg)
+                    logger.warning(warn_msg)
                     continue
 
                 trimesh_meshes = []

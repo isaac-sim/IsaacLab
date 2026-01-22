@@ -1,10 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -19,6 +17,8 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 
 @configclass
@@ -191,6 +191,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
             mass_props=sim_utils.MassPropertiesCfg(density=567.0),
+            semantic_tags=[("class", "cube")],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(1.0, 0.0, 0.0, 0.0)),
     )
