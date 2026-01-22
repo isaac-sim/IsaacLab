@@ -41,9 +41,7 @@ class MultirotorData(ArticulationData):
     """
 
     default_thruster_rps: torch.Tensor = None
-    """Default thruster RPS (revolutions per second) state of all thrusters.
-
-    Shape: ``(num_instances, num_thrusters)``
+    """Default thruster RPS (revolutions per second) state of all thrusters. Shape is (num_instances, num_thrusters).
 
     This quantity is configured through the :attr:`MultirotorCfg.init_state.rps` parameter
     and represents the baseline/hover RPS for each thruster. It is used to initialize
@@ -58,9 +56,7 @@ class MultirotorData(ArticulationData):
     """
 
     thrust_target: torch.Tensor = None
-    """Thrust targets commanded by the user or controller.
-
-    Shape: ``(num_instances, num_thrusters)``
+    """Thrust targets commanded by the user or controller. Shape is ``(num_instances, num_thrusters)``
 
     This quantity contains the target thrust values set through the
     :meth:`~isaaclab_contrib.assets.Multirotor.set_thrust_target` method or by
@@ -76,9 +72,7 @@ class MultirotorData(ArticulationData):
     ##
 
     computed_thrust: torch.Tensor = None
-    """Computed thrust from the actuator model before clipping.
-
-    Shape: ``(num_instances, num_thrusters)``
+    """Computed thrust from the actuator model before clipping. Shape is (num_instances, num_thrusters).
 
     This quantity contains the thrust values computed by the thruster actuator models
     before any clipping or saturation is applied. It represents the "desired" thrust
@@ -97,15 +91,14 @@ class MultirotorData(ArticulationData):
     """
 
     applied_thrust: torch.Tensor = None
-    """Applied thrust from the actuator model after clipping.
-
-    Shape: ``(num_instances, num_thrusters)``
+    """Applied thrust from the actuator model after clipping. Shape is (num_instances, num_thrusters).
 
     This quantity contains the final thrust values that are actually applied to the
     simulation after all actuator model processing, including:
-        - Dynamic response (rise/fall time constants)
-        - Clipping to thrust range limits
-        - Any other actuator model constraints
+
+    - Dynamic response (rise/fall time constants)
+    - Clipping to thrust range limits
+    - Any other actuator model constraints
 
     This is the "ground truth" thrust that affects the multirotor's motion in the
     physics simulation.

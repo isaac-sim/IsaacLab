@@ -97,9 +97,10 @@ class MultirotorCfg(ArticulationCfg):
         """Revolutions per second (RPS) of the thrusters. Default is 100 RPS.
 
         This can be specified as:
-            - A dictionary mapping regex patterns to RPS values
-            - A single wildcard pattern like ``{".*": 100.0}`` for uniform RPS
-            - Explicit per-thruster values like ``{"rotor_0": 95.0, "rotor_1": 105.0}``
+
+        - A dictionary mapping regex patterns to RPS values
+        - A single wildcard pattern like ``{".*": 100.0}`` for uniform RPS
+        - Explicit per-thruster values like ``{"rotor_0": 95.0, "rotor_1": 105.0}``
 
         The RPS values are used to initialize the thruster states and determine the
         default thrust targets when the multirotor is reset.
@@ -152,13 +153,15 @@ class MultirotorCfg(ArticulationCfg):
 
     # multirotor force application settings
     thruster_force_direction: tuple[float, float, float] = (0.0, 0.0, 1.0)
-    """Default force direction in body-local frame for thrusters.
+    """Default force direction in body-local frame for thrusters. Default is ``(0.0, 0.0, 1.0)``,
+    which is upward along the Z-axis.
 
     This 3D unit vector specifies the direction in which thrusters generate force
     in the multirotor's body frame. For standard configurations:
-        - ``(0.0, 0.0, 1.0)``: Thrusters push upward (Z-axis, typical for quadcopters)
-        - ``(0.0, 0.0, -1.0)``: Thrusters push downward
-        - ``(1.0, 0.0, 0.0)``: Thrusters push forward (X-axis)
+
+    - ``(0.0, 0.0, 1.0)``: Thrusters push upward (Z-axis, typical for quadcopters)
+    - ``(0.0, 0.0, -1.0)``: Thrusters push downward
+    - ``(1.0, 0.0, 0.0)``: Thrusters push forward (X-axis)
 
     This is used in conjunction with the allocation matrix to compute the wrench
     produced by each thruster.
@@ -167,7 +170,8 @@ class MultirotorCfg(ArticulationCfg):
     """
 
     allocation_matrix: Sequence[Sequence[float]] | None = None
-    """Allocation matrix for control allocation.
+    """Allocation matrix for control allocation. Default is ``None``, which means that the thrusters
+    are not used for control allocation.
 
     This matrix maps individual thruster forces to the 6D wrench (force + torque)
     applied to the multirotor's base link. It has shape ``(6, num_thrusters)``:
@@ -196,12 +200,14 @@ class MultirotorCfg(ArticulationCfg):
     """
 
     rotor_directions: Sequence[int] | None = None
-    """Sequence of rotor directions for each thruster.
+    """Sequence of rotor directions for each thruster. Default is ``None``, which means that the rotor directions
+    are not specified.
 
     This specifies the spin direction of each rotor, which affects the reaction
     torques generated. Values should be:
-        - ``1``: Counter-clockwise (CCW) rotation
-        - ``-1``: Clockwise (CW) rotation
+
+    - ``1``: Counter-clockwise (CCW) rotation
+    - ``-1``: Clockwise (CW) rotation
 
     For a quadcopter, a typical configuration is alternating directions to
     cancel reaction torques during hover: ``[1, -1, 1, -1]``.
