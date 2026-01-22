@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Micro-benchmarking framework for ArticulationData class.
+"""Micro-benchmarking framework for RigidObjectData class.
 
 This module provides a benchmarking framework to measure the performance of all functions
-in the ArticulationData class. Each function is run multiple times with randomized mock data,
+in the RigidObjectData class. Each function is run multiple times with randomized mock data,
 and timing statistics (mean and standard deviation) are reported.
 
 Usage:
-    python benchmark_articulation_data.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B] [--num_joints J]
+    python benchmark_rigid_object_data.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B]
 
 Example:
-    python benchmark_articulation_data.py --num_iterations 10000 --warmup_steps 10
+    python benchmark_rigid_object_data.py --num_iterations 10000 --warmup_steps 10
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import warp as wp
-from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 
 # Add test directory to path for common module imports
 _TEST_DIR = Path(__file__).resolve().parents[2]
@@ -75,15 +75,6 @@ DEPRECATED_PROPERTIES = {
     "body_ang_acc_w",
     "com_pos_b",
     "com_quat_b",
-    "joint_limits",
-    "joint_friction",
-    "fixed_tendon_limit",
-    "applied_torque",
-    "computed_torque",
-    "joint_dynamic_friction",
-    "joint_effort_target",
-    "joint_viscous_friction",
-    "joint_velocity_limits",
     # Also skip the combined state properties marked as deprecated
     "root_state_w",
     "root_link_state_w",
@@ -94,19 +85,7 @@ DEPRECATED_PROPERTIES = {
 }
 
 # List of properties that raise NotImplementedError - skip these
-NOT_IMPLEMENTED_PROPERTIES = {
-    "fixed_tendon_stiffness",
-    "fixed_tendon_damping",
-    "fixed_tendon_limit_stiffness",
-    "fixed_tendon_rest_length",
-    "fixed_tendon_offset",
-    "fixed_tendon_pos_limits",
-    "spatial_tendon_stiffness",
-    "spatial_tendon_damping",
-    "spatial_tendon_limit_stiffness",
-    "spatial_tendon_offset",
-    "body_incoming_joint_wrench_b",
-}
+NOT_IMPLEMENTED_PROPERTIES = {}
 
 # Private/internal properties and methods to skip
 INTERNAL_PROPERTIES = {
@@ -116,19 +95,12 @@ INTERNAL_PROPERTIES = {
     "is_primed",
     "device",
     "body_names",
-    "joint_names",
-    "fixed_tendon_names",
-    "spatial_tendon_names",
     "GRAVITY_VEC_W",
     "GRAVITY_VEC_W_TORCH",
     "FORWARD_VEC_B",
     "FORWARD_VEC_B_TORCH",
     "ALL_ENV_MASK",
-    "ALL_BODY_MASK",
-    "ALL_JOINT_MASK",
     "ENV_MASK",
-    "BODY_MASK",
-    "JOINT_MASK",
 }
 
 # Dependency mapping: derived properties and their parent dependencies.
@@ -173,11 +145,11 @@ PROPERTY_DEPENDENCIES = {
 }
 
 
-def get_benchmarkable_properties(articulation_data: ArticulationData) -> list[str]:
+def get_benchmarkable_properties(rigid_object_data: RigidObjectData) -> list[str]:
     """Get list of properties that can be benchmarked.
 
     Args:
-        articulation_data: The ArticulationData instance to inspect.
+        rigid_object_data: The RigidObjectData instance to inspect.
 
     Returns:
         List of property names that can be benchmarked.
@@ -185,7 +157,7 @@ def get_benchmarkable_properties(articulation_data: ArticulationData) -> list[st
     all_properties = []
 
     # Get all properties from the class
-    for name in dir(articulation_data):
+    for name in dir(rigid_object_data):
         # Skip private/dunder methods
         if name.startswith("_"):
             continue
@@ -204,7 +176,7 @@ def get_benchmarkable_properties(articulation_data: ArticulationData) -> list[st
 
         # Check if it's a property (not a method that needs arguments)
         try:
-            attr = getattr(type(articulation_data), name, None)
+            attr = getattr(type(rigid_object_data), name, None)
             if isinstance(attr, property):
                 all_properties.append(name)
         except Exception:
@@ -232,16 +204,24 @@ def setup_mock_environment(
     # Create mock view
     mock_view = MockNewtonArticulationView(
         num_instances=config.num_instances,
-        num_bodies=config.num_bodies,
-        num_joints=config.num_joints,
+        num_bodies=1,
+        num_joints=0,
         device=config.device,
     )
 
     return mock_view, mock_model, mock_state, mock_control
 
 
-def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
-    """Run all benchmarks for ArticulationData.
+# We need a way to pass the instance and view to the generator, but gen_mock_data
+# only takes config. We can use a class or closure, or rely on global state set up in run_benchmarks.
+# For simplicity, we'll assume `_rigid_object_data` and `_mock_view` are available in the scope
+# or passed via a partial.
+# Since benchmark_method expects generator(config) -> dict, we can't easily pass the instance.
+# However, we can create a closure inside run_benchmarks.
+
+
+def run_benchmark(config: BenchmarkConfig) -> list[BenchmarkResult]:
+    """Run all benchmarks for RigidObjectData.
 
     Args:
         config: Benchmark configuration.
@@ -255,7 +235,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
     mock_view, mock_model, mock_state, mock_control = setup_mock_environment(config)
 
     # Patch NewtonManager
-    with patch("isaaclab_newton.assets.articulation.articulation_data.NewtonManager") as MockManager:
+    with patch("isaaclab_newton.assets.rigid_object.rigid_object_data.NewtonManager") as MockManager:
         MockManager.get_model.return_value = mock_model
         MockManager.get_state_0.return_value = mock_state
         MockManager.get_control.return_value = mock_control
@@ -264,16 +244,16 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
         # Initialize mock data
         mock_view.set_random_mock_data()
 
-        # Create ArticulationData instance
-        articulation_data = ArticulationData(mock_view, config.device)
+        # Create RigidObjectData instance
+        rigid_object_data = RigidObjectData(mock_view, config.device)
 
         # Get list of properties to benchmark
-        properties = get_benchmarkable_properties(articulation_data)
+        properties = get_benchmarkable_properties(rigid_object_data)
 
         # Generator that updates mock data and invalidates timestamp
         def gen_mock_data(config: BenchmarkConfig) -> dict:
             mock_view.set_random_mock_data()
-            articulation_data._sim_timestamp += 1.0
+            rigid_object_data._sim_timestamp += 1.0
             return {}
 
         # Create benchmarks dynamically
@@ -290,7 +270,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
 
         print(f"\nBenchmarking {len(benchmarks)} properties...")
         print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
-        print(f"        {config.num_instances} instances, {config.num_bodies} bodies, {config.num_joints} joints")
+        print(f"        {config.num_instances} instances, {config.num_bodies} bodies")
         print("-" * 80)
 
         for i, benchmark in enumerate(benchmarks):
@@ -298,8 +278,9 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
             # We can't bind a property to an instance easily like a method
             # So we create a lambda that takes **kwargs (which will be empty)
             # and accesses the property on the instance.
+            # We must bind prop_name to avoid closure issues
             def prop_accessor(prop=benchmark.method_name, **kwargs):
-                return getattr(articulation_data, prop)
+                return getattr(rigid_object_data, prop)
 
             print(f"[{i + 1}/{len(benchmarks)}] [DEFAULT] {benchmark.name}...", end=" ", flush=True)
 
@@ -325,40 +306,28 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
 def main():
     """Main entry point for the benchmarking script."""
     parser = argparse.ArgumentParser(
-        description="Micro-benchmarking framework for ArticulationData class.",
+        description="Micro-benchmarking framework for RigidObjectData class.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
     parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
     parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
-    parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
-    parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device")
     parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
     parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
 
     args = parser.parse_args()
-    config = BenchmarkConfig(
-        num_iterations=args.num_iterations,
-        warmup_steps=args.warmup_steps,
-        num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=args.num_joints,
-        device=args.device,
-    )
-
-    args = parser.parse_args()
 
     config = BenchmarkConfig(
         num_iterations=args.num_iterations,
         warmup_steps=args.warmup_steps,
         num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=args.num_joints,
+        num_bodies=1,
+        num_joints=0,
         device=args.device,
     )
 
-    results = run_benchmarks(config)
+    results = run_benchmark(config)
 
     hardware_info = get_hardware_info()
     print_hardware_info(hardware_info)
@@ -367,7 +336,7 @@ def main():
     if args.output:
         json_filename = args.output
     else:
-        json_filename = get_default_output_filename("articulation_data_benchmark")
+        json_filename = get_default_output_filename("rigid_object_data_benchmark")
 
     export_results_json(results, config, hardware_info, json_filename)
 

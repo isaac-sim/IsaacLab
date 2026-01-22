@@ -148,6 +148,7 @@ class ImplicitActuator(ActuatorBase):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
         # update the joint effort
@@ -160,6 +161,7 @@ class ImplicitActuator(ActuatorBase):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
 
 
@@ -220,6 +222,7 @@ class IdealPDActuator(ActuatorBase):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
         self._clip_effort(self.data._computed_effort, self.data._applied_effort)
         # update the joint effort
@@ -232,6 +235,7 @@ class IdealPDActuator(ActuatorBase):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
 
 
@@ -316,6 +320,7 @@ class DCMotor(IdealPDActuator):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
 
 

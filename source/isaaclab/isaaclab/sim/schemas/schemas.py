@@ -11,7 +11,7 @@ import math
 
 # import omni.physx.scripts.utils as physx_utils
 # from omni.physx.scripts import deformableUtils as deformable_utils
-from pxr import Usd, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
@@ -27,6 +27,8 @@ from . import schemas_cfg
 
 # import logger
 logger = logging.getLogger(__name__)
+
+MAX_FLOAT = 3.40282347e38
 
 """
 Articulation root properties.
@@ -144,6 +146,8 @@ def modify_articulation_root_properties(
     cfg = cfg.to_dict()
     # extract non-USD properties
     fix_root_link = cfg.pop("fix_root_link", None)
+    print("fix_root_link", fix_root_link)
+    print("cfg", cfg)
 
     # set into physx api
     for attr_name, value in cfg.items():
@@ -180,6 +184,7 @@ def modify_articulation_root_properties(
             # create a fixed joint between the root link and the world frame
             # physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
             # TODO: fix this
+            create_joint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
@@ -1130,3 +1135,123 @@ def modify_mesh_collision_properties(
 
     # success
     return True
+
+
+def create_unused_path(stage: Usd.Stage, base_path: str, path: str) -> str:
+    """Create a unused path for a joint.
+    Args:
+        stage: The stage to create the path in.
+        base_path: The base path of the path.
+        path: The path to create.
+    """
+    if stage.GetPrimAtPath(base_path + "/" + path).IsValid():
+        uniquifier = 0
+        while stage.GetPrimAtPath(base_path + "/" + path + str(uniquifier)).IsValid():
+            uniquifier += 1
+        path = path + str(uniquifier)
+    return path
+
+
+def create_joint(
+    stage: Usd.Stage,
+    joint_type: str,
+    from_prim: Usd.Prim,
+    to_prim: Usd.Prim,
+    joint_name: str | None = None,
+    joint_base_path: str | None = None,
+):
+    """Create a joint between two prims.
+    Args:
+        stage: The stage to create the joint in.
+        joint_type: The type of joint to create.
+        from_prim: The prim to create the joint from.
+        to_prim: The prim to create the joint to.
+        joint_name: The name of the joint.
+        joint_base_path: The base path of the joint.
+    """
+    # for single selection use to_prim
+    if to_prim is None:
+        to_prim = from_prim
+        from_prim = None
+
+    from_path = from_prim.GetPath().pathString if from_prim is not None and from_prim.IsValid() else ""
+    to_path = to_prim.GetPath().pathString if to_prim is not None and to_prim.IsValid() else ""
+    single_selection = from_path == "" or to_path == ""
+
+    # to_path can be not writable as in case of instancing, find first writable path
+    if joint_base_path is None:
+        joint_base_path = to_path
+    else:
+        if not stage.GetPrimAtPath(joint_base_path):
+            stage.DefinePrim(joint_base_path)
+
+    base_prim = stage.GetPrimAtPath(joint_base_path)
+    while base_prim != stage.GetPseudoRoot():
+        if base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable():
+            base_prim = base_prim.GetParent()
+        else:
+            break
+    joint_base_path = str(base_prim.GetPrimPath())
+    if joint_base_path == "/":
+        joint_base_path = ""
+    if joint_name is None:
+        joint_name = "/" + create_unused_path(stage, joint_base_path, joint_type + "Joint")
+    else:
+        joint_name = "/" + create_unused_path(stage, joint_base_path, joint_name)
+    joint_path = joint_base_path + joint_name
+
+    if joint_type == "Fixed":
+        component = UsdPhysics.FixedJoint.Define(stage, joint_path)
+    elif joint_type == "Revolute":
+        component = UsdPhysics.RevoluteJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Prismatic":
+        component = UsdPhysics.PrismaticJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Spherical":
+        component = UsdPhysics.SphericalJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Distance":
+        component = UsdPhysics.DistanceJoint.Define(stage, joint_path)
+        component.CreateMinDistanceAttr(0.0)
+        component.CreateMaxDistanceAttr(0.0)
+    else:
+        component = UsdPhysics.Joint.Define(stage, joint_path)
+        prim = component.GetPrim()
+        for limit_name in ["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]:
+            limit_api = UsdPhysics.LimitAPI.Apply(prim, limit_name)
+            limit_api.CreateLowAttr(1.0)
+            limit_api.CreateHighAttr(-1.0)
+
+    xfCache = UsdGeom.XformCache()
+
+    if not single_selection:
+        to_pose = xfCache.GetLocalToWorldTransform(to_prim)
+        from_pose = xfCache.GetLocalToWorldTransform(from_prim)
+        rel_pose = to_pose * from_pose.GetInverse()
+        rel_pose = rel_pose.RemoveScaleShear()
+        pos1 = Gf.Vec3f(rel_pose.ExtractTranslation())
+        rot1 = Gf.Quatf(rel_pose.ExtractRotationQuat())
+
+        component.CreateBody0Rel().SetTargets([Sdf.Path(from_path)])
+        component.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+        component.CreateLocalPos0Attr().Set(pos1)
+        component.CreateLocalRot0Attr().Set(rot1)
+        component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+        component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    else:
+        to_pose = xfCache.GetLocalToWorldTransform(to_prim)
+        to_pose = to_pose.RemoveScaleShear()
+        pos1 = Gf.Vec3f(to_pose.ExtractTranslation())
+        rot1 = Gf.Quatf(to_pose.ExtractRotationQuat())
+
+        component.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+        component.CreateLocalPos0Attr().Set(pos1)
+        component.CreateLocalRot0Attr().Set(rot1)
+        component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+        component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+
+    component.CreateBreakForceAttr().Set(MAX_FLOAT)
+    component.CreateBreakTorqueAttr().Set(MAX_FLOAT)
+
+    return stage.GetPrimAtPath(joint_base_path + joint_name)

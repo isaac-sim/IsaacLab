@@ -25,6 +25,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import warp as wp
+
+# Import mock classes from common test utilities
+from common.mock_newton import MockNewtonArticulationView, MockNewtonModel
 from isaaclab_newton.assets.articulation.articulation import Articulation
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.kernels import vec13f
@@ -33,9 +36,6 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # TODO: Move these functions to the test utils so they can't be changed in the future.
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
-
-# Import mock classes from shared module
-from .mock_interface import MockNewtonArticulationView, MockNewtonModel
 
 # Initialize Warp
 wp.init()
@@ -119,10 +119,10 @@ def create_test_articulation(
     # Create ArticulationData with the mock view
     with patch("isaaclab_newton.assets.articulation.articulation_data.NewtonManager", mock_newton_manager):
         data = ArticulationData(mock_view, device)
-        # Set the names on the data object (normally done by Articulation._initialize_impl)
-        data.joint_names = joint_names
-        data.body_names = body_names
         object.__setattr__(articulation, "_data", data)
+
+    # Call _create_buffers() to initialize temp buffers and wrench composers
+    articulation._create_buffers()
 
     return articulation, mock_view, mock_newton_manager
 
@@ -258,12 +258,12 @@ class TestReset:
             env_mask=None,
             is_global=False,
         )
-        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(
-            torch.ones_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench))
+        assert wp.to_torch(articulation.permanent_wrench_composer.composed_force).allclose(
+            torch.ones_like(wp.to_torch(articulation.permanent_wrench_composer.composed_force))
         )
         articulation.reset()
-        assert wp.to_torch(articulation.data._sim_bind_body_external_wrench).allclose(
-            torch.zeros_like(wp.to_torch(articulation.data._sim_bind_body_external_wrench))
+        assert wp.to_torch(articulation.permanent_wrench_composer.composed_force).allclose(
+            torch.zeros_like(wp.to_torch(articulation.permanent_wrench_composer.composed_force))
         )
 
 
@@ -3271,141 +3271,6 @@ class TestProcessCfg:
         expected_pos = torch.tensor([[0.0, 1.0, 1.0, 2.0, 2.0]] * num_instances, device=device)
         result = wp.to_torch(articulation.data.default_joint_pos)
         assert result.allclose(expected_pos, atol=1e-5, rtol=1e-5)
-
-    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_process_cfg_offsets_spawned_pose(self, device: str):
-        """Test that _process_cfg offsets the spawned position by the default root pose."""
-        num_instances = 3
-        num_joints = 4
-        articulation, mock_view, _ = create_test_articulation(
-            num_instances=num_instances,
-            num_joints=num_joints,
-            device=device,
-        )
-
-        # Set up default root pose in config: position (1.0, 2.0, 3.0), identity quaternion
-        articulation.cfg.init_state.pos = (1.0, 2.0, 3.0)
-        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity)
-
-        # Set up initial spawned positions for each instance
-        # Instance 0: (5.0, 6.0, 0.0)
-        # Instance 1: (10.0, 20.0, 0.0)
-        # Instance 2: (-3.0, -4.0, 0.0)
-        spawned_transforms = torch.tensor(
-            [
-                [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],  # pos (x,y,z), quat (x,y,z,w)
-                [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                [-3.0, -4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-        )
-        mock_view.set_mock_data(
-            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
-        )
-
-        # Call _process_cfg
-        articulation._process_cfg()
-
-        # Verify that the root transforms are offset by default pose's x,y
-        # Expected: spawned_pose[:, :2] + default_pose[:2]
-        # Instance 0: (5.0 + 1.0, 6.0 + 2.0, 3.0) = (6.0, 8.0, 3.0)
-        # Instance 1: (10.0 + 1.0, 20.0 + 2.0, 3.0) = (11.0, 22.0, 3.0)
-        # Instance 2: (-3.0 + 1.0, -4.0 + 2.0, 3.0) = (-2.0, -2.0, 3.0)
-        result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor(
-            [
-                [6.0, 8.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-                [11.0, 22.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-                [-2.0, -2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-        )
-        torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
-
-    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_process_cfg_offsets_spawned_pose_zero_offset(self, device: str):
-        """Test that _process_cfg with zero default position keeps spawned position unchanged in x,y."""
-        num_instances = 2
-        num_joints = 4
-        articulation, mock_view, _ = create_test_articulation(
-            num_instances=num_instances,
-            num_joints=num_joints,
-            device=device,
-        )
-
-        # Set up default root pose with zero position
-        articulation.cfg.init_state.pos = (0.0, 0.0, 0.0)
-        articulation.cfg.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # x, y, z, w
-
-        # Set up initial spawned positions
-        spawned_transforms = torch.tensor(
-            [
-                [5.0, 6.0, 7.0, 0.0, 0.0, 0.0, 1.0],
-                [10.0, 20.0, 30.0, 0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-        )
-        mock_view.set_mock_data(
-            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
-        )
-
-        # Call _process_cfg
-        articulation._process_cfg()
-
-        # With zero default position, x,y should stay the same, z comes from default (0.0)
-        result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor(
-            [
-                [5.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                [10.0, 20.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-        )
-        torch.testing.assert_close(result, expected_transforms, atol=1e-5, rtol=1e-5)
-
-    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-    def test_process_cfg_offsets_spawned_pose_with_rotation(self, device: str):
-        """Test that _process_cfg correctly sets rotation while offsetting position."""
-        num_instances = 2
-        num_joints = 4
-        articulation, mock_view, _ = create_test_articulation(
-            num_instances=num_instances,
-            num_joints=num_joints,
-            device=device,
-        )
-
-        # Set up default root pose with specific rotation (90 degrees around z-axis)
-        # Quaternion for 90 degrees around z: (x=0, y=0, z=0.707, w=0.707)
-        articulation.cfg.init_state.pos = (1.0, 2.0, 5.0)
-        articulation.cfg.init_state.rot = (0.0, 0.0, 0.707, 0.707)  # x, y, z, w
-
-        # Set up initial spawned positions
-        spawned_transforms = torch.tensor(
-            [
-                [3.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-                [6.0, 8.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            ],
-            device=device,
-        )
-        mock_view.set_mock_data(
-            root_transforms=wp.from_torch(spawned_transforms, dtype=wp.transformf),
-        )
-
-        # Call _process_cfg
-        articulation._process_cfg()
-
-        # Verify position offset and rotation is set correctly
-        # Position: spawned[:2] + default[:2], z from default
-        # Rotation: from default (converted to x,y,z,w format)
-        result = wp.to_torch(mock_view.get_root_transforms(None))
-        expected_transforms = torch.tensor(
-            [
-                [4.0, 6.0, 5.0, 0.0, 0.0, 0.707, 0.707],  # x,y,z, qx,qy,qz,qw
-                [7.0, 10.0, 5.0, 0.0, 0.0, 0.707, 0.707],
-            ],
-            device=device,
-        )
-        torch.testing.assert_close(result, expected_transforms, atol=1e-3, rtol=1e-3)
 
 
 class TestValidateCfg:

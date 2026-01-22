@@ -15,7 +15,7 @@ from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors import ContactSensorCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.prims import XFormPrim
@@ -301,9 +301,9 @@ class InteractiveScene:
         raise NotImplementedError("Deformable objects are not supported in IsaacLab for Newton.")
 
     @property
-    def rigid_objects(self) -> dict:
+    def rigid_objects(self) -> dict[str, RigidObject]:
         """A dictionary of rigid objects in the scene."""
-        raise NotImplementedError("Rigid objects are not supported in IsaacLab for Newton.")
+        return self._rigid_objects
 
     @property
     def rigid_object_collections(self) -> dict:
@@ -348,26 +348,30 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
         """Resets the scene entities.
 
         Args:
-            env_ids: The indices of the environments to reset.
-                Defaults to None (all instances).
+            env_ids: The indices of the environments to reset. Defaults to None (all instances).
+            env_mask: The mask of the environments to reset. Defaults to None (all instances).
         """
         # FIXME: Homogenize the API for env_ids and env_mask.
         # -- assets
         for articulation in self._articulations.values():
-            articulation.reset(ids=env_ids, mask=mask)
+            articulation.reset(env_ids=env_ids, env_mask=env_mask)
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.reset(env_ids=env_ids, env_mask=env_mask)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids=env_ids, env_mask=mask)
+            sensor.reset(env_ids=env_ids, env_mask=env_mask)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -378,6 +382,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for rigid_object in self._rigid_objects.values():
+            rigid_object.update(dt)
         # -- sensors
         for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
@@ -422,7 +428,15 @@ class InteractiveScene:
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
             articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
-
+        # rigid objects
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = state["rigid_object"][asset_name]
+            root_pose = asset_state["root_pose"].clone()
+            if is_relative:
+                root_pose[:, :3] += self.env_origins[env_ids]
+            root_velocity = asset_state["root_velocity"].clone()
+            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
         self.write_data_to_sim()
@@ -490,6 +504,15 @@ class InteractiveScene:
             asset_state["joint_position"] = articulation.data.joint_pos.clone()
             asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
             state["articulation"][asset_name] = asset_state
+        # rigid objects
+        state["rigid_object"] = dict()
+        for asset_name, rigid_object in self._rigid_objects.items():
+            asset_state = dict()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
+            if is_relative:
+                asset_state["root_pose"][:, :3] -= self.env_origins
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
+            state["rigid_object"][asset_name] = asset_state
         return state
 
     """
@@ -505,6 +528,7 @@ class InteractiveScene:
         all_keys = ["terrain"]
         for asset_family in [
             self._articulations,
+            self._rigid_objects,
             self._sensors,
             self._extras,
         ]:
@@ -528,6 +552,7 @@ class InteractiveScene:
         # check if it is in other dictionaries
         for asset_family in [
             self._articulations,
+            self._rigid_objects,
             self._sensors,
             self._extras,
         ]:
@@ -584,6 +609,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, RigidObjectCfg):
+                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 if isinstance(asset_cfg, ContactSensorCfg):
                     if asset_cfg.shape_path is not None:
