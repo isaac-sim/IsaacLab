@@ -182,7 +182,7 @@ Where τ is the time constant (different for rise vs. fall):
 - **Fall Time (τ_fall)**: How quickly thrust decreases when commanded (typically faster)
 - **Thrust Limits**: Physical constraints [T_min, T_max] enforced after integration
 
-This asymmetry reflects real-world motor behavior where inertia causes slower spin-up than spin-down.
+This asymmetry reflects real-world motor behavior primarily caused by ESC (Electronic Speed Controller) response and propeller aerodynamics, which result in slower spin-up (thrust increase) than spin-down. While rotor inertia affects both acceleration and deceleration equally, it is not the main cause of the asymmetric response.
 
 #### Thruster Control Modes
 
