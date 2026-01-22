@@ -236,7 +236,7 @@ Please follow the Isaac Lab contribution guidelines and open a pull request. Con
 3. Provide unit tests
 4. Be well-tested with Isaac Lab's simulation framework
 
-For more information, see the [Isaac Lab Contributing Guide](https://isaac-sim.github.io/IsaacLab/source/refs/contributing.html).
+For more information, see the [Isaac Lab Contributing Guide](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html).
 
 ## License
 
