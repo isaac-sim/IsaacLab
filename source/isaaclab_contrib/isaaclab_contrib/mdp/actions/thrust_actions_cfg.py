@@ -148,9 +148,6 @@ class ThrustActionCfg(ActionTermCfg):
                 "rotor_[2-3]": (0.0, 8.0),   # Rear rotors
             }
 
-    Note:
-        Clipping is applied AFTER scaling and offset, so clip values should be
-        in the final thrust units (e.g., Newtons or RPS).
     """
 
     preserve_order: bool = False
@@ -158,10 +155,6 @@ class ThrustActionCfg(ActionTermCfg):
 
     If ``True``, the thruster ordering matches the regex pattern order exactly.
     If ``False``, ordering is determined by the USD scene traversal order.
-
-    Note:
-        Most users should leave this as ``False``. Set to ``True`` only if you need
-        deterministic thruster ordering for testing or specific control schemes.
     """
 
     use_default_offset: bool = True
@@ -177,13 +170,9 @@ class ThrustActionCfg(ActionTermCfg):
         .. code-block:: python
 
             # Use hover thrust as baseline (typical for RL)
-            use_default_offset = True   # Actions become thrust deviations
+            use_default_offset = True   # Actions are offset by the hover thrust specified in the multirotor asset configuration.
 
             # Direct thrust control
-            use_default_offset = False  # Actions become absolute thrust
-            offset = 0.0
-
-    Note:
-        When ``True``, this allows the hover thrust to be configured in one place
-        (the multirotor asset configuration) rather than duplicated in action configs.
+            use_default_offset = False  # Actions are offset by the manually specified offset value.
+            offset = 5.0  # Actions are offset by 5N.
     """
