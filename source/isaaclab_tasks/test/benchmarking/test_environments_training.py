@@ -20,8 +20,6 @@ import env_benchmark_test_utils as utils
 import gymnasium as gym
 import pytest
 
-import carb
-
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 
 
@@ -35,11 +33,6 @@ def setup_environment():
 
     # Sort environments by name
     registered_task_specs.sort(key=lambda x: x.id)
-
-    # This flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
-    # test on many environments.
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     return registered_task_specs
 

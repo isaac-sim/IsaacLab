@@ -8,13 +8,9 @@ import json
 import math
 import os
 import re
-from datetime import datetime
 
 import numpy as np
 import yaml
-from tensorboard.backend.event_processing import event_accumulator
-
-import carb
 
 
 def _get_repo_path():
@@ -177,13 +173,10 @@ def output_payloads(payloads):
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
-<<<<<<< HEAD
     repo_path = _get_repo_path()
-    from isaacsim.core.version import get_version
-=======
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+
+    # Defer Isaac Sim version import to avoid preloading USD before SimulationApp starts.
     from isaaclab.utils.version import get_isaac_sim_version
->>>>>>> develop
 
     if get_isaac_sim_version().major < 5:
         repo_path = os.path.join(repo_path, "..")
@@ -212,6 +205,9 @@ def _retrieve_logs(workflow, task):
 
 def _parse_tf_logs(log):
     """Parse the tensorflow filepath into a dictionary."""
+    # Defer tensorboard import to avoid side effects during pytest collection.
+    from tensorboard.backend.event_processing import event_accumulator
+
     log_data = {}
     ea = event_accumulator.EventAccumulator(log)
     ea.Reload()
