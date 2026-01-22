@@ -42,4 +42,7 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html
 """
 
-from .direct_rl_env_warp import DirectRLEnvWarp
+from isaaclab.envs import *  # noqa: F401,F403
+
+from .direct_rl_env_warp import DirectRLEnvWarp  # noqa: F401
+from .manager_based_rl_env_warp import ManagerBasedRLEnvWarp  # noqa: F401
