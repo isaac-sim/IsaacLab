@@ -974,7 +974,7 @@ def test_quat_inv(device):
     """Test for quat_inv method.
 
     For random unit and non-unit quaternions q, the Hamilton products
-    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (0,0,0,1)
     within numerical precision.
     """
     num = 2048

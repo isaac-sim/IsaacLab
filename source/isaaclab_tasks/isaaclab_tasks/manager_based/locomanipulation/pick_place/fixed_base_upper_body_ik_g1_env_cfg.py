@@ -178,7 +178,7 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, -0.45),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     def __post_init__(self):

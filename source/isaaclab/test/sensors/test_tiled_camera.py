@@ -1391,7 +1391,7 @@ def test_all_annotators_instanceable(setup_camera, device):
             "Xform",
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             translation=(0.0, i, 5.0),
-            orientation=(1.0, 0.0, 0.0, 0.0),
+            orientation=(0.0, 0.0, 0.0, 1.0),
             scale=(5.0, 5.0, 5.0),
         )
         prim = stage.GetPrimAtPath(f"/World/Cube_{i}")

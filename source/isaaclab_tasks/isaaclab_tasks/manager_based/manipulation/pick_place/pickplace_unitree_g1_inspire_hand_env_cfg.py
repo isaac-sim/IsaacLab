@@ -309,7 +309,7 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     # Temporary directory for URDF files

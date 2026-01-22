@@ -264,7 +264,7 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     # OpenXR hand tracking has 26 joints per hand

@@ -36,7 +36,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # isort: skip
 
 # offset of imu_link from base_link on anymal_c
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
-ROT_OFFSET = (0.7071068, 0, 0, 0.7071068)
+ROT_OFFSET = (0, 0, 0.7071068, 0.7071068)
 
 # offset of imu_link from link_1 on simple_2_link
 PEND_POS_OFFSET = (0.4, 0.0, 0.1)

@@ -107,7 +107,7 @@ class Imu(SensorBase):
         # reset accumulative data buffers
         self._data.pos_w[env_ids] = 0.0
         self._data.quat_w[env_ids] = 0.0
-        self._data.quat_w[env_ids, 0] = 1.0
+        self._data.quat_w[env_ids, 3] = 1.0
         self._data.projected_gravity_b[env_ids] = 0.0
         self._data.projected_gravity_b[env_ids, 2] = -1.0
         self._data.lin_vel_b[env_ids] = 0.0
@@ -197,7 +197,6 @@ class Imu(SensorBase):
             env_ids = slice(None)
         # world pose of the rigid source (ancestor) from the PhysX view
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = quat_w.roll(1, dims=-1)
 
         # sensor pose in world: apply composed offset
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
@@ -240,7 +239,7 @@ class Imu(SensorBase):
         # data buffers
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
-        self._data.quat_w[:, 0] = 1.0
+        self._data.quat_w[:, 3] = 1.0
         self._data.projected_gravity_b = torch.zeros(self._view.count, 3, device=self._device)
         self._data.lin_vel_b = torch.zeros_like(self._data.pos_w)
         self._data.ang_vel_b = torch.zeros_like(self._data.pos_w)
