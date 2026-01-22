@@ -36,10 +36,10 @@ def sim_config():
     manager = omni.kit.app.get_app().get_extension_manager()
     if get_isaac_sim_version() == Version("5.1"):
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
-        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     else:
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
     # obtain the extension path
+    manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
     extension_path = manager.get_extension_path(extension_id)
     # default configuration

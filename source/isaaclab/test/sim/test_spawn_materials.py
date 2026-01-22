@@ -42,7 +42,7 @@ def test_spawn_preview_surface(sim):
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/Looks/PreviewSurface").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Material"
     # Check properties
     assert prim.GetAttribute("inputs:diffuseColor").Get() == cfg.diffuse_color
 

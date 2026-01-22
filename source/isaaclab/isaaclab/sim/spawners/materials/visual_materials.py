@@ -60,7 +60,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # in that case is always the one from USD Context which makes it difficult to
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
-        if material_prim:
+        if material_prim.GetPrim():
             shader_prim = CreateShaderPrimFromSdrCommand(
                 parent_path=prim_path,
                 identifier="UsdPreviewSurface",
@@ -81,7 +81,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
+    prim = stage.GetPrimAtPath(f"{prim_path}")
     # check prim is valid
     if not prim.IsValid():
         raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")
