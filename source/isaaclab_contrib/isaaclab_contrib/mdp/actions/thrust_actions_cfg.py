@@ -165,14 +165,4 @@ class ThrustActionCfg(ActionTermCfg):
     controlling thrust as deviations from the hover state.
 
     If ``False``, the manually specified :attr:`offset` value is used.
-
-    Example:
-        .. code-block:: python
-
-            # Use hover thrust as baseline (typical for RL)
-            use_default_offset = True   # Actions are offset by the hover thrust specified in the multirotor asset configuration.
-
-            # Direct thrust control
-            use_default_offset = False  # Actions are offset by the manually specified offset value.
-            offset = 5.0  # Actions are offset by 5N.
     """
