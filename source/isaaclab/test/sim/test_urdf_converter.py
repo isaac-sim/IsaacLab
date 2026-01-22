@@ -34,7 +34,7 @@ def sim_config():
     sim_utils.create_new_stage()
     # pin the urdf importer extension to the older version
     manager = omni.kit.app.get_app().get_extension_manager()
-    if get_isaac_sim_version() >= Version("5.1"):
+    if get_isaac_sim_version() >= Version("5.1") and get_isaac_sim_version() < Version("6.0"):
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
         manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     else:
