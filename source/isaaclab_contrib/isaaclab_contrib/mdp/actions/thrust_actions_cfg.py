@@ -81,16 +81,15 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
     scale: float | dict[str, float] = 1.0
-    """Scale factor for the action.
+    """Scale factor for the action. Default is ``1.0``, which means no scaling.
 
-    This multiplies the raw action values to adjust the command magnitude. Can be:
-        - A float: uniform scaling for all thrusters (e.g., ``2.0``)
-        - A dict: per-thruster scaling using regex patterns (e.g., ``{"rotor_.*": 2.5}``)
+    This multiplies the raw action values to adjust the command magnitude. It can be:
+
+    - A float: uniform scaling for all thrusters (e.g., ``2.0``)
+    - A dict: per-thruster scaling using regex patterns (e.g., ``{"rotor_.*": 2.5}``)
 
     For normalized actions in [-1, 1], the scale determines the maximum deviation
     from the offset value.
-
-    Default: ``1.0`` (no scaling)
 
     Example:
         .. code-block:: python
@@ -106,17 +105,16 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
     offset: float | dict[str, float] = 0.0
-    """Offset factor for the action.
+    """Offset factor for the action. Default is ``0.0``, which means no offset.
 
     This value is added to the scaled actions to establish a baseline thrust.
-    Can be:
-        - A float: uniform offset for all thrusters (e.g., ``5.0`` for 5N hover thrust)
-        - A dict: per-thruster offset using regex patterns
+    It can be:
+
+    - A float: uniform offset for all thrusters (e.g., ``5.0`` for 5N hover thrust)
+    - A dict: per-thruster offset using regex patterns
 
     If :attr:`use_default_offset` is ``True``, this value is overwritten by the
     default thruster RPS from the multirotor configuration.
-
-    Default: ``0.0`` (no offset)
 
     Example:
         .. code-block:: python
@@ -132,13 +130,11 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
     clip: dict[str, tuple[float, float]] | None = None
-    """Clipping ranges for processed actions.
+    """Clipping ranges for processed actions. Default is ``None``, which means no clipping.
 
     This constrains the final thrust commands to safe operational ranges after
-    scaling and offset are applied. Must be specified as a dictionary mapping
+    scaling and offset are applied. It must be specified as a dictionary mapping
     regex patterns to (min, max) tuples.
-
-    If ``None``, no clipping is applied (commands can be unbounded).
 
     Example:
         .. code-block:: python
@@ -158,12 +154,10 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
     preserve_order: bool = False
-    """Whether to preserve the order of the asset names in the action output.
+    """Whether to preserve the order of the asset names in the action output. Default is ``False``.
 
     If ``True``, the thruster ordering matches the regex pattern order exactly.
     If ``False``, ordering is determined by the USD scene traversal order.
-
-    Default: ``False``
 
     Note:
         Most users should leave this as ``False``. Set to ``True`` only if you need
@@ -171,15 +165,13 @@ class ThrustActionCfg(ActionTermCfg):
     """
 
     use_default_offset: bool = True
-    """Whether to use default thrust configured in the multirotor asset as offset.
+    """Whether to use default thrust configured in the multirotor asset as offset. Default is ``True``.
 
     If ``True``, the :attr:`offset` value is overwritten with the default thruster
     RPS values from :attr:`MultirotorCfg.init_state.rps`. This is useful for
     controlling thrust as deviations from the hover state.
 
     If ``False``, the manually specified :attr:`offset` value is used.
-
-    Default: ``True``
 
     Example:
         .. code-block:: python
