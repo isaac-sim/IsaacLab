@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.53.3 (2026-01-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed URDF importer extension version pinning logic to support Isaac Sim 6.0 by only pinning the older version for Isaac Sim 5.1-5.x.
+* Updated XR bundle extension from ``omni.kit.xr.profile.ar`` to ``omni.kit.xr.bundle.generic`` for Isaac Sim 6.0 compatibility.
+* Fixed shader creation parameter from ``name`` to ``prim_name`` in :func:`~isaaclab.sim.spawners.materials.visual_materials.spawn_preview_surface`.
+* Updated Python version requirement from 3.11 to 3.12 in environment configuration.
+
+
 0.53.2 (2026-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
