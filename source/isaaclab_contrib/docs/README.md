@@ -205,19 +205,6 @@ A complete demonstration of quadcopter simulation is available:
 ./isaaclab.sh -p scripts/demos/quadcopter.py
 ```
 
-This demo shows:
-- Quadcopter hovering in place
-- Thrust force application
-- Integration with PhysX simulation
-
-### API Documentation
-
-For detailed API documentation, see:
-
-- **Assets**: `isaaclab_contrib.assets.Multirotor`, `MultirotorCfg`, `MultirotorData`
-- **Actuators**: `isaaclab_contrib.actuators.Thruster`, `ThrusterCfg`
-- **Actions**: `isaaclab_contrib.mdp.actions.ThrustAction`, `ThrustActionCfg`
-
 ---
 
 ## Testing
