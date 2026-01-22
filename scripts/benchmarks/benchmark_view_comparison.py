@@ -164,12 +164,11 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     for _ in range(num_iterations):
         if view_type in ("xform", "xform_fabric"):
             positions, orientations = view.get_world_poses()
+            orientations = math_utils.convert_quat(orientations, to="xyzw")
         else:  # physx
             transforms = view.get_transforms()
             positions = transforms[:, :3]
             orientations = transforms[:, 3:7]
-            # Convert quaternion from xyzw to wxyz
-            orientations = math_utils.convert_quat(orientations, to="wxyz")
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Store initial world poses
@@ -184,7 +183,6 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
         if view_type in ("xform", "xform_fabric"):
             view.set_world_poses(new_positions, orientations)
         else:  # physx
-            # Convert quaternion from wxyz to xyzw for PhysX
             orientations_xyzw = math_utils.convert_quat(orientations, to="xyzw")
             new_transforms = torch.cat([new_positions, orientations_xyzw], dim=-1)
             view.set_transforms(new_transforms, indices=all_indices)
@@ -193,10 +191,11 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     # Get world poses after setting to verify
     if view_type in ("xform", "xform_fabric"):
         positions_after_set, orientations_after_set = view.get_world_poses()
+        # Convert quaternion from wxyz to xyzw for USD Xform
+        orientations_after_set = math_utils.convert_quat(transforms_after[:, 3:7], to="xyzw")
     else:  # physx
         transforms_after = view.get_transforms()
         positions_after_set = transforms_after[:, :3]
-        orientations_after_set = math_utils.convert_quat(transforms_after[:, 3:7], to="wxyz")
     computed_results["world_positions_after_set"] = positions_after_set.clone()
     computed_results["world_orientations_after_set"] = orientations_after_set.clone()
 
