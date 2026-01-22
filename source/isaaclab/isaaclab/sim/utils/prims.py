@@ -88,7 +88,7 @@ def create_prim(
             any coordinate transformation. Cannot be used with ``position``. Defaults to None,
             in which case no translation is applied.
         orientation:
-            Prim rotation as a quaternion (w, x, y, z). When used with ``position``, the
+            Prim rotation as a quaternion (x, y, z, w). When used with ``position``, the
             orientation is also converted from world space to local space. When used with ``translation``,
             it is applied directly as local orientation. Defaults to None.
         scale:
