@@ -34,19 +34,6 @@ def initialize_rng_state(
 
 
 @wp.kernel
-def initialize_xyz_unit_vecs(
-    # output
-    x_unit_vecs: wp.array(dtype=wp.vec3f),
-    y_unit_vecs: wp.array(dtype=wp.vec3f),
-    z_unit_vecs: wp.array(dtype=wp.vec3f),
-):
-    env_id = wp.tid()
-    x_unit_vecs[env_id] = wp.vec3f(wp.float32(1.0), wp.float32(0.0), wp.float32(0.0))
-    y_unit_vecs[env_id] = wp.vec3f(wp.float32(0.0), wp.float32(1.0), wp.float32(0.0))
-    z_unit_vecs[env_id] = wp.vec3f(wp.float32(0.0), wp.float32(0.0), wp.float32(1.0))
-
-
-@wp.kernel
 def apply_actions_to_targets(
     # input
     actions: wp.array2d(dtype=wp.float32),
@@ -81,8 +68,8 @@ def apply_actions_to_targets(
 def reset_target_pose(
     # input
     env_mask: wp.array(dtype=wp.bool),
-    x_unit_vecs: wp.array(dtype=wp.vec3f),
-    y_unit_vecs: wp.array(dtype=wp.vec3f),
+    x_unit_vec: wp.vec3f,
+    y_unit_vec: wp.vec3f,
     env_origins: wp.array(dtype=wp.vec3f),
     goal_pos: wp.array(dtype=wp.vec3f),
     # input/output
@@ -99,7 +86,7 @@ def reset_target_pose(
         rand1 = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
         rng_state[env_id] += wp.uint32(1)
 
-        goal_rot[env_id] = randomize_rotation(rand0, rand1, x_unit_vecs[env_id], y_unit_vecs[env_id])
+        goal_rot[env_id] = randomize_rotation(rand0, rand1, x_unit_vec, y_unit_vec)
         reset_goal_buf[env_id] = False
 
     # Warp-native addition: goal position in world frame.
@@ -112,8 +99,8 @@ def reset_object(
     default_root_pose: wp.array(dtype=wp.transformf),
     env_origins: wp.array(dtype=wp.vec3f),
     reset_position_noise: wp.float32,
-    x_unit_vecs: wp.array(dtype=wp.vec3f),
-    y_unit_vecs: wp.array(dtype=wp.vec3f),
+    x_unit_vec: wp.vec3f,
+    y_unit_vec: wp.vec3f,
     env_mask: wp.array(dtype=wp.bool),
     # input/output
     rng_state: wp.array(dtype=wp.uint32),
@@ -138,7 +125,7 @@ def reset_object(
         rng_state[env_id] += wp.uint32(1)
         rand1 = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
         rng_state[env_id] += wp.uint32(1)
-        rot_w = randomize_rotation(rand0, rand1, x_unit_vecs[env_id], y_unit_vecs[env_id])
+        rot_w = randomize_rotation(rand0, rand1, x_unit_vec, y_unit_vec)
 
         # The following should be equivalent, but consider using write_root_pose_to_sim and write_root_velocity_to_sim
         root_pose_w[env_id] = wp.transform(pos_w, rot_w)
@@ -588,19 +575,9 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
         self.hand_dof_upper_limits = self.hand.data.joint_pos_limits_upper
 
         # unit vectors
-        self.x_unit_vecs = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        self.y_unit_vecs = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        self.z_unit_vecs = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        wp.launch(
-            initialize_xyz_unit_vecs,
-            dim=self.num_envs,
-            inputs=[
-                self.x_unit_vecs,
-                self.y_unit_vecs,
-                self.z_unit_vecs,
-            ],
-            device=self.device,
-        )
+        self.x_unit_vec = wp.vec3f(1.0, 0.0, 0.0)
+        self.y_unit_vec = wp.vec3f(0.0, 1.0, 0.0)
+        self.z_unit_vec = wp.vec3f(0.0, 0.0, 1.0)
 
         # Per-env origins (Warp view for kernels; Torch env uses `self.scene.env_origins` directly).
         self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
@@ -839,8 +816,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.object.data.default_root_pose,
                 self.env_origins,
                 self.cfg.reset_position_noise,
-                self.x_unit_vecs,
-                self.y_unit_vecs,
+                self.x_unit_vec,
+                self.y_unit_vec,
                 mask,
                 self.rng_state,
                 self.object.data.root_link_pose_w,
@@ -902,8 +879,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             dim=self.num_envs,
             inputs=[
                 mask,
-                self.x_unit_vecs,
-                self.y_unit_vecs,
+                self.x_unit_vec,
+                self.y_unit_vec,
                 self.env_origins,
                 self.goal_pos,
                 self.rng_state,
