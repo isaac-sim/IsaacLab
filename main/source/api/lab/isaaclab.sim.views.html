@@ -725,29 +725,28 @@ many prims simultaneously, such as in multi-agent simulations or large-scale pro
 <li><p><strong>World poses</strong>: Positions and orientations in the global world frame</p></li>
 <li><p><strong>Local poses</strong>: Positions and orientations relative to each prim’s parent</p></li>
 </ul>
+<p>When Fabric is enabled, the class leverages NVIDIA’s Fabric API for GPU-accelerated batch operations:</p>
+<ul class="simple">
+<li><p>Uses <cite>omni:fabric:worldMatrix</cite> and <cite>omni:fabric:localMatrix</cite> attributes for all Boundable prims</p></li>
+<li><p>Performs batch matrix decomposition/composition using Warp kernels on GPU</p></li>
+<li><p>Achieves performance comparable to Isaac Sim’s XFormPrim implementation</p></li>
+<li><p>Works for both physics-enabled and non-physics prims (cameras, meshes, etc.).
+Note: renderers typically consume USD-authored camera transforms.</p></li>
+</ul>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p><strong>Fabric and Physics Simulation:</strong></p>
-<p>This view operates directly on USD attributes. When <strong>Fabric</strong> (NVIDIA’s USD runtime optimization)
-is enabled, physics simulation updates are written to Fabric’s internal representation and
-<strong>not propagated back to USD attributes</strong>. This causes the following issues:</p>
-<ul class="simple">
-<li><p>Reading poses via <a class="reference internal" href="#isaaclab.sim.views.XformPrimView.get_world_poses" title="isaaclab.sim.views.XformPrimView.get_world_poses"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_world_poses()</span></code></a> or <a class="reference internal" href="#isaaclab.sim.views.XformPrimView.get_local_poses" title="isaaclab.sim.views.XformPrimView.get_local_poses"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_local_poses()</span></code></a> will return
-<strong>stale USD data</strong> which does not reflect the actual physics state</p></li>
-<li><p>Writing poses via <a class="reference internal" href="#isaaclab.sim.views.XformPrimView.set_world_poses" title="isaaclab.sim.views.XformPrimView.set_world_poses"><code class="xref py py-func docutils literal notranslate"><span class="pre">set_world_poses()</span></code></a> or <a class="reference internal" href="#isaaclab.sim.views.XformPrimView.set_local_poses" title="isaaclab.sim.views.XformPrimView.set_local_poses"><code class="xref py py-func docutils literal notranslate"><span class="pre">set_local_poses()</span></code></a> will update USD,
-but <strong>physics simulation will not see these changes</strong>.</p></li>
-</ul>
-<p><strong>Solution:</strong>
-For prims with physics components (rigid bodies, articulations), use <a class="reference internal" href="isaaclab.assets.html#module-isaaclab.assets" title="isaaclab.assets"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.assets</span></code></a>
-classes (e.g., <a class="reference internal" href="isaaclab.assets.html#isaaclab.assets.RigidObject" title="isaaclab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>, <a class="reference internal" href="isaaclab.assets.html#isaaclab.assets.Articulation" title="isaaclab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a>)
-which use PhysX tensor APIs that work correctly with Fabric.</p>
-<p><strong>When to use XformPrimView:</strong></p>
-<ul class="simple">
-<li><p>Non-physics prims (markers, visual elements, cameras without physics)</p></li>
-<li><p>Setting initial poses before simulation starts</p></li>
-<li><p>Non-Fabric workflows</p></li>
-</ul>
-<p>For more information on Fabric, please refer to the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html">Fabric documentation</a>.</p>
+<p><strong>Fabric requires CUDA</strong>: Fabric is only supported with <cite>device=”cuda”</cite>.
+Warp’s CPU backend for fabricarray writes has known issues, so attempting to use
+Fabric with <cite>device=”cpu”</cite> will raise a ValueError at initialization.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Fabric Support:</strong></p>
+<p>When Fabric is enabled, this view ensures prims have the required Fabric hierarchy
+attributes (<cite>omni:fabric:localMatrix</cite> and <cite>omni:fabric:worldMatrix</cite>). On first Fabric
+read, USD-authored transforms initialize Fabric state. Fabric writes can optionally
+be mirrored back to USD via <code class="xref py py-attr docutils literal notranslate"><span class="pre">sync_usd_on_fabric_write</span></code>.</p>
+<p>For more information, see the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/fabric_hierarchy.html">Fabric Hierarchy documentation</a>.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -755,7 +754,7 @@ which use PhysX tensor APIs that work correctly with Fabric.</p>
 <ul class="simple">
 <li><p>Tensor operations are performed on the specified device (CPU/CUDA)</p></li>
 <li><p>USD write operations use <code class="docutils literal notranslate"><span class="pre">Sdf.ChangeBlock</span></code> for batched updates</p></li>
-<li><p>Getting poses involves USD API calls and cannot be fully accelerated on GPU</p></li>
+<li><p>Fabric operations use GPU-accelerated Warp kernels for maximum performance</p></li>
 <li><p>For maximum performance, minimize get/set operations within tight loops</p></li>
 </ul>
 </div>
@@ -826,7 +825,7 @@ time-sampled keyframes separately.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="isaaclab.sim.views.XformPrimView.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validate_xform_ops</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">validate_xform_ops</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sync_usd_on_fabric_write</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the view with matching prims.</p>
 <p>This method searches the USD stage for all prims matching the provided path pattern,
 validates that they are Xformable with standard transform operations, and stores
@@ -845,6 +844,9 @@ regex patterns (e.g., <code class="docutils literal notranslate"><span class="pr
 <code class="docutils literal notranslate"><span class="pre">&quot;cuda:0&quot;</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;cpu&quot;</span></code>.</p></li>
 <li><p><strong>validate_xform_ops</strong> – Whether to validate that the prims have standard xform operations.
 Defaults to True.</p></li>
+<li><p><strong>sync_usd_on_fabric_write</strong> – Whether Fabric pose/scale writes should also be mirrored
+to USD. Defaults to False; set True when USD consumers (e.g., rendering cameras)
+must observe pose updates.</p></li>
 <li><p><strong>stage</strong> – USD stage to search for prims. Defaults to None, in which case the current active stage
 from the simulation context is used.</p></li>
 </ul>
@@ -902,13 +904,9 @@ for logging, debugging, or when string paths are explicitly required.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.views.XformPrimView.set_world_poses">
 <span class="sig-name descname"><span class="pre">set_world_poses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">positions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.set_world_poses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.set_world_poses" title="Permalink to this definition">#</a></dt>
 <dd><p>Set world-space poses for prims in the view.</p>
-<p>This method sets the position and/or orientation of each prim in world space. The world pose
-is computed by considering the prim’s parent transforms. If a prim has a parent, this method
-will convert the world pose to the appropriate local pose before setting it.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This operation writes to USD at the default time code. Any animation data will not be affected.</p>
-</div>
+<p>This method sets the position and/or orientation of each prim in world space.</p>
+<p>When Fabric is enabled, writes directly to Fabric using GPU-accelerated batch operations.
+When Fabric is disabled, converts to local space and writes to USD attributes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -935,12 +933,9 @@ for all prims in the view.</p></li>
 <span class="sig-name descname"><span class="pre">set_local_poses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">translations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.set_local_poses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.set_local_poses" title="Permalink to this definition">#</a></dt>
 <dd><p>Set local-space poses for prims in the view.</p>
 <p>This method sets the position and/or orientation of each prim in local space (relative to
-their parent prims). This is useful when you want to directly manipulate the prim’s transform
-attributes without considering the parent hierarchy.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This operation writes to USD at the default time code. Any animation data will not be affected.</p>
-</div>
+their parent prims).</p>
+<p>When Fabric is enabled, writes directly to Fabric local matrices using GPU-accelerated batch operations.
+When Fabric is disabled, writes directly to USD local transform attributes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -967,6 +962,8 @@ for all prims in the view.</p></li>
 <span class="sig-name descname"><span class="pre">set_scales</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scales</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.set_scales"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.set_scales" title="Permalink to this definition">#</a></dt>
 <dd><p>Set scales for prims in the view.</p>
 <p>This method sets the scale of each prim in the view.</p>
+<p>When Fabric is enabled, updates scales in Fabric matrices using GPU-accelerated batch operations.
+When Fabric is disabled, writes to USD scale attributes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1008,6 +1005,8 @@ for all prims in the view.</p></li>
 <dd><p>Get world-space poses for prims in the view.</p>
 <p>This method retrieves the position and orientation of each prim in world space by computing
 the full transform hierarchy from the prim to the world root.</p>
+<p>When Fabric is enabled, uses Fabric batch operations with Warp kernels.
+When Fabric is disabled, uses USD XformCache.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Scale and skew are ignored. The returned poses contain only translation and rotation.</p>
@@ -1036,7 +1035,9 @@ where M is the number of prims queried.</p></li>
 <span class="sig-name descname"><span class="pre">get_local_poses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.get_local_poses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.get_local_poses" title="Permalink to this definition">#</a></dt>
 <dd><p>Get local-space poses for prims in the view.</p>
 <p>This method retrieves the position and orientation of each prim in local space (relative to
-their parent prims). These are the raw transform values stored on each prim.</p>
+their parent prims).</p>
+<p>When Fabric is enabled, reads from Fabric local matrices using batch operations with Warp kernels.
+When Fabric is disabled, reads directly from USD local transform attributes.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Scale is ignored. The returned poses contain only translation and rotation.</p>
@@ -1065,6 +1066,8 @@ where M is the number of prims queried.</p></li>
 <span class="sig-name descname"><span class="pre">get_scales</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab/sim/views/xform_prim_view.html#XformPrimView.get_scales"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab.sim.views.XformPrimView.get_scales" title="Permalink to this definition">#</a></dt>
 <dd><p>Get scales for prims in the view.</p>
 <p>This method retrieves the scale of each prim in the view.</p>
+<p>When Fabric is enabled, extracts scales from Fabric matrices using batch operations with Warp kernels.
+When Fabric is disabled, reads from USD scale attributes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>indices</strong> – Indices of prims to get scales for. Defaults to None, in which case scales are retrieved

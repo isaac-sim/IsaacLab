@@ -995,6 +995,14 @@
 <span class="sd">                       pathResolverContext=&lt;invalid repr&gt;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">stage</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">_context</span><span class="p">,</span> <span class="s2">&quot;stage&quot;</span><span class="p">,</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="n">fabric</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>
+
+        <span class="c1"># Get stage ID and attach to Fabric stage</span>
+        <span class="n">stage_id</span> <span class="o">=</span> <span class="n">get_current_stage_id</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">usdrt</span><span class="o">.</span><span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">Attach</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
+
     <span class="k">return</span> <span class="n">stage</span></div>
 
 
