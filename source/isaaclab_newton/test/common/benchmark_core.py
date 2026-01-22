@@ -11,11 +11,12 @@ benchmark scripts for both Articulation and RigidObject classes.
 
 from __future__ import annotations
 
+import contextlib
+import numpy as np
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
-import contextlib
-import time
-import numpy as np
+
 import warp as wp
 
 
@@ -175,9 +176,11 @@ def make_warp_body_mask(num_bodies: int, device: str) -> wp.array:
     """
     return wp.ones((num_bodies,), dtype=wp.bool, device=device)
 
+
 # =============================================================================
 # Benchmark Method Helper Functions
 # =============================================================================
+
 
 def benchmark_method(
     method: Callable | None,
@@ -218,7 +221,7 @@ def benchmark_method(
             std_time_us=0.0,
             num_iterations=0,
             skipped=True,
-             skip_reason=f"NotImplementedError: {e}",
+            skip_reason=f"NotImplementedError: {e}",
         )
     except Exception as e:
         return BenchmarkResult(

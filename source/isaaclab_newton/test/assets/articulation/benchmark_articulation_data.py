@@ -33,14 +33,8 @@ if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
 # Import shared utilities from common module
-from common.benchmark_core import (
-    BenchmarkConfig,
-    BenchmarkResult,
-    MethodBenchmark,
-    benchmark_method,
-)
+from common.benchmark_core import BenchmarkConfig, BenchmarkResult, MethodBenchmark, benchmark_method
 from common.benchmark_io import (
-    export_results_csv,
     export_results_json,
     get_default_output_filename,
     get_hardware_info,
@@ -304,7 +298,8 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
             # We can't bind a property to an instance easily like a method
             # So we create a lambda that takes **kwargs (which will be empty)
             # and accesses the property on the instance.
-            prop_accessor = lambda prop=benchmark.method_name, **kwargs: getattr(articulation_data, prop)
+            def prop_accessor(prop=benchmark.method_name, **kwargs):
+                return getattr(articulation_data, prop)
 
             print(f"[{i + 1}/{len(benchmarks)}] [DEFAULT] {benchmark.name}...", end=" ", flush=True)
 
@@ -316,7 +311,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
                 dependencies=PROPERTY_DEPENDENCIES,
             )
             # Property benchmarks only have one "mode" (default/access)
-            result.mode = "default" 
+            result.mode = "default"
             results.append(result)
 
             if result.skipped:
@@ -373,12 +368,13 @@ def main():
         json_filename = args.output
     else:
         json_filename = get_default_output_filename("articulation_data_benchmark")
-    
+
     export_results_json(results, config, hardware_info, json_filename)
-    
+
     if not args.no_csv:
         csv_filename = json_filename.replace(".json", ".csv")
         from common.benchmark_io import export_results_csv
+
         export_results_csv(results, csv_filename)
 
 

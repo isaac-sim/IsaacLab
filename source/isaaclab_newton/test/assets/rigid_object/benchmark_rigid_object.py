@@ -26,7 +26,6 @@ Example:
 from __future__ import annotations
 
 import argparse
-import numpy as np
 import sys
 import torch
 import warnings
@@ -580,16 +579,17 @@ BENCHMARKS = [
     ),
 ]
 
+
 def run_benchmark(config: BenchmarkConfig):
     """Run all benchmarks."""
     results = []
-    
+
     # Check if we should run all modes or specific ones
     modes_to_run = []
     if isinstance(config.mode, str):
         if config.mode == "all":
             # Will be populated dynamically based on available generators
-            modes_to_run = None 
+            modes_to_run = None
         else:
             modes_to_run = [config.mode]
     elif isinstance(config.mode, list):
@@ -610,11 +610,11 @@ def run_benchmark(config: BenchmarkConfig):
     print(f"\nBenchmarking {len(BENCHMARKS)} methods...")
     for i, benchmark in enumerate(BENCHMARKS):
         method = getattr(rigid_object, benchmark.method_name, None)
-        
+
         # Determine which modes to run for this benchmark
         available_modes = list(benchmark.input_generators.keys())
         current_modes = modes_to_run if modes_to_run is not None else available_modes
-        
+
         # Filter modes that are available for this benchmark
         current_modes = [m for m in current_modes if m in available_modes]
 
@@ -672,10 +672,11 @@ if __name__ == "__main__":
         json_filename = args.output
     else:
         json_filename = get_default_output_filename("rigid_object_benchmark")
-    
+
     export_results_json(results, config, hardware_info, json_filename)
-    
+
     if not args.no_csv:
         csv_filename = json_filename.replace(".json", ".csv")
         from common.benchmark_io import export_results_csv
+
         export_results_csv(results, csv_filename)
