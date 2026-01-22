@@ -32,41 +32,6 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
    .. tab-set::
 
-      .. tab-item::  UV Environment
-
-         To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
-
-         .. note::
-
-            A virtual environment created by ``uv venv`` does **not** include ``pip``.
-            Since Isaac Lab installation requires ``pip``, please install it manually
-            after activating the environment.
-
-         You can create the Isaac Lab environment using the following commands:
-
-         .. tab-set::
-            :sync-group: os
-
-            .. tab-item:: :icon:`fa-brands fa-linux` Linux
-               :sync: linux
-
-               .. code-block:: bash
-
-                  # create a virtual environment named env_isaaclab with python3.11 and pip
-                  uv venv --python 3.11 --seed env_isaaclab
-                  # activate the virtual environment
-                  source env_isaaclab/bin/activate
-
-            .. tab-item:: :icon:`fa-brands fa-windows` Windows
-               :sync: windows
-
-               .. code-block:: batch
-
-                  :: create a virtual environment named env_isaaclab with python3.11 and pip
-                  uv venv --python 3.11 --seed env_isaaclab
-                  :: activate the virtual environment
-                  env_isaaclab\Scripts\activate
-
       .. tab-item::  Conda Environment
 
          To install conda, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
@@ -107,6 +72,42 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
                   python3.11 -m venv env_isaaclab
                   :: activate the virtual environment
                   env_isaaclab\Scripts\activate
+
+      .. tab-item::  UV Environment (experimental)
+
+         To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
+
+         .. note::
+
+            A virtual environment created by ``uv venv`` does **not** include ``pip``.
+            Since Isaac Lab installation requires ``pip``, please install it manually
+            after activating the environment.
+
+         You can create the Isaac Lab environment using the following commands:
+
+         .. tab-set::
+            :sync-group: os
+
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux
+               :sync: linux
+
+               .. code-block:: bash
+
+                  # create a virtual environment named env_isaaclab with python3.11 and pip
+                  uv venv --python 3.11 --seed env_isaaclab
+                  # activate the virtual environment
+                  source env_isaaclab/bin/activate
+
+            .. tab-item:: :icon:`fa-brands fa-windows` Windows
+               :sync: windows
+
+               .. code-block:: batch
+
+                  :: create a virtual environment named env_isaaclab with python3.11 and pip
+                  uv venv --python 3.11 --seed env_isaaclab
+                  :: activate the virtual environment
+                  env_isaaclab\Scripts\activate
+
 
 
 -  Ensure the latest pip version is installed. To update pip, run the following command

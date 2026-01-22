@@ -64,7 +64,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 21, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 22, 2026"/>
   </head>
   
   
@@ -1001,45 +1001,14 @@ instead of <em>./isaaclab.sh -p</em> or <em>isaaclab.bat -p</em>.</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-16" name="sd-tab-set-8" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-16">
-UV Environment</label><div class="sd-tab-content docutils">
-<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.
-You can create the Isaac Lab environment using the following commands:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
-<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default environment name &#39;env_isaaclab&#39;</span>
-./isaaclab.sh<span class="w"> </span>--uv<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u&quot;</span>
-<span class="c1"># Option 2: Custom name</span>
-./isaaclab.sh<span class="w"> </span>--uv<span class="w"> </span>my_env<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u my_env&quot;</span>
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Activate environment</span>
-<span class="nb">source</span><span class="w"> </span>./env_isaaclab/bin/activate<span class="w">  </span><span class="c1"># or &quot;source ./my_env/bin/activate&quot;</span>
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
-<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>Windows support for UV is currently unavailable. Please check
-<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/issues/3438">issue #3483</a> to track progress.</p>
-</div>
-</div>
-</div>
-</div>
-<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
-<label class="sd-tab-label" for="sd-tab-item-17">
 Conda Environment</label><div class="sd-tab-content docutils">
 <p>To install conda, please follow the instructions <a class="reference external" href="https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html">here</a>.
 You can create the Isaac Lab environment using the following commands.</p>
 <p>We recommend using <a class="reference external" href="https://www.anaconda.com/docs/getting-started/miniconda/main/">Miniconda</a>,
 since it is light-weight and resource-efficient environment management system.</p>
 <div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
+<input checked="checked" id="sd-tab-item-18" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-18">
 <i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default environment name &#39;env_isaaclab&#39;</span>
 ./isaaclab.sh<span class="w"> </span>--conda<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -c&quot;</span>
@@ -1052,8 +1021,8 @@ conda<span class="w"> </span>activate<span class="w"> </span>env_isaaclab<span c
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
+<input id="sd-tab-item-19" name="sd-tab-set-9" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-19">
 <i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Option 1: Default environment name &#39;env_isaaclab&#39;</span>
 isaaclab.bat --conda  :: or <span class="s2">&quot;isaaclab.bat -c&quot;</span>
@@ -1064,6 +1033,37 @@ isaaclab.bat --conda my_env  :: or <span class="s2">&quot;isaaclab.bat -c my_env
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: Activate environment</span>
 conda activate env_isaaclab  # or <span class="s2">&quot;conda activate my_env&quot;</span>
 </pre></div>
+</div>
+</div>
+</div>
+</div>
+<input id="sd-tab-item-17" name="sd-tab-set-8" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-17">
+UV Environment (experimental)</label><div class="sd-tab-content docutils">
+<p>To install <code class="docutils literal notranslate"><span class="pre">uv</span></code>, please follow the instructions <a class="reference external" href="https://docs.astral.sh/uv/getting-started/installation/">here</a>.
+You can create the Isaac Lab environment using the following commands:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-20" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-20">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option 1: Default environment name &#39;env_isaaclab&#39;</span>
+./isaaclab.sh<span class="w"> </span>--uv<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u&quot;</span>
+<span class="c1"># Option 2: Custom name</span>
+./isaaclab.sh<span class="w"> </span>--uv<span class="w"> </span>my_env<span class="w">  </span><span class="c1"># or &quot;./isaaclab.sh -u my_env&quot;</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Activate environment</span>
+<span class="nb">source</span><span class="w"> </span>./env_isaaclab/bin/activate<span class="w">  </span><span class="c1"># or &quot;source ./my_env/bin/activate&quot;</span>
+</pre></div>
+</div>
+</div>
+<input id="sd-tab-item-21" name="sd-tab-set-10" type="radio">
+<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-21">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Windows support for UV is currently unavailable. Please check
+<a class="reference external" href="https://github.com/isaac-sim/IsaacLab/issues/3438">issue #3483</a> to track progress.</p>
 </div>
 </div>
 </div>
@@ -1309,7 +1309,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 21, 2026.
+  Last updated on Jan 22, 2026.
   <br/>
 </p>
   </div>
