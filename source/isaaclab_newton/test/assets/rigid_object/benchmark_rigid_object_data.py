@@ -19,10 +19,7 @@ Example:
 from __future__ import annotations
 
 import argparse
-import contextlib
-import numpy as np
 import sys
-import time
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -36,7 +33,12 @@ if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
 # Import shared utilities from common module
-from common.benchmark_core import BenchmarkConfig, BenchmarkResult
+from common.benchmark_core import (
+    BenchmarkConfig,
+    BenchmarkResult,
+    MethodBenchmark,
+    benchmark_method,
+)
 from common.benchmark_io import (
     export_results_csv,
     export_results_json,
@@ -216,126 +218,14 @@ def setup_mock_environment(
     return mock_view, mock_model, mock_state, mock_control
 
 
-def benchmark_property(
-    rigid_object_data: RigidObjectData,
-    mock_view: MockNewtonArticulationView,
-    property_name: str,
-    config: BenchmarkConfig,
-) -> BenchmarkResult:
-    """Benchmark a single property of RigidObjectData.
+# We need a way to pass the instance and view to the generator, but gen_mock_data
+# only takes config. We can use a class or closure, or rely on global state set up in run_benchmarks.
+# For simplicity, we'll assume `_rigid_object_data` and `_mock_view` are available in the scope
+# or passed via a partial.
+# Since benchmark_method expects generator(config) -> dict, we can't easily pass the instance.
+# However, we can create a closure inside run_benchmarks.
 
-    Args:
-        rigid_object_data: The RigidObjectData instance.
-        mock_view: The mock view for setting random data.
-        property_name: Name of the property to benchmark.
-        config: Benchmark configuration.
-
-    Returns:
-        BenchmarkResult with timing statistics.
-    """
-    # Check if property exists
-    if not hasattr(rigid_object_data, property_name):
-        return BenchmarkResult(
-            name=property_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="Property not found",
-        )
-
-    # Try to access the property once to check if it raises NotImplementedError
-    try:
-        _ = getattr(rigid_object_data, property_name)
-    except NotImplementedError as e:
-        return BenchmarkResult(
-            name=property_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"NotImplementedError: {e}",
-        )
-    except Exception as e:
-        return BenchmarkResult(
-            name=property_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"Error: {type(e).__name__}: {e}",
-        )
-
-    # Get dependencies for this property (if any)
-    dependencies = PROPERTY_DEPENDENCIES.get(property_name, [])
-
-    # Warmup phase with random data
-    for _ in range(config.warmup_steps):
-        mock_view.set_random_mock_data()
-        rigid_object_data._sim_timestamp += 1.0  # Invalidate cached data
-        try:
-            # Warm up dependencies first
-            for dep in dependencies:
-                _ = getattr(rigid_object_data, dep)
-            # Then warm up the target property
-            _ = getattr(rigid_object_data, property_name)
-        except Exception:
-            pass
-        # Sync GPU
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-    # Timing phase
-    times = []
-    for _ in range(config.num_iterations):
-        # Randomize mock data each iteration
-        mock_view.set_random_mock_data()
-        rigid_object_data._sim_timestamp += 1.0  # Invalidate cached data
-
-        # Call dependencies first to populate their caches (not timed)
-        # This ensures we only measure the overhead of the derived property
-        with contextlib.suppress(Exception):
-            for dep in dependencies:
-                _ = getattr(rigid_object_data, dep)
-
-        # Sync before timing
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-        # Time only the target property access
-        start_time = time.perf_counter()
-        try:
-            _ = getattr(rigid_object_data, property_name)
-        except Exception:
-            continue
-
-        # Sync after to ensure kernel completion
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-        end_time = time.perf_counter()
-        times.append((end_time - start_time) * 1e6)  # Convert to microseconds
-
-    if not times:
-        return BenchmarkResult(
-            name=property_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="No successful iterations",
-        )
-
-    return BenchmarkResult(
-        name=property_name,
-        mean_time_us=float(np.mean(times)),
-        std_time_us=float(np.std(times)),
-        num_iterations=len(times),
-        dependencies=dependencies if dependencies else None,
-    )
-
-
-def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict]:
+def run_benchmark(config: BenchmarkConfig) -> list[BenchmarkResult]:
     """Run all benchmarks for RigidObjectData.
 
     Args:
@@ -345,10 +235,6 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
         Tuple of (List of BenchmarkResults, hardware_info dict).
     """
     results = []
-
-    # Gather and print hardware info
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
 
     # Setup mock environment
     mock_view, mock_model, mock_state, mock_control = setup_mock_environment(config)
@@ -369,15 +255,48 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
         # Get list of properties to benchmark
         properties = get_benchmarkable_properties(rigid_object_data)
 
-        print(f"\nBenchmarking {len(properties)} properties...")
+        # Generator that updates mock data and invalidates timestamp
+        def gen_mock_data(config: BenchmarkConfig) -> dict:
+            mock_view.set_random_mock_data()
+            rigid_object_data._sim_timestamp += 1.0
+            return {}
+
+        # Create benchmarks dynamically
+        benchmarks = []
+        for prop_name in properties:
+            benchmarks.append(
+                MethodBenchmark(
+                    name=prop_name,
+                    method_name=prop_name,
+                    input_generators={"default": gen_mock_data},
+                    category="property",
+                )
+            )
+
+        print(f"\nBenchmarking {len(benchmarks)} properties...")
         print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
         print(f"        {config.num_instances} instances, {config.num_bodies} bodies")
         print("-" * 80)
 
-        for i, prop_name in enumerate(properties):
-            print(f"[{i + 1}/{len(properties)}] Benchmarking {prop_name}...", end=" ", flush=True)
+        for i, benchmark in enumerate(benchmarks):
+            # For properties, we need a wrapper that accesses the property
+            # We can't bind a property to an instance easily like a method
+            # So we create a lambda that takes **kwargs (which will be empty)
+            # and accesses the property on the instance.
+            # We must bind prop_name to avoid closure issues
+            prop_accessor = lambda prop=benchmark.method_name, **kwargs: getattr(rigid_object_data, prop)
 
-            result = benchmark_property(rigid_object_data, mock_view, prop_name, config)
+            print(f"[{i + 1}/{len(benchmarks)}] [DEFAULT] {benchmark.name}...", end=" ", flush=True)
+
+            result = benchmark_method(
+                method=prop_accessor,
+                method_name=benchmark.name,
+                generator=gen_mock_data,
+                config=config,
+                dependencies=PROPERTY_DEPENDENCIES,
+            )
+            # Property benchmarks only have one "mode" (default/access)
+            result.mode = "default" 
             results.append(result)
 
             if result.skipped:
@@ -385,7 +304,7 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
             else:
                 print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
 
-    return results, hardware_info
+    return results
 
 
 def main():
@@ -394,48 +313,12 @@ def main():
         description="Micro-benchmarking framework for RigidObjectData class.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--num_iterations",
-        type=int,
-        default=10000,
-        help="Number of iterations to run each function.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=int,
-        default=10,
-        help="Number of warmup steps before timing.",
-    )
-    parser.add_argument(
-        "--num_instances",
-        type=int,
-        default=16384,
-        help="Number of rigid object instances.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda:0",
-        help="Device to run benchmarks on.",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        default=None,
-        help="Output JSON file for benchmark results. Default: rigid_object_data_DATE.json",
-    )
-    parser.add_argument(
-        "--export_csv",
-        type=str,
-        default=None,
-        help="Additionally export results to CSV file.",
-    )
-    parser.add_argument(
-        "--no_json",
-        action="store_true",
-        help="Disable JSON output.",
-    )
+    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
+    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
+    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
+    parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
 
     args = parser.parse_args()
 
@@ -448,20 +331,24 @@ def main():
         device=args.device,
     )
 
-    # Run benchmarks
-    results, hardware_info = run_benchmarks(config)
+    results = run_benchmark(config)
 
-    # Print results
+    hardware_info = get_hardware_info()
+    print_hardware_info(hardware_info)
     print_results(results, include_mode=False)
 
-    # Export to JSON (default)
-    if not args.no_json:
-        output_filename = args.output if args.output else get_default_output_filename("rigid_object_data")
-        export_results_json(results, config, hardware_info, output_filename, include_mode=False)
+    if args.output:
+        json_filename = args.output
+    else:
+        json_filename = get_default_output_filename("rigid_object_data_benchmark")
+    
+    export_results_json(results, config, hardware_info, json_filename)
+    
+    if not args.no_csv:
+        csv_filename = json_filename.replace(".json", ".csv")
+        from common.benchmark_io import export_results_csv
+        export_results_csv(results, csv_filename)
 
-    # Export to CSV if requested
-    if args.export_csv:
-        export_results_csv(results, args.export_csv)
 
 
 if __name__ == "__main__":

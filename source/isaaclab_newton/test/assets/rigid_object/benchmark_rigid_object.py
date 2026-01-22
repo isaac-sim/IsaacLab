@@ -26,10 +26,8 @@ Example:
 from __future__ import annotations
 
 import argparse
-import contextlib
 import numpy as np
 import sys
-import time
 import torch
 import warnings
 from pathlib import Path
@@ -50,9 +48,8 @@ if str(_TEST_DIR) not in sys.path:
 # Import shared utilities from common module
 from common.benchmark_core import (
     BenchmarkConfig,
-    BenchmarkResult,
-    InputMode,
     MethodBenchmark,
+    benchmark_method,
     make_tensor_body_ids,
     make_tensor_env_ids,
     make_warp_body_mask,
@@ -128,6 +125,90 @@ def create_test_rigid_object(
 # =============================================================================
 # Input Generators
 # =============================================================================
+
+
+# --- Root State (Deprecated) ---
+def gen_root_state_warp(config: BenchmarkConfig) -> dict:
+    """Generate Warp inputs for write_root_state_to_sim."""
+    return {
+        "root_state": wp.from_torch(
+            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+            dtype=vec13f,
+        ),
+        "env_mask": make_warp_env_mask(config.num_instances, config.device),
+    }
+
+
+def gen_root_state_torch_list(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with list env_ids for write_root_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": list(range(config.num_instances)),
+    }
+
+
+def gen_root_state_torch_tensor(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with tensor env_ids for write_root_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+    }
+
+
+# --- Root COM State (Deprecated) ---
+def gen_root_com_state_warp(config: BenchmarkConfig) -> dict:
+    """Generate Warp inputs for write_root_com_state_to_sim."""
+    return {
+        "root_state": wp.from_torch(
+            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+            dtype=vec13f,
+        ),
+        "env_mask": make_warp_env_mask(config.num_instances, config.device),
+    }
+
+
+def gen_root_com_state_torch_list(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with list env_ids for write_root_com_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": list(range(config.num_instances)),
+    }
+
+
+def gen_root_com_state_torch_tensor(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with tensor env_ids for write_root_com_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+    }
+
+
+# --- Root Link State (Deprecated) ---
+def gen_root_link_state_warp(config: BenchmarkConfig) -> dict:
+    """Generate Warp inputs for write_root_link_state_to_sim."""
+    return {
+        "root_state": wp.from_torch(
+            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+            dtype=vec13f,
+        ),
+        "env_mask": make_warp_env_mask(config.num_instances, config.device),
+    }
+
+
+def gen_root_link_state_torch_list(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with list env_ids for write_root_link_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": list(range(config.num_instances)),
+    }
+
+
+def gen_root_link_state_torch_tensor(config: BenchmarkConfig) -> dict:
+    """Generate Torch inputs with tensor env_ids for write_root_link_state_to_sim."""
+    return {
+        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
+        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+    }
 
 
 # --- Root Link Pose ---
@@ -238,90 +319,6 @@ def gen_root_com_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_com_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-    }
-
-
-# --- Root State (Deprecated) ---
-def gen_root_state_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_root_state_to_sim."""
-    return {
-        "root_state": wp.from_torch(
-            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-            dtype=vec13f,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-    }
-
-
-def gen_root_state_torch_list(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with list env_ids for write_root_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-    }
-
-
-def gen_root_state_torch_tensor(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with tensor env_ids for write_root_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-    }
-
-
-# --- Root COM State (Deprecated) ---
-def gen_root_com_state_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_root_com_state_to_sim."""
-    return {
-        "root_state": wp.from_torch(
-            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-            dtype=vec13f,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-    }
-
-
-def gen_root_com_state_torch_list(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with list env_ids for write_root_com_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-    }
-
-
-def gen_root_com_state_torch_tensor(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with tensor env_ids for write_root_com_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": make_tensor_env_ids(config.num_instances, config.device),
-    }
-
-
-# --- Root Link State (Deprecated) ---
-def gen_root_link_state_warp(config: BenchmarkConfig) -> dict:
-    """Generate Warp inputs for write_root_link_state_to_sim."""
-    return {
-        "root_state": wp.from_torch(
-            torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-            dtype=vec13f,
-        ),
-        "env_mask": make_warp_env_mask(config.num_instances, config.device),
-    }
-
-
-def gen_root_link_state_torch_list(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with list env_ids for write_root_link_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
-        "env_ids": list(range(config.num_instances)),
-    }
-
-
-def gen_root_link_state_torch_tensor(config: BenchmarkConfig) -> dict:
-    """Generate Torch inputs with tensor env_ids for write_root_link_state_to_sim."""
-    return {
-        "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
     }
 
@@ -461,262 +458,178 @@ def gen_external_force_and_torque_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # =============================================================================
-# Method Benchmark Definitions
+# Benchmarks
 # =============================================================================
 
-METHOD_BENCHMARKS = [
-    # Root State Writers
+BENCHMARK_DEPENDENCIES = {}
+
+BENCHMARKS = [
+    # --- Root State (Deprecated) ---
+    MethodBenchmark(
+        name="write_root_state_to_sim",
+        method_name="write_root_state_to_sim",
+        input_generators={
+            "warp": gen_root_state_warp,
+            "torch_list": gen_root_state_torch_list,
+            "torch_tensor": gen_root_state_torch_tensor,
+        },
+        category="root_state",
+    ),
+    MethodBenchmark(
+        name="write_root_com_state_to_sim",
+        method_name="write_root_com_state_to_sim",
+        input_generators={
+            "warp": gen_root_com_state_warp,
+            "torch_list": gen_root_com_state_torch_list,
+            "torch_tensor": gen_root_com_state_torch_tensor,
+        },
+        category="root_state",
+    ),
+    MethodBenchmark(
+        name="write_root_link_state_to_sim",
+        method_name="write_root_link_state_to_sim",
+        input_generators={
+            "warp": gen_root_link_state_warp,
+            "torch_list": gen_root_link_state_torch_list,
+            "torch_tensor": gen_root_link_state_torch_tensor,
+        },
+        category="root_state",
+    ),
+    # --- Root Pose / Velocity ---
     MethodBenchmark(
         name="write_root_link_pose_to_sim",
         method_name="write_root_link_pose_to_sim",
-        input_generator_warp=gen_root_link_pose_warp,
-        input_generator_torch_list=gen_root_link_pose_torch_list,
-        input_generator_torch_tensor=gen_root_link_pose_torch_tensor,
-        category="root_state",
+        input_generators={
+            "warp": gen_root_link_pose_warp,
+            "torch_list": gen_root_link_pose_torch_list,
+            "torch_tensor": gen_root_link_pose_torch_tensor,
+        },
+        category="root_pose",
     ),
     MethodBenchmark(
         name="write_root_com_pose_to_sim",
         method_name="write_root_com_pose_to_sim",
-        input_generator_warp=gen_root_com_pose_warp,
-        input_generator_torch_list=gen_root_com_pose_torch_list,
-        input_generator_torch_tensor=gen_root_com_pose_torch_tensor,
-        category="root_state",
+        input_generators={
+            "warp": gen_root_com_pose_warp,
+            "torch_list": gen_root_com_pose_torch_list,
+            "torch_tensor": gen_root_com_pose_torch_tensor,
+        },
+        category="root_pose",
     ),
     MethodBenchmark(
         name="write_root_link_velocity_to_sim",
         method_name="write_root_link_velocity_to_sim",
-        input_generator_warp=gen_root_link_velocity_warp,
-        input_generator_torch_list=gen_root_link_velocity_torch_list,
-        input_generator_torch_tensor=gen_root_link_velocity_torch_tensor,
-        category="root_state",
+        input_generators={
+            "warp": gen_root_link_velocity_warp,
+            "torch_list": gen_root_link_velocity_torch_list,
+            "torch_tensor": gen_root_link_velocity_torch_tensor,
+        },
+        category="root_velocity",
     ),
     MethodBenchmark(
         name="write_root_com_velocity_to_sim",
         method_name="write_root_com_velocity_to_sim",
-        input_generator_warp=gen_root_com_velocity_warp,
-        input_generator_torch_list=gen_root_com_velocity_torch_list,
-        input_generator_torch_tensor=gen_root_com_velocity_torch_tensor,
-        category="root_state",
+        input_generators={
+            "warp": gen_root_com_velocity_warp,
+            "torch_list": gen_root_com_velocity_torch_list,
+            "torch_tensor": gen_root_com_velocity_torch_tensor,
+        },
+        category="root_velocity",
     ),
-    # Root State Writers (Deprecated)
-    MethodBenchmark(
-        name="write_root_state_to_sim (deprecated)",
-        method_name="write_root_state_to_sim",
-        input_generator_warp=gen_root_state_warp,
-        input_generator_torch_list=gen_root_state_torch_list,
-        input_generator_torch_tensor=gen_root_state_torch_tensor,
-        category="root_state_deprecated",
-    ),
-    MethodBenchmark(
-        name="write_root_com_state_to_sim (deprecated)",
-        method_name="write_root_com_state_to_sim",
-        input_generator_warp=gen_root_com_state_warp,
-        input_generator_torch_list=gen_root_com_state_torch_list,
-        input_generator_torch_tensor=gen_root_com_state_torch_tensor,
-        category="root_state_deprecated",
-    ),
-    MethodBenchmark(
-        name="write_root_link_state_to_sim (deprecated)",
-        method_name="write_root_link_state_to_sim",
-        input_generator_warp=gen_root_link_state_warp,
-        input_generator_torch_list=gen_root_link_state_torch_list,
-        input_generator_torch_tensor=gen_root_link_state_torch_tensor,
-        category="root_state_deprecated",
-    ),
-    # Body Properties
+    # --- Body Properties ---
     MethodBenchmark(
         name="set_masses",
         method_name="set_masses",
-        input_generator_warp=gen_masses_warp,
-        input_generator_torch_list=gen_masses_torch_list,
-        input_generator_torch_tensor=gen_masses_torch_tensor,
-        category="body_properties",
+        input_generators={
+            "warp": gen_masses_warp,
+            "torch_list": gen_masses_torch_list,
+            "torch_tensor": gen_masses_torch_tensor,
+        },
+        category="body_props",
     ),
     MethodBenchmark(
         name="set_coms",
         method_name="set_coms",
-        input_generator_warp=gen_coms_warp,
-        input_generator_torch_list=gen_coms_torch_list,
-        input_generator_torch_tensor=gen_coms_torch_tensor,
-        category="body_properties",
+        input_generators={
+            "warp": gen_coms_warp,
+            "torch_list": gen_coms_torch_list,
+            "torch_tensor": gen_coms_torch_tensor,
+        },
+        category="body_props",
     ),
     MethodBenchmark(
         name="set_inertias",
         method_name="set_inertias",
-        input_generator_warp=gen_inertias_warp,
-        input_generator_torch_list=gen_inertias_torch_list,
-        input_generator_torch_tensor=gen_inertias_torch_tensor,
-        category="body_properties",
+        input_generators={
+            "warp": gen_inertias_warp,
+            "torch_list": gen_inertias_torch_list,
+            "torch_tensor": gen_inertias_torch_tensor,
+        },
+        category="body_props",
     ),
+    # --- External Wrench ---
     MethodBenchmark(
         name="set_external_force_and_torque",
         method_name="set_external_force_and_torque",
-        input_generator_warp=gen_external_force_and_torque_warp,
-        input_generator_torch_list=gen_external_force_and_torque_torch_list,
-        input_generator_torch_tensor=gen_external_force_and_torque_torch_tensor,
-        category="body_properties",
+        input_generators={
+            "warp": gen_external_force_and_torque_warp,
+            "torch_list": gen_external_force_and_torque_torch_list,
+            "torch_tensor": gen_external_force_and_torque_torch_tensor,
+        },
+        category="wrench",
     ),
 ]
 
-
-def benchmark_method(
-    rigid_object: RigidObject,
-    method_benchmark: MethodBenchmark,
-    mode: InputMode,
-    config: BenchmarkConfig,
-) -> BenchmarkResult:
-    """Benchmark a single method of RigidObject.
-
-    Args:
-        rigid_object: The RigidObject instance.
-        method_benchmark: The method benchmark definition.
-        mode: Input mode (WARP or TORCH).
-        config: Benchmark configuration.
-
-    Returns:
-        BenchmarkResult with timing statistics.
-    """
-    method_name = method_benchmark.method_name
-
-    # Check if method exists
-    if not hasattr(rigid_object, method_name):
-        return BenchmarkResult(
-            name=method_benchmark.name,
-            mode=mode,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="Method not found",
-        )
-
-    method = getattr(rigid_object, method_name)
-    if mode == InputMode.WARP:
-        input_generator = method_benchmark.input_generator_warp
-    elif mode == InputMode.TORCH_TENSOR:
-        # Use tensor generator if available, otherwise fall back to list generator
-        input_generator = method_benchmark.input_generator_torch_tensor or method_benchmark.input_generator_torch_list
-    else:  # TORCH_LIST
-        input_generator = method_benchmark.input_generator_torch_list
-
-    # Try to call the method once to check for errors
-    try:
-        inputs = input_generator(config)
-        method(**inputs)
-    except NotImplementedError as e:
-        return BenchmarkResult(
-            name=method_benchmark.name,
-            mode=mode,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"NotImplementedError: {e}",
-        )
-    except Exception as e:
-        return BenchmarkResult(
-            name=method_benchmark.name,
-            mode=mode,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"Error: {type(e).__name__}: {e}",
-        )
-
-    # Warmup phase
-    for _ in range(config.warmup_steps):
-        inputs = input_generator(config)
-        with contextlib.suppress(Exception):
-            method(**inputs)
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-    # Timing phase
-    times = []
-    for _ in range(config.num_iterations):
-        inputs = input_generator(config)
-
-        # Sync before timing
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-        start_time = time.perf_counter()
-        try:
-            method(**inputs)
-        except Exception:
-            continue
-
-        # Sync after to ensure kernel completion
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-        end_time = time.perf_counter()
-        times.append((end_time - start_time) * 1e6)  # Convert to microseconds
-
-    if not times:
-        return BenchmarkResult(
-            name=method_benchmark.name,
-            mode=mode,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="No successful iterations",
-        )
-
-    return BenchmarkResult(
-        name=method_benchmark.name,
-        mode=mode,
-        mean_time_us=float(np.mean(times)),
-        std_time_us=float(np.std(times)),
-        num_iterations=len(times),
-    )
-
-
-def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict]:
-    """Run all benchmarks for RigidObject.
-
-    Args:
-        config: Benchmark configuration.
-
-    Returns:
-        Tuple of (List of BenchmarkResults, hardware_info dict).
-    """
+def run_benchmark(config: BenchmarkConfig):
+    """Run all benchmarks."""
     results = []
+    
+    # Check if we should run all modes or specific ones
+    modes_to_run = []
+    if isinstance(config.mode, str):
+        if config.mode == "all":
+            # Will be populated dynamically based on available generators
+            modes_to_run = None 
+        else:
+            modes_to_run = [config.mode]
+    elif isinstance(config.mode, list):
+        modes_to_run = config.mode
 
-    # Gather and print hardware info
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
-
-    # Create rigid object
+    # Setup
     rigid_object, mock_view, _ = create_test_rigid_object(
         num_instances=config.num_instances,
         num_bodies=config.num_bodies,
         device=config.device,
     )
 
-    # Determine modes to run
-    modes = []
-    if config.mode in ("all", "warp"):
-        modes.append(InputMode.WARP)
-    if config.mode in ("all", "torch", "torch_list"):
-        modes.append(InputMode.TORCH_LIST)
-    if config.mode in ("all", "torch", "torch_tensor"):
-        modes.append(InputMode.TORCH_TENSOR)
+    print(f"Benchmarking RigidObject with {config.num_instances} instances, {config.num_bodies} bodies...")
+    print(f"Device: {config.device}")
+    print(f"Iterations: {config.num_iterations}, Warmup: {config.warmup_steps}")
+    print(f"Modes: {modes_to_run if modes_to_run else 'All available'}")
 
-    print(f"\nBenchmarking {len(METHOD_BENCHMARKS)} methods...")
-    print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
-    print(f"        {config.num_instances} instances, {config.num_bodies} bodies")
-    print(f"Modes:  {', '.join(m.value for m in modes)}")
-    print("-" * 100)
+    print(f"\nBenchmarking {len(BENCHMARKS)} methods...")
+    for i, benchmark in enumerate(BENCHMARKS):
+        method = getattr(rigid_object, benchmark.method_name, None)
+        
+        # Determine which modes to run for this benchmark
+        available_modes = list(benchmark.input_generators.keys())
+        current_modes = modes_to_run if modes_to_run is not None else available_modes
+        
+        # Filter modes that are available for this benchmark
+        current_modes = [m for m in current_modes if m in available_modes]
 
-    for i, method_benchmark in enumerate(METHOD_BENCHMARKS):
-        for mode in modes:
-            mode_str = f"[{mode.value.upper():5}]"
-            print(f"[{i + 1}/{len(METHOD_BENCHMARKS)}] {mode_str} {method_benchmark.name}...", end=" ", flush=True)
+        for mode in current_modes:
+            generator = benchmark.input_generators[mode]
+            print(f"[{i + 1}/{len(BENCHMARKS)}] [{mode.upper()}] {benchmark.name}...", end=" ", flush=True)
 
-            result = benchmark_method(rigid_object, method_benchmark, mode, config)
+            result = benchmark_method(
+                method=method,
+                method_name=benchmark.name,
+                generator=generator,
+                config=config,
+                dependencies=BENCHMARK_DEPENDENCIES,
+            )
+            result.mode = mode
             results.append(result)
 
             if result.skipped:
@@ -724,58 +637,19 @@ def run_benchmarks(config: BenchmarkConfig) -> tuple[list[BenchmarkResult], dict
             else:
                 print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
 
-    return results, hardware_info
+    return results
 
 
-def main():
-    """Main entry point for the benchmarking script."""
-    parser = argparse.ArgumentParser(
-        description="Micro-benchmarking framework for RigidObject class.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument(
-        "--num_iterations",
-        type=int,
-        default=10000,
-        help="Number of iterations to run each method.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=int,
-        default=10,
-        help="Number of warmup steps before timing.",
-    )
-    parser.add_argument(
-        "--num_instances",
-        type=int,
-        default=16384,
-        help="Number of rigid object instances.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda:0",
-        help="Device to run benchmarks on.",
-    )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["warp", "torch", "torch_list", "torch_tensor", "all"],
-        default="all",
-        help="Benchmark mode: 'warp', 'torch_list', 'torch_tensor', 'torch' (both torch modes), or 'all'.",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        default=None,
-        help="Output JSON file for benchmark results.",
-    )
-    parser.add_argument(
-        "--no_json",
-        action="store_true",
-        help="Disable JSON output.",
-    )
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Benchmark RigidObject methods.")
+    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
+    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
+    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
+    parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device")
+    parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, warp, torch_list, torch_tensor)")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
+    parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
 
     args = parser.parse_args()
 
@@ -783,23 +657,25 @@ def main():
         num_iterations=args.num_iterations,
         warmup_steps=args.warmup_steps,
         num_instances=args.num_instances,
-        num_bodies=1,
-        num_joints=0,
+        num_bodies=args.num_bodies,
         device=args.device,
         mode=args.mode,
     )
 
-    # Run benchmarks
-    results, hardware_info = run_benchmarks(config)
+    results = run_benchmark(config)
 
-    # Print results
+    hardware_info = get_hardware_info()
+    print_hardware_info(hardware_info)
     print_results(results)
 
-    # Export to JSON
-    if not args.no_json:
-        output_filename = args.output if args.output else get_default_output_filename("rigid_object_benchmark")
-        export_results_json(results, config, hardware_info, output_filename)
-
-
-if __name__ == "__main__":
-    main()
+    if args.output:
+        json_filename = args.output
+    else:
+        json_filename = get_default_output_filename("rigid_object_benchmark")
+    
+    export_results_json(results, config, hardware_info, json_filename)
+    
+    if not args.no_csv:
+        csv_filename = json_filename.replace(".json", ".csv")
+        from common.benchmark_io import export_results_csv
+        export_results_csv(results, csv_filename)
