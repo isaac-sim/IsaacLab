@@ -158,12 +158,12 @@ def reset_hand(
     if env_mask[env_id]:
         # Each env runs sequentially inside this kernel (avoids RNG races across DOFs).
         for dof_id in range(num_dofs):
-            dof_pos_noise = wp.randf(rng_state[env_id], wp.float32(0.0), wp.float32(1.0))
+            dof_pos_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
             rng_state[env_id] += wp.uint32(1)
 
             delta_max = upper_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
             delta_min = lower_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
-            rand_delta = delta_min + (delta_max - delta_min) * dof_pos_noise
+            rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
             pos = default_joint_pos[env_id, dof_id] + reset_dof_pos_noise * rand_delta
 
             dof_vel_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
