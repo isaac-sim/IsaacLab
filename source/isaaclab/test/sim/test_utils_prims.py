@@ -40,8 +40,12 @@ def test_setup_teardown():
     sim_utils.clear_stage()
 
 
-def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd, eps: float = 1e-6):
+def assert_quat_close(q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6):
     """Assert two quaternions are close."""
+    if isinstance(q1, (tuple, list)):
+        q1 = Gf.Quatd(q1[3], q1[0], q1[1], q1[2])
+    if isinstance(q2, (tuple, list)):
+        q2 = Gf.Quatd(q2[3], q2[0], q2[1], q2[2])
     assert math.isclose(q1.GetReal(), q2.GetReal(), abs_tol=eps)
     for i in range(3):
         assert math.isclose(q1.GetImaginary()[i], q2.GetImaginary()[i], abs_tol=eps)
@@ -112,7 +116,7 @@ def test_create_prim():
     assert prim.GetPrimPath() == "/World/Test/Xform"
     assert prim.GetTypeName() == "Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(pos)
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*quat))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), quat)
     assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(scale)
     # check xform operation order
     op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
@@ -131,7 +135,7 @@ def test_create_prim_with_different_input_types(input_type: str):
 
     # Define test values
     translation_vals = [1.0, 2.0, 3.0]
-    orientation_vals = [1.0, 0.0, 0.0, 0.0]  # w, x, y, z
+    orientation_vals = [0.0, 0.0, 0.0, 1.0]  # x, y, z, w
     scale_vals = [2.0, 3.0, 4.0]
 
     # Convert to the specified input type
@@ -174,7 +178,7 @@ def test_create_prim_with_different_input_types(input_type: str):
 
     # Verify transform values
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(*translation_vals)
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*orientation_vals))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), orientation_vals)
     assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(*scale_vals)
 
     # Verify xform operation order
@@ -198,7 +202,7 @@ def test_create_prim_with_world_position_different_types(input_type: str):
         "Xform",
         stage=stage,
         translation=(5.0, 10.0, 15.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
     )
 
     # Define world position and orientation values
@@ -266,7 +270,7 @@ def test_create_prim_non_xformable():
         "Material",
         stage=stage,
         translation=(1.0, 2.0, 3.0),  # These should be ignored
-        orientation=(1.0, 0.0, 0.0, 0.0),  # These should be ignored
+        orientation=(0.0, 0.0, 0.0, 1.0),  # These should be ignored
         scale=(2.0, 2.0, 2.0),  # These should be ignored
     )
 
@@ -359,7 +363,7 @@ def test_move_prim():
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/TestMove/Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
 
     # check moving prim with keep_world_transform=False
     # it should preserve the local transform from last move
@@ -372,7 +376,7 @@ def test_move_prim():
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/TestMove2/Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
 
 
 """
