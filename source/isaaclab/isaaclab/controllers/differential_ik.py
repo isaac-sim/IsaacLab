@@ -82,7 +82,7 @@ class DifferentialIKController:
         elif self.cfg.command_type == "pose" and self.cfg.use_relative_mode:
             return 6  # (dx, dy, dz, droll, dpitch, dyaw)
         else:
-            return 7  # (x, y, z, qw, qx, qy, qz)
+            return 7  # (x, y, z, qx, qy, qz, qw)
 
     """
     Operations.
@@ -109,7 +109,7 @@ class DifferentialIKController:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
             ee_pos: The current end-effector position in shape (N, 3).
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
-            ee_quat: The current end-effector orientation (w, x, y, z) in shape (N, 4).
+            ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
                 This is only needed if the command type is ``position_*`` or ``pose_rel``.
 
         Raises:
