@@ -33,7 +33,7 @@ class RodMaterialConfig:
 
     Based on the Cosserat rod model, material properties are defined
     using physically meaningful parameters like Young's modulus and
-    shear modulus.
+    shear modulus, plus normalized stiffness multipliers for fine control.
 
     Attributes:
         young_modulus: Young's modulus E [Pa]. Controls bending stiffness.
@@ -42,6 +42,12 @@ class RodMaterialConfig:
         poisson_ratio: Poisson's ratio ν. Used to compute shear modulus if not given.
         density: Material density ρ [kg/m³].
         damping: Damping coefficient for velocity damping.
+        
+        # Normalized stiffness multipliers (0.0 to 1.0 scale, like Newton Viewer)
+        stretch_stiffness: Stretch stiffness multiplier (1.0 = inextensible).
+        shear_stiffness: Shear stiffness multiplier (1.0 = no shear deformation).
+        bend_stiffness: Bending stiffness multiplier (0.0-1.0, lower = more flexible).
+        twist_stiffness: Twist/torsion stiffness multiplier (0.0-1.0).
     """
 
     young_modulus: float = 1e9  # Steel-like stiffness
@@ -49,11 +55,36 @@ class RodMaterialConfig:
     poisson_ratio: float = 0.3
     density: float = 7800.0  # Steel density
     damping: float = 0.01
+    
+    # Normalized stiffness multipliers (Newton Viewer style)
+    stretch_stiffness: float = 1.0   # 1.0 = fully inextensible
+    shear_stiffness: float = 1.0     # 1.0 = no shear deformation  
+    bend_stiffness: float = 0.1      # Lower = more flexible (catheter-like)
+    twist_stiffness: float = 0.4     # Moderate torsional resistance
 
     def __post_init__(self):
         """Compute shear modulus if not provided."""
         if self.shear_modulus is None:
             self.shear_modulus = self.young_modulus / (2.0 * (1.0 + self.poisson_ratio))
+
+
+@dataclass
+class RodTipConfig:
+    """Configuration for catheter/guidewire tip shaping.
+    
+    Allows defining a curved tip region with different rest curvature,
+    simulating J-tip or angled catheters commonly used in interventional procedures.
+    
+    Attributes:
+        num_tip_segments: Number of segments at the tip with custom curvature.
+        rest_bend_omega1: Rest bending curvature around local X axis [rad/m].
+        rest_bend_omega2: Rest bending curvature around local Y axis [rad/m].
+        rest_twist: Rest twist around local Z axis [rad/m].
+    """
+    num_tip_segments: int = 20  # Last N particles for tip shaping
+    rest_bend_omega1: float = 0.0  # Curvature in XZ plane
+    rest_bend_omega2: float = 0.0  # Curvature in YZ plane
+    rest_twist: float = 0.0  # Axial twist
 
 
 @dataclass
@@ -66,6 +97,7 @@ class RodGeometryConfig:
         rest_length: Total rest length of the rod [m].
         radius: Cross-section radius [m]. Can be a single value or per-segment array.
         cross_section: Cross-section type for computing area moments.
+        tip: Tip shaping configuration for catheter-like behavior.
     """
 
     num_segments: int = 10
@@ -73,11 +105,46 @@ class RodGeometryConfig:
     rest_length: float = 1.0
     radius: float | list[float] = 0.01
     cross_section: Literal["circle", "rectangle"] = "circle"
+    tip: RodTipConfig = field(default_factory=RodTipConfig)
 
     def __post_init__(self):
         """Compute segment length if not provided."""
         if self.segment_length is None:
             self.segment_length = self.rest_length / self.num_segments
+
+
+@dataclass
+class FrictionConfig:
+    """Configuration for contact friction model.
+    
+    Attributes:
+        method: Friction method ("none", "coulomb", "viscous", "static_dynamic").
+        static_coefficient: Static friction coefficient μ_s.
+        dynamic_coefficient: Dynamic friction coefficient μ_d.
+        viscous_coefficient: Viscous friction coefficient for velocity-dependent friction.
+        stiction_velocity: Velocity threshold for static/dynamic transition [m/s].
+    """
+    method: Literal["none", "coulomb", "viscous", "static_dynamic"] = "none"
+    static_coefficient: float = 0.5
+    dynamic_coefficient: float = 0.3
+    viscous_coefficient: float = 0.1
+    stiction_velocity: float = 0.01
+
+
+@dataclass
+class CollisionMeshConfig:
+    """Configuration for collision mesh (e.g., vessel geometry).
+    
+    Attributes:
+        mesh_path: Path to USD/OBJ mesh file for collision geometry.
+        use_bvh: Use BVH acceleration for collision queries.
+        collision_radius: Additional collision radius for particles.
+        restitution: Coefficient of restitution for bouncing.
+    """
+    mesh_path: str | None = None
+    use_bvh: bool = True
+    collision_radius: float = 0.001
+    restitution: float = 0.0
 
 
 @dataclass
@@ -93,6 +160,8 @@ class RodSolverConfig:
         gravity: Gravity vector [m/s²].
         enable_collisions: Enable collision detection and response.
         collision_margin: Collision detection margin [m].
+        friction: Friction model configuration.
+        collision_mesh: Collision mesh configuration for vessel/environment.
     """
 
     dt: float = 1.0 / 60.0
@@ -103,6 +172,8 @@ class RodSolverConfig:
     gravity: tuple[float, float, float] = (0.0, -9.81, 0.0)
     enable_collisions: bool = False
     collision_margin: float = 0.001
+    friction: FrictionConfig = field(default_factory=FrictionConfig)
+    collision_mesh: CollisionMeshConfig = field(default_factory=CollisionMeshConfig)
 
 
 @dataclass
@@ -296,31 +367,54 @@ class RodData:
         """Initialize constraint-related arrays."""
         n, s = self.num_envs, self.num_segments
         cfg = self.config
+        mat = cfg.material
         dt = cfg.solver.dt
 
-        # Rest Darboux vector (zero for straight rod)
+        # Rest Darboux vector (zero for straight rod, except tip region)
         self.rest_darboux = torch.zeros((n, s - 1, 3), device=self.device, dtype=torch.float32)
+        
+        # Apply tip shaping to last N segments
+        tip_cfg = cfg.geometry.tip
+        if tip_cfg.num_tip_segments > 0:
+            tip_start = max(0, s - 1 - tip_cfg.num_tip_segments)
+            self.rest_darboux[:, tip_start:, 0] = tip_cfg.rest_bend_omega1
+            self.rest_darboux[:, tip_start:, 1] = tip_cfg.rest_bend_omega2
+            self.rest_darboux[:, tip_start:, 2] = tip_cfg.rest_twist
 
         # Compliance values (inverse stiffness)
         # α = 1 / (stiffness * dt²) for XPBD
         dt2 = dt**2
 
-        # Stretch compliance (nearly zero for inextensible rods)
-        stretch_stiffness = 1e12  # Very high for inextensibility
+        # Stretch compliance - use normalized multiplier
+        # stretch_stiffness = 1.0 means nearly inextensible
+        base_stretch_stiffness = 1e12
+        effective_stretch = base_stretch_stiffness * mat.stretch_stiffness
         self.stretch_compliance = torch.full(
-            (n, s - 1), 1.0 / (stretch_stiffness * dt2), device=self.device, dtype=torch.float32
+            (n, s - 1), 1.0 / (effective_stretch * dt2 + 1e-10), device=self.device, dtype=torch.float32
         )
+        
+        # Shear compliance (new!) - resistance to shear deformation
+        base_shear_stiffness = mat.shear_modulus * torch.pi * self.radii[:, :-1]**2
+        effective_shear = base_shear_stiffness * mat.shear_stiffness
+        self.shear_compliance = torch.zeros((n, s - 1, 2), device=self.device, dtype=torch.float32)
+        self.shear_compliance[:, :, 0] = 1.0 / (effective_shear * dt2 + 1e-10)
+        self.shear_compliance[:, :, 1] = 1.0 / (effective_shear * dt2 + 1e-10)
+        
+        # Lagrange multipliers for shear
+        self.lambda_shear = torch.zeros((n, s - 1, 2), device=self.device, dtype=torch.float32)
 
-        # Bend/twist compliance
+        # Bend/twist compliance - use normalized multipliers
         self.bend_twist_compliance = torch.zeros(
             (n, s - 1, 3), device=self.device, dtype=torch.float32
         )
-        # Bending compliance (x, y)
+        # Bending compliance (x, y) - scaled by bend_stiffness multiplier
         for i in range(2):
-            stiffness = self.bending_stiffness[:, :, i]
-            self.bend_twist_compliance[:, :, i] = 1.0 / (stiffness * dt2 + 1e-10)
-        # Torsion compliance (z)
-        self.bend_twist_compliance[:, :, 2] = 1.0 / (self.torsion_stiffness * dt2 + 1e-10)
+            base_stiffness = self.bending_stiffness[:, :, i]
+            effective_stiffness = base_stiffness * mat.bend_stiffness
+            self.bend_twist_compliance[:, :, i] = 1.0 / (effective_stiffness * dt2 + 1e-10)
+        # Torsion compliance (z) - scaled by twist_stiffness multiplier
+        effective_torsion = self.torsion_stiffness * mat.twist_stiffness
+        self.bend_twist_compliance[:, :, 2] = 1.0 / (effective_torsion * dt2 + 1e-10)
 
         # Lagrange multipliers (accumulated over Newton iterations)
         self.lambda_stretch = torch.zeros((n, s - 1), device=self.device, dtype=torch.float32)
@@ -328,6 +422,11 @@ class RodData:
 
         # Fixed segment mask
         self.fixed_segments = torch.zeros((n, s), device=self.device, dtype=torch.bool)
+        
+        # Collision mesh data (initialized if mesh path provided)
+        self.collision_mesh_vertices = None
+        self.collision_mesh_indices = None
+        self.collision_bvh = None
 
     def _init_tree_structure(self):
         """Initialize tree structure for the direct solver.
@@ -367,8 +466,14 @@ class RodData:
         self.wp_lambda_bend_twist = wp.from_torch(
             self.lambda_bend_twist.view(-1, 3), dtype=wp.vec3f
         )
+        self.wp_lambda_shear = wp.from_torch(
+            self.lambda_shear.view(-1, 2), dtype=wp.vec2f
+        )
         self.wp_stretch_compliance = wp.from_torch(
             self.stretch_compliance.view(-1), dtype=wp.float32
+        )
+        self.wp_shear_compliance = wp.from_torch(
+            self.shear_compliance.view(-1, 2), dtype=wp.vec2f
         )
         self.wp_bend_twist_compliance = wp.from_torch(
             self.bend_twist_compliance.view(-1, 3), dtype=wp.vec3f
@@ -431,9 +536,139 @@ class RodData:
         # Reset Lagrange multipliers
         self.lambda_stretch[env_indices] = 0.0
         self.lambda_bend_twist[env_indices] = 0.0
+        self.lambda_shear[env_indices] = 0.0
 
         # Sync to Warp
         self.sync_to_warp()
+    
+    def set_tip_curvature(
+        self, 
+        bend_omega1: float = 0.0, 
+        bend_omega2: float = 0.0, 
+        twist: float = 0.0,
+        num_tip_segments: int | None = None
+    ):
+        """Dynamically update tip rest curvature.
+        
+        This allows interactive control of the catheter tip shape,
+        similar to Numpad +/- in Newton Viewer.
+        
+        Args:
+            bend_omega1: Bending curvature around X axis [rad/m].
+            bend_omega2: Bending curvature around Y axis [rad/m].
+            twist: Twist around Z axis [rad/m].
+            num_tip_segments: Number of tip segments to affect. If None, uses config.
+        """
+        s = self.num_segments
+        tip_count = num_tip_segments or self.config.geometry.tip.num_tip_segments
+        tip_start = max(0, s - 1 - tip_count)
+        
+        self.rest_darboux[:, tip_start:, 0] = bend_omega1
+        self.rest_darboux[:, tip_start:, 1] = bend_omega2
+        self.rest_darboux[:, tip_start:, 2] = twist
+        
+        # Update Warp array
+        self.wp_rest_darboux = wp.from_torch(self.rest_darboux.view(-1, 3), dtype=wp.vec3f)
+    
+    def load_collision_mesh(self, mesh_path: str):
+        """Load a collision mesh for vessel/environment collision.
+        
+        Args:
+            mesh_path: Path to USD or OBJ mesh file.
+        """
+        import os
+        if not os.path.exists(mesh_path):
+            print(f"Warning: Collision mesh not found: {mesh_path}")
+            return
+            
+        # Try to load mesh based on extension
+        ext = os.path.splitext(mesh_path)[1].lower()
+        
+        if ext == ".obj":
+            self._load_obj_mesh(mesh_path)
+        elif ext in [".usd", ".usda", ".usdc"]:
+            self._load_usd_mesh(mesh_path)
+        else:
+            print(f"Warning: Unsupported mesh format: {ext}")
+    
+    def _load_obj_mesh(self, mesh_path: str):
+        """Load OBJ mesh for collision."""
+        vertices = []
+        faces = []
+        
+        with open(mesh_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                if not parts:
+                    continue
+                if parts[0] == 'v':
+                    vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                elif parts[0] == 'f':
+                    # Handle face indices (1-based to 0-based)
+                    face = []
+                    for p in parts[1:4]:  # Only first 3 vertices (triangles)
+                        idx = int(p.split('/')[0]) - 1
+                        face.append(idx)
+                    faces.append(face)
+        
+        self.collision_mesh_vertices = torch.tensor(vertices, device=self.device, dtype=torch.float32)
+        self.collision_mesh_indices = torch.tensor(faces, device=self.device, dtype=torch.int32)
+        
+        # Create Warp mesh for BVH queries
+        self._create_collision_bvh()
+        print(f"Loaded collision mesh: {len(vertices)} vertices, {len(faces)} triangles")
+    
+    def _load_usd_mesh(self, mesh_path: str):
+        """Load USD mesh for collision."""
+        try:
+            from pxr import Usd, UsdGeom
+            stage = Usd.Stage.Open(mesh_path)
+            
+            # Find first mesh in stage
+            for prim in stage.Traverse():
+                if prim.IsA(UsdGeom.Mesh):
+                    mesh = UsdGeom.Mesh(prim)
+                    points = mesh.GetPointsAttr().Get()
+                    indices = mesh.GetFaceVertexIndicesAttr().Get()
+                    counts = mesh.GetFaceVertexCountsAttr().Get()
+                    
+                    # Convert to triangles if needed
+                    vertices = [[p[0], p[1], p[2]] for p in points]
+                    faces = []
+                    idx = 0
+                    for count in counts:
+                        if count == 3:
+                            faces.append([indices[idx], indices[idx+1], indices[idx+2]])
+                        elif count == 4:
+                            # Triangulate quad
+                            faces.append([indices[idx], indices[idx+1], indices[idx+2]])
+                            faces.append([indices[idx], indices[idx+2], indices[idx+3]])
+                        idx += count
+                    
+                    self.collision_mesh_vertices = torch.tensor(vertices, device=self.device, dtype=torch.float32)
+                    self.collision_mesh_indices = torch.tensor(faces, device=self.device, dtype=torch.int32)
+                    self._create_collision_bvh()
+                    print(f"Loaded USD mesh: {len(vertices)} vertices, {len(faces)} triangles")
+                    return
+                    
+            print("Warning: No mesh found in USD file")
+        except ImportError:
+            print("Warning: pxr (USD) not available, cannot load USD mesh")
+    
+    def _create_collision_bvh(self):
+        """Create Warp BVH for accelerated collision queries."""
+        if self.collision_mesh_vertices is None:
+            return
+            
+        # Create Warp mesh with BVH
+        vertices_wp = wp.from_torch(self.collision_mesh_vertices, dtype=wp.vec3f)
+        indices_wp = wp.from_torch(self.collision_mesh_indices.view(-1), dtype=wp.int32)
+        
+        self.collision_bvh = wp.Mesh(
+            points=vertices_wp,
+            indices=indices_wp,
+        )
+        print("Created BVH for collision mesh")
 
     def get_endpoint_positions(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Get positions of rod endpoints.

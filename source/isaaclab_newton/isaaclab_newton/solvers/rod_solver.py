@@ -40,17 +40,31 @@ from typing import Callable
 import torch
 import warp as wp
 
-from .rod_data import RodConfig, RodData, RodMaterialConfig, RodGeometryConfig, RodSolverConfig
+from .rod_data import (
+    RodConfig, 
+    RodData, 
+    RodMaterialConfig, 
+    RodGeometryConfig, 
+    RodSolverConfig,
+    RodTipConfig,
+    FrictionConfig,
+    CollisionMeshConfig,
+)
 from .rod_kernels import (
     compute_constraint_residuals_kernel,
     normalize_quaternions_kernel,
     predict_orientations_kernel,
     predict_positions_kernel,
     reset_lambda_kernel,
+    reset_lambda_with_shear_kernel,
     solve_bend_twist_constraints_kernel,
     solve_ground_collision_kernel,
     solve_self_collision_kernel,
     solve_stretch_constraints_kernel,
+    solve_shear_constraints_kernel,
+    solve_mesh_collision_kernel,
+    apply_coulomb_friction_kernel,
+    apply_viscous_friction_kernel,
     update_velocities_kernel,
 )
 
@@ -61,6 +75,9 @@ __all__ = [
     "RodMaterialConfig",
     "RodGeometryConfig",
     "RodSolverConfig",
+    "RodTipConfig",
+    "FrictionConfig",
+    "CollisionMeshConfig",
 ]
 
 
@@ -643,6 +660,25 @@ class RodSolver:
                 dt,
             ],
         )
+        
+        # Solve shear constraints (if shear stiffness > 0)
+        if self.config.material.shear_stiffness > 0:
+            wp.launch(
+                kernel=solve_shear_constraints_kernel,
+                dim=total_constraints,
+                inputs=[
+                    self.data.wp_positions,
+                    self.data.wp_orientations,
+                    self.data.wp_inv_masses,
+                    self.data.wp_segment_lengths,
+                    self.data.wp_shear_compliance,
+                    self.data.wp_lambda_shear,
+                    self.data.wp_parent_indices,
+                    self.data.wp_fixed_segments,
+                    num_segments,
+                    dt,
+                ],
+            )
 
         # Solve bend/twist constraints
         wp.launch(
@@ -665,12 +701,19 @@ class RodSolver:
         )
 
     def _solve_collisions(self):
-        """Solve collision constraints."""
+        """Solve collision constraints including mesh collision and friction."""
         num_segments = self.config.geometry.num_segments
         total_segments = self.num_envs * num_segments
+        friction_cfg = self.config.solver.friction
+        mesh_cfg = self.config.solver.collision_mesh
 
         # Create radius array for kernel
         radii = wp.from_torch(self.data.radii.view(-1), dtype=wp.float32)
+        
+        # Allocate contact arrays for friction
+        if not hasattr(self, '_contact_normals'):
+            self._contact_normals = wp.zeros(total_segments, dtype=wp.vec3f)
+            self._contact_depths = wp.zeros(total_segments, dtype=wp.float32)
 
         # Ground collision
         wp.launch(
@@ -683,9 +726,77 @@ class RodSolver:
                 radii,
                 self.data.wp_fixed_segments,
                 0.0,  # ground height
-                0.0,  # restitution
+                mesh_cfg.restitution,
             ],
         )
+        
+        # Mesh collision (BVH-accelerated) if mesh is loaded
+        if self.data.collision_bvh is not None:
+            wp.launch(
+                kernel=solve_mesh_collision_kernel,
+                dim=total_segments,
+                inputs=[
+                    self.data.wp_positions,
+                    self.data.wp_velocities,
+                    radii,
+                    self.data.wp_fixed_segments,
+                    self.data.collision_bvh.id,
+                    self._contact_normals,
+                    self._contact_depths,
+                    mesh_cfg.restitution,
+                    mesh_cfg.collision_radius,
+                ],
+            )
+            
+            # Apply friction based on selected method
+            if friction_cfg.method == "coulomb":
+                wp.launch(
+                    kernel=apply_coulomb_friction_kernel,
+                    dim=total_segments,
+                    inputs=[
+                        self.data.wp_positions,
+                        self.data.wp_prev_positions,
+                        self.data.wp_velocities,
+                        self._contact_normals,
+                        self._contact_depths,
+                        self.data.wp_fixed_segments,
+                        friction_cfg.static_coefficient,
+                        friction_cfg.dynamic_coefficient,
+                        friction_cfg.stiction_velocity,
+                        self.config.solver.dt,
+                    ],
+                )
+            elif friction_cfg.method == "viscous":
+                wp.launch(
+                    kernel=apply_viscous_friction_kernel,
+                    dim=total_segments,
+                    inputs=[
+                        self.data.wp_velocities,
+                        self.data.wp_angular_velocities,
+                        self._contact_depths,
+                        self.data.wp_fixed_segments,
+                        friction_cfg.viscous_coefficient,
+                        self.config.solver.dt,
+                    ],
+                )
+            elif friction_cfg.method == "static_dynamic":
+                # Use Coulomb model with static/dynamic transition
+                wp.launch(
+                    kernel=apply_coulomb_friction_kernel,
+                    dim=total_segments,
+                    inputs=[
+                        self.data.wp_positions,
+                        self.data.wp_prev_positions,
+                        self.data.wp_velocities,
+                        self._contact_normals,
+                        self._contact_depths,
+                        self.data.wp_fixed_segments,
+                        friction_cfg.static_coefficient,
+                        friction_cfg.dynamic_coefficient,
+                        friction_cfg.stiction_velocity,
+                        self.config.solver.dt,
+                    ],
+                )
 
         # Self-collision
         wp.launch(

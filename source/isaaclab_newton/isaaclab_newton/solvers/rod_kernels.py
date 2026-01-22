@@ -490,6 +490,296 @@ def solve_bend_twist_constraints_kernel(
 
 
 # ============================================================================
+# Shear Constraint Kernel (Timoshenko beam formulation)
+# ============================================================================
+
+
+@wp.kernel
+def solve_shear_constraints_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    inv_masses: wp.array(dtype=wp.float32),
+    segment_lengths: wp.array(dtype=wp.float32),
+    compliance: wp.array(dtype=wp.vec2f),
+    lambda_shear: wp.array(dtype=wp.vec2f),
+    parent_indices: wp.array(dtype=wp.int32),
+    fixed: wp.array(dtype=wp.bool),
+    num_segments: int,
+    dt: float,
+):
+    """Solve shear constraints between connected segments.
+    
+    Shear constraint ensures the tangent vector aligns with the segment
+    connection direction, preventing unphysical lateral deformation.
+    
+    This implements a Timoshenko beam formulation which is more accurate
+    for thick rods and catheters.
+    
+    Constraint: C = (q^(-1) * d - [1,0,0])_yz = 0
+    where d is the normalized direction between segment centers.
+    """
+    idx = wp.tid()
+    
+    segment_idx = idx + 1
+    if segment_idx >= num_segments:
+        return
+    
+    parent_idx = parent_indices[segment_idx]
+    if parent_idx < 0:
+        return
+    
+    # Skip if both are fixed
+    if fixed[parent_idx] and fixed[segment_idx]:
+        return
+    
+    # Get positions
+    x1 = positions[parent_idx]
+    x2 = positions[segment_idx]
+    
+    # Direction between centers
+    diff = x2 - x1
+    dist = wp.length(diff)
+    if dist < 1e-8:
+        return
+    d = diff / dist
+    
+    # Get parent orientation
+    q1 = orientations[parent_idx]
+    
+    # Local tangent should point in +x direction
+    # Current tangent in local frame
+    d_local = quat_rotate_inv_vec(q1, d)
+    
+    # Shear constraint: y and z components of d_local should be zero
+    C_y = d_local[1]
+    C_z = d_local[2]
+    
+    # Get compliance
+    alpha = compliance[idx]
+    
+    # Inverse masses
+    w1 = inv_masses[parent_idx]
+    w2 = inv_masses[segment_idx]
+    w_sum = w1 + w2
+    
+    if w_sum < 1e-10:
+        return
+    
+    dt2_inv = 1.0 / (dt * dt)
+    lambda_prev = lambda_shear[idx]
+    
+    # Solve for Y shear
+    denom_y = w_sum + alpha[0] * dt2_inv
+    delta_lambda_y = 0.0
+    if wp.abs(denom_y) > 1e-10:
+        delta_lambda_y = (-C_y - alpha[0] * lambda_prev[0] * dt2_inv) / denom_y
+    
+    # Solve for Z shear
+    denom_z = w_sum + alpha[1] * dt2_inv
+    delta_lambda_z = 0.0
+    if wp.abs(denom_z) > 1e-10:
+        delta_lambda_z = (-C_z - alpha[1] * lambda_prev[1] * dt2_inv) / denom_z
+    
+    # Update lambda
+    lambda_shear[idx] = wp.vec2f(lambda_prev[0] + delta_lambda_y, lambda_prev[1] + delta_lambda_z)
+    
+    # Position corrections (perpendicular to tangent)
+    # Get local Y and Z axes in world frame
+    y_axis = quat_rotate_vec(q1, wp.vec3f(0.0, 1.0, 0.0))
+    z_axis = quat_rotate_vec(q1, wp.vec3f(0.0, 0.0, 1.0))
+    
+    p_corr = delta_lambda_y * y_axis + delta_lambda_z * z_axis
+    
+    if not fixed[parent_idx]:
+        positions[parent_idx] = positions[parent_idx] - w1 * p_corr
+    if not fixed[segment_idx]:
+        positions[segment_idx] = positions[segment_idx] + w2 * p_corr
+
+
+# ============================================================================
+# Friction Constraint Kernels
+# ============================================================================
+
+
+@wp.kernel
+def apply_coulomb_friction_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    prev_positions: wp.array(dtype=wp.vec3f),
+    velocities: wp.array(dtype=wp.vec3f),
+    contact_normals: wp.array(dtype=wp.vec3f),
+    contact_depths: wp.array(dtype=wp.float32),
+    fixed: wp.array(dtype=wp.bool),
+    static_friction: float,
+    dynamic_friction: float,
+    stiction_velocity: float,
+    dt: float,
+):
+    """Apply Coulomb friction at contact points.
+    
+    Implements static/dynamic friction model:
+    - If sliding velocity < stiction_velocity: static friction (μ_s)
+    - Otherwise: dynamic friction (μ_d)
+    
+    Friction force opposes tangential motion and is proportional to
+    normal force (penetration depth).
+    """
+    idx = wp.tid()
+    
+    if fixed[idx]:
+        return
+    
+    # Check if in contact
+    depth = contact_depths[idx]
+    if depth <= 0.0:
+        return
+    
+    normal = contact_normals[idx]
+    
+    # Compute tangential velocity
+    v = velocities[idx]
+    v_normal = wp.dot(v, normal) * normal
+    v_tangent = v - v_normal
+    v_tangent_mag = wp.length(v_tangent)
+    
+    if v_tangent_mag < 1e-8:
+        return
+    
+    # Choose friction coefficient based on velocity
+    mu = static_friction
+    if v_tangent_mag > stiction_velocity:
+        mu = dynamic_friction
+    
+    # Friction impulse magnitude (proportional to normal force ~ depth)
+    friction_impulse_mag = mu * depth * 1000.0  # Scale factor for contact stiffness
+    
+    # Clamp to not reverse velocity
+    max_impulse = v_tangent_mag * dt
+    if friction_impulse_mag > max_impulse:
+        friction_impulse_mag = max_impulse
+    
+    # Apply friction in opposite direction of tangential velocity
+    tangent_dir = v_tangent / v_tangent_mag
+    friction_corr = friction_impulse_mag * tangent_dir * dt
+    
+    positions[idx] = positions[idx] - friction_corr
+
+
+@wp.kernel
+def apply_viscous_friction_kernel(
+    velocities: wp.array(dtype=wp.vec3f),
+    angular_velocities: wp.array(dtype=wp.vec3f),
+    contact_depths: wp.array(dtype=wp.float32),
+    fixed: wp.array(dtype=wp.bool),
+    viscous_coefficient: float,
+    dt: float,
+):
+    """Apply viscous friction at contact points.
+    
+    Viscous friction: F = -c * v
+    Provides velocity-dependent damping at contacts.
+    """
+    idx = wp.tid()
+    
+    if fixed[idx]:
+        return
+    
+    # Check if in contact
+    depth = contact_depths[idx]
+    if depth <= 0.0:
+        return
+    
+    # Apply viscous damping proportional to contact depth
+    damping = viscous_coefficient * depth * 100.0  # Scale factor
+    damping = wp.min(damping, 0.99)  # Clamp to prevent energy gain
+    
+    velocities[idx] = velocities[idx] * (1.0 - damping)
+    angular_velocities[idx] = angular_velocities[idx] * (1.0 - damping)
+
+
+# ============================================================================
+# Mesh Collision Kernel (BVH-accelerated)
+# ============================================================================
+
+
+@wp.kernel
+def solve_mesh_collision_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    velocities: wp.array(dtype=wp.vec3f),
+    radii: wp.array(dtype=wp.float32),
+    fixed: wp.array(dtype=wp.bool),
+    mesh: wp.uint64,  # Mesh ID for BVH queries
+    contact_normals: wp.array(dtype=wp.vec3f),
+    contact_depths: wp.array(dtype=wp.float32),
+    restitution: float,
+    collision_radius: float,
+):
+    """Solve collision constraints with triangle mesh using BVH.
+    
+    Uses Warp's BVH-accelerated mesh queries to find closest point
+    on mesh surface and apply position correction.
+    """
+    idx = wp.tid()
+    
+    if fixed[idx]:
+        contact_depths[idx] = 0.0
+        return
+    
+    pos = positions[idx]
+    radius = radii[idx] + collision_radius
+    
+    # Query closest point on mesh
+    face_index = int(0)
+    face_u = float(0.0)
+    face_v = float(0.0)
+    sign = float(0.0)
+    
+    # Use mesh query to find closest point
+    max_dist = radius * 2.0
+    
+    # Query mesh for closest point
+    success = wp.mesh_query_point(mesh, pos, max_dist, sign, face_index, face_u, face_v)
+    
+    if not success:
+        contact_depths[idx] = 0.0
+        contact_normals[idx] = wp.vec3f(0.0, 1.0, 0.0)
+        return
+    
+    # Get closest point on mesh
+    closest = wp.mesh_eval_position(mesh, face_index, face_u, face_v)
+    
+    # Compute penetration
+    diff = pos - closest
+    dist = wp.length(diff)
+    
+    if dist < 1e-8:
+        # Use face normal if too close
+        contact_normals[idx] = wp.mesh_eval_face_normal(mesh, face_index)
+        contact_depths[idx] = radius
+        positions[idx] = closest + contact_normals[idx] * radius
+        return
+    
+    normal = diff / dist
+    
+    # Inside mesh check (sign < 0 means inside)
+    if sign < 0.0:
+        # We're inside the mesh, push out
+        penetration = radius + dist
+        contact_depths[idx] = penetration
+        contact_normals[idx] = -normal  # Flip normal to point outward
+        positions[idx] = closest - normal * radius
+    elif dist < radius:
+        # Outside but penetrating
+        penetration = radius - dist
+        contact_depths[idx] = penetration
+        contact_normals[idx] = normal
+        positions[idx] = closest + normal * radius
+    else:
+        # No penetration
+        contact_depths[idx] = 0.0
+        contact_normals[idx] = normal
+
+
+# ============================================================================
 # Direct Solver Kernels (Linear-Time Tree Algorithm)
 # ============================================================================
 
@@ -551,6 +841,19 @@ def reset_lambda_kernel(
     """Reset Lagrange multipliers at the start of each time step."""
     idx = wp.tid()
     lambda_stretch[idx] = 0.0
+    lambda_bend_twist[idx] = wp.vec3f(0.0, 0.0, 0.0)
+
+
+@wp.kernel
+def reset_lambda_with_shear_kernel(
+    lambda_stretch: wp.array(dtype=wp.float32),
+    lambda_shear: wp.array(dtype=wp.vec2f),
+    lambda_bend_twist: wp.array(dtype=wp.vec3f),
+):
+    """Reset all Lagrange multipliers including shear."""
+    idx = wp.tid()
+    lambda_stretch[idx] = 0.0
+    lambda_shear[idx] = wp.vec2f(0.0, 0.0)
     lambda_bend_twist[idx] = wp.vec3f(0.0, 0.0, 0.0)
 
 
