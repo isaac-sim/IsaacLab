@@ -5,10 +5,11 @@
 
 import builtins
 import logging
-import torch
 import warnings
 from collections.abc import Sequence
 from typing import Any
+
+import torch
 
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
@@ -32,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class ManagerBasedEnv:
-    """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
+    """The base environment encapsulates the simulation scene and the environment managers for
+    the manager-based workflow.
 
     While a simulation scene or world comprises of different components such as the robots, objects,
     and sensors (cameras, lidars, etc.), the environment is a higher level abstraction
@@ -171,7 +173,8 @@ class ManagerBasedEnv:
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments
+                # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
             # add timeline event to load managers
             self.load_managers()
@@ -263,6 +266,7 @@ class ManagerBasedEnv:
             output_dir: The directory to export the IO descriptors to.
         """
         import os
+
         import yaml
 
         IO_descriptors = self.get_IO_descriptors

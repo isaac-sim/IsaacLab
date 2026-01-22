@@ -17,10 +17,11 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import ctypes
+from typing import Literal
+
 import pytest
 import torch
 from flaky import flaky
-from typing import Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -225,49 +226,38 @@ def test_external_force_buffer(device):
 
         # perform simulation
         for step in range(5):
-
             # initiate force tensor
             external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
-            external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
 
             if step == 0 or step == 3:
                 # set a non-zero force
                 force = 1
-                position = 1
-                is_global = True
             else:
                 # set a zero force
                 force = 0
-                position = 0
-                is_global = False
 
             # set force value
             external_wrench_b[:, :, 0] = force
             external_wrench_b[:, :, 3] = force
-            external_wrench_positions_b[:, :, 0] = position
 
             # apply force
-            if step == 0 or step == 3:
-                cube_object.set_external_force_and_torque(
-                    external_wrench_b[..., :3],
-                    external_wrench_b[..., 3:],
-                    body_ids=body_ids,
-                    positions=external_wrench_positions_b,
-                    is_global=is_global,
-                )
-            else:
-                cube_object.set_external_force_and_torque(
-                    external_wrench_b[..., :3],
-                    external_wrench_b[..., 3:],
-                    body_ids=body_ids,
-                    is_global=is_global,
-                )
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+                body_ids=body_ids,
+            )
 
             # check if the cube's force and torque buffers are correctly updated
-            assert cube_object._external_force_b[0, 0, 0].item() == force
-            assert cube_object._external_torque_b[0, 0, 0].item() == force
-            assert cube_object._external_wrench_positions_b[0, 0, 0].item() == position
-            assert cube_object._use_global_wrench_frame == (step == 0 or step == 3)
+            for i in range(cube_object.num_instances):
+                assert cube_object._permanent_wrench_composer.composed_force_as_torch[i, 0, 0].item() == force
+                assert cube_object._permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
+
+            # Check if the instantaneous wrench is correctly added to the permanent wrench
+            cube_object.permanent_wrench_composer.add_forces_and_torques(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+                body_ids=body_ids,
+            )
 
             # apply action to the object
             cube_object.write_data_to_sim()
@@ -288,6 +278,8 @@ def test_external_force_on_single_body(num_cubes, device):
     In this test, we apply a force equal to the weight of an object on the base of
     one of the objects. We check that the object does not move. For the other object,
     we do not apply any force and check that it falls down.
+
+    We validate that this works when we apply the force in the global frame and in the local frame.
     """
     # Generate cubes scene
     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
@@ -306,7 +298,7 @@ def test_external_force_on_single_body(num_cubes, device):
         external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
 
         # Now we are ready!
-        for _ in range(5):
+        for i in range(5):
             # reset root state
             root_state = cube_object.data.default_root_state.clone()
 
@@ -318,9 +310,20 @@ def test_external_force_on_single_body(num_cubes, device):
             # reset object
             cube_object.reset()
 
+            is_global = False
+            if i % 2 == 0:
+                is_global = True
+                positions = cube_object.data.body_com_pos_w[:, body_ids, :3]
+            else:
+                positions = None
+
             # apply force
-            cube_object.set_external_force_and_torque(
-                external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+                positions=positions,
+                body_ids=body_ids,
+                is_global=is_global,
             )
             # perform simulation
             for _ in range(5):
@@ -349,6 +352,8 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
     In this test, we apply a force equal to the weight of an object on the base of
     one of the objects at 1m in the Y direction, we check that the object rotates around it's X axis.
     For the other object, we do not apply any force and check that it falls down.
+
+    We validate that this works when we apply the force in the global frame and in the local frame.
     """
     # Generate cubes scene
     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
@@ -365,11 +370,16 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
         external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
         external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
         # Every 2nd cube should have a force applied to it
-        external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
+        external_wrench_b[0::2, :, 2] = 500.0
         external_wrench_positions_b[0::2, :, 1] = 1.0
 
+        # Desired force and torque
+        desired_force = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
+        desired_force[0::2, :, 2] = 1000.0
+        desired_torque = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
+        desired_torque[0::2, :, 0] = 1000.0
         # Now we are ready!
-        for _ in range(5):
+        for i in range(5):
             # reset root state
             root_state = cube_object.data.default_root_state.clone()
 
@@ -381,12 +391,45 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
             # reset object
             cube_object.reset()
 
+            is_global = False
+            if i % 2 == 0:
+                is_global = True
+                body_com_pos_w = cube_object.data.body_com_pos_w[:, body_ids, :3]
+                external_wrench_positions_b[..., 0] = 0.0
+                external_wrench_positions_b[..., 1] = 1.0
+                external_wrench_positions_b[..., 2] = 0.0
+                external_wrench_positions_b += body_com_pos_w
+            else:
+                external_wrench_positions_b[..., 0] = 0.0
+                external_wrench_positions_b[..., 1] = 1.0
+                external_wrench_positions_b[..., 2] = 0.0
+
             # apply force
-            cube_object.set_external_force_and_torque(
-                external_wrench_b[..., :3],
-                external_wrench_b[..., 3:],
+            cube_object.permanent_wrench_composer.set_forces_and_torques(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
                 positions=external_wrench_positions_b,
                 body_ids=body_ids,
+                is_global=is_global,
+            )
+            cube_object.permanent_wrench_composer.add_forces_and_torques(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+                positions=external_wrench_positions_b,
+                body_ids=body_ids,
+                is_global=is_global,
+            )
+            torch.testing.assert_close(
+                cube_object._permanent_wrench_composer.composed_force_as_torch[:, 0, :],
+                desired_force[:, 0, :],
+                rtol=1e-6,
+                atol=1e-7,
+            )
+            torch.testing.assert_close(
+                cube_object._permanent_wrench_composer.composed_torque_as_torch[:, 0, :],
+                desired_torque[:, 0, :],
+                rtol=1e-6,
+                atol=1e-7,
             )
             # perform simulation
             for _ in range(5):
@@ -506,9 +549,12 @@ def test_reset_rigid_object(num_cubes, device):
                 cube_object.reset()
 
                 # Reset should zero external forces and torques
-                assert not cube_object.has_external_wrench
-                assert torch.count_nonzero(cube_object._external_force_b) == 0
-                assert torch.count_nonzero(cube_object._external_torque_b) == 0
+                assert not cube_object._instantaneous_wrench_composer.active
+                assert not cube_object._permanent_wrench_composer.active
+                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_force_as_torch) == 0
+                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_torque_as_torch) == 0
+                assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_force_as_torch) == 0
+                assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_torque_as_torch) == 0
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -669,6 +715,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
             else:
                 external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
 
+            # TODO: Replace with wrench composer once the deprecation is complete
             cube_object.set_external_force_and_torque(
                 external_wrench_b[..., :3],
                 external_wrench_b[..., 3:],
@@ -997,7 +1044,6 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 
         env_idx = env_idx.to(device)
         for i in range(10):
-
             # perform step
             sim.step()
             # update buffers

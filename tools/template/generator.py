@@ -96,22 +96,22 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
     # workflow-specific content
     if task_spec["workflow"]["name"] == "direct":
         # - task/*env_cfg.py
-        template = jinja_env.get_template(f'tasks/direct_{task_spec["workflow"]["type"]}/env_cfg')
+        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f'{task_spec["filename"]}_env_cfg.py'), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
         # - task/*env.py
-        template = jinja_env.get_template(f'tasks/direct_{task_spec["workflow"]["type"]}/env')
-        _write_file(os.path.join(task_dir, f'{task_spec["filename"]}_env.py'), content=template.render(**specification))
+        template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
+        _write_file(os.path.join(task_dir, f"{task_spec['filename']}_env.py"), content=template.render(**specification))
     elif task_spec["workflow"]["name"] == "manager-based":
         # - task/*env_cfg.py
-        template = jinja_env.get_template(f'tasks/manager-based_{task_spec["workflow"]["type"]}/env_cfg')
+        template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f'{task_spec["filename"]}_env_cfg.py'), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
         )
         # - task/mdp folder
         shutil.copytree(
-            os.path.join(TEMPLATE_DIR, "tasks", f'manager-based_{task_spec["workflow"]["type"]}', "mdp"),
+            os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
             os.path.join(task_dir, "mdp"),
             dirs_exist_ok=True,
         )
@@ -161,7 +161,7 @@ def _external(specification: dict) -> None:
     # repo files
     print("  |-- Copying repo files...")
     shutil.copyfile(os.path.join(ROOT_DIR, ".dockerignore"), os.path.join(project_dir, ".dockerignore"))
-    shutil.copyfile(os.path.join(ROOT_DIR, ".flake8"), os.path.join(project_dir, ".flake8"))
+    shutil.copyfile(os.path.join(ROOT_DIR, "pyproject.toml"), os.path.join(project_dir, "pyproject.toml"))
     shutil.copyfile(os.path.join(ROOT_DIR, ".gitattributes"), os.path.join(project_dir, ".gitattributes"))
     if os.path.exists(os.path.join(ROOT_DIR, ".gitignore")):
         shutil.copyfile(os.path.join(ROOT_DIR, ".gitignore"), os.path.join(project_dir, ".gitignore"))
@@ -184,10 +184,12 @@ def _external(specification: dict) -> None:
         # replace placeholder in scripts
         for file in glob.glob(os.path.join(dir, rl_library["name"], "*.py")):
             _replace_in_file(
-                [(
-                    "# PLACEHOLDER: Extension template (do not remove this comment)",
-                    f"import {name}.tasks  # noqa: F401",
-                )],
+                [
+                    (
+                        "# PLACEHOLDER: Extension template (do not remove this comment)",
+                        f"import {name}.tasks  # noqa: F401",
+                    )
+                ],
                 src=file,
             )
     # - other scripts
@@ -198,10 +200,12 @@ def _external(specification: dict) -> None:
     )
     for script in ["zero_agent.py", "random_agent.py"]:
         _replace_in_file(
-            [(
-                "# PLACEHOLDER: Extension template (do not remove this comment)",
-                f"import {name}.tasks  # noqa: F401",
-            )],
+            [
+                (
+                    "# PLACEHOLDER: Extension template (do not remove this comment)",
+                    f"import {name}.tasks  # noqa: F401",
+                )
+            ],
             src=os.path.join(ROOT_DIR, "scripts", "environments", script),
             dst=os.path.join(dir, script),
         )
@@ -279,9 +283,9 @@ def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool =
             basename = os.path.basename(file).replace("_cfg", "")
             if basename.startswith(f"{rl_library}_"):
                 algorithm = basename.replace(f"{rl_library}_", "").upper()
-                assert (
-                    algorithm in SINGLE_AGENT_ALGORITHMS or algorithm in MULTI_AGENT_ALGORITHMS
-                ), f"{algorithm} algorithm is not listed in the supported algorithms"
+                assert algorithm in SINGLE_AGENT_ALGORITHMS or algorithm in MULTI_AGENT_ALGORITHMS, (
+                    f"{algorithm} algorithm is not listed in the supported algorithms"
+                )
                 if single_agent and algorithm in SINGLE_AGENT_ALGORITHMS:
                     data[rl_library].append(algorithm)
                 if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:

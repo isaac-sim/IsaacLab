@@ -13,10 +13,11 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import os
-import pytest
 
 # Import the function to test
 import tempfile
+
+import pytest
 import torch
 
 from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex

@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-import h5py
 import os
+
+import h5py
 
 parser = argparse.ArgumentParser(description="Merge a set of HDF5 datasets.")
 parser.add_argument(
@@ -30,7 +31,6 @@ def merge_datasets():
         copy_attributes = True
 
         for filepath in args_cli.input_files:
-
             with h5py.File(filepath, "r") as input:
                 for episode, data in input["data"].items():
                     input.copy(f"data/{episode}", output, f"data/demo_{episode_idx}")

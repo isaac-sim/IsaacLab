@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import Any
+
+import torch
 
 import carb
 from isaacsim.core.cloner import GridCloner
@@ -72,9 +73,10 @@ class InteractiveScene:
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
+
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-
+            # ANYmal-C robot spawned in each environment
             robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     Then the robot can be accessed from the scene as follows:

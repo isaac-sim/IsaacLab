@@ -17,11 +17,11 @@ from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
     bind_visual_material,
+    change_prim_property,
     clone,
     create_prim,
     get_current_stage,
     get_first_matching_child_prim,
-    is_current_stage_in_memory,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -231,25 +231,13 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
-        # avoiding this step if stage is in memory since the "ChangePropertyCommand" kit command
-        # is not supported in stage in memory
-        if is_current_stage_in_memory():
-            logger.warning(
-                "Ground plane color modification is not supported while the stage is in memory. Skipping operation."
-            )
-
-        else:
-            prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
-
-            # change the color
-            omni.kit.commands.execute(
-                "ChangePropertyCommand",
-                prop_path=Sdf.Path(prop_path),
-                value=Gf.Vec3f(*cfg.color),
-                prev=None,
-                type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
-                usd_context_name=stage,
-            )
+        # change the color
+        change_prim_property(
+            prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
+            value=Gf.Vec3f(*cfg.color),
+            stage=stage,
+            type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+        )
     # Remove the light from the ground plane
     # It isn't bright enough and messes up with the user's lighting settings
     omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)

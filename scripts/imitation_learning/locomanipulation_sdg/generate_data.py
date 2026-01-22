@@ -102,7 +102,8 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # Import pinocchio before AppLauncher to force the use of the version
+    # installed by IsaacLab and not the one installed by Isaac Sim.
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 
@@ -110,8 +111,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import enum
-import gymnasium as gym
 import random
+
+import gymnasium as gym
 import torch
 
 import omni.kit
@@ -263,10 +265,12 @@ def setup_navigation_scene(
         Tuple of (occupancy_map, path_helper, base_goal, base_goal_approach)
     """
     # Create base occupancy map
-    occupancy_map = merge_occupancy_maps([
-        OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
-        env.get_start_fixture().get_occupancy_map(),
-    ])
+    occupancy_map = merge_occupancy_maps(
+        [
+            OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
+            env.get_start_fixture().get_occupancy_map(),
+        ]
+    )
 
     # Randomize fixture placement if enabled
     if randomize_placement:
@@ -672,7 +676,6 @@ def replay(
 
     # Main simulation loop with state machine
     while simulation_app.is_running() and not simulation_app.is_exiting():
-
         print(f"Current state: {current_state.name}, Recording step: {recording_step}")
 
         # Execute state-specific logic using helper functions
@@ -723,9 +726,7 @@ def replay(
 
 
 if __name__ == "__main__":
-
     with torch.no_grad():
-
         # Create environment
         if args_cli.task is not None:
             env_name = args_cli.task.split(":")[-1]
@@ -744,7 +745,6 @@ if __name__ == "__main__":
         input_dataset_file_handler.open(args_cli.dataset)
 
         for i in range(args_cli.num_runs):
-
             if args_cli.demo is None:
                 demo = random.choice(list(input_dataset_file_handler.get_episode_names()))
             else:

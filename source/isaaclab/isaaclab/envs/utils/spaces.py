@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import gymnasium as gym
 import json
+from typing import Any
+
+import gymnasium as gym
 import numpy as np
 import torch
-from typing import Any
 
 from ..common import SpaceType
 
@@ -54,14 +55,16 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
     Args:
         space: Gymnasium space.
         device: The device where the tensor should be created.
-        batch_size: Batch size. If the specified value is greater than zero, a batched space will be created and sampled from it.
-        fill_value: The value to fill the created tensors with. If None (default value), tensors will keep their random values.
+        batch_size: Batch size. If the specified value is greater than zero, a batched space
+            will be created and sampled from it.
+        fill_value: The value to fill the created tensors with. If None (default value), tensors
+            will keep their random values.
 
     Returns:
         Tensorized sampled space.
     """
 
-    def tensorize(s, x):
+    def tensorize(s: gym.spaces.Space, x: Any) -> Any:
         if isinstance(s, gym.spaces.Box):
             tensor = torch.tensor(x, device=device, dtype=torch.float32).reshape(batch_size, *s.shape)
             if fill_value is not None:
@@ -89,6 +92,9 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
         elif isinstance(s, gym.spaces.Tuple):
             return tuple([tensorize(_s, v) for _s, v in zip(s, x)])
 
+        # If the space is not supported, raise an error
+        raise ValueError(f"Unsupported Gymnasium space for tensorization: {s}")
+
     sample = (gym.vector.utils.batch_space(space, batch_size) if batch_size > 0 else space).sample()
     return tensorize(space, sample)
 
@@ -106,13 +112,15 @@ def serialize_space(space: SpaceType) -> str:
     if isinstance(space, gym.spaces.Discrete):
         return json.dumps({"type": "gymnasium", "space": "Discrete", "n": int(space.n)})
     elif isinstance(space, gym.spaces.Box):
-        return json.dumps({
-            "type": "gymnasium",
-            "space": "Box",
-            "low": space.low.tolist(),
-            "high": space.high.tolist(),
-            "shape": space.shape,
-        })
+        return json.dumps(
+            {
+                "type": "gymnasium",
+                "space": "Box",
+                "low": space.low.tolist(),
+                "high": space.high.tolist(),
+                "shape": space.shape,
+            }
+        )
     elif isinstance(space, gym.spaces.MultiDiscrete):
         return json.dumps({"type": "gymnasium", "space": "MultiDiscrete", "nvec": space.nvec.tolist()})
     elif isinstance(space, gym.spaces.Tuple):

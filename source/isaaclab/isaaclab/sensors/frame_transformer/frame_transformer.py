@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import logging
 import re
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
@@ -160,8 +161,9 @@ class FrameTransformer(SensorBase):
             self._source_frame_offset_pos = source_frame_offset_pos.unsqueeze(0).repeat(self._num_envs, 1)
             self._source_frame_offset_quat = source_frame_offset_quat.unsqueeze(0).repeat(self._num_envs, 1)
 
-        # Keep track of mapping from the rigid body name to the desired frames and prim path, as there may be multiple frames
-        # based upon the same body name and we don't want to create unnecessary views
+        # Keep track of mapping from the rigid body name to the desired frames and prim path,
+        # as there may be multiple frames based upon the same body name and we don't want to
+        # create unnecessary views.
         body_names_to_frames: dict[str, dict[str, set[str] | str]] = {}
         # The offsets associated with each target frame
         target_offsets: dict[str, dict[str, torch.Tensor]] = {}
@@ -272,8 +274,9 @@ class FrameTransformer(SensorBase):
                 match = re.search(r"env_(\d+)(.*)", item)
                 return (int(match.group(1)), match.group(2))
 
-            # Find the indices that would reorganize output to be per environment. We want `env_1/blah` to come before `env_11/blah`
-            # and env_1/Robot/base to come before env_1/Robot/foot so we need to use custom key function
+            # Find the indices that would reorganize output to be per environment.
+            # We want `env_1/blah` to come before `env_11/blah` and env_1/Robot/base
+            # to come before env_1/Robot/foot so we need to use custom key function
             self._per_env_indices = [
                 index
                 for index, _ in sorted(
@@ -287,7 +290,8 @@ class FrameTransformer(SensorBase):
             ]
 
         else:
-            # If no environment is present, then the order of the body names is the same as the order of the prim paths sorted alphabetically
+            # If no environment is present, then the order of the body names is the same as the order of the
+            # prim paths sorted alphabetically
             self._per_env_indices = [index for index, _ in sorted(enumerate(all_prim_paths), key=lambda x: x[1])]
             sorted_prim_paths = [all_prim_paths[index] for index in self._per_env_indices]
 
@@ -306,7 +310,8 @@ class FrameTransformer(SensorBase):
         all_ids = torch.arange(self._num_envs * len(tracked_body_names))
         self._source_frame_body_ids = torch.arange(self._num_envs) * len(tracked_body_names) + source_frame_index
 
-        # If source frame is also a target frame, then the target frame body ids are the same as the source frame body ids
+        # If source frame is also a target frame, then the target frame body ids are the same as
+        # the source frame body ids
         if self._source_is_also_target_frame:
             self._target_frame_body_ids = all_ids
         else:
@@ -486,17 +491,20 @@ class FrameTransformer(SensorBase):
     def _get_connecting_lines(
         self, start_pos: torch.Tensor, end_pos: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Given start and end points, compute the positions (mid-point), orientations, and lengths of the connecting lines.
+        """Draws connecting lines between frames.
+
+        Given start and end points, this function computes the positions (mid-point), orientations,
+        and lengths of the connecting lines.
 
         Args:
             start_pos: The start positions of the connecting lines. Shape is (N, 3).
             end_pos: The end positions of the connecting lines. Shape is (N, 3).
 
         Returns:
-            positions: The position of each connecting line. Shape is (N, 3).
-            orientations: The orientation of each connecting line in quaternion. Shape is (N, 4).
-            lengths: The length of each connecting line. Shape is (N,).
+            A tuple containing:
+            - The positions of each connecting line. Shape is (N, 3).
+            - The orientations of each connecting line in quaternion. Shape is (N, 4).
+            - The lengths of each connecting line. Shape is (N,).
         """
         direction = end_pos - start_pos
         lengths = torch.norm(direction, dim=-1)

@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import yaml
-from scipy.spatial.transform import Rotation as R
-
 from dex_retargeting.retargeting_config import RetargetingConfig
+from scipy.spatial.transform import Rotation as R
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -22,17 +22,21 @@ logger = logging.getLogger(__name__)
 _HAND_JOINTS_INDEX = [1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25]
 
 # The transformation matrices to convert hand pose to canonical view.
-_OPERATOR2MANO_RIGHT = np.array([
-    [0, -1, 0],
-    [-1, 0, 0],
-    [0, 0, -1],
-])
+_OPERATOR2MANO_RIGHT = np.array(
+    [
+        [0, -1, 0],
+        [-1, 0, 0],
+        [0, 0, -1],
+    ]
+)
 
-_OPERATOR2MANO_LEFT = np.array([
-    [0, -1, 0],
-    [-1, 0, 0],
-    [0, 0, -1],
-])
+_OPERATOR2MANO_LEFT = np.array(
+    [
+        [0, -1, 0],
+        [-1, 0, 0],
+        [0, 0, -1],
+    ]
+)
 
 _LEFT_HAND_JOINT_NAMES = [
     "L_index_proximal_joint",

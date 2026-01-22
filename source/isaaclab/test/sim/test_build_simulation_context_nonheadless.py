@@ -3,11 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This test has a lot of duplication with ``test_build_simulation_context_headless.py``. This is intentional to ensure that the
-tests are run in both headless and non-headless modes, and we currently can't re-build the simulation app in a script.
+"""This test has a lot of duplication with ``test_build_simulation_context_headless.py``.
 
-If you need to make a change to this test, please make sure to also make the same change to ``test_build_simulation_context_headless.py``.
+This is intentional to ensure that the tests are run in both headless and non-headless modes,
+and we currently can't re-build the simulation app in a script.
 
+If you need to make a change to this test, please make sure to also make the same change to
+``test_build_simulation_context_headless.py``.
 """
 
 """Launch Isaac Sim Simulator first."""

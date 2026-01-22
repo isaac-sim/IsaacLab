@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import enum
 import os
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
@@ -526,7 +527,9 @@ class RecorderManager(ManagerBase):
                 self._failed_episode_dataset_file_handler.flush()
 
     def close(self):
-        """Closes the recorder manager by exporting any remaining data to file as well as properly closes the recorder terms."""
+        """Closes the recorder manager by exporting any remaining data to file as well as properly
+        closes the recorder terms.
+        """
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return

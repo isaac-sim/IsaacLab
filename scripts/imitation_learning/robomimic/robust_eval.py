@@ -65,7 +65,8 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # Import pinocchio before AppLauncher to force the use of the version installed
+    # by IsaacLab and not the one installed by Isaac Sim.
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 
@@ -76,14 +77,14 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import copy
-import gymnasium as gym
 import os
 import pathlib
 import random
-import torch
 
+import gymnasium as gym
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
+import torch
 
 from isaaclab_tasks.utils import parse_env_cfg
 

@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import carb
-
 from pink.tasks import DampingTask, FrameTask
+
+import carb
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
@@ -79,7 +79,8 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
                 base_link_name="base_link",
                 num_hand_joints=22,
                 show_ik_warnings=False,
-                fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
+                # Determines whether Pink IK solver will fail due to a joint limit violation
+                fail_on_joint_limit_violation=False,
                 variable_input_tasks=[
                     FrameTask(
                         "GR1T2_fourier_hand_6dof_left_hand_pitch_link",

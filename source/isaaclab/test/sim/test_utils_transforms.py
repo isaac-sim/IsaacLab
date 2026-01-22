@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+
 import numpy as np
 import pytest
 import torch
@@ -56,9 +57,9 @@ def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd | tuple, 
     real_match_neg = math.isclose(q1.GetReal(), -q2.GetReal(), abs_tol=eps)
     imag_match_neg = all(math.isclose(q1.GetImaginary()[i], -q2.GetImaginary()[i], abs_tol=eps) for i in range(3))
 
-    assert (real_match and imag_match) or (
-        real_match_neg and imag_match_neg
-    ), f"Quaternion mismatch: {q1} != {q2} (and not equal to negative either)"
+    assert (real_match and imag_match) or (real_match_neg and imag_match_neg), (
+        f"Quaternion mismatch: {q1} != {q2} (and not equal to negative either)"
+    )
 
 
 def get_xform_ops(prim: Usd.Prim) -> list[str]:
@@ -593,8 +594,8 @@ def test_standardize_xform_ops_with_partial_values():
     assert_quat_close(Gf.Quatd(*quat_before), quat_after_world, eps=1e-5)
 
 
-def test_standardize_xform_ops_non_xformable_prim():
-    """Test standardize_xform_ops returns False for non-Xformable prims."""
+def test_standardize_xform_ops_non_xformable_prim(caplog):
+    """Test standardize_xform_ops returns False for non-Xformable prims and logs error."""
     # obtain stage handle
     stage = sim_utils.get_current_stage()
 
@@ -607,9 +608,20 @@ def test_standardize_xform_ops_non_xformable_prim():
     assert material_prim.IsValid()
     assert not material_prim.IsA(UsdGeom.Xformable)
 
-    # Attempt to apply standardize_xform_ops - should return False
-    result = sim_utils.standardize_xform_ops(material_prim)
+    # Clear any previous logs
+    caplog.clear()
+
+    # Attempt to apply standardize_xform_ops - should return False and log a error
+    with caplog.at_level("ERROR"):
+        result = sim_utils.standardize_xform_ops(material_prim)
+
     assert result is False
+
+    # Verify that a error was logged
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "ERROR"
+    assert "not an Xformable" in caplog.records[0].message
+    assert "/World/TestMaterial" in caplog.records[0].message
 
 
 def test_standardize_xform_ops_preserves_reset_xform_stack():

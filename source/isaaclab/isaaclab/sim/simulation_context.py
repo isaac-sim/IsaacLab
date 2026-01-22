@@ -5,15 +5,11 @@
 
 import builtins
 import enum
-import flatdict
 import glob
 import logging
-import numpy as np
 import os
 import re
 import time
-import toml
-import torch
 import traceback
 import weakref
 from collections.abc import Iterator
@@ -21,13 +17,18 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
+import flatdict
+import numpy as np
+import toml
+import torch
+
 import carb
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
@@ -99,8 +100,8 @@ class SimulationContext(_SimulationContext):
         control what is updated when the simulation is rendered. This is where the render mode comes in. There are
         four different render modes:
 
-        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
-          so none of the above are updated.
+        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag
+          is disabled, so none of the above are updated.
         * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
         * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
         * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
@@ -146,6 +147,11 @@ class SimulationContext(_SimulationContext):
             self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
+        # cache stage if it is not already cached
+        stage_cache = UsdUtils.StageCache.Get()
+        stage_id = stage_cache.GetId(self._initial_stage).ToLongInt()
+        if stage_id < 0:
+            stage_cache.Insert(self._initial_stage)
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
@@ -1038,20 +1044,20 @@ def build_simulation_context(
     aspects of the simulation, such as time step, gravity, device, and scene elements like ground plane and
     lighting.
 
-    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings, with parameters
-    overwritten based on arguments to the function.
+    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings,
+    with parameters overwritten based on arguments to the function.
 
     An example usage of the context manager function:
 
     ..  code-block:: python
 
         with build_simulation_context() as sim:
-             # Design the scene
+            # Design the scene
 
-             # Play the simulation
-             sim.reset()
-             while sim.is_playing():
-                 sim.step()
+            # Play the simulation
+            sim.reset()
+            while sim.is_playing():
+                sim.step()
 
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.

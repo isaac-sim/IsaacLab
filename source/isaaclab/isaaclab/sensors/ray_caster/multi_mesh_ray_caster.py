@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import re
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar
+
+import numpy as np
 import torch
 import trimesh
 import warp as wp
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
 
 import omni.physics.tensors.impl.api as physx
 
@@ -178,9 +179,9 @@ class MultiMeshRayCaster(RayCaster):
             if len(target_prims) == 0:
                 raise RuntimeError(f"Failed to find a prim at path expression: {target_prim_path}")
 
-            is_global_prim = (
-                len(target_prims) == 1
-            )  # If only one prim is found, treat it as a global prim. Either it's a single global object (e.g. ground) or we are only using one env.
+            # If only one prim is found, treat it as a global prim.
+            # Either it's a single global object (e.g. ground) or we are only using one env.
+            is_global_prim = len(target_prims) == 1
 
             loaded_vertices: list[np.ndarray | None] = []
             wp_mesh_ids = []

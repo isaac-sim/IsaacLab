@@ -198,8 +198,8 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over public network
-          - ``2``: `WebRTC <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client>`_ over local/private network
+          - ``1``: `WebRTC`_ over public network
+          - ``2``: `WebRTC`_ over local/private network
 
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
@@ -217,14 +217,21 @@ class AppLauncher:
 
           If provided as an empty string, the experience file is determined based on the command-line flags:
 
-          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
-          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
-          * If headless and enable_cameras are False, the experience file is set to ``isaaclab.python.kit``.
-          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
+          * If headless and enable_cameras are True, the experience file is set to
+            ``isaaclab.python.headless.rendering.kit``.
+          * If headless is False and enable_cameras is True, the experience file is set to
+            ``isaaclab.python.rendering.kit``.
+          * If headless and enable_cameras are False, the experience file is set to
+            ``isaaclab.python.kit``.
+          * If headless is True and enable_cameras is False, the experience file is set to
+            ``isaaclab.python.headless.kit``.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+
+
+        .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -533,7 +540,8 @@ class AppLauncher:
         # Set public IP address of a remote instance
         public_ip_env = os.environ.get("PUBLIC_IP", "127.0.0.1")
 
-        # Process livestream here before launching kit because some of the extensions only work when launched with the kit file
+        # Process livestream here before launching kit because some of the extensions only work
+        # when launched with the kit file
         self._livestream_args = []
         if self._livestream >= 1:
             # Note: Only one livestream extension can be enabled at a time
@@ -630,7 +638,8 @@ class AppLauncher:
         """Resolve viewport related settings."""
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
-        #   This is different from offscreen_render because this only affects the default viewport and not other renderproducts in the scene
+        #   This is different from offscreen_render because this only affects the default viewport and
+        #   not other render-products in the scene
         self._render_viewport = True
         if self._headless and not self._livestream and not launcher_args.get("video", False):
             self._render_viewport = False
@@ -795,7 +804,7 @@ class AppLauncher:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pytest.ini
+        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
         indexes_to_remove = []
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
@@ -803,9 +812,8 @@ class AppLauncher:
                 if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
-            if arg == "-c" and "pytest.ini" in sys.argv[idx + 1]:
+            if arg.startswith("--config-file=") and "pyproject.toml" in arg:
                 indexes_to_remove.append(idx)
-                indexes_to_remove.append(idx + 1)
             if arg == "--capture=no":
                 indexes_to_remove.append(idx)
         for idx in sorted(indexes_to_remove, reverse=True):
@@ -832,7 +840,8 @@ class AppLauncher:
     def _rendering_enabled(self) -> bool:
         """Check if rendering is required by the app."""
         # Indicates whether rendering is required by the app.
-        # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
+        # Extensions required for rendering bring startup and simulation costs, so we do not
+        # enable them if not required.
         return not self._headless or self._livestream >= 1 or self._enable_cameras or self._xr
 
     def _load_extensions(self):

@@ -75,14 +75,14 @@ signal.signal(signal.SIGINT, cleanup_pbar)
 
 """Rest everything follows."""
 
-import gymnasium as gym
 import logging
-import numpy as np
 import os
 import random
 import time
 from datetime import datetime
 
+import gymnasium as gym
+import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
 from stable_baselines3.common.vec_env import VecNormalize
@@ -130,7 +130,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
-    # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
+    # The Ray Tune workflow extracts experiment name using the logging line below, hence,
+    # do not change it (see PR #2346, comment-2819298849)
     print(f"Exact experiment name requested from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)
     # dump the configuration into log-directory

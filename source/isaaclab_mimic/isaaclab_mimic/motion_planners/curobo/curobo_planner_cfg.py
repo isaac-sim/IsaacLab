@@ -5,6 +5,7 @@
 
 import os
 import tempfile
+
 import yaml
 
 from curobo.geom.sdf.world import CollisionCheckerType
@@ -77,7 +78,9 @@ class CuroboPlannerCfg:
     """Absolute USD prim path to the robot root for world extraction; None derives it from environment root."""
 
     world_ignore_substrings: list[str] | None = None
-    """List of substring patterns to ignore when extracting world obstacles (e.g., default ground plane, debug prims)."""
+    """List of substring patterns to ignore when extracting world obstacles
+    (e.g., default ground plane, debug prims).
+    """
 
     # Motion planning parameters
     collision_checker_type: CollisionCheckerType = CollisionCheckerType.MESH
@@ -287,15 +290,19 @@ class CuroboPlannerCfg:
                 # Hand/finger links to disable during contact planning
                 hand_link_names=["finger_link_1", "finger_link_2", "palm_link"],
 
-                # Optional: Absolute USD prim path to the robot root for world extraction; None derives it from environment root.
+                # Optional: Absolute USD prim path to the robot root for world extraction;
+                # None derives it from environment root.
                 robot_prim_path=None,
 
-                # Optional: List of substring patterns to ignore when extracting world obstacles (e.g., default ground plane, debug prims).
-                # None derives it from the environment root and adds some default patterns. This is useful for environments with a lot of prims.
+                # Optional: List of substring patterns to ignore when extracting world obstacles
+                # (e.g., default ground plane, debug prims).
+                # None derives it from the environment root and adds some default patterns.
+                # This is useful for environments with a lot of prims.
                 world_ignore_substrings=None,
 
                 # Optional: Custom collision spheres configuration
-                collision_spheres_file="spheres/my_robot_spheres.yml",  # Path relative to curobo (can override with custom spheres file)
+                # Path relative to curobo (can override with custom spheres file)
+                collision_spheres_file="spheres/my_robot_spheres.yml",
 
                 # Grasp detection threshold
                 grasp_gripper_open_val=0.05,

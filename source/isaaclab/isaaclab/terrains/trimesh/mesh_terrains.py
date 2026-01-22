@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.spatial.transform as tf
 import torch
 import trimesh
-from typing import TYPE_CHECKING
 
 from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane
@@ -253,9 +254,9 @@ def random_grid_terrain(
     """Generate a terrain with cells of random heights and fixed width.
 
     The terrain is generated in the x-y plane and has a height of 1.0. It is then divided into a grid of the
-    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value uniformly
-    sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified width
-    :obj:`cfg.platform_width` is generated.
+    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value
+    uniformly sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified
+    width :obj:`cfg.platform_width` is generated.
 
     If :obj:`cfg.holes` is True, the terrain will have randomized grid cells only along the plane extending
     from the platform (like a plus sign). The remaining area remains empty and no border will be added.
@@ -810,10 +811,12 @@ def repeated_objects_terrain(
     meshes_list = list()
     # compute quantities
     origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * platform_height))
-    platform_corners = np.asarray([
-        [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
-        [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
-    ])
+    platform_corners = np.asarray(
+        [
+            [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
+            [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
+        ]
+    )
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample valid center for objects

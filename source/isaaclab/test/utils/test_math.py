@@ -17,12 +17,13 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+from math import pi as PI
+
 import numpy as np
 import pytest
 import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
-from math import pi as PI
 
 import isaaclab.utils.math as math_utils
 
@@ -107,7 +108,9 @@ def test_normalize(device, size):
 
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
 def test_copysign(device):
-    """Test copysign by copying a sign from both a negative and positive value and verify that the new sign is the same."""
+    """Test copysign by copying a sign from both a negative and positive value and
+    verify that the new sign is the same.
+    """
 
     size = (10, 2)
 
@@ -163,10 +166,12 @@ def test_axis_angle_from_quat(device):
     # Quaternions of the form (2,4) and (2,2,4)
     quats = [
         torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]).to(device),
-        torch.Tensor([
-            [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
-            [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
-        ]).to(device),
+        torch.Tensor(
+            [
+                [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
+                [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
+            ]
+        ).to(device),
     ]
 
     # Angles of the form (2,3) and (2,2,3)
@@ -358,7 +363,10 @@ def test_convention_converter(device):
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
 @pytest.mark.parametrize("size", ((10, 4), (5, 3, 4)))
 def test_convert_quat(device, size):
-    """Test convert_quat from xyzw to wxyz and back to xyzw and verify the correct rolling of the tensor. Also check the correct exceptions are raised for bad inputs for the quaternion and the 'to'."""
+    """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
+
+    Also check the correct exceptions are raised for bad inputs for the quaternion and the 'to'.
+    """
 
     quat = torch.zeros(size, device=device)
     quat[..., 0] = 1.0
@@ -597,10 +605,12 @@ def test_pose_inv():
         np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
     # Check against a batch of matrices
-    test_mats = torch.stack([
-        math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
-        for _ in range(100)
-    ])
+    test_mats = torch.stack(
+        [
+            math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * math.pi))
+            for _ in range(100)
+        ]
+    )
     result = np.array(math_utils.pose_inv(test_mats))
     expected = np.linalg.inv(np.array(test_mats))
     np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
@@ -690,7 +700,9 @@ def test_quat_box_minus_and_quat_box_plus(device):
 @pytest.mark.parametrize("t12_inputs", ["True", "False"])
 @pytest.mark.parametrize("q12_inputs", ["True", "False"])
 def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
-    """Test combine_frame_transforms such that inputs for delta translation and delta rotation can be None or specified."""
+    """Test combine_frame_transforms such that inputs for delta translation and delta rotation
+    can be :obj:`None` or specified.
+    """
     n = 1024
     t01 = torch.zeros((n, 3), device=device)
     t01.uniform_(-1000.0, 1000.0)
@@ -727,7 +739,11 @@ def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
 @pytest.mark.parametrize("t02_inputs", ["True", "False"])
 @pytest.mark.parametrize("q02_inputs", ["True", "False"])
 def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
-    """Test subtract_frame_transforms with specified and unspecified inputs for t02 and q02. Verify that it is the inverse operation to combine_frame_transforms."""
+    """Test subtract_frame_transforms with specified and unspecified inputs for t02 and q02.
+
+    This test verifies that :meth:`~isaaclab.utils.math_utils.subtract_frame_transforms` is the inverse operation
+    to :meth:`~isaaclab.utils.math_utils.combine_frame_transforms`.
+    ."""
     n = 1024
     t01 = torch.zeros((n, 3), device=device)
     t01.uniform_(-1000.0, 1000.0)
@@ -1248,36 +1264,48 @@ def test_euler_xyz_from_quat():
     """
     quats = [
         torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
-        torch.Tensor([
-            [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
-            [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
-            [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
-        ]),
-        torch.Tensor([
-            [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
-            [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
-        ]),
-        torch.Tensor([
-            [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
-            [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
-        ]),
+        torch.Tensor(
+            [
+                [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
+                [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
+                [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
+                [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
+                [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+            ]
+        ),
     ]
 
     expected_euler_angles = [
         torch.Tensor([[0.0, 0.0, 0.0]]),  # identity
-        torch.Tensor([
-            [torch.pi / 4, 0.0, 0.0],  # 45° about x
-            [0.0, -torch.pi / 4, 0.0],  # -45° about y
-            [0.0, 0.0, -torch.pi / 4],  # -45° about z
-        ]),
-        torch.Tensor([
-            [-torch.pi / 2, 0.0, 0.0],  # -90° about x
-            [0.0, 0.0, -torch.pi / 2],  # -90° about z
-        ]),
-        torch.Tensor([
-            [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
-            [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
-        ]),
+        torch.Tensor(
+            [
+                [torch.pi / 4, 0.0, 0.0],  # 45° about x
+                [0.0, -torch.pi / 4, 0.0],  # -45° about y
+                [0.0, 0.0, -torch.pi / 4],  # -45° about z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [-torch.pi / 2, 0.0, 0.0],  # -90° about x
+                [0.0, 0.0, -torch.pi / 2],  # -90° about z
+            ]
+        ),
+        torch.Tensor(
+            [
+                [-3 * torch.pi / 4, 0.0, 0.0],  # -135° about x
+                [0.0, 0.0, -3 * torch.pi / 4],  # -135° about y
+            ]
+        ),
     ]
 
     # Test 1: default no-wrap range from (-π, π]

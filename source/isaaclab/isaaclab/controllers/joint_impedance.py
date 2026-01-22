@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
+
+import torch
 
 from isaaclab.utils import configclass
 

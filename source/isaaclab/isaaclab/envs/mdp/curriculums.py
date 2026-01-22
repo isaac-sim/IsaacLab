@@ -65,7 +65,9 @@ class modify_env_param(ManagerTermBase):
     .. code-block:: python
 
         def modify_fn(env, env_ids, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
-            ...
+            # modify the value based on the old value and the modify parameters
+            new_value = old_value + modify_params["value"]
+            return new_value
 
     where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,
     ``old_value`` is the current value of the target attribute, and ``modify_params``
@@ -78,10 +80,10 @@ class modify_env_param(ManagerTermBase):
     current value, and the setter writes a new value back to the attribute.
 
     This term processes getter/setter accessors for a target attribute in an(specified by
-    as an "address" in the term configuration`cfg.params["address"]`) the first time it is called, then on each invocation
-    reads the current value, applies a user-provided `modify_fn`, and writes back
-    the result. Since None in this case can sometime be desirable value to write, we
-    use token, NO_CHANGE, as non-modification signal to this class, see usage below.
+    as an "address" in the term configuration :attr:`cfg.params["address"]`) the first time it is called,
+    then on each invocation reads the current value, applies a user-provided :attr:`modify_fn`,
+    and writes back the result. Since :obj:`None` in this case can sometime be desirable value
+    to write, we use token, :attr:`NO_CHANGE`, as non-modification signal to this class, see usage below.
 
     Usage:
         .. code-block:: python
@@ -101,6 +103,7 @@ class modify_env_param(ManagerTermBase):
                 # to the setter being called, which may add overhead.
                 return mdp.modify_env_param.NO_CHANGE
 
+
             object_physics_material_curriculum = CurrTerm(
                 func=mdp.modify_env_param,
                 params={
@@ -110,9 +113,9 @@ class modify_env_param(ManagerTermBase):
                         "static_friction_range": [0.5, 1.0],
                         "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
-                        "num_step": 120000
-                    }
-                }
+                        "num_step": 120000,
+                    },
+                },
             )
     """
 
@@ -275,13 +278,14 @@ class modify_term_cfg(modify_env_param):
                     return value
                 return mdp.modify_term_cfg.NO_CHANGE
 
+
             command_object_pose_xrange_adr = CurrTerm(
                 func=mdp.modify_term_cfg,
                 params={
-                    "address": "commands.object_pose.ranges.pos_x",   # note: `_manager.cfg` is omitted
+                    "address": "commands.object_pose.ranges.pos_x",  # note: `_manager.cfg` is omitted
                     "modify_fn": override_value,
-                    "modify_params": {"value": (-.75, -.25), "num_steps": 12000}
-                }
+                    "modify_params": {"value": (-0.75, -0.25), "num_steps": 12000},
+                },
             )
     """
 

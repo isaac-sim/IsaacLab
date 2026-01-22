@@ -27,12 +27,12 @@
 # ----------------------------------------------------------------------------------------------------------------------
 
 import math
+
 import numpy as np
 import torch
 import torch.cuda
-from torch.autograd import Function
-
 from numba import cuda, jit, prange
+from torch.autograd import Function
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -52,7 +52,6 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
 
     # Go over each anti-diagonal. Only process threads that fall on the current on the anti-diagonal
     for p in range(n_passes):
-
         # The index is actually 'p - tid' but need to force it in-bounds
         J = max(0, min(p - tid, max_j - 1))
 
@@ -61,7 +60,7 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
         j = J + 1
 
         # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
-        if tid + J == p and (tid < max_i and J < max_j):
+        if tid + J == p and (tid < max_i and max_j > J):
             # Don't compute if outside bandwidth
             if not (abs(i - j) > bandwidth > 0):
                 r0 = -R[b, i - 1, j - 1] * inv_gamma
@@ -96,8 +95,7 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_pa
         j = J + 1
 
         # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
-        if tid + J == rev_p and (tid < max_i and J < max_j):
-
+        if tid + J == rev_p and (tid < max_i and max_j > J):
             if math.isinf(R[k, i, j]):
                 R[k, i, j] = -math.inf
 
@@ -138,7 +136,8 @@ class _SoftDTWCUDA(Function):
 
         # Run the CUDA kernel.
         # Set CUDA's grid size to be equal to the batch size (every CUDA block processes one sample pair)
-        # Set the CUDA block size to be equal to the length of the longer sequence (equal to the size of the largest diagonal)
+        # Set the CUDA block size to be equal to the length of the longer sequence
+        # (equal to the size of the largest diagonal)
         compute_softdtw_cuda[B, threads_per_block](
             cuda.as_cuda_array(D.detach()), gamma.item(), bandwidth.item(), N, M, n_passes, cuda.as_cuda_array(R)
         )
@@ -199,7 +198,6 @@ def compute_softdtw(D, gamma, bandwidth):
     for b in prange(B):
         for j in range(1, M + 1):
             for i in range(1, N + 1):
-
                 # Check the pruning condition
                 if 0 < bandwidth < np.abs(i - j):
                     continue
@@ -230,7 +228,6 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
     for k in prange(B):
         for j in range(M, 0, -1):
             for i in range(N, 0, -1):
-
                 if np.isinf(R[k, i, j]):
                     R[k, i, j] = -np.inf
 
@@ -287,15 +284,19 @@ class SoftDTW(torch.nn.Module):
     """
 
     def __init__(self, use_cuda, device, gamma=1.0, normalize=False, bandwidth=None, dist_func=None):
-        """
-        Initializes a new instance using the supplied parameters
-        :param use_cuda: Flag indicating whether the CUDA implementation should be used
-        :param device: device to run the soft dtw computation
-        :param gamma: sDTW's gamma parameter
-        :param normalize: Flag indicating whether to perform normalization
-                          (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
-        :param bandwidth: Sakoe-Chiba bandwidth for pruning. Passing 'None' will disable pruning.
-        :param dist_func: Optional point-wise distance function to use. If 'None', then a default Euclidean distance function will be used.
+        """Initializes a new instance using the supplied parameters
+
+        Args:
+
+            use_cuda: Whether to use the CUDA implementation.
+            device: The device to run the SoftDTW computation.
+            gamma: The SoftDTW's gamma parameter. Default is 1.0.
+            normalize: Whether to perform normalization. Default is False.
+                (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
+            bandwidth: Sakoe-Chiba bandwidth for pruning. Default is None, which disables pruning.
+                If provided, must be a float.
+            dist_func: The point-wise distance function to use. Default is None, which
+                uses a default Euclidean distance function.
         """
         super().__init__()
         self.normalize = normalize
@@ -403,9 +404,8 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
     n_iters = 6
 
     print(
-        "Profiling forward() + backward() times for batch_size={}, seq_len_a={}, seq_len_b={}, dims={}...".format(
-            batch_size, seq_len_a, seq_len_b, dims
-        )
+        f"Profiling forward() + backward() times for batch_size={batch_size}, seq_len_a={seq_len_a},"
+        f" seq_len_b={seq_len_b}, dims={dims}..."
     )
 
     times_cpu = []
@@ -427,9 +427,9 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
         assert torch.allclose(forward_cpu, forward_gpu.cpu())
         assert torch.allclose(backward_cpu, backward_gpu.cpu(), atol=tol_backward)
 
-        if (
-            i > 0
-        ):  # Ignore the first time we run, in case this is a cold start (because timings are off at a cold start of the script)
+        # Ignore the first time we run, in case this is a cold start
+        # (because timings are off at a cold start of the script)
+        if i > 0:
             times_cpu += [t_cpu]
             times_gpu += [t_gpu]
 
@@ -444,7 +444,6 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
 
 # ----------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-
     torch.manual_seed(1234)
 
     profile(128, 17, 15, 2, tol_backward=1e-6)

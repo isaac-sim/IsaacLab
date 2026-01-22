@@ -15,7 +15,7 @@ from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
-from isaaclab.sim.utils import export_prim_to_file
+from isaaclab.sim.utils import delete_prim, export_prim_to_file
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -173,7 +173,7 @@ class MeshConverter(AssetConverterBase):
             )
             # Delete the original prim that will now be a reference
             geom_prim_path = geom_prim.GetPath().pathString
-            omni.kit.commands.execute("DeletePrims", paths=[geom_prim_path], stage=stage)
+            delete_prim(geom_prim_path, stage=stage)
             # Update references to exported Xform and make it instanceable
             geom_undef_prim = stage.DefinePrim(geom_prim_path)
             geom_undef_prim.GetReferences().AddReference(self.usd_instanceable_meshes_path, primPath=geom_prim_path)
@@ -220,7 +220,6 @@ class MeshConverter(AssetConverterBase):
         enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter
-        import omni.usd
 
         # Create converter context
         converter_context = omni.kit.asset_converter.AssetConverterContext()

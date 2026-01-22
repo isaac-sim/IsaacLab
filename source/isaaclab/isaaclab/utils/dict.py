@@ -8,9 +8,10 @@
 import collections.abc
 import hashlib
 import json
-import torch
 from collections.abc import Iterable, Mapping, Sized
 from typing import Any
+
+import torch
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable, string_to_slice
@@ -103,7 +104,6 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
             # -- 2) iterable (list / tuple / etc.) ---------------------
             if isinstance(value, Iterable) and not isinstance(value, str):
-
                 # ---- 2a) flat iterable → replace wholesale ----------
                 if all(not isinstance(el, Mapping) for el in value):
                     out_val = tuple(value) if isinstance(obj_mem, tuple) else value

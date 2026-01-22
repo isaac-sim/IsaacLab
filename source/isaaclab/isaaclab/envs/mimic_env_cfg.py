@@ -9,6 +9,7 @@
 """
 Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 """
+
 import enum
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
@@ -215,7 +216,8 @@ class SubTaskConstraintConfig:
         - "coordination"
 
         For a "sequential" constraint:
-            - Data from task_constraint_configs is added to task_constraints_dict as "sequential former" task constraint.
+            - Data from task_constraint_configs is added to task_constraints_dict as "sequential former"
+              task constraint.
             - The opposite constraint, of type "sequential latter", is also added to task_constraints_dict.
             - Additionally, a ("fulfilled", Bool) key-value pair is added to task_constraints_dict.
             - This is used to check if the precondition (i.e., the sequential former task) has been met.
@@ -227,7 +229,8 @@ class SubTaskConstraintConfig:
             - The opposite constraint, of type "coordination", is also added to task_constraints_dict.
             - The number of synchronous steps is set to the minimum of subtask_len and concurrent_subtask_len.
             - This ensures both concurrent tasks end at the same time step.
-            - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by both subtasks are the same.
+            - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by
+              both subtasks are the same.
         """
         task_constraints_dict = dict()
         if self.constraint_type == SubTaskConstraintType.SEQUENTIAL:

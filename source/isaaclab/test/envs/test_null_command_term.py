@@ -12,8 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 from collections import namedtuple
+
+import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
 

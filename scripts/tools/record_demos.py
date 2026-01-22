@@ -18,7 +18,8 @@ optional arguments:
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
-    --num_success_steps       Number of continuous steps with task success for concluding a demo as successful. (default: 10)
+    --num_success_steps       Number of continuous steps with task success for concluding a demo as successful.
+                              (default: 10)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -75,7 +76,8 @@ if args_cli.task is None:
 app_launcher_args = vars(args_cli)
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # Import pinocchio before AppLauncher to force the use of the version
+    # installed by IsaacLab and not the one installed by Isaac Sim.
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
@@ -89,10 +91,11 @@ simulation_app = app_launcher.app
 
 
 # Third-party imports
-import gymnasium as gym
 import logging
 import os
 import time
+
+import gymnasium as gym
 import torch
 
 import omni.ui as ui
@@ -105,8 +108,8 @@ import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 

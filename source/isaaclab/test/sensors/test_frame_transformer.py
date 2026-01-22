@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+
 import pytest
 import scipy.spatial.transform as tf
 import torch
@@ -790,6 +791,6 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         for rf_pos in rf_positions:
             matches_robot = torch.allclose(rf_pos, robot_rf_pos_w, atol=1e-5)
             matches_robot_1 = torch.allclose(rf_pos, robot_1_rf_pos_w, atol=1e-5)
-            assert (
-                matches_robot or matches_robot_1
-            ), f"RF_SHANK position {rf_pos} doesn't match either robot's RF_SHANK position"
+            assert matches_robot or matches_robot_1, (
+                f"RF_SHANK position {rf_pos} doesn't match either robot's RF_SHANK position"
+            )

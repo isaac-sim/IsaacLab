@@ -8,13 +8,14 @@ from __future__ import annotations
 import contextlib
 import inspect
 import logging
-import numpy as np
 import threading
 import time
-import torch
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, Union
+
+import numpy as np
+import torch
 
 from pxr import Gf
 
@@ -158,7 +159,7 @@ class VisualizationManager:
     # Type aliases for different callback signatures
     StandardCallback = Callable[["VisualizationManager", "DataCollector"], None]
     EventCallback = Callable[["VisualizationManager", "DataCollector", Any], None]
-    CallbackType = Union[StandardCallback, EventCallback]
+    CallbackType = Union[StandardCallback, EventCallback]  # noqa: UP007
 
     class TimeCountdown:
         """Internal class for managing periodic timer-based callbacks."""
@@ -310,9 +311,19 @@ class VisualizationManager:
                 - For TRIGGER_ON_EVENT: {"event_name": str}
                 - For TRIGGER_ON_CHANGE: {"variable_name": str}
                 - For TRIGGER_ON_UPDATE: {}
-            callback: Function to execute when trigger condition is met
-                - For TRIGGER_ON_EVENT: callback(manager: VisualizationManager, data_collector: DataCollector, event_params: Any)
-                - For others: callback(manager: VisualizationManager, data_collector: DataCollector)
+            callback: Function to execute when trigger condition is met. The callback should have
+                the following signatures according to the trigger type:
+                - For TRIGGER_ON_EVENT:
+                    callback(
+                        manager: VisualizationManager,
+                        data_collector: DataCollector,
+                        event_params: Any,
+                    )
+                - For others:
+                    callback(
+                        manager: VisualizationManager,
+                        data_collector: DataCollector,
+                    )
 
         Raises:
             TypeError: If callback signature doesn't match the expected signature for the trigger type

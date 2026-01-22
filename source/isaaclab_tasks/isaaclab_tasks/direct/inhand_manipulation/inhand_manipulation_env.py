@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import numpy as np
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -396,7 +397,6 @@ def compute_rewards(
     fall_penalty: float,
     av_factor: float,
 ):
-
     goal_dist = torch.norm(object_pos - target_pos, p=2, dim=-1)
     rot_dist = rotation_distance(object_rot, target_rot)
 

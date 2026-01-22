@@ -7,11 +7,11 @@ import datetime
 import os
 import random
 import socket
-import yaml
 from collections import OrderedDict
 from pathlib import Path
-from prettytable import PrettyTable
 
+import yaml
+from prettytable import PrettyTable
 from rl_games.algos_torch.torch_ext import safe_filesystem_op, safe_save
 
 
@@ -274,16 +274,18 @@ class PbtTablePrinter:
             if c is None:
                 t.add_row([p, "—", "", "", "", "", "", ""])
             else:
-                t.add_row([
-                    p,
-                    "OK",
-                    self.fmt(c.get("true_objective", "")),
-                    c.get("iteration", ""),
-                    c.get("frame", ""),
-                    c.get("experiment_name", ""),
-                    self.short(c.get("checkpoint", "")),
-                    self.short(c.get("pbt_checkpoint", "")),
-                ])
+                t.add_row(
+                    [
+                        p,
+                        "OK",
+                        self.fmt(c.get("true_objective", "")),
+                        c.get("iteration", ""),
+                        c.get("frame", ""),
+                        c.get("experiment_name", ""),
+                        self.short(c.get("checkpoint", "")),
+                        self.short(c.get("pbt_checkpoint", "")),
+                    ]
+                )
         print(t)
 
     def print_mutation_diff(self, before: dict, after: dict, *, header: str = "Mutated params (changed only)"):

@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+
 import torch
 import trimesh
 import warp as wp
@@ -71,7 +72,6 @@ def get_cuda_version():
 
 
 def get_gripper_open_width(obj_filepath):
-
     retrieve_file_path(obj_filepath, download_dir="./")
     obj_mesh = trimesh.load_mesh(os.path.basename(obj_filepath))
     # obj_mesh = trimesh.load_mesh(obj_filepath)
@@ -113,7 +113,6 @@ def get_closest_state_idx(ref_traj, curr_ee_pos):
 
 
 def get_reward_mask(ref_traj, curr_ee_pos, tolerance):
-
     _, min_dist_step_idx, _ = get_closest_state_idx(ref_traj, curr_ee_pos)
     selected_steps = torch.index_select(
         ref_traj, dim=1, index=min_dist_step_idx

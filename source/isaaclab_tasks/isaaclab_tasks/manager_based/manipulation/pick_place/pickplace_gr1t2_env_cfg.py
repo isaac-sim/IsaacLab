@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import tempfile
+
 import torch
+from pink.tasks import DampingTask, FrameTask
 
 import carb
-
-from pink.tasks import DampingTask, FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
@@ -40,6 +40,7 @@ from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
 ##
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
+    """Configuration for the GR1T2 Pick Place Base Scene."""
 
     # Table
     packing_table = AssetBaseCfg(
@@ -172,7 +173,8 @@ class ActionsCfg:
             base_link_name="base_link",
             num_hand_joints=22,
             show_ik_warnings=False,
-            fail_on_joint_limit_violation=False,  # Determines whether to pink solver will fail due to a joint limit violation
+            # Determines whether Pink IK solver will fail due to a joint limit violation
+            fail_on_joint_limit_violation=False,
             variable_input_tasks=[
                 FrameTask(
                     "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
@@ -328,44 +330,46 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (11), right hand joint pos (11)]
-    idle_action = torch.tensor([
-        -0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.22878,
-        0.2536,
-        1.0953,
-        0.5,
-        0.5,
-        -0.5,
-        0.5,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ])
+    idle_action = torch.tensor(
+        [
+            -0.22878,
+            0.2536,
+            1.0953,
+            0.5,
+            0.5,
+            -0.5,
+            0.5,
+            0.22878,
+            0.2536,
+            1.0953,
+            0.5,
+            0.5,
+            -0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
 
     def __post_init__(self):
         """Post initialization."""

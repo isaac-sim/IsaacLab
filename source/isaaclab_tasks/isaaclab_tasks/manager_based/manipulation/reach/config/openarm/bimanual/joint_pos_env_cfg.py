@@ -6,12 +6,13 @@
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
 
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
+
+from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
 
 ##
 # Environment configuration
@@ -20,6 +21,7 @@ from isaaclab_tasks.manager_based.manipulation.reach.config.openarm.bimanual.rea
 
 @configclass
 class OpenArmReachEnvCfg(ReachEnvCfg):
+    """Configuration for the Bimanual OpenArm Reach Environment."""
 
     def __post_init__(self):
         # post init of parent

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -84,7 +85,8 @@ def set_finger_joint_pos_robotiq_2f85(
             raise ValueError(f"2F-85 gripper requires at least 6 finger joints, got {len(finger_joints)}")
 
         # Multiply specific indices by -1: [2, 4, 5]
-        # These correspond to ['left_inner_finger_joint', 'right_inner_finger_knuckle_joint', 'left_inner_finger_knuckle_joint']
+        # These correspond to:
+        # ['left_inner_finger_joint', 'right_inner_finger_knuckle_joint', 'left_inner_finger_knuckle_joint']
         joint_pos[idx, finger_joints[0]] = finger_joint_position
         joint_pos[idx, finger_joints[1]] = finger_joint_position
         joint_pos[idx, finger_joints[2]] = -finger_joint_position
