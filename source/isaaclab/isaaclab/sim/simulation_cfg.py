@@ -12,6 +12,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 from typing import Any, Literal
 
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from .spawners.materials import RigidBodyMaterialCfg
 
@@ -412,6 +413,9 @@ class SimulationCfg:
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
 
+    physics_backend: Literal["omni", "newton"] = "omni"
+    """Physics backend to use for scene data providers and visualizers."""
+
     physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
     """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().
 
@@ -423,6 +427,18 @@ class SimulationCfg:
 
     render: RenderCfg = RenderCfg()
     """Render settings. Default is RenderCfg()."""
+
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    """Visualizer settings. Default is no visualizer.
+
+    Visualizers are separate from Renderers and intended for light-weight monitoring and debugging.
+
+    This field can support multiple visualizer backends. It accepts:
+
+    * A single VisualizerCfg: One visualizer will be created
+    * A list of VisualizerCfg: Multiple visualizers will be created
+    * None or empty list: No visualizers will be created
+    """
 
     create_stage_in_memory: bool = False
     """If stage is first created in memory. Default is False.
