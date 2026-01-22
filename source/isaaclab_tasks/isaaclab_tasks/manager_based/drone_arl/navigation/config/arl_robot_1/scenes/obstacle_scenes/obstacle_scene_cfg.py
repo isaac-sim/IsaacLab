@@ -40,71 +40,35 @@ class ObstaclesSceneCfg:
 
     # Obstacle configurations
     panel_obs_cfg = BoxCfg(
-        size=(0.1, 1.2, 3.0),
-        center_ratio_min=(0.3, 0.05, 0.05),
-        center_ratio_max=(0.85, 0.95, 0.95)
+        size=(0.1, 1.2, 3.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.95, 0.95)
     )
 
     small_wall_obs_cfg = BoxCfg(
-        size=(0.1, 0.5, 0.5),
-        center_ratio_min=(0.3, 0.05, 0.05),
-        center_ratio_max=(0.85, 0.9, 0.9)
+        size=(0.1, 0.5, 0.5), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
     )
 
     big_wall_obs_cfg = BoxCfg(
-        size=(0.1, 1.0, 1.0),
-        center_ratio_min=(0.3, 0.05, 0.05),
-        center_ratio_max=(0.85, 0.9, 0.9)
+        size=(0.1, 1.0, 1.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
     )
 
     small_cube_obs_cfg = BoxCfg(
-        size=(0.4, 0.4, 0.4),
-        center_ratio_min=(0.3, 0.05, 0.05),
-        center_ratio_max=(0.85, 0.9, 0.9)
+        size=(0.4, 0.4, 0.4), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9)
     )
 
-    rod_obs_cfg = BoxCfg(
-        size=(0.1, 0.1, 2.0),
-        center_ratio_min=(0.3, 0.05, 0.05),
-        center_ratio_max=(0.85, 0.9, 0.9)
-    )
+    rod_obs_cfg = BoxCfg(size=(0.1, 0.1, 2.0), center_ratio_min=(0.3, 0.05, 0.05), center_ratio_max=(0.85, 0.9, 0.9))
 
     # Wall configurations
-    left_wall_cfg = BoxCfg(
-        size=(12.0, 0.2, 6.0),
-        center_ratio_min=(0.5, 1.0, 0.5),
-        center_ratio_max=(0.5, 1.0, 0.5)
-    )
+    left_wall_cfg = BoxCfg(size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 1.0, 0.5), center_ratio_max=(0.5, 1.0, 0.5))
 
-    right_wall_cfg = BoxCfg(
-        size=(12.0, 0.2, 6.0),
-        center_ratio_min=(0.5, 0.0, 0.5),
-        center_ratio_max=(0.5, 0.0, 0.5)
-    )
+    right_wall_cfg = BoxCfg(size=(12.0, 0.2, 6.0), center_ratio_min=(0.5, 0.0, 0.5), center_ratio_max=(0.5, 0.0, 0.5))
 
-    back_wall_cfg = BoxCfg(
-        size=(0.2, 8.0, 6.0),
-        center_ratio_min=(0.0, 0.5, 0.5),
-        center_ratio_max=(0.0, 0.5, 0.5)
-    )
+    back_wall_cfg = BoxCfg(size=(0.2, 8.0, 6.0), center_ratio_min=(0.0, 0.5, 0.5), center_ratio_max=(0.0, 0.5, 0.5))
 
-    front_wall_cfg = BoxCfg(
-        size=(0.2, 8.0, 6.0),
-        center_ratio_min=(1.0, 0.5, 0.5),
-        center_ratio_max=(1.0, 0.5, 0.5)
-    )
+    front_wall_cfg = BoxCfg(size=(0.2, 8.0, 6.0), center_ratio_min=(1.0, 0.5, 0.5), center_ratio_max=(1.0, 0.5, 0.5))
 
-    top_wall_cfg = BoxCfg(
-        size=(12.0, 8.0, 0.2),
-        center_ratio_min=(0.5, 0.5, 1.0),
-        center_ratio_max=(0.5, 0.5, 1.0)
-    )
+    top_wall_cfg = BoxCfg(size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 1.0), center_ratio_max=(0.5, 0.5, 1.0))
 
-    bottom_wall_cfg = BoxCfg(
-        size=(12.0, 8.0, 0.2),
-        center_ratio_min=(0.5, 0.5, 0.0),
-        center_ratio_max=(0.5, 0.5, 0.0)
-    )
+    bottom_wall_cfg = BoxCfg(size=(12.0, 8.0, 0.2), center_ratio_min=(0.5, 0.5, 0.0), center_ratio_max=(0.5, 0.5, 0.0))
 
     wall_cfgs = {
         "left_wall": left_wall_cfg,

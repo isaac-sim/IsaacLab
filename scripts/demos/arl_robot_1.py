@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Script to view ARL Robot 1 with rotating camera.
+Script to view ARL Robot 1.
 
 Launch Isaac Sim Simulator first.
 """
@@ -26,7 +26,6 @@ simulation_app = app_launcher.app
 
 import torch
 from isaaclab_contrib.assets import Multirotor
-
 from isaaclab_contrib.controllers.lee_position_control import LeePosController
 from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
 
