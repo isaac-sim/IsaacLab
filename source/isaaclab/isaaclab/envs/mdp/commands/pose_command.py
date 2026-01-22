@@ -28,7 +28,7 @@ class UniformPoseCommand(CommandTerm):
 
     The command generator generates poses by sampling positions uniformly within specified
     regions in cartesian space. For orientation, it samples uniformly the euler angles
-    (roll-pitch-yaw) and converts them into quaternion representation (w, x, y, z).
+    (roll-pitch-yaw) and converts them into quaternion representation (x, y, z, w).
 
     The position and orientation commands are generated in the base frame of the robot, and not the
     simulation world frame. This means that users need to handle the transformation from the
@@ -60,9 +60,9 @@ class UniformPoseCommand(CommandTerm):
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
         # create buffers
-        # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
+        # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
-        self.pose_command_b[:, 3] = 1.0
+        self.pose_command_b[:, 6] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
@@ -82,7 +82,7 @@ class UniformPoseCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired pose command. Shape is (num_envs, 7).
 
-        The first three elements correspond to the position, followed by the quaternion orientation in (w, x, y, z).
+        The first three elements correspond to the position, followed by the quaternion orientation in (x, y, z, w).
         """
         return self.pose_command_b
 
