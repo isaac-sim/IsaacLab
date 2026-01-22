@@ -3,4 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Sub-package for MDP (Markov Decision Process) components contributed by the community."""
+
 from .actions import *  # noqa: F401, F403

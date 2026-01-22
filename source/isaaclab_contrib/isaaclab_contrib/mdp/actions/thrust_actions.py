@@ -27,8 +27,47 @@ logger = logging.getLogger(__name__)
 
 
 class ThrustAction(ActionTerm):
-    """Thrust action term that applies the processed actions as thrust commands. Actions are processed by applying an
-    affine transformation (scaling and offset) and clipping."""
+    """Thrust action term that applies the processed actions as thrust commands.
+
+    This action term is designed specifically for controlling multirotor vehicles by mapping
+    action inputs to thruster commands. It provides flexible preprocessing of actions through:
+
+    - **Scaling**: Multiply actions by a scale factor to adjust command magnitudes
+    - **Offset**: Add an offset to center actions around a baseline (e.g., hover thrust)
+    - **Clipping**: Constrain actions to valid ranges to prevent unsafe commands
+
+    The action term integrates with Isaac Lab's :class:`~isaaclab.managers.ActionManager`
+    framework and is specifically designed to work with :class:`~isaaclab_contrib.assets.Multirotor`
+    assets.
+
+    Key Features:
+        - Supports per-thruster or uniform scaling and offsets
+        - Optional automatic offset computation based on hover thrust
+        - Action clipping for safety and constraint enforcement
+        - Regex-based thruster selection for flexible control schemes
+
+    Example:
+        .. code-block:: python
+
+            from isaaclab.envs import ManagerBasedRLEnvCfg
+            from isaaclab_contrib.mdp.actions import ThrustActionCfg
+
+
+            @configclass
+            class MyEnvCfg(ManagerBasedRLEnvCfg):
+                # ... other configuration ...
+
+                @configclass
+                class ActionsCfg:
+                    # Direct thrust control (normalized actions)
+                    thrust = ThrustActionCfg(
+                        asset_name="robot",
+                        scale=5.0,  # Convert [-1, 1] to [-5, 5] N
+                        use_default_offset=True,  # Add hover thrust as offset
+                        clip={".*": (-2.0, 8.0)},  # Clip to safe thrust range
+                    )
+
+    """
 
     cfg: thrust_actions_cfg.ThrustActionCfg
     """The configuration of the action term."""
@@ -108,6 +147,10 @@ class ThrustAction(ActionTerm):
             # Use default thruster RPS as offset
             self._offset = self._asset.data.default_thruster_rps[:, self._thruster_ids].clone()
 
+    """
+    Properties
+    """
+
     @property
     def action_dim(self) -> int:
         return self._num_thrusters
@@ -142,8 +185,43 @@ class ThrustAction(ActionTerm):
             self._IO_descriptor.clip = None
         return self._IO_descriptor
 
+    """
+    Methods
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Reset the action term.
+
+        This method resets the raw actions to zero for the specified environments.
+        The processed actions will be recomputed during the next :meth:`process_actions` call.
+
+        Args:
+            env_ids: Environment indices to reset. Defaults to None (all environments).
+        """
+        self._raw_actions[env_ids] = 0.0
+
     def process_actions(self, actions: torch.Tensor):
-        """Process actions by applying scaling, offset, and clipping."""
+        r"""Process actions by applying scaling, offset, and clipping.
+
+        This method transforms raw policy actions into thrust commands through
+        an affine transformation followed by optional clipping. The transformation is:
+
+        .. math::
+            \text{processed} = \text{raw} \times \text{scale} + \text{offset}
+
+        If clipping is configured, the processed actions are then clamped:
+
+        .. math::
+            \text{processed} = \text{clamp}(\text{processed}, \text{min}, \text{max})
+
+        Args:
+            actions: Raw action tensor from the policy. Shape is ``(num_envs, action_dim)``.
+                Typically in the range [-1, 1] for normalized policies.
+
+        Note:
+            The processed actions are stored internally and applied during the next
+            :meth:`apply_actions` call.
+        """
         # store the raw actions
         self._raw_actions[:] = actions
         # apply the affine transformations
@@ -155,10 +233,14 @@ class ThrustAction(ActionTerm):
             )
 
     def apply_actions(self):
-        """Apply the processed actions as thrust commands."""
+        """Apply the processed actions as thrust commands.
+
+        This method sets the processed actions as thrust targets on the multirotor
+        asset. The thrust targets are then used by the thruster actuator models
+        to compute actual thrust forces during the simulation step.
+
+        The method calls :meth:`~isaaclab_contrib.assets.Multirotor.set_thrust_target`
+        on the multirotor asset with the appropriate thruster IDs.
+        """
         # Set thrust targets using thruster IDs
         self._asset.set_thrust_target(self.processed_actions, thruster_ids=self._thruster_ids)
-
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Reset the action term."""
-        self._raw_actions[env_ids] = 0.0
