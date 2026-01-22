@@ -49,9 +49,9 @@ From `g1_locomanipulation_robot_cfg.py`:
 - **Joint positions**: Standing pose with slight knee bend
 
 ### EEF Pose Format
-Each pose: `[x, y, z, qw, qx, qy, qz]`
+Each pose: `[x, y, z, qx, qy, qz, qw]`
 - **Position**: Cartesian coordinates relative to robot base frame
-- **Orientation**: Quaternion relative to the world. Typically you want this to start in the same orientation as robot base. (e.g. if robot base is reset to (0.7071, 0.0, 0.0, 0.7071), hand pose should be the same)
+- **Orientation**: Quaternion relative to the world. Typically you want this to start in the same orientation as robot base. (e.g. if robot base is reset to (0.0, 0.0, 0.7071, 0.7071), hand pose should be the same)
 
 **Note**: The system automatically compensates for hand rotational offsets, so specify orientations relative to the robot's reset orientation.
 
@@ -82,12 +82,12 @@ Common test types:
 ```json
 "horizontal_movement": {
     "left_hand_pose": [
-        [-0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-        [-0.28, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+        [-0.18, 0.1, 0.8, 0.0, 0.0, 0.7071, 0.7071],
+        [-0.28, 0.1, 0.8, 0.0, 0.0, 0.7071, 0.7071]
     ],
     "right_hand_pose": [
-        [0.18, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071],
-        [0.28, 0.1, 0.8, 0.7071, 0.0, 0.0, 0.7071]
+        [0.18, 0.1, 0.8, 0.0, 0.0, 0.7071, 0.7071],
+        [0.28, 0.1, 0.8, 0.0, 0.0, 0.7071, 0.7071]
     ],
     "allowed_steps_per_motion": 100,
     "repeat": 2,
@@ -98,9 +98,9 @@ Common test types:
 ## Pose Guidelines
 
 ### Orientation Examples
-- **Default**: `[0.7071, 0.0, 0.0, 0.7071]` (90° around X-axis)
-- **Z-rotation**: `[0.5, 0.0, 0.0, 0.866]` (60° around Z)
-- **Y-rotation**: `[0.866, 0.0, 0.5, 0.0]` (60° around Y)
+- **Default**: `[0.0, 0.0, 0.7071, 0.7071]` (90° around X-axis)
+- **Z-rotation**: `[0.0, 0.0, 0.866, 0.5]` (60° around Z)
+- **Y-rotation**: `[0.0, 0.5, 0.0, 0.866]` (60° around Y)
 
 ## Testing Process
 
