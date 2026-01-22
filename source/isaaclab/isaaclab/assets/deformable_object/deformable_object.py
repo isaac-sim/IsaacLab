@@ -250,7 +250,7 @@ class DeformableObject(AssetBase):
             nodal_pos: The nodal positions in the simulation frame. Shape is (N, max_sim_vertices_per_body, 3).
             pos: The position transformation. Shape is (N, 3).
                 Defaults to None, in which case the position is assumed to be zero.
-            quat: The orientation transformation as quaternion (w, x, y, z). Shape is (N, 4).
+            quat: The orientation transformation as quaternion (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the orientation is assumed to be identity.
 
         Returns:
