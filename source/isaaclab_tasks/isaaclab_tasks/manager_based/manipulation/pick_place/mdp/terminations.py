@@ -12,6 +12,7 @@ the termination introduced by the function.
 from __future__ import annotations
 
 import torch
+import warp as wp
 from typing import TYPE_CHECKING
 
 from isaaclab.assets import RigidObject
@@ -62,14 +63,15 @@ def task_done_pick_place(
     object: RigidObject = env.scene[object_cfg.name]
 
     # Extract wheel position relative to environment origin
-    object_x = object.data.root_pos_w[:, 0] - env.scene.env_origins[:, 0]
-    object_y = object.data.root_pos_w[:, 1] - env.scene.env_origins[:, 1]
-    object_height = object.data.root_pos_w[:, 2] - env.scene.env_origins[:, 2]
-    object_vel = torch.abs(object.data.root_vel_w)
+    object_root_pos_w = wp.to_torch(object.data.root_pos_w)
+    object_x = object_root_pos_w[:, 0] - env.scene.env_origins[:, 0]
+    object_y = object_root_pos_w[:, 1] - env.scene.env_origins[:, 1]
+    object_height = object_root_pos_w[:, 2] - env.scene.env_origins[:, 2]
+    object_vel = torch.abs(wp.to_torch(object.data.root_vel_w))
 
     # Get right wrist position relative to environment origin
-    robot_body_pos_w = env.scene["robot"].data.body_pos_w
-    right_eef_idx = env.scene["robot"].data.body_names.index(task_link_name)
+    robot_body_pos_w = wp.to_torch(env.scene["robot"].data.body_pos_w)
+    right_eef_idx = env.scene["robot"].body_names.index(task_link_name)
     right_wrist_x = robot_body_pos_w[:, right_eef_idx, 0] - env.scene.env_origins[:, 0]
 
     # Check all success conditions and combine with logical AND
@@ -138,11 +140,11 @@ def task_done_nut_pour(
     sorting_bin: RigidObject = env.scene[sorting_bin_cfg.name]
 
     # Get positions relative to environment origin
-    scale_pos = sorting_scale.data.root_pos_w - env.scene.env_origins
-    bowl_pos = sorting_bowl.data.root_pos_w - env.scene.env_origins
-    sorting_beaker_pos = sorting_beaker.data.root_pos_w - env.scene.env_origins
-    nut_pos = factory_nut.data.root_pos_w - env.scene.env_origins
-    bin_pos = sorting_bin.data.root_pos_w - env.scene.env_origins
+    scale_pos = wp.to_torch(sorting_scale.data.root_pos_w) - env.scene.env_origins
+    bowl_pos = wp.to_torch(sorting_bowl.data.root_pos_w) - env.scene.env_origins
+    sorting_beaker_pos = wp.to_torch(sorting_beaker.data.root_pos_w) - env.scene.env_origins
+    nut_pos = wp.to_torch(factory_nut.data.root_pos_w) - env.scene.env_origins
+    bin_pos = wp.to_torch(sorting_bin.data.root_pos_w) - env.scene.env_origins
 
     # nut to bowl
     nut_to_bowl_x = torch.abs(nut_pos[:, 0] - bowl_pos[:, 0])
@@ -202,8 +204,8 @@ def task_done_exhaust_pipe(
     blue_sorting_bin: RigidObject = env.scene[blue_sorting_bin_cfg.name]
 
     # Get positions relative to environment origin
-    blue_exhaust_pipe_pos = blue_exhaust_pipe.data.root_pos_w - env.scene.env_origins
-    blue_sorting_bin_pos = blue_sorting_bin.data.root_pos_w - env.scene.env_origins
+    blue_exhaust_pipe_pos = wp.to_torch(blue_exhaust_pipe.data.root_pos_w) - env.scene.env_origins
+    blue_sorting_bin_pos = wp.to_torch(blue_sorting_bin.data.root_pos_w) - env.scene.env_origins
 
     # blue exhaust to bin
     blue_exhaust_to_bin_x = torch.abs(blue_exhaust_pipe_pos[:, 0] - blue_sorting_bin_pos[:, 0])

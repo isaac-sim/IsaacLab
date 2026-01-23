@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 from typing import TYPE_CHECKING
 
 from isaaclab.assets.articulation import Articulation
@@ -41,11 +42,12 @@ class AgileBasedLowerBodyAction(ActionTerm):
         self._env = env
 
         # Find joint ids for the lower body joints
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
+        # find_joints returns (joint_mask: wp.array, joint_names: list[str], joint_indices: list[int])
+        _, self._joint_names, self._joint_ids = self._asset.find_joints(self.cfg.joint_names)
 
         # Get the scale and offset from the configuration
         self._policy_output_scale = torch.tensor(cfg.policy_output_scale, device=env.device)
-        self._policy_output_offset = self._asset.data.default_joint_pos[:, self._joint_ids].clone()
+        self._policy_output_offset = wp.to_torch(self._asset.data.default_joint_pos)[:, self._joint_ids].clone()
 
         # Create tensors to store raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, len(self._joint_ids), device=self.device)

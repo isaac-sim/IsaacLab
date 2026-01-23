@@ -125,10 +125,10 @@ class ObservationsCfg:
 
         hand_joint_state = ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": [".*_hand.*"]})
 
-        object = ObsTerm(
-            func=manip_mdp.object_obs,
-            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
-        )
+        # object = ObsTerm(
+        #     func=manip_mdp.object_obs,
+        #     params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False

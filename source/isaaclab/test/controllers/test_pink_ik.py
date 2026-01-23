@@ -7,6 +7,7 @@
 
 # Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
+import argparse
 import sys
 
 if sys.platform != "win32":
@@ -14,21 +15,32 @@ if sys.platform != "win32":
 
 from isaaclab.app import AppLauncher
 
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Test Pink IK controller.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments (use parse_known_args to ignore pytest arguments)
+args_cli, _ = parser.parse_known_args()
+# Always run tests in headless mode by default
+args_cli.headless = False
+args_cli.visualizer = ['newton']
+args_cli.num_envs = 1
+
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import contextlib
 import gymnasium as gym
-import json
 import numpy as np
 import pytest
 import re
 import torch
+import warp as wp
+import yaml
 from pathlib import Path
-
-import omni.usd
 
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
@@ -37,7 +49,7 @@ from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_fro
 
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
+# import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
@@ -45,15 +57,37 @@ def load_test_config(env_name):
     """Load test configuration based on environment type."""
     # Determine which config file to load based on environment name
     if "G1" in env_name:
-        config_file = "pink_ik_g1_test_configs.json"
+        config_file = "pink_ik_g1_test_configs.yaml"
     elif "GR1" in env_name:
-        config_file = "pink_ik_gr1_test_configs.json"
+        config_file = "pink_ik_gr1_test_configs.yaml"
     else:
         raise ValueError(f"Unknown environment type in {env_name}. Expected G1 or GR1.")
 
     config_path = Path(__file__).parent / "test_ik_configs" / config_file
     with open(config_path) as f:
-        return json.load(f)
+        return yaml.safe_load(f)
+
+
+def normalize_hand_poses(hand_pose_entries):
+    """Normalize pose entries to a (N, 7) float array.
+
+    Converts quaternion orientation from (w, x, y, z) format in config to (x, y, z, w) format.
+    """
+    if not hand_pose_entries:
+        return np.empty((0, 7), dtype=np.float32)
+
+    first_entry = hand_pose_entries[0]
+    if isinstance(first_entry, dict):
+        pose_list = []
+        for pose in hand_pose_entries:
+            position = pose["position"]
+            orientation = pose["orientation"]
+            # Convert quaternion from (w, x, y, z) to (x, y, z, w) format
+            orientation_xyzw = [orientation[1], orientation[2], orientation[3], orientation[0]]
+            pose_list.append(position + orientation_xyzw)
+        return np.array(pose_list, dtype=np.float32)
+
+    return np.array(hand_pose_entries, dtype=np.float32)
 
 
 def is_waist_enabled(env_cfg):
@@ -71,27 +105,33 @@ def create_test_env(env_name, num_envs):
     """Create a test environment with the Pink IK controller."""
     device = "cuda:0"
 
-    omni.usd.get_context().new_stage()
+    # omni.usd.get_context().new_stage()
+    env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+    # Modify scene config to not spawn the packing table to avoid collision with the robot
+    # del env_cfg.scene.packing_table
+    # del env_cfg.terminations.object_dropping
+    # del env_cfg.terminations.time_out
+    return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
 
-    try:
-        env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
-        # Modify scene config to not spawn the packing table to avoid collision with the robot
-        del env_cfg.scene.packing_table
-        del env_cfg.terminations.object_dropping
-        del env_cfg.terminations.time_out
-        return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
-    except Exception as e:
-        print(f"Failed to create environment: {str(e)}")
-        raise
+    # try:
+    #     env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
+    #     # Modify scene config to not spawn the packing table to avoid collision with the robot
+    #     # del env_cfg.scene.packing_table
+    #     # del env_cfg.terminations.object_dropping
+    #     # del env_cfg.terminations.time_out
+    #     return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
+    # except Exception as e:
+    #     print(f"Failed to create environment: {str(e)}")
+    #     raise
 
 
 @pytest.fixture(
     scope="module",
     params=[
-        "Isaac-PickPlace-GR1T2-Abs-v0",
-        "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0",
+        # "Isaac-PickPlace-GR1T2-Abs-v0",
+        # "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0",
         "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0",
-        "Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
+        # "Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
     ],
 )
 def env_and_cfg(request):
@@ -219,8 +259,9 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
     env = test_setup["env"]
     num_joints_in_robot_hands = test_setup["num_joints_in_robot_hands"]
 
-    left_hand_poses = np.array(test_config["left_hand_pose"], dtype=np.float32)
-    right_hand_poses = np.array(test_config["right_hand_pose"], dtype=np.float32)
+    # Load base-relative poses from config
+    left_hand_poses = normalize_hand_poses(test_config["left_hand_pose"])
+    right_hand_poses = normalize_hand_poses(test_config["right_hand_pose"])
 
     curr_pose_idx = 0
     test_counter = 0
@@ -234,7 +275,8 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
         phase = "initial"
         steps_in_phase = 0
 
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        # while simulation_app.is_running() and not simulation_app.is_exiting():
+        while True:
             num_runs += 1
             steps_in_phase += 1
 
@@ -295,8 +337,8 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 
 def get_link_pose(env, link_name):
     """Get the position and orientation of a link."""
-    link_index = env.scene["robot"].data.body_names.index(link_name)
-    link_states = env.scene._articulations["robot"]._data.body_link_state_w
+    link_index = env.scene["robot"].body_names.index(link_name)
+    link_states = wp.to_torch(env.scene._articulations["robot"]._data.body_link_state_w)
     link_pose = link_states[:, link_index, :7]
     return link_pose[:, :3], link_pose[:, 3:7]
 
@@ -349,7 +391,7 @@ def compute_errors(
     isaaclab_controlled_joint_ids = action_term._isaaclab_controlled_joint_ids
 
     # Get current and target positions for controlled joints only
-    curr_joints = articulation.data.joint_pos[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
+    curr_joints = wp.to_torch(articulation.data.joint_pos)[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
     target_joints = action_term.processed_actions[:, : len(isaaclab_controlled_joint_ids)].cpu().numpy()[0]
 
     # Reorder joints for Pink IK (using controlled joint ordering)

@@ -32,7 +32,7 @@ class PinkInverseKinematicsActionCfg(ActionTermCfg):
     controller: PinkIKControllerCfg = MISSING
     """Configuration for the Pink IK controller that will be used to solve the inverse kinematics."""
 
-    enable_gravity_compensation: bool = True
+    enable_gravity_compensation: bool = False
     """Whether to compensate for gravity in the Pink IK controller."""
 
     target_eef_link_names: dict[str, str] = MISSING

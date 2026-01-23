@@ -182,9 +182,16 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            # physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
-            # TODO: fix this
-            create_joint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            # NOTE: We intentionally connect only one body so the joint is attached to the world.
+            fixed_joint_prim_path = f"{prim_path}/FixedJoint"
+            fixed_joint = UsdPhysics.FixedJoint.Define(stage, fixed_joint_prim_path)
+            fixed_joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
+            fixed_joint.CreateJointEnabledAttr().Set(True)
+            # keep joint frames at the body origin to avoid snapping
+            fixed_joint.CreateLocalPos0Attr().Set((0.0, 0.0, 0.0))
+            fixed_joint.CreateLocalRot0Attr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+            fixed_joint.CreateLocalPos1Attr().Set((0.0, 0.0, 0.0))
+            fixed_joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.

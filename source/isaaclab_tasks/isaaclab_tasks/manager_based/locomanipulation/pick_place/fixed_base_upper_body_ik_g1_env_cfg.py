@@ -8,7 +8,7 @@ from isaaclab_assets.robots.unitree import G1_29_DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -49,15 +49,17 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     #     ),
     # )
 
-    object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
-            scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        ),
-    )
+    # Newton does not support RigidObjectCfg
+    # object = ArticulationCfg(
+    #     prim_path="{ENV_REGEX_NS}/Object",
+    #     init_state=ArticulationCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+    #         scale=(0.75, 0.75, 0.75),
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    #         articulation_props=sim_utils.ArticulationRootPropertiesCfg(),
+    #     ),
+    # )
 
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = G1_29_DOF_CFG.replace(
@@ -118,10 +120,10 @@ class ObservationsCfg:
         hand_joint_state = ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": [".*_hand.*"]})
         head_joint_state = ObsTerm(func=manip_mdp.get_robot_joint_state, params={"joint_names": []})
 
-        object = ObsTerm(
-            func=manip_mdp.object_obs,
-            params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
-        )
+        # object = ObsTerm(
+        #     func=manip_mdp.object_obs,
+        #     params={"left_eef_link_name": "left_wrist_yaw_link", "right_eef_link_name": "right_wrist_yaw_link"},
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -137,11 +139,11 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=locomanip_mdp.time_out, time_out=True)
 
-    object_dropping = DoneTerm(
-        func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
-    )
+    # object_dropping = DoneTerm(
+    #     func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
+    # )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+    # success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
 
 
 ##

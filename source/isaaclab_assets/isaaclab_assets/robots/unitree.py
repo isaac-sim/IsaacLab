@@ -350,7 +350,10 @@ G1_29_DOF_CFG = ArticulationCfg(
     ),
     soft_joint_pos_limit_factor=0.9,
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.76),
+        # pos=(0.0, 0.0, 0.76),
+        pos=(0.0, 0.0, 0.75),
+        # rot=(0.7071, 0, 0, 0.7071),
+        rot=(0, 0, 0.7071, 0.7071),
         joint_pos={
             ".*_hip_pitch_joint": -0.10,
             ".*_knee_joint": 0.30,
@@ -420,7 +423,6 @@ G1_29_DOF_CFG = ArticulationCfg(
                 ".*_shoulder_yaw_joint",
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
-                ".*_hand_.*",
             ],
             effort_limit=300,
             velocity_limit=100.0,
@@ -444,8 +446,17 @@ G1_29_DOF_CFG = ArticulationCfg(
                 ".*_shoulder_.*": 0.03,
                 ".*_elbow_.*": 0.03,
                 ".*_wrist_.*_joint": 0.03,
-                ".*_hand_.*": 0.03,
             },
+        ),
+        "hands": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_hand_.*",
+            ],
+            effort_limit=300,
+            velocity_limit=100,
+            stiffness=20,
+            damping=2,
+            armature=0.03,
         ),
     },
 )

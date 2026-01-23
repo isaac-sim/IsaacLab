@@ -58,8 +58,8 @@ Each pose: `[x, y, z, qw, qx, qy, qz]`
 ## Creating Configurations
 
 ### Step 1: Choose Robot Type
-- `pink_ik_g1_test_configs.json` for G1 robot
-- `pink_ik_gr1_test_configs.json` for GR1 robot
+- `pink_ik_g1_test_configs.yaml` for G1 robot
+- `pink_ik_gr1_test_configs.yaml` for GR1 robot
 
 ### Step 2: Define Tolerances
 ```json

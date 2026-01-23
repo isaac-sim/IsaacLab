@@ -1,0 +1,101 @@
+tolerances:
+  position: 0.001
+  pd_position: 0.001
+  rotation: 0.02
+  check_errors: true
+# Pose format: position [x, y, z] and orientation [qw, qx, qy, qz].
+# Poses are specified relative to the robot base frame (not world frame).
+allowed_steps_to_settle: 5
+tests:
+  vertical_movement:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.23, 0.32, 1.2]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.23, 0.32, 1.2]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    allowed_steps_per_motion: 8
+    repeat: 2
+    requires_waist_bending: false
+  stay_still:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    allowed_steps_per_motion: 8
+    repeat: 4
+    requires_waist_bending: false
+  horizontal_movement:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.13, 0.32, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.13, 0.32, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    allowed_steps_per_motion: 8
+    repeat: 2
+    requires_waist_bending: false
+  horizontal_small_movement:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.22, 0.32, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.22, 0.32, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    allowed_steps_per_motion: 8
+    repeat: 2
+    requires_waist_bending: false
+  forward_waist_bending_movement:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.23, 0.5, 1.05]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.23, 0.5, 1.05]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    allowed_steps_per_motion: 25
+    repeat: 3
+    requires_waist_bending: true
+  rotation_movements:
+    left_hand_pose:
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.23, 0.32, 1.1]
+      orientation: [0.7071, 0.7071, 0.0, 0.0]
+    - position: [-0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [-0.23, 0.32, 1.1]
+      orientation: [0.0, 0.0, -0.7071, 0.7071]
+    right_hand_pose:
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.23, 0.32, 1.1]
+      orientation: [0.0, 0.0, -0.7071, 0.7071]
+    - position: [0.23, 0.28, 1.1]
+      orientation: [0.5, 0.5, -0.5, 0.5]
+    - position: [0.23, 0.32, 1.1]
+      orientation: [0.7071, 0.7071, 0.0, 0.0]
+    allowed_steps_per_motion: 10
+    repeat: 2
+    requires_waist_bending: false
