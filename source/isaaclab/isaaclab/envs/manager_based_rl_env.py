@@ -15,6 +15,7 @@ from typing import Any, ClassVar
 
 from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -149,6 +150,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
+    @Timer(name="env_step", msg="Step took:", enable=True, format="us")
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
@@ -181,11 +183,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self.action_manager.apply_action()
-            # set actions into simulator
-            self.scene.write_data_to_sim()
+            with Timer(name="apply_action", msg="Action processing step took:", enable=True, format="us"):
+                self.action_manager.apply_action()
+                # set actions into simulator
+                self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            with Timer(name="simulate", msg="Newton simulation step took:", enable=True, format="us"):
+                self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.
@@ -195,46 +199,47 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
-        self.common_step_counter += 1  # total step (common for all envs)
-        # -- check terminations
-        self.reset_buf = self.termination_manager.compute()
-        self.reset_terminated = self.termination_manager.terminated
-        self.reset_time_outs = self.termination_manager.time_outs
-        # -- reward computation
-        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        with Timer(name="post_processing", msg="Post-Processing step took:", enable=True, format="us"):
+            # post-step:
+            # -- update env counters (used for curriculum generation)
+            self.episode_length_buf += 1  # step in current episode (per env)
+            self.common_step_counter += 1  # total step (common for all envs)
+            # -- check terminations
+            self.reset_buf = self.termination_manager.compute()
+            self.reset_terminated = self.termination_manager.terminated
+            self.reset_time_outs = self.termination_manager.time_outs
+            # -- reward computation
+            self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+            if len(self.recorder_manager.active_terms) > 0:
+                # update observations for recording if needed
+                self.obs_buf = self.observation_manager.compute()
+                self.recorder_manager.record_post_step()
 
-        # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            # trigger recorder terms for pre-reset calls
-            self.recorder_manager.record_pre_reset(reset_env_ids)
+            # -- reset envs that terminated/timed-out and log the episode information
+            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+            if len(reset_env_ids) > 0:
+                # trigger recorder terms for pre-reset calls
+                self.recorder_manager.record_pre_reset(reset_env_ids)
 
-            self._reset_idx(reset_env_ids)
+                self._reset_idx(reset_env_ids)
 
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
-                for _ in range(self.cfg.num_rerenders_on_reset):
-                    self.sim.render()
+                # if sensors are added to the scene, make sure we render to reflect changes in reset
+                if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+                    for _ in range(self.cfg.num_rerenders_on_reset):
+                        self.sim.render()
 
-            # trigger recorder terms for post-reset calls
-            self.recorder_manager.record_post_reset(reset_env_ids)
+                # trigger recorder terms for post-reset calls
+                self.recorder_manager.record_post_reset(reset_env_ids)
 
-        # -- update command
-        self.command_manager.compute(dt=self.step_dt)
-        # -- step interval events
-        if "interval" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="interval", dt=self.step_dt)
-        # -- compute observations
-        # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+            # -- update command
+            self.command_manager.compute(dt=self.step_dt)
+            # -- step interval events
+            if "interval" in self.event_manager.available_modes:
+                self.event_manager.apply(mode="interval", dt=self.step_dt)
+            # -- compute observations
+            # note: done after reset to get the correct observations for reset envs
+            self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
