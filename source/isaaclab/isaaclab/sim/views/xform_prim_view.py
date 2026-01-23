@@ -14,7 +14,6 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import fabric as fabric_utils
 
 
@@ -358,7 +357,7 @@ class XformPrimView:
                     "Number of orientations must match the number of prims in the view."
                 )
             # Vt expects quaternions in xyzw order
-            orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
+            orientations_array = Vt.QuatdArray.FromNumpy(orientations.cpu().numpy())
         else:
             orientations_array = None
 
@@ -489,7 +488,7 @@ class XformPrimView:
         if orientations is not None:
             if orientations.shape != (len(indices_list), 4):
                 raise ValueError(f"Expected orientations shape ({len(indices_list)}, 4), got {orientations.shape}.")
-            orientations_array = Vt.QuatdArray.FromNumpy(math_utils.convert_quat(orientations, to="xyzw").cpu().numpy())
+            orientations_array = Vt.QuatdArray.FromNumpy(orientations.cpu().numpy())
         else:
             orientations_array = None
 
@@ -753,8 +752,6 @@ class XformPrimView:
         # move to torch tensors
         positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        # underlying data is in xyzw order, convert to wxyz order
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
 
         return positions, orientations  # type: ignore
 
@@ -970,7 +967,6 @@ class XformPrimView:
 
         translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
 
         return translations, orientations  # type: ignore
 
