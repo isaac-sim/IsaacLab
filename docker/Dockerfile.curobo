@@ -120,11 +120,16 @@ RUN touch /bin/nvidia-smi && \
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
-# HACK: Remove install of quadprog dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+# HACK: Remove pre-bundled torch because pip corrupts it during installation,
+# leaving missing files that cause import errors at runtime
+# and also uninstall quadprog as it causes issues with some reinforcement learning frameworks
+RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch* && \
+    ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
+# We install packaging first to avoid torch _vendor issues
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install packaging && \
+    ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
     "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
 
 # aliasing isaaclab.sh and python for convenience
