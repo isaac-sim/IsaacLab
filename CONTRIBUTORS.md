@@ -19,6 +19,7 @@ Guidelines for modifications:
 
 ---
 
+* Antoine Richard
 * Antonio Serrano-Muñoz
 * Ben Johnston
 * Brian McCann
