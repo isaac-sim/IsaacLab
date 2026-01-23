@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.54.0 (2026-01-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Fabric backend support to :class:`~isaaclab.sim.views.XformPrimView` for GPU-accelerated
+  batch transform operations on all Boundable prims using Warp kernels.
+* Added :mod:`~isaaclab.sim.utils.fabric_utils` module with Warp kernels for efficient Fabric matrix operations.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.camera.Camera` to use Fabric backend for faster pose queries.
+
+
 0.53.2 (2026-01-14)
 ~~~~~~~~~~~~~~~~~~~
 
