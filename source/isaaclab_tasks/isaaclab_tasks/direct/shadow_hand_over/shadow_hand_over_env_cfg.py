@@ -145,7 +145,7 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     left_robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/LeftRobot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, -1.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            rot=(0.0, 0.0, 1.0, 0.0),
             joint_pos={".*": 0.0},
         )
     )

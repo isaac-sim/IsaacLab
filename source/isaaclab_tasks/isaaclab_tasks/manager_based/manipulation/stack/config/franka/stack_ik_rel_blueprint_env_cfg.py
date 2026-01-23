@@ -255,7 +255,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.33), rot=(-0.3799, 0.5963, 0.5963, -0.3799), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.33), rot=(0.5963, 0.5963, -0.3799, -0.3799), convention="ros"),
         )
 
         # Set table view camera
@@ -270,5 +270,5 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1.5, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(1.4, 1.8, 1.2), rot=(-0.1393, 0.2025, 0.8185, -0.5192), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(1.4, 1.8, 1.2), rot=(0.2025, 0.8185, -0.5192, -0.1393), convention="ros"),
         )

@@ -154,7 +154,7 @@ class AssemblyEnv(DirectRLEnv):
             .repeat(self.num_envs, 1)
         )
         self.robot_to_gripper_quat = (
-            torch.tensor([0.0, 1.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         self.plug_grasp_pos_local = self.plug_grasps[: self.num_envs, :3]
         self.plug_grasp_quat_local = torch.roll(self.plug_grasps[: self.num_envs, 3:], -1, 1)
@@ -252,7 +252,7 @@ class AssemblyEnv(DirectRLEnv):
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
         cfg.func(
-            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.70711, 0.0, 0.0, 0.70711)
+            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
         )
 
         self._robot = Articulation(self.cfg.robot)

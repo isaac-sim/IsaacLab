@@ -293,7 +293,7 @@ def test_standardize_xform_ops_with_hierarchy():
         "/World/Parent/Child",
         "Xform",
         translation=(0.0, 3.0, 0.0),
-        orientation=(0.7071068, 0.0, 0.7071068, 0.0),  # 90 deg around Y
+        orientation=(0.0, 0.7071068, 0.0, 0.7071068),  # 90 deg around Y
         scale=(0.5, 0.5, 0.5),
         stage=stage,
     )
@@ -467,7 +467,7 @@ def test_standardize_xform_ops_with_non_uniform_scale():
         "/World/TestNonUniformScale",
         "Xform",
         translation=(5.0, 10.0, 15.0),
-        orientation=(0.7071068, 0.0, 0.7071068, 0.0),  # 90 deg around Y
+        orientation=(0.0, 0.7071068, 0.0, 0.7071068),  # 90 deg around Y
         scale=(1.0, 2.0, 3.0),  # Non-uniform scale
         stage=stage,
     )
@@ -1266,7 +1266,7 @@ def test_convert_world_pose_to_local_invalid_parent():
     assert not invalid_prim.IsValid()
 
     world_position = (10.0, 20.0, 30.0)
-    world_orientation = (0.7071068, 0.0, 0.7071068, 0.0)
+    world_orientation = (0.0, 0.7071068, 0.0, 0.7071068)
 
     # Convert with invalid reference prim
     with pytest.raises(ValueError):

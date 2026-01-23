@@ -89,7 +89,7 @@ class FactoryEnv(DirectRLEnv):
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
         cfg.func(
-            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.70711, 0.0, 0.0, 0.70711)
+            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
         )
 
         self._robot = Articulation(self.cfg.robot)
@@ -741,7 +741,7 @@ class FactoryEnv(DirectRLEnv):
 
         # (3) Randomize asset-in-gripper location.
         # flip gripper z orientation
-        flip_z_quat = torch.tensor([0.0, 0.0, 1.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+        flip_z_quat = torch.tensor([0.0, 1.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         fingertip_flipped_quat, fingertip_flipped_pos = torch_utils.tf_combine(
             q1=self.fingertip_midpoint_quat,
             t1=self.fingertip_midpoint_pos,

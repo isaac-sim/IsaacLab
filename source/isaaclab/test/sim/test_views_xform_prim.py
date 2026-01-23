@@ -440,7 +440,7 @@ def test_set_world_poses_only_positions(device, backend):
     prim_type = _prim_type_for_backend(backend)
 
     # Create prims with specific orientations
-    initial_quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
+    initial_quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
     for i in range(3):
         sim_utils.create_prim(
             f"/World/Object_{i}", prim_type, translation=(0.0, 0.0, 0.0), orientation=initial_quat, stage=stage
@@ -490,7 +490,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
     # Set only orientations
     new_orientations = torch.tensor(
-        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.7071068, 0.0, 0.0], [0.9238795, 0.3826834, 0.0, 0.0]],
+        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068], [0.3826834, 0.0, 0.0, 0.9238795]],
         device=device,
     )
     view.set_world_poses(positions=None, orientations=new_orientations)
@@ -520,7 +520,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
     # Create parent prims
     for i in range(3):
         parent_pos = (i * 10.0, 0.0, 0.0)
-        parent_quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
+        parent_quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
         sim_utils.create_prim(
             f"/World/Parent_{i}", "Xform", translation=parent_pos, orientation=parent_quat, stage=stage
         )
@@ -578,7 +578,7 @@ def test_set_local_poses(device, backend):
             [0.0, 0.0, 0.0, 1.0],  # identity
             [0.0, 0.0, 0.7071068, 0.7071068],  # 90° around z
             [0.7071068, 0.0, 0.0, 0.7071068],  # 90° around x
-            [0.9238795, 0.3826834, 0.0, 0.0],
+            [0.3826834, 0.0, 0.0, 0.9238795],
         ],
         device=device,
     )
@@ -607,7 +607,7 @@ def test_set_local_poses_only_translations(device, backend):
 
     # Create parent and children with specific orientations
     sim_utils.create_prim("/World/Parent", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
-    initial_quat = (0.7071068, 0.0, 0.0, 0.7071068)
+    initial_quat = (0.0, 0.0, 0.7071068, 0.7071068)
 
     for i in range(3):
         sim_utils.create_prim(
@@ -1002,7 +1002,7 @@ def test_indices_with_only_positions_or_orientations(device, backend):
 
     # Now set only orientations for different indices
     indices2 = [0, 4]
-    new_orientations = torch.tensor([[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.7071068, 0.0, 0.0]], device=device)
+    new_orientations = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068]], device=device)
     view.set_world_poses(positions=None, orientations=new_orientations, indices=indices2)
 
     # Get final poses
@@ -1257,7 +1257,7 @@ def test_compare_get_world_poses_with_isaacsim():
         elif i % 3 == 1:
             quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
         else:
-            quat = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
+            quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around X
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
 
     pattern = "/World/Env_.*/Object"

@@ -72,7 +72,7 @@ class FrankaTeddyBearLiftEnvCfg(FrankaCubeLiftEnvCfg):
 
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0, 0.05), rot=(0.707, 0, 0, 0.707)),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.5, 0, 0.05), rot=(0, 0, 0.707, 0.707)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
                 scale=(0.01, 0.01, 0.01),

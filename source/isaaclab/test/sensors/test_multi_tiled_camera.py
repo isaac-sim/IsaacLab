@@ -37,7 +37,7 @@ def setup_camera():
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -407,7 +407,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 4
     positions = [(0.0, 0.0, 4.0), (0.0, 0.0, 2.0), (0.0, 0.0, 3.0)]
-    rotations = [(0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0)]
+    rotations = [(0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0)]
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):

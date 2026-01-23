@@ -424,7 +424,7 @@ def test_haply_constructors(mock_environment, mocker):
     haply.running = True
     haply.cached_data = {
         "position": torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32).numpy(),
-        "quaternion": torch.tensor([0.0, 0.0, 0.0, 1.0], dtype=torch.float32).numpy(),
+        "quaternion": torch.tensor([0.0, 0.0, 1.0, 0.0], dtype=torch.float32).numpy(),
         "buttons": {"a": False, "b": False, "c": False},
         "inverse3_connected": True,
         "versegrip_connected": True,

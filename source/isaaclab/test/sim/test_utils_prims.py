@@ -106,7 +106,7 @@ def test_create_prim():
 
     # check setting transform
     pos = (1.0, 2.0, 3.0)
-    quat = (0.0, 0.0, 0.0, 1.0)
+    quat = (0.0, 0.0, 1.0, 0.0)
     scale = (1.0, 0.5, 0.5)
     prim = sim_utils.create_prim(
         "/World/Test/Xform", "Xform", stage=stage, translation=pos, orientation=quat, scale=scale
@@ -207,7 +207,7 @@ def test_create_prim_with_world_position_different_types(input_type: str):
 
     # Define world position and orientation values
     world_pos_vals = [10.0, 20.0, 30.0]
-    world_orient_vals = [0.7071068, 0.0, 0.7071068, 0.0]  # 90 deg around Y
+    world_orient_vals = [0.0, 0.7071068, 0.0, 0.7071068]  # 90 deg around Y
 
     # Convert to the specified input type
     if input_type == "list":
@@ -351,7 +351,7 @@ def test_move_prim():
         "Xform",
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         translation=(1.0, 2.0, 3.0),
-        orientation=(0.0, 0.0, 0.0, 1.0),
+        orientation=(0.0, 0.0, 1.0, 0.0),
         stage=stage,
     )
 
@@ -363,12 +363,12 @@ def test_move_prim():
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/TestMove/Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 1.0, 0.0))
 
     # check moving prim with keep_world_transform=False
     # it should preserve the local transform from last move
     sim_utils.create_prim(
-        "/World/TestMove2", "Xform", stage=stage, translation=(2.0, 2.0, 2.0), orientation=(0.0, 0.7071, 0.0, 0.7071)
+        "/World/TestMove2", "Xform", stage=stage, translation=(2.0, 2.0, 2.0), orientation=(0.7071, 0.0, 0.7071, 0.0)
     )
     sim_utils.move_prim("/World/TestMove/Xform", "/World/TestMove2/Xform", keep_world_transform=False, stage=stage)
     # check prim moved
@@ -376,7 +376,7 @@ def test_move_prim():
     assert prim.IsValid()
     assert prim.GetPrimPath() == "/World/TestMove2/Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 1.0, 0.0))
 
 
 """

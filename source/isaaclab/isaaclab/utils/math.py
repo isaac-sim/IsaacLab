@@ -1237,7 +1237,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor, is_ortho: boo
     indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
     indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
     img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
-    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
+    pixels = torch.nn.functional.pad(img_indices, (0, 0, 1, 0), mode="constant", value=1.0)
     pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
 
     # unproject points into 3D space
