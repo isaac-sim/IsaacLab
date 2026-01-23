@@ -151,6 +151,7 @@ def standardize_xform_ops(
     if translation is not None:
         xform_pos = Gf.Vec3d(*translation)
     if orientation is not None:
+        # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
         xform_quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
 
     # Handle scale resolution
@@ -319,7 +320,9 @@ def resolve_prim_pose(
 
     # extract position and orientation
     prim_pos = [*prim_tf.ExtractTranslation()]
+    #prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
     prim_quat = [*prim_tf.ExtractRotationQuat().imaginary, prim_tf.ExtractRotationQuat().real]
+    
     return tuple(prim_pos), tuple(prim_quat)
 
 
@@ -433,7 +436,7 @@ def convert_world_pose_to_local(
     desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
 
     if orientation is not None:
-        # Set rotation from quaternion (x, y, z, w)
+        # Set rotation from quaternion (x, y, z, w) - Gf.Quatd expects (w, x, y, z)
         quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
         desired_world_tf.SetRotateOnly(quat)
 
@@ -448,6 +451,7 @@ def convert_world_pose_to_local(
     local_orientation = None
     if orientation is not None:
         quat_result = local_transform.GetRotation().GetQuat()
+        # Gf.Quatd stores (w, x, y, z), return (x, y, z, w) for our convention
         local_orientation = (*quat_result.GetImaginary(), quat_result.GetReal())
 
     return local_translation, local_orientation
