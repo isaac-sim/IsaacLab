@@ -678,7 +678,7 @@ def test_quat_box_minus_and_quat_box_plus(device):
 
         # Initialize quaternion trajectory starting from identity quaternion (xyzw format)
         quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
-        quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(len(delta_angle), 1)
+        quat_trajectory[:, 0, :] = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(len(delta_angle), 1)
 
         # Integrate incremental rotations forward to form a closed loop trajectory
         for i in range(1, 2 * n + 1):
