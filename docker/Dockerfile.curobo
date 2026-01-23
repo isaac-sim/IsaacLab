@@ -68,7 +68,13 @@ RUN set -euo pipefail && \
     wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
     mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
     apt-get update && \
-    apt-get install -y --no-install-recommends cuda-toolkit-12-8 libcudnn9-cuda-12 && \
+    apt-get install -y --no-install-recommends \
+        cuda-toolkit-12-8 \
+        libcudnn9-cuda-12 \
+        libcusparselt0 \
+        libnccl2 \
+        libnccl-dev \
+        libnvjitlink-12-8 && \
     apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
