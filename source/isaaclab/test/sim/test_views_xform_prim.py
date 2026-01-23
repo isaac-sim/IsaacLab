@@ -247,9 +247,9 @@ def test_get_world_poses(device, backend):
     stage = sim_utils.get_current_stage()
     prim_type = _prim_type_for_backend(backend)
 
-    # Create prims with known world poses (orientations in xyzw format)
+    # Create prims with known world poses
     expected_positions = [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0)]
-    expected_orientations = [(0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.7071068, 0.7071068), (0.7071068, 0.0, 0.0, 0.7071068)]
+    expected_orientations = [(1.0, 0.0, 0.0, 0.0), (0.7071068, 0.0, 0.0, 0.7071068), (0.7071068, 0.7071068, 0.0, 0.0)]
 
     for i, (pos, quat) in enumerate(zip(expected_positions, expected_orientations)):
         sim_utils.create_prim(f"/World/Object_{i}", prim_type, translation=pos, orientation=quat, stage=stage)
@@ -290,12 +290,12 @@ def test_get_local_poses(device, backend):
     # Create parent and child prims
     sim_utils.create_prim("/World/Parent", "Xform", translation=(10.0, 0.0, 0.0), stage=stage)
 
-    # Children with different local poses (orientations in xyzw format)
+    # Children with different local poses
     expected_local_positions = [(1.0, 0.0, 0.0), (0.0, 2.0, 0.0), (0.0, 0.0, 3.0)]
     expected_local_orientations = [
-        (0.0, 0.0, 0.0, 1.0),  # identity
-        (0.0, 0.0, 0.7071068, 0.7071068),  # 90° around z
-        (0.7071068, 0.0, 0.0, 0.7071068),  # 90° around x
+        (1.0, 0.0, 0.0, 0.0),
+        (0.7071068, 0.0, 0.0, 0.7071068),
+        (0.7071068, 0.7071068, 0.0, 0.0),
     ]
 
     for i, (pos, quat) in enumerate(zip(expected_local_positions, expected_local_orientations)):
@@ -404,14 +404,13 @@ def test_set_world_poses(device, backend):
     new_positions = torch.tensor(
         [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0], [13.0, 14.0, 15.0]], device=device
     )
-    # Orientations in xyzw format
     new_orientations = torch.tensor(
         [
-            [0.0, 0.0, 0.0, 1.0],  # identity
-            [0.0, 0.0, 0.7071068, 0.7071068],  # 90° around z
-            [0.7071068, 0.0, 0.0, 0.7071068],  # 90° around x
-            [0.3826834, 0.0, 0.0, 0.9238795],  # 45° around x
-            [0.0, 0.7071068, 0.0, 0.7071068],  # 90° around y
+            [1.0, 0.0, 0.0, 0.0],
+            [0.7071068, 0.0, 0.0, 0.7071068],
+            [0.7071068, 0.7071068, 0.0, 0.0],
+            [0.9238795, 0.3826834, 0.0, 0.0],
+            [0.7071068, 0.0, 0.7071068, 0.0],
         ],
         device=device,
     )
@@ -440,7 +439,7 @@ def test_set_world_poses_only_positions(device, backend):
     prim_type = _prim_type_for_backend(backend)
 
     # Create prims with specific orientations
-    initial_quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
+    initial_quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
     for i in range(3):
         sim_utils.create_prim(
             f"/World/Object_{i}", prim_type, translation=(0.0, 0.0, 0.0), orientation=initial_quat, stage=stage
@@ -490,7 +489,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
     # Set only orientations
     new_orientations = torch.tensor(
-        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068], [0.3826834, 0.0, 0.0, 0.9238795]],
+        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.7071068, 0.0, 0.0], [0.9238795, 0.3826834, 0.0, 0.0]],
         device=device,
     )
     view.set_world_poses(positions=None, orientations=new_orientations)
@@ -520,7 +519,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
     # Create parent prims
     for i in range(3):
         parent_pos = (i * 10.0, 0.0, 0.0)
-        parent_quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
+        parent_quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
         sim_utils.create_prim(
             f"/World/Parent_{i}", "Xform", translation=parent_pos, orientation=parent_quat, stage=stage
         )
@@ -532,9 +531,8 @@ def test_set_world_poses_with_hierarchy(device, backend):
 
     # Set world poses for children
     desired_world_positions = torch.tensor([[5.0, 5.0, 0.0], [15.0, 5.0, 0.0], [25.0, 5.0, 0.0]], device=device)
-    # Orientations in xyzw format (identity)
     desired_world_orientations = torch.tensor(
-        [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device
+        [[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device
     )
 
     view.set_world_poses(desired_world_positions, desired_world_orientations)
@@ -572,13 +570,12 @@ def test_set_local_poses(device, backend):
 
     # Set new local poses
     new_translations = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0], [4.0, 4.0, 4.0]], device=device)
-    # Orientations in xyzw format
     new_orientations = torch.tensor(
         [
-            [0.0, 0.0, 0.0, 1.0],  # identity
-            [0.0, 0.0, 0.7071068, 0.7071068],  # 90° around z
-            [0.7071068, 0.0, 0.0, 0.7071068],  # 90° around x
-            [0.3826834, 0.0, 0.0, 0.9238795],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.7071068, 0.0, 0.0, 0.7071068],
+            [0.7071068, 0.7071068, 0.0, 0.0],
+            [0.9238795, 0.3826834, 0.0, 0.0],
         ],
         device=device,
     )
@@ -607,7 +604,7 @@ def test_set_local_poses_only_translations(device, backend):
 
     # Create parent and children with specific orientations
     sim_utils.create_prim("/World/Parent", "Xform", translation=(0.0, 0.0, 0.0), stage=stage)
-    initial_quat = (0.0, 0.0, 0.7071068, 0.7071068)
+    initial_quat = (0.7071068, 0.0, 0.0, 0.7071068)
 
     for i in range(3):
         sim_utils.create_prim(
@@ -832,7 +829,7 @@ def test_index_types_set_methods(device, index_type, method):
     num_to_set = len(target_indices)
     if method in ["world_poses", "local_poses"]:
         new_data1 = torch.randn(num_to_set, 3, device=device) * 10.0
-        new_data2 = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_to_set, dtype=torch.float32, device=device)  # xyzw identity
+        new_data2 = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_to_set, dtype=torch.float32, device=device)
     elif method == "scales":
         new_data1 = torch.rand(num_to_set, 3, device=device) * 2.0 + 0.5
         new_data2 = None
@@ -1002,7 +999,7 @@ def test_indices_with_only_positions_or_orientations(device, backend):
 
     # Now set only orientations for different indices
     indices2 = [0, 4]
-    new_orientations = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068]], device=device)
+    new_orientations = torch.tensor([[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.7071068, 0.0, 0.0]], device=device)
     view.set_world_poses(positions=None, orientations=new_orientations, indices=indices2)
 
     # Get final poses
@@ -1054,7 +1051,7 @@ def test_index_type_none_equivalent_to_all(device):
 
     # Test the same for set operations
     new_positions = torch.randn(num_prims, 3, device=device) * 10.0
-    new_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_prims, dtype=torch.float32, device=device)  # xyzw identity
+    new_orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_prims, dtype=torch.float32, device=device)
 
     # Set with indices=None
     view.set_world_poses(positions=new_positions, orientations=new_orientations, indices=None)
@@ -1109,8 +1106,8 @@ def test_with_franka_robots(device):
     expected_initial_positions = torch.zeros(2, 3, device=device)
     torch.testing.assert_close(initial_positions, expected_initial_positions, atol=1e-5, rtol=0)
 
-    # Verify initial orientations are identity (xyzw format)
-    expected_initial_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
+    # Verify initial orientations are identity
+    expected_initial_orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
     try:
         torch.testing.assert_close(initial_orientations, expected_initial_orientations, atol=1e-5, rtol=0)
     except AssertionError:
@@ -1120,7 +1117,7 @@ def test_with_franka_robots(device):
     new_positions = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
     # 90° rotation around Z axis for first, -90° for second
     new_orientations = torch.tensor(
-        [[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device
+        [[0.7071068, 0.0, 0.0, 0.7071068], [0.7071068, 0.0, 0.0, -0.7071068]], device=device
     )
 
     frankas_view.set_world_poses(positions=new_positions, orientations=new_orientations)
@@ -1251,13 +1248,13 @@ def test_compare_get_world_poses_with_isaacsim():
     num_prims = 10
     for i in range(num_prims):
         pos = (i * 2.0, i * 0.5, i * 1.5)
-        # Vary orientations (xyzw format)
+        # Vary orientations
         if i % 3 == 0:
-            quat = (0.0, 0.0, 0.0, 1.0)  # Identity
+            quat = (1.0, 0.0, 0.0, 0.0)  # Identity
         elif i % 3 == 1:
-            quat = (0.0, 0.0, 0.7071068, 0.7071068)  # 90 deg around Z
+            quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around Z
         else:
-            quat = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around X
+            quat = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
 
     pattern = "/World/Env_.*/Object"
@@ -1267,14 +1264,14 @@ def test_compare_get_world_poses_with_isaacsim():
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Get world poses from both
-    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses() # xyzw format
-    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses() # wxyz format
+    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()
+    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()
 
     # Convert Isaac Sim results to torch tensors if needed
     if not isinstance(isaacsim_pos, torch.Tensor):
         isaacsim_pos = torch.tensor(isaacsim_pos, dtype=torch.float32)
     if not isinstance(isaacsim_quat, torch.Tensor):
-        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32).roll(-1, dims=-1)
+        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32)
 
     # Compare results
     torch.testing.assert_close(isaaclab_pos, isaacsim_pos, atol=1e-5, rtol=0)
@@ -1305,13 +1302,13 @@ def test_compare_set_world_poses_with_isaacsim():
     isaaclab_view = XformPrimView(pattern, device="cpu")
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
-    # Generate new poses (xyzw format)
+    # Generate new poses
     new_positions = torch.randn(num_prims, 3) * 10.0
-    new_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_prims, dtype=torch.float32)
+    new_orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * num_prims, dtype=torch.float32)
 
     # Set poses using both implementations
-    isaaclab_view.set_world_poses(new_positions.clone(), new_orientations.clone()) # xyzw format
-    isaacsim_view.set_world_poses(new_positions.clone(), new_orientations.clone().roll(1, dims=-1)) # wxyz format
+    isaaclab_view.set_world_poses(new_positions.clone(), new_orientations.clone())
+    isaacsim_view.set_world_poses(new_positions.clone(), new_orientations.clone())
 
     # Get poses back from both
     isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()
@@ -1321,7 +1318,7 @@ def test_compare_set_world_poses_with_isaacsim():
     if not isinstance(isaacsim_pos, torch.Tensor):
         isaacsim_pos = torch.tensor(isaacsim_pos, dtype=torch.float32)
     if not isinstance(isaacsim_quat, torch.Tensor):
-        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32).roll(-1, dims=-1)
+        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32)
 
     # Compare results - both implementations should produce the same world poses
     torch.testing.assert_close(isaaclab_pos, isaacsim_pos, atol=1e-4, rtol=0)
@@ -1344,9 +1341,9 @@ def test_compare_get_local_poses_with_isaacsim():
     for i in range(num_prims):
         # Create parent
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 5.0, 0.0, 0.0), stage=stage)
-        # Create child with local pose (orientations in xyzw format)
+        # Create child with local pose
         local_pos = (1.0, float(i), 0.0)
-        local_quat = (0.0, 0.0, 0.0, 1.0) if i % 2 == 0 else (0.0, 0.0, 0.7071068, 0.7071068)
+        local_quat = (1.0, 0.0, 0.0, 0.0) if i % 2 == 0 else (0.7071068, 0.0, 0.0, 0.7071068)
         sim_utils.create_prim(
             f"/World/Env_{i}/Object", "Xform", translation=local_pos, orientation=local_quat, stage=stage
         )
@@ -1358,14 +1355,14 @@ def test_compare_get_local_poses_with_isaacsim():
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Get local poses from both
-    isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses() # xyzw format
-    isaacsim_trans, isaacsim_quat = isaacsim_view.get_local_poses() # wxyz format
+    isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses()
+    isaacsim_trans, isaacsim_quat = isaacsim_view.get_local_poses()
 
     # Convert Isaac Sim results to torch tensors if needed
     if not isinstance(isaacsim_trans, torch.Tensor):
         isaacsim_trans = torch.tensor(isaacsim_trans, dtype=torch.float32)
     if not isinstance(isaacsim_quat, torch.Tensor):
-        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32).roll(-1, dims=-1)
+        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32)
 
     # Compare results
     torch.testing.assert_close(isaaclab_trans, isaacsim_trans, atol=1e-5, rtol=0)
@@ -1397,14 +1394,13 @@ def test_compare_set_local_poses_with_isaacsim():
 
     # Generate new local poses
     new_translations = torch.randn(num_prims, 3) * 5.0
-    # Orientations in xyzw format
     new_orientations = torch.tensor(
-        [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.7071068, 0.7071068]] * (num_prims // 2), dtype=torch.float32
+        [[1.0, 0.0, 0.0, 0.0], [0.7071068, 0.0, 0.0, 0.7071068]] * (num_prims // 2), dtype=torch.float32
     )
 
     # Set local poses using both implementations
-    isaaclab_view.set_local_poses(new_translations.clone(), new_orientations.clone()) # xyzw format
-    isaacsim_view.set_local_poses(new_translations.clone(), new_orientations.clone().roll(1, dims=-1)) # wxyz format
+    isaaclab_view.set_local_poses(new_translations.clone(), new_orientations.clone())
+    isaacsim_view.set_local_poses(new_translations.clone(), new_orientations.clone())
 
     # Get local poses back from both
     isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses()
@@ -1414,7 +1410,7 @@ def test_compare_set_local_poses_with_isaacsim():
     if not isinstance(isaacsim_trans, torch.Tensor):
         isaacsim_trans = torch.tensor(isaacsim_trans, dtype=torch.float32)
     if not isinstance(isaacsim_quat, torch.Tensor):
-        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32).roll(-1, dims=-1)
+        isaacsim_quat = torch.tensor(isaacsim_quat, dtype=torch.float32)
 
     # Compare results
     torch.testing.assert_close(isaaclab_trans, isaacsim_trans, atol=1e-4, rtol=0)

@@ -168,6 +168,8 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
             transforms = view.get_transforms()
             positions = transforms[:, :3]
             orientations = transforms[:, 3:7]
+            # Convert quaternion from xyzw to wxyz
+            orientations = math_utils.convert_quat(orientations, to="wxyz")
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Store initial world poses
@@ -182,7 +184,9 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
         if view_type in ("xform", "xform_fabric"):
             view.set_world_poses(new_positions, orientations)
         else:  # physx
-            new_transforms = torch.cat([new_positions, orientations], dim=-1)
+            # Convert quaternion from wxyz to xyzw for PhysX
+            orientations_xyzw = math_utils.convert_quat(orientations, to="xyzw")
+            new_transforms = torch.cat([new_positions, orientations_xyzw], dim=-1)
             view.set_transforms(new_transforms, indices=all_indices)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -192,6 +196,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     else:  # physx
         transforms_after = view.get_transforms()
         positions_after_set = transforms_after[:, :3]
+        orientations_after_set = math_utils.convert_quat(transforms_after[:, 3:7], to="wxyz")
     computed_results["world_positions_after_set"] = positions_after_set.clone()
     computed_results["world_orientations_after_set"] = orientations_after_set.clone()
 
