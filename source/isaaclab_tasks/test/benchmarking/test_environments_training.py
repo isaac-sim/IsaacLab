@@ -20,8 +20,6 @@ import env_benchmark_test_utils as utils
 import gymnasium as gym
 import pytest
 
-import carb
-
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 
 
@@ -35,11 +33,6 @@ def setup_environment():
 
     # Sort environments by name
     registered_task_specs.sort(key=lambda x: x.id)
-
-    # This flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
-    # test on many environments.
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     return registered_task_specs
 
@@ -65,13 +58,20 @@ def train_job(workflow, task, env_config, num_gpus):
         cmd.append("--distributed")
 
     # Add experiment name variable
-    cmd.append(f"{WORKFLOW_EXPERIMENT_NAME_VARIABLE[workflow]}={task}")
+    workflow_experiment_name_variable = WORKFLOW_EXPERIMENT_NAME_VARIABLE.get(workflow)
+    if workflow_experiment_name_variable:
+        cmd.append(f"{workflow_experiment_name_variable}={task}")
 
     print("Running : " + " ".join(cmd))
 
     start_time = time.time()
-    subprocess.run(cmd)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     duration = time.time() - start_time
+
+    if result.returncode != 0:
+        print(f"Training failed with exit code {result.returncode}")
+        print(f"STDERR: {result.stderr}")
+        # Still return duration so evaluate_job can report failure via logs
 
     return duration
 
