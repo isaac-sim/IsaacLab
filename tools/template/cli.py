@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import argparse
 import enum
 import importlib
 import os
@@ -148,44 +149,79 @@ def main() -> None:
     """Main function to run template generation from CLI."""
     cli_handler = CLIHandler()
 
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("-n", "--non-interactive", action="store_true")
+    parser.add_argument("--rl-library", dest="rl_library", type=str, default=None)
+    parser.add_argument("--rl-algorithm", dest="rl_algorithm", type=str, default=None)
+    parser.add_argument(
+        "--task-type",
+        dest="task_type",
+        type=str,
+        choices=["External", "Internal", "external", "internal"],
+        default=None,
+    )
+    parser.add_argument("--project-path", dest="project_path", type=str, default=None)
+    parser.add_argument("--project-name", dest="project_name", type=str, default=None)
+    parser.add_argument("--workflow", dest="workflow", type=str, default=None)
+    args = parser.parse_args()
+
     lab_module = importlib.import_module("isaaclab")
     lab_path = os.path.realpath(getattr(lab_module, "__file__", "") or (getattr(lab_module, "__path__", [""])[0]))
     is_lab_pip_installed = ("site-packages" in lab_path) or ("dist-packages" in lab_path)
 
     if not is_lab_pip_installed:
         # project type
-        is_external_project = (
-            cli_handler.input_select(
-                "Task type:",
-                choices=["External", "Internal"],
-                long_instruction=(
-                    "External (recommended): task/project is in its own folder/repo outside the Isaac Lab project.\n"
-                    "Internal: the task is implemented within the Isaac Lab project (in source/isaaclab_tasks)."
-                ),
-            ).lower()
-            == "external"
-        )
+        if args.non_interactive:
+            if args.task_type is not None:
+                is_external_project = args.task_type.lower() == "external"
+            else:
+                is_external_project = True
+        else:
+            is_external_project = (
+                cli_handler.input_select(
+                    "Task type:",
+                    choices=["External", "Internal"],
+                    long_instruction=(
+                        "External (recommended): task/project is in its own folder/repo outside the Isaac Lab"
+                        " project.\nInternal: the task is implemented within the Isaac Lab project (in"
+                        " source/isaaclab_tasks)."
+                    ),
+                ).lower()
+                == "external"
+            )
     else:
         is_external_project = True
 
     # project path (if 'external')
     project_path = None
     if is_external_project:
-        project_path = cli_handler.input_path(
-            "Project path:",
-            default=os.path.dirname(ROOT_DIR) + os.sep,
-            validate=lambda path: not os.path.abspath(path).startswith(os.path.abspath(ROOT_DIR)),
-            invalid_message="External project path cannot be within the Isaac Lab project",
-        )
+        if args.non_interactive:
+            project_path = args.project_path
+            if project_path is None:
+                raise SystemExit("In non-interactive mode, --project_path is required for External task type.")
+            if os.path.abspath(project_path).startswith(os.path.abspath(ROOT_DIR)):
+                raise SystemExit("External project path cannot be within the Isaac Lab project")
+        else:
+            project_path = cli_handler.input_path(
+                "Project path:",
+                default=os.path.dirname(ROOT_DIR) + os.sep,
+                validate=lambda path: not os.path.abspath(path).startswith(os.path.abspath(ROOT_DIR)),
+                invalid_message="External project path cannot be within the Isaac Lab project",
+            )
 
     # project/task name
-    project_name = cli_handler.input_text(
-        "Project name:" if is_external_project else "Task's folder name:",
-        validate=lambda name: name.isidentifier(),
-        invalid_message=(
-            "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
-        ),
-    )
+    if args.non_interactive:
+        project_name = args.project_name
+        if project_name is None or not project_name.isidentifier():
+            raise SystemExit("In non-interactive mode, --project_name is required and must be a valid identifier")
+    else:
+        project_name = cli_handler.input_text(
+            "Project name:" if is_external_project else "Task's folder name:",
+            validate=lambda name: name.isidentifier(),
+            invalid_message=(
+                "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
+            ),
+        )
 
     # Isaac Lab workflow
     # - show supported workflows and features
@@ -199,10 +235,23 @@ def main() -> None:
     cli_handler.output_table(workflow_table)
     # - prompt for workflows
     supported_workflows = ["Direct | single-agent", "Direct | multi-agent", "Manager-based | single-agent"]
-    workflow = cli_handler.get_choices(
-        cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*supported_workflows, "---", "all"]),
-        default=supported_workflows,
-    )
+    if args.non_interactive:
+        if args.workflow is not None:
+            selected_workflows = [item.strip() for item in args.workflow.split(",") if item.strip()]
+            if any(item.lower() == "all" for item in selected_workflows):
+                workflow = supported_workflows
+            else:
+                selected_workflows = [item for item in selected_workflows if item in supported_workflows]
+                if not selected_workflows:
+                    raise SystemExit("No valid --workflow provided for the selected workflows")
+                workflow = selected_workflows
+        else:
+            workflow = supported_workflows
+    else:
+        workflow = cli_handler.get_choices(
+            cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*supported_workflows, "---", "all"]),
+            default=supported_workflows,
+        )
     workflow = [{"name": item.split(" | ")[0].lower(), "type": item.split(" | ")[1].lower()} for item in workflow]
     single_agent_workflow = [item for item in workflow if item["type"] == "single-agent"]
     multi_agent_workflow = [item for item in workflow if item["type"] == "multi-agent"]
@@ -233,20 +282,48 @@ def main() -> None:
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
     supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
-    selected_rl_libraries = cli_handler.get_choices(
-        cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
-        default=supported_rl_libraries,
-    )
+    if args.non_interactive:
+        if args.rl_library is not None:
+            selected_rl_libraries_raw = [item.strip() for item in args.rl_library.split(",") if item.strip()]
+            if any(item.lower() == "all" for item in selected_rl_libraries_raw):
+                selected_rl_libraries = supported_rl_libraries
+            else:
+                selected_rl_libraries = [item for item in selected_rl_libraries_raw if item in supported_rl_libraries]
+                if not selected_rl_libraries:
+                    raise SystemExit("No valid --rl_library provided for the selected workflows")
+        else:
+            selected_rl_libraries = supported_rl_libraries
+    else:
+        selected_rl_libraries = cli_handler.get_choices(
+            cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
+            default=supported_rl_libraries,
+        )
     # - prompt for algorithms per RL library
-    algorithms_per_rl_library = get_algorithms_per_rl_library(len(single_agent_workflow), len(multi_agent_workflow))
+    algorithms_per_rl_library = get_algorithms_per_rl_library(
+        bool(len(single_agent_workflow)), bool(len(multi_agent_workflow))
+    )
     for rl_library in selected_rl_libraries:
         algorithms = algorithms_per_rl_library.get(rl_library, [])
-        if len(algorithms) > 1:
-            algorithms = cli_handler.get_choices(
-                cli_handler.input_checkbox(f"RL algorithms for {rl_library}:", choices=[*algorithms, "---", "all"]),
-                default=algorithms,
-            )
-        rl_library_algorithms.append({"name": rl_library, "algorithms": [item.lower() for item in algorithms]})
+        if args.non_interactive:
+            if args.rl_algorithm is not None:
+                provided_algorithms = [item.strip().lower() for item in args.rl_algorithm.split(",") if item.strip()]
+                if "all" in provided_algorithms:
+                    selected_algorithms = [item.lower() for item in algorithms]
+                else:
+                    valid_algorithms = [item for item in provided_algorithms if item in [a.lower() for a in algorithms]]
+                    if not valid_algorithms:
+                        raise SystemExit(f"No valid --rl_algorithm provided for library '{rl_library}'")
+                    selected_algorithms = valid_algorithms
+            else:
+                selected_algorithms = [item.lower() for item in algorithms]
+        else:
+            if len(algorithms) > 1:
+                algorithms = cli_handler.get_choices(
+                    cli_handler.input_checkbox(f"RL algorithms for {rl_library}:", choices=[*algorithms, "---", "all"]),
+                    default=algorithms,
+                )
+            selected_algorithms = [item.lower() for item in algorithms]
+        rl_library_algorithms.append({"name": rl_library, "algorithms": selected_algorithms})
 
     specification = {
         "external": is_external_project,
