@@ -67,9 +67,9 @@ class G1TriHandUpperBodyMotionControllerGripperRetargeter(RetargeterBase):
         gripper_tensor = torch.tensor([left_hand_state, right_hand_state], dtype=torch.float32, device=self._sim_device)
 
         # --- Wrist Logic ---
-        # Default wrist poses (position + quaternion [w, x, y, z] as per default_wrist init)
-        # Note: default_wrist is [x, y, z, w, x, y, z] in reference, but seemingly used as [x,y,z, w,x,y,z]
-        default_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        # Default wrist poses (position + quaternion [x, y, z, w])
+        # Format: [x, y, z, qx, qy, qz, qw]
+        default_wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         # Extract poses from controller data
         left_wrist = self._extract_wrist_pose(left_controller_data, default_wrist)
@@ -130,7 +130,7 @@ class G1TriHandUpperBodyMotionControllerGripperRetargeter(RetargeterBase):
 
         # Combined -75° (rather than -90° for wrist comfort) Y rotation + 90° Z rotation
         # This is equivalent to (0, -75, 90) in euler angles
-        combined_quat = torch.tensor([0.5358, -0.4619, 0.5358, 0.4619], dtype=torch.float32)
+        combined_quat = torch.tensor([-0.4619, 0.5358, 0.4619, 0.5358], dtype=torch.float32)
 
         openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
         transform_pose = PoseUtils.make_pose(torch.zeros(3), PoseUtils.matrix_from_quat(combined_quat))

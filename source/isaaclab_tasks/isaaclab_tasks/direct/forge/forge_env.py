@@ -100,7 +100,7 @@ class ForgeEnv(FactoryEnv):
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth
 
         self.force_sensor_smooth = torch.zeros_like(self.force_sensor_world)
-        identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+        identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = forge_utils.change_FT_frame(
             self.force_sensor_world_smooth[:, 0:3],
             self.force_sensor_world_smooth[:, 3:6],

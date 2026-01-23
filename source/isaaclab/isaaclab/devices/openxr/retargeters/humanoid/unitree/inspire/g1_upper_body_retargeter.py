@@ -139,10 +139,10 @@ class UnitreeG1Retargeter(RetargeterBase):
 
         if is_left:
             # Corresponds to a rotation of (0, 180, 0) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0.7071, 0, 0.7071, 0], dtype=torch.float32)
+            combined_quat = torch.tensor([0, 0.7071, 0, 0.7071], dtype=torch.float32)
         else:
             # Corresponds to a rotation of (180, 0, 0) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0, 0.7071, 0, -0.7071], dtype=torch.float32)
+            combined_quat = torch.tensor([0.7071, 0, -0.7071, 0], dtype=torch.float32)
 
         openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
         transform_pose = PoseUtils.make_pose(torch.zeros(3), PoseUtils.matrix_from_quat(combined_quat))

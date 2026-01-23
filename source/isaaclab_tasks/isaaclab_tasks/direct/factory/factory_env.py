@@ -75,7 +75,7 @@ class FactoryEnv(DirectRLEnv):
         self.last_update_timestamp = 0.0  # Note: This is for finite differencing body velocities.
         self.prev_fingertip_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.prev_fingertip_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         self.prev_joint_pos = torch.zeros((self.num_envs, 7), device=self.device)
 
@@ -232,7 +232,7 @@ class FactoryEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1.0e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
@@ -283,7 +283,7 @@ class FactoryEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
@@ -446,13 +446,13 @@ class FactoryEnv(DirectRLEnv):
             keypoints_held[:, idx] = torch_utils.tf_combine(
                 held_base_quat,
                 held_base_pos,
-                torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+                torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
                 keypoint_offset.repeat(self.num_envs, 1),
             )[1]
             keypoints_fixed[:, idx] = torch_utils.tf_combine(
                 target_held_base_quat,
                 target_held_base_pos,
-                torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+                torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
                 keypoint_offset.repeat(self.num_envs, 1),
             )[1]
         keypoint_dist = torch.norm(keypoints_held - keypoints_fixed, p=2, dim=-1).mean(-1)
@@ -570,7 +570,7 @@ class FactoryEnv(DirectRLEnv):
             raise NotImplementedError("Task not implemented")
 
         held_asset_relative_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         if self.cfg_task.name == "nut_thread":
             # Rotate along z-axis of frame for default position.
@@ -663,7 +663,7 @@ class FactoryEnv(DirectRLEnv):
         _, fixed_tip_pos = torch_utils.tf_combine(
             self.fixed_quat,
             self.fixed_pos,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
             fixed_tip_pos_local,
         )
         self.fixed_pos_obs_frame[:] = fixed_tip_pos
@@ -770,7 +770,7 @@ class FactoryEnv(DirectRLEnv):
         translated_held_asset_quat, translated_held_asset_pos = torch_utils.tf_combine(
             q1=translated_held_asset_quat,
             t1=translated_held_asset_pos,
-            q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+            q2=torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
             t2=held_asset_pos_noise,
         )
 

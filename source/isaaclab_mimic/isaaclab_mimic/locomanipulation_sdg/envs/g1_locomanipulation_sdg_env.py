@@ -67,7 +67,7 @@ for i in range(NUM_FORKLIFTS):
         f"forklift_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Forklift{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -82,7 +82,7 @@ for i in range(NUM_BOXES):
         f"box_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Box{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),

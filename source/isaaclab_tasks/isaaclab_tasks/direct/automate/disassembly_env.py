@@ -85,7 +85,7 @@ class DisassemblyEnv(DirectRLEnv):
     def _init_tensors(self):
         """Initialize tensors once."""
         self.identity_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
 
         # Control targets.
@@ -322,7 +322,7 @@ class DisassemblyEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1.0e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
@@ -373,7 +373,7 @@ class DisassemblyEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 

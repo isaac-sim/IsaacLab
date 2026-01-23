@@ -41,7 +41,7 @@ def sim():
     # Wait for spawning
     stage = sim_utils.create_new_stage()
     # Constants
-    num_envs = 128
+    num_envs = 1
     # Load kit helper
     sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
@@ -68,7 +68,7 @@ def sim():
     # Define goals for the arm (x, y, z, qx, qy, qz, qw)
     ee_goals_set = [
         [0.5, 0.5, 0.7, 0, 0.707, 0, 0.707],
-        [0.5, -0.4, 0.6, 0, 0.707, 0, 0.707],
+        [0.5, -0.4, 0.6, 0.707, 0, 0, 0.707],
         [0.5, 0, 0.5, 1.0, 0.0, 0.0, 0.0],
     ]
     ee_pose_b_des_set = torch.tensor(ee_goals_set, device=sim.device)
