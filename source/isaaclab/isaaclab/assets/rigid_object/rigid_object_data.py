@@ -132,7 +132,6 @@ class RigidObjectData:
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
             pose = self._root_physx_view.get_transforms().clone()
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
@@ -325,7 +324,7 @@ class RigidObjectData:
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
+            # read data from simulation (PhysX returns xyzw format which is)
             pose = self._root_physx_view.get_coms().to(self.device)
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose.view(-1, 1, 7)

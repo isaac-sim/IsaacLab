@@ -390,7 +390,6 @@ class ContactSensor(SensorBase):
 
         # obtain the pose of the sensor origin
         if self.cfg.track_pose:
-            # PhysX returns xyzw format which is our internal format
             pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 

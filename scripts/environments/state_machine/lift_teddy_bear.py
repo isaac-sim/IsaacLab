@@ -260,7 +260,7 @@ class PickAndLiftSm:
         )
 
         # convert to torch
-        return torch.cat([self.des_ee_pose.clone(), self.des_gripper_state.unsqueeze(-1)], dim=-1)
+        return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
 def main():

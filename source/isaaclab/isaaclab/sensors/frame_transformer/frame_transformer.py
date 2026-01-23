@@ -378,8 +378,6 @@ class FrameTransformer(SensorBase):
         # Reorder the transforms to be per environment as is expected of SensorData
         transforms = transforms[self._per_env_indices]
 
-        # PhysX returns xyzw format which is our internal format
-
         # Process source frame transform
         source_frames = transforms[self._source_frame_body_ids]
         # Only apply offset if the offsets will result in a coordinate frame transform

@@ -474,7 +474,6 @@ class ArticulationData:
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
             pose = self._root_physx_view.get_root_transforms().clone()
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
@@ -589,7 +588,6 @@ class ArticulationData:
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # perform forward kinematics (shouldn't cause overhead if it happened already)
             self._physics_sim_view.update_articulations_kinematic()
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
             poses = self._root_physx_view.get_link_transforms().clone()
             # set the buffer data and timestamp
             self._body_link_pose_w.data = poses
@@ -716,7 +714,6 @@ class ArticulationData:
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
             pose = self._root_physx_view.get_coms().to(self.device)
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose

@@ -137,7 +137,6 @@ class RigidObjectCollectionData:
         The position and orientation are of the rigid body's actor frame.
         """
         if self._object_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation (PhysX returns xyzw format which is our internal format)
             pose = self._reshape_view_to_data(self._root_physx_view.get_transforms().clone())
             # set the buffer data and timestamp
             self._object_link_pose_w.data = pose
@@ -258,7 +257,6 @@ class RigidObjectCollectionData:
         The orientation is provided in (x, y, z, w) format.
         """
         if self._object_com_pose_b.timestamp < self._sim_timestamp:
-            # obtain the coms (PhysX returns xyzw format which is our internal format)
             poses = self._root_physx_view.get_coms().to(self.device)
             # read data from simulation
             self._object_com_pose_b.data = self._reshape_view_to_data(poses)

@@ -135,7 +135,6 @@ class DeformableObjectData:
         The rotations are stored as quaternions in the order (x, y, z, w).
         """
         if self._sim_element_quat_w.timestamp < self._sim_timestamp:
-            # PhysX returns xyzw format which is our internal format
             quats = self._root_physx_view.get_sim_element_rotations().view(self._root_physx_view.count, -1, 4)
             # set the buffer data and timestamp
             self._sim_element_quat_w.data = quats
@@ -150,7 +149,6 @@ class DeformableObjectData:
         The rotations are stored as quaternions in the order (x, y, z, w).
         """
         if self._collision_element_quat_w.timestamp < self._sim_timestamp:
-            # PhysX returns xyzw format which is our internal format
             quats = self._root_physx_view.get_element_rotations().view(self._root_physx_view.count, -1, 4)
             # set the buffer data and timestamp
             self._collision_element_quat_w.data = quats

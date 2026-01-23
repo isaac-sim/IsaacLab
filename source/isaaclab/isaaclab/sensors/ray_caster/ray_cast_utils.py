@@ -36,10 +36,8 @@ def obtain_world_pose_from_view(
     if isinstance(physx_view, XformPrimView):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
     elif isinstance(physx_view, physx.ArticulationView):
-        # PhysX returns xyzw format which is our internal format
         pos_w, quat_w = physx_view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
     elif isinstance(physx_view, physx.RigidBodyView):
-        # PhysX returns xyzw format which is our internal format
         pos_w, quat_w = physx_view.get_transforms()[env_ids].split([3, 4], dim=-1)
     else:
         raise NotImplementedError(f"Cannot get world poses for prim view of type '{type(physx_view)}'.")
