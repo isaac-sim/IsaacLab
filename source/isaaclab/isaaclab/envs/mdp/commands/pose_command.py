@@ -60,9 +60,9 @@ class UniformPoseCommand(CommandTerm):
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
         # create buffers
-        # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
+        # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
-        self.pose_command_b[:, 6] = 1.0
+        self.pose_command_b[:, 3] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)

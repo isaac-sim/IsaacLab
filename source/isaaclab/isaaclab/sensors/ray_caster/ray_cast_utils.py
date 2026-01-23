@@ -12,7 +12,6 @@ import torch
 import omni.physics.tensors.impl.api as physx
 
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils.math import convert_quat
 
 
 def obtain_world_pose_from_view(
@@ -29,7 +28,7 @@ def obtain_world_pose_from_view(
 
     Returns:
         A tuple containing the world positions and orientations of the prims.
-        Orientation is in (w, x, y, z) format.
+        Orientation is in (x, y, z, w) format.
 
     Raises:
         NotImplementedError: If the prim view is not of the supported type.
@@ -37,11 +36,11 @@ def obtain_world_pose_from_view(
     if isinstance(physx_view, XformPrimView):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
     elif isinstance(physx_view, physx.ArticulationView):
+        # PhysX returns xyzw format which is our internal format
         pos_w, quat_w = physx_view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = convert_quat(quat_w, to="wxyz")
     elif isinstance(physx_view, physx.RigidBodyView):
+        # PhysX returns xyzw format which is our internal format
         pos_w, quat_w = physx_view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = convert_quat(quat_w, to="wxyz")
     else:
         raise NotImplementedError(f"Cannot get world poses for prim view of type '{type(physx_view)}'.")
 

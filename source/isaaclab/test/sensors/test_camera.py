@@ -35,6 +35,7 @@ from isaaclab.utils.timer import Timer
 
 # sample camera poses
 POSITION = (2.5, 2.5, 2.5)
+# Quaternions in xyzw format
 QUAT_ROS = (0.33985114, 0.82047325, -0.42470819, -0.17591989)
 QUAT_OPENGL = (0.17591988, 0.42470818, 0.82047324, 0.33985113)
 QUAT_WORLD = (-0.27984815, -0.1159169, 0.88047623, -0.3647052)
