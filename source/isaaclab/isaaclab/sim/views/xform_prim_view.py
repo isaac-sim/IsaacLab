@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 import numpy as np
@@ -16,6 +17,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import fabric as fabric_utils
+
+logger = logging.getLogger(__name__)
 
 
 class XformPrimView:
@@ -39,15 +42,15 @@ class XformPrimView:
       Note: renderers typically consume USD-authored camera transforms.
 
     .. warning::
-        **Fabric requires CUDA**: Fabric is only supported with `device="cuda"`.
-        Warp's CPU backend for fabricarray writes has known issues, so attempting to use
-        Fabric with `device="cpu"` will raise a ValueError at initialization.
+        **Fabric requires CUDA**: Fabric is only supported with on CUDA devices.
+        Warp's CPU backend for fabric-array writes has known issues, so attempting to use
+        Fabric with CPU device (``device="cpu"``) will raise a ValueError at initialization.
 
     .. note::
         **Fabric Support:**
 
         When Fabric is enabled, this view ensures prims have the required Fabric hierarchy
-        attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`). On first Fabric
+        attributes (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``). On first Fabric
         read, USD-authored transforms initialize Fabric state. Fabric writes can optionally
         be mirrored back to USD via :attr:`sync_usd_on_fabric_write`.
 
@@ -104,24 +107,37 @@ class XformPrimView:
                 ``"cuda:0"``. Defaults to ``"cpu"``.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
-            sync_usd_on_fabric_write: Whether Fabric pose/scale writes should also be mirrored
-                to USD. Defaults to False; set True when USD consumers (e.g., rendering cameras)
-                must observe pose updates.
+            sync_usd_on_fabric_write: Whether to mirror Fabric transform writes back to USD.
+                When True, transform updates are synchronized to USD so that USD data readers (e.g., rendering
+                cameras) can observe these changes. Defaults to False for better performance.
             stage: USD stage to search for prims. Defaults to None, in which case the current active stage
                 from the simulation context is used.
+
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
                 transform operations (translate, orient, scale in that order).
         """
-        stage = sim_utils.get_current_stage() if stage is None else stage
-
         # Store configuration
         self._prim_path = prim_path
         self._device = device
 
         # Find and validate matching prims
+        stage = sim_utils.get_current_stage() if stage is None else stage
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+
+        # Validate all prims have standard xform operations
+        if validate_xform_ops:
+            for prim in self._prims:
+                if not sim_utils.validate_standard_xform_ops(prim):
+                    raise ValueError(
+                        f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
+                        f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
+                        " Use sim_utils.standardize_xform_ops() to prepare the prim."
+                    )
+
+        # Determine if Fabric is supported on the device
         self._use_fabric = self._device != "cpu"
+        logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":
@@ -152,27 +168,13 @@ class XformPrimView:
         # Use "isaaclab" namespace to identify our custom attributes
         self._view_index_attr = f"isaaclab:view_index:{abs(hash(self))}"
 
-        # Validate all prims have standard xform operations
-        if validate_xform_ops:
-            for prim in self._prims:
-                if not sim_utils.validate_standard_xform_ops(prim):
-                    raise ValueError(
-                        f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
-                        f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
-                        " Use sim_utils.standardize_xform_ops() to prepare the prim."
-                    )
-
     """
     Properties.
     """
 
     @property
     def count(self) -> int:
-        """Number of prims in this view.
-
-        Returns:
-            The number of prims being managed by this view.
-        """
+        """Number of prims in this view."""
         return len(self._prims)
 
     @property
@@ -196,9 +198,6 @@ class XformPrimView:
             For most use cases, prefer using :attr:`prims` directly as it provides direct access
             to the USD prim objects without the conversion overhead. This property is mainly useful
             for logging, debugging, or when string paths are explicitly required.
-
-        Returns:
-            List of prim paths (as strings) in the same order as :attr:`prims`.
         """
         # we cache it the first time it is accessed.
         # we don't compute it in constructor because it is expensive and we don't need it most of the time.
@@ -221,8 +220,10 @@ class XformPrimView:
 
         This method sets the position and/or orientation of each prim in world space.
 
-        When Fabric is enabled, writes directly to Fabric using GPU-accelerated batch operations.
-        When Fabric is disabled, converts to local space and writes to USD attributes.
+        - When Fabric is enabled, the function writes directly to Fabric's ``omni:fabric:worldMatrix``
+          attribute using GPU-accelerated batch operations.
+        - When Fabric is disabled, the function converts to local space and writes to USD's ``xformOp:translate``
+          and ``xformOp:orient`` attributes.
 
         Args:
             positions: World-space positions as a tensor of shape (M, 3) where M is the number of prims
@@ -238,9 +239,9 @@ class XformPrimView:
             ValueError: If the number of poses doesn't match the number of indices provided.
         """
         if self._use_fabric:
-            return self._set_world_poses_fabric(positions, orientations, indices)
+            self._set_world_poses_fabric(positions, orientations, indices)
         else:
-            return self._set_world_poses_usd(positions, orientations, indices)
+            self._set_world_poses_usd(positions, orientations, indices)
 
     def set_local_poses(
         self,
@@ -253,8 +254,16 @@ class XformPrimView:
         This method sets the position and/or orientation of each prim in local space (relative to
         their parent prims).
 
-        When Fabric is enabled, writes directly to Fabric local matrices using GPU-accelerated batch operations.
-        When Fabric is disabled, writes directly to USD local transform attributes.
+        The function writes directly to USD's ``xformOp:translate`` and ``xformOp:orient`` attributes.
+
+        Note:
+            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim's design
+            where Fabric is only used for world pose operations.
+
+            Rationale:
+                - Local pose writes need correct parent-child hierarchy relationships
+                - USD maintains these relationships correctly and efficiently
+                - Fabric is optimized for world pose operations, not local hierarchies
 
         Args:
             translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims
@@ -270,17 +279,17 @@ class XformPrimView:
             ValueError: If the number of poses doesn't match the number of indices provided.
         """
         if self._use_fabric:
-            return self._set_local_poses_fabric(translations, orientations, indices)
+            self._set_local_poses_fabric(translations, orientations, indices)
         else:
-            return self._set_local_poses_usd(translations, orientations, indices)
+            self._set_local_poses_usd(translations, orientations, indices)
 
     def set_scales(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
         """Set scales for prims in the view.
 
         This method sets the scale of each prim in the view.
 
-        When Fabric is enabled, updates scales in Fabric matrices using GPU-accelerated batch operations.
-        When Fabric is disabled, writes to USD scale attributes.
+        - When Fabric is enabled, the function updates scales in Fabric matrices using GPU-accelerated batch operations.
+        - When Fabric is disabled, the function writes to USD's ``xformOp:scale`` attributes.
 
         Args:
             scales: Scales as a tensor of shape (M, 3) where M is the number of prims
@@ -292,9 +301,9 @@ class XformPrimView:
             ValueError: If scales shape is not (M, 3).
         """
         if self._use_fabric:
-            return self._set_scales_fabric(scales, indices)
+            self._set_scales_fabric(scales, indices)
         else:
-            return self._set_scales_usd(scales, indices)
+            self._set_scales_usd(scales, indices)
 
     def set_visibility(self, visibility: torch.Tensor, indices: Sequence[int] | None = None):
         """Set visibility for prims in the view.
@@ -341,8 +350,8 @@ class XformPrimView:
         This method retrieves the position and orientation of each prim in world space by computing
         the full transform hierarchy from the prim to the world root.
 
-        When Fabric is enabled, uses Fabric batch operations with Warp kernels.
-        When Fabric is disabled, uses USD XformCache.
+        - When Fabric is enabled, the function uses Fabric batch operations with Warp kernels.
+        - When Fabric is disabled, the function uses USD XformCache.
 
         Note:
             Scale and skew are ignored. The returned poses contain only translation and rotation.
@@ -367,10 +376,16 @@ class XformPrimView:
         """Get local-space poses for prims in the view.
 
         This method retrieves the position and orientation of each prim in local space (relative to
-        their parent prims).
+        their parent prims). It reads directly from USD's ``xformOp:translate`` and ``xformOp:orient`` attributes.
 
-        When Fabric is enabled, reads from Fabric local matrices using batch operations with Warp kernels.
-        When Fabric is disabled, reads directly from USD local transform attributes.
+        Note:
+            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim's design
+            where Fabric is only used for world pose operations.
+
+            Rationale:
+                - Local pose reads need correct parent-child hierarchy relationships
+                - USD maintains these relationships correctly and efficiently
+                - Fabric is optimized for world pose operations, not local hierarchies
 
         Note:
             Scale is ignored. The returned poses contain only translation and rotation.
@@ -396,8 +411,9 @@ class XformPrimView:
 
         This method retrieves the scale of each prim in the view.
 
-        When Fabric is enabled, extracts scales from Fabric matrices using batch operations with Warp kernels.
-        When Fabric is disabled, reads from USD scale attributes.
+        - When Fabric is enabled, the function extracts scales from Fabric matrices using batch operations with
+          Warp kernels.
+        - When Fabric is disabled, the function reads from USD's ``xformOp:scale`` attributes.
 
         Args:
             indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved
@@ -759,7 +775,7 @@ class XformPrimView:
         """Set local poses using USD (matches Isaac Sim's design).
 
         Note: Even in Fabric mode, local pose operations use USD.
-        This is Isaac Sim's design - the `usd=False` parameter only affects world poses.
+        This is Isaac Sim's design: the ``usd=False`` parameter only affects world poses.
 
         Rationale:
         - Local pose writes need correct parent-child hierarchy relationships
@@ -879,13 +895,14 @@ class XformPrimView:
     def _get_local_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get local poses using USD (matches Isaac Sim's design).
 
-        Note: Even in Fabric mode, local pose operations use USD's XformCache.
-        This is Isaac Sim's design - the `usd=False` parameter only affects world poses.
+        Note:
+            Even in Fabric mode, local pose operations use USD's XformCache.
+            This is Isaac Sim's design: the ``usd=False`` parameter only affects world poses.
 
         Rationale:
-        - Local pose computation requires parent transforms which may not be in the view
-        - USD's XformCache provides efficient hierarchy-aware local transform queries
-        - Fabric is optimized for world pose operations, not local hierarchies
+            - Local pose computation requires parent transforms which may not be in the view
+            - USD's XformCache provides efficient hierarchy-aware local transform queries
+            - Fabric is optimized for world pose operations, not local hierarchies
         """
         return self._get_local_poses_usd(indices)
 
@@ -951,11 +968,11 @@ class XformPrimView:
         """Initialize Fabric batch infrastructure for GPU-accelerated pose queries.
 
         This method ensures all prims have the required Fabric hierarchy attributes
-        (omni:fabric:localMatrix and omni:fabric:worldMatrix) and creates the necessary
+        (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``) and creates the necessary
         infrastructure for batch GPU operations using Warp.
 
         Based on the Fabric Hierarchy documentation, when Fabric Scene Delegate is enabled,
-        all Boundable prims should have these attributes. This method ensures they exist
+        all boundable prims should have these attributes. This method ensures they exist
         and are properly synchronized with USD.
         """
         import usdrt
@@ -989,7 +1006,6 @@ class XformPrimView:
             rt_prim.GetAttribute(self._view_index_attr).Set(i)
 
         # After syncing all prims, update the Fabric hierarchy to ensure world matrices are computed
-        fabric_stage = sim_utils.get_current_stage(fabric=True)
         self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
             fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
         )
@@ -1014,9 +1030,8 @@ class XformPrimView:
         # This works correctly for full-view operations but partial indexing still has issues.
         fabric_device = self._device
         if self._device == "cuda":
+            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
             fabric_device = "cuda:0"
-        elif self._device.startswith("cuda") and ":" not in self._device:
-            fabric_device = f"{self._device}:0"
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
