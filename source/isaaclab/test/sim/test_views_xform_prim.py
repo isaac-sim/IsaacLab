@@ -1264,8 +1264,8 @@ def test_compare_get_world_poses_with_isaacsim():
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     # Get world poses from both
-    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses() # xyzw
-    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses() # wxyz
+    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()  # xyzw
+    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()  # wxyz
 
     # Convert Isaac Sim results to torch tensors if needed
     if not isinstance(isaacsim_pos, torch.Tensor):
@@ -1307,12 +1307,12 @@ def test_compare_set_world_poses_with_isaacsim():
     new_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_prims, dtype=torch.float32)
 
     # Set poses using both implementations
-    isaaclab_view.set_world_poses(new_positions.clone(), new_orientations.clone()) # xyzw
-    isaacsim_view.set_world_poses(new_positions.clone(), new_orientations.clone().roll(1, dims=1)) # wxyz
+    isaaclab_view.set_world_poses(new_positions.clone(), new_orientations.clone())  # xyzw
+    isaacsim_view.set_world_poses(new_positions.clone(), new_orientations.clone().roll(1, dims=1))  # wxyz
 
     # Get poses back from both
-    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses() # xyzw
-    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses() # wxyz
+    isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()  # xyzw
+    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()  # wxyz
 
     # Convert Isaac Sim results to torch tensors if needed
     if not isinstance(isaacsim_pos, torch.Tensor):

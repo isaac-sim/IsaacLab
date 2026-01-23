@@ -123,7 +123,7 @@ class ArticulationData:
 
     default_root_state: torch.Tensor = None
     """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
-    Shape is (num_instances, 13). 
+    Shape is (num_instances, 13).
 
     The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
     velocities are of its center of mass frame. Quaternions are stored in (x, y, z, w) format.

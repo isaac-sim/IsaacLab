@@ -46,7 +46,9 @@ def assert_vec3_close(v1: Gf.Vec3d | Gf.Vec3f, v2: tuple | Gf.Vec3d | Gf.Vec3f, 
         assert math.isclose(v1[i], v2[i], abs_tol=eps), f"Vector mismatch at index {i}: {v1[i]} != {v2[i]}"
 
 
-def assert_quat_close(q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6):
+def assert_quat_close(
+    q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6
+):
     """Assert two quaternions are close, accounting for double-cover (q and -q represent same rotation)."""
     if isinstance(q1, (tuple, list)):
         # q1 is (x, y, z, w)

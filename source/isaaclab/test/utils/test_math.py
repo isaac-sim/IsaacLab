@@ -429,11 +429,15 @@ def test_quat_from_euler_xyz(device, num_envs, euler_angles):
     angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
     quat_value = math_utils.quat_unique(math_utils.quat_from_euler_xyz(angles[:, 0], angles[:, 1], angles[:, 2]))
     # scipy's as_quat() already returns xyzw format, no conversion needed
-    expected_quat = torch.tensor(
-        scipy_tf.Rotation.from_euler("xyz", euler_angles, degrees=False).as_quat(),
-        device=device,
-        dtype=torch.float,
-    ).unsqueeze(0).repeat((num_envs, 1))
+    expected_quat = (
+        torch.tensor(
+            scipy_tf.Rotation.from_euler("xyz", euler_angles, degrees=False).as_quat(),
+            device=device,
+            dtype=torch.float,
+        )
+        .unsqueeze(0)
+        .repeat((num_envs, 1))
+    )
     torch.testing.assert_close(expected_quat, quat_value)
 
 

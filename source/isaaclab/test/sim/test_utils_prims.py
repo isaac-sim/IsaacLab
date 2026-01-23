@@ -40,7 +40,9 @@ def test_setup_teardown():
     sim_utils.clear_stage()
 
 
-def assert_quat_close(q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6):
+def assert_quat_close(
+    q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6
+):
     """Assert two quaternions are close."""
     if isinstance(q1, (tuple, list)):
         q1 = Gf.Quatd(q1[3], q1[0], q1[1], q1[2])

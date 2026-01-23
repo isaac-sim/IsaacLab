@@ -320,9 +320,9 @@ def resolve_prim_pose(
 
     # extract position and orientation
     prim_pos = [*prim_tf.ExtractTranslation()]
-    #prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
+    # prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
     prim_quat = [*prim_tf.ExtractRotationQuat().imaginary, prim_tf.ExtractRotationQuat().real]
-    
+
     return tuple(prim_pos), tuple(prim_quat)
 
 

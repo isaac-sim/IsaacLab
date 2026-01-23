@@ -463,6 +463,7 @@ def get_vive_wrist_ids(vive_data: dict) -> tuple[str, str]:
         return wm_ids[0], None
     return None, None
 
+
 def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
     """Convert a pose dictionary to a 4x4 transform matrix.
 
@@ -482,7 +483,6 @@ def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
     rot = Gf.Matrix3d().SetRotate(quat)
     trans = Gf.Vec3d(pos[0], pos[1], pos[2])
     return Gf.Matrix4d(rot, trans)
-
 
 
 def matrix_to_pose(matrix: Gf.Matrix4d) -> dict:

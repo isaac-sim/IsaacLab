@@ -80,7 +80,7 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
         array_positions[output_index, 0] = position[0]
         array_positions[output_index, 1] = position[1]
         array_positions[output_index, 2] = position[2]
-    # extract orientation 
+    # extract orientation
     if array_orientations.shape[0] > 0:
         array_orientations[output_index, 0] = rotation[0]  # x
         array_orientations[output_index, 1] = rotation[1]  # y
