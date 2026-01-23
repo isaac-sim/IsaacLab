@@ -81,7 +81,7 @@ class XrCfg:
     """
 
     anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array(
-        [1, 0, 0, 0], dtype=np.float64
+        [0, 0, 0, 1], dtype=np.float64
     )
     """Specifies the function to calculate the rotation of the XR anchor when anchor_rotation_mode is CUSTOM.
 
