@@ -55,9 +55,10 @@ runs:
           echo "Building Docker image: $image_tag"
           echo "Using Dockerfile: $dockerfile_path"
           echo "Build context: $context_path"
+          echo "Building for native platform (auto-detected by buildx)"
 
-          # Build Docker image
-          docker buildx build --progress=plain --platform linux/amd64 \
+          # Build Docker image for native platform
+          docker buildx build --progress=plain \
             -t isaac-lab-dev \
             -t $image_tag \
             --build-arg ISAACSIM_BASE_IMAGE_ARG="$isaacsim_base_image" \

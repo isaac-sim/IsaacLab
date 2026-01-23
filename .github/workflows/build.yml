@@ -150,8 +150,69 @@ jobs:
           exit 1
         fi
 
+  test-general-arm:
+    runs-on: [self-hosted, arm]
+    timeout-minutes: 180
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: docker/Dockerfile.arm
+
+    - name: Run General Tests on ARM
+      id: run-general-tests-arm
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "general-tests-arm-report.xml"
+        container-name: "isaac-lab-general-test-arm-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        pytest-options: ""
+        filter-pattern: "not isaaclab_tasks"
+
+    - name: Copy Test Results from General Tests ARM Container
+      run: |
+        CONTAINER_NAME="isaac-lab-general-test-arm-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from General Tests ARM container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-arm-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests ARM container"
+        fi
+
+    - name: Upload General Test Results ARM
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: general-test-arm-results
+        path: reports/general-tests-arm-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/general-tests-arm-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/general-tests-arm-report.xml || grep -q 'errors="[1-9]' reports/general-tests-arm-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-general, test-general-arm]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -178,6 +239,13 @@ jobs:
       with:
         name: general-test-results
         path: reports/
+
+    - name: Download General Test Results ARM
+      uses: actions/download-artifact@v4
+      with:
+        name: general-test-arm-results
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results
