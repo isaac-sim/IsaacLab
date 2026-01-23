@@ -198,6 +198,13 @@ class JointPositionAction(JointAction):
         # set position targets
         self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+
+        # reset offsets
+        if self.cfg.use_default_offset:
+            self._offset[env_ids] = self._asset.data.default_joint_pos[env_ids, self._joint_ids].clone()
+
 
 class RelativeJointPositionAction(JointAction):
     r"""Joint action term that applies the processed actions to the articulation's joints as relative position commands.
@@ -248,6 +255,13 @@ class JointVelocityAction(JointAction):
     def apply_actions(self):
         # set joint velocity targets
         self._asset.set_joint_velocity_target(self.processed_actions, joint_ids=self._joint_ids)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+
+        # reset offsets
+        if self.cfg.use_default_offset:
+            self._offset[env_ids] = self._asset.data.default_joint_pos[env_ids, self._joint_ids].clone()
 
 
 class JointEffortAction(JointAction):
