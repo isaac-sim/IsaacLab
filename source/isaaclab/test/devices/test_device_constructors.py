@@ -509,7 +509,7 @@ def test_create_teleop_device_basic(mock_environment, mocker):
 def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     """Test creating device with callbacks."""
     # Create device configuration
-    xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(1.0, 0.0, 0.0, 0.0), near_plane=0.15)
+    xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(0.0, 0.0, 0.0, 1.0), near_plane=0.15)
     openxr_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg)
 
     # Create devices configuration dictionary
