@@ -15,12 +15,13 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.jit
-from isaaclab_contrib.assets import Multirotor
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import Camera, MultiMeshRayCasterCamera, RayCasterCamera, TiledCamera
+
+from isaaclab_contrib.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
