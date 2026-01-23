@@ -54,6 +54,13 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     then the episode length in steps is 100.
     """
 
+    only_positive_rewards: bool = False
+    """Whether to clip negative total rewards at zero. Defaults to False.
+
+    If True, then negative total rewards are clipped at zero. This is useful for avoiding early termination problems
+    in some learning algorithms.
+    """
+
     # environment settings
     rewards: object = MISSING
     """Reward settings.
