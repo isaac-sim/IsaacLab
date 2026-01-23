@@ -697,9 +697,6 @@ class XformPrimView:
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # Use cached Fabric hierarchy
-        fabric_hierarchy = self._fabric_hierarchy
-
         # Resolve indices (treat slice(None) as None for consistency with USD path)
         indices_wp = self._resolve_indices_wp(indices)
 
@@ -744,7 +741,7 @@ class XformPrimView:
         wp.synchronize()
 
         # Update world transforms within Fabric hierarchy
-        fabric_hierarchy.update_world_xforms()
+        self._fabric_hierarchy.update_world_xforms()
         # Fabric now has authoritative data; skip future USD syncs
         self._fabric_usd_sync_done = True
         # Mirror to USD for renderer-facing prims when enabled.
@@ -776,9 +773,6 @@ class XformPrimView:
         # Lazy initialization
         if not self._fabric_initialized:
             self._initialize_fabric()
-
-        # Use cached Fabric hierarchy
-        fabric_hierarchy = self._fabric_hierarchy
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
         indices_wp = self._resolve_indices_wp(indices)
@@ -817,7 +811,7 @@ class XformPrimView:
         wp.synchronize()
 
         # Update world transforms to propagate changes
-        fabric_hierarchy.update_world_xforms()
+        self._fabric_hierarchy.update_world_xforms()
         # Fabric now has authoritative data; skip future USD syncs
         self._fabric_usd_sync_done = True
         # Mirror to USD for renderer-facing prims when enabled.
@@ -995,8 +989,11 @@ class XformPrimView:
             rt_prim.GetAttribute(self._view_index_attr).Set(i)
 
         # After syncing all prims, update the Fabric hierarchy to ensure world matrices are computed
-        fabric_hierarchy = self._get_fabric_hierarchy()
-        fabric_hierarchy.update_world_xforms()
+        fabric_stage = sim_utils.get_current_stage(fabric=True)
+        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
+        )
+        self._fabric_hierarchy.update_world_xforms()
 
         # Step 2: Create index arrays for batch operations
         self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32).to(self._device)
@@ -1067,17 +1064,6 @@ class XformPrimView:
         # Force a one-time USD->Fabric sync on first read to pick up any USD edits
         # made after the view was constructed.
         self._fabric_usd_sync_done = False
-
-    def _get_fabric_hierarchy(self):
-        """Get Fabric hierarchy interface (cached)."""
-        if self._fabric_hierarchy is None:
-            import usdrt
-
-            fabric_stage = sim_utils.get_current_stage(fabric=True)
-            self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
-            )
-        return self._fabric_hierarchy
 
     def _sync_fabric_from_usd_once(self) -> None:
         """Sync Fabric world matrices from USD once, on the first read."""
