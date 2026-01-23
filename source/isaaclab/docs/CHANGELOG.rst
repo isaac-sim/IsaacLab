@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.54.1 (2026-01-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a tool to find hard-coded quaternions in the codebase and help user convert them to the new XYZW ordering.
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
 0.54.0 (2026-01-13)
 ~~~~~~~~~~~~~~~~~~~
 
