@@ -61,12 +61,19 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
         if material_prim:
-            shader_prim = CreateShaderPrimFromSdrCommand(
-                parent_path=prim_path,
-                identifier="UsdPreviewSurface",
-                stage_or_context=stage,
-                name="Shader",
-            ).do()
+            try:
+                shader_prim = CreateShaderPrimFromSdrCommand(
+                    parent_path=prim_path,
+                    identifier="UsdPreviewSurface",
+                    stage_or_context=stage,
+                    name="Shader",
+                ).do()
+            except TypeError:
+                shader_prim = CreateShaderPrimFromSdrCommand(
+                    parent_path=prim_path,
+                    identifier="UsdPreviewSurface",
+                    stage_or_context=stage,
+                ).do()
             # bind the shader graph to the material
             if shader_prim:
                 surface_out = shader_prim.GetOutput("surface")
@@ -82,7 +89,16 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
     # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
+    prim = None
+    if shader_prim:
+        if hasattr(shader_prim, "GetPrim"):
+            prim = shader_prim.GetPrim()
+        elif hasattr(shader_prim, "IsValid"):
+            prim = shader_prim
+        elif hasattr(shader_prim, "GetPath"):
+            prim = stage.GetPrimAtPath(str(shader_prim.GetPath()))
+    if prim is None or not prim.IsValid():
+        prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
     # check prim is valid
     if not prim.IsValid():
         raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")

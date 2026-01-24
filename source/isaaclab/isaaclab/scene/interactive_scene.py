@@ -120,6 +120,10 @@ class InteractiveScene:
         cfg.validate()
         # store inputs
         self.cfg = cfg
+
+        # TODO(mtrepte): remove
+        # self.cfg.clone_in_fabric = False
+
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
@@ -133,6 +137,11 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
+        # publish num_envs for consumers outside the scene
+        try:
+            self.sim.set_setting("/isaaclab/scene/num_envs", int(self.cfg.num_envs))
+        except Exception:
+            pass
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
@@ -269,6 +278,18 @@ class InteractiveScene:
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+
+        # publish env origins for consumers that cannot read USD (e.g., Fabric clones)
+        try:
+            if hasattr(env_origins, "flatten"):
+                origins_list = env_origins.flatten().tolist()
+            else:
+                origins_list = []
+                for origin in env_origins:
+                    origins_list.extend(list(origin))
+            self.sim.set_setting("/isaaclab/scene/env_origins", origins_list)
+        except Exception:
+            pass
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

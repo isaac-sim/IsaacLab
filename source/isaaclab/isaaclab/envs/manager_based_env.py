@@ -142,6 +142,14 @@ class ManagerBasedEnv:
                 self.scene = InteractiveScene(self.cfg.scene)
                 attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
+        from isaaclab.sim.utils import find_matching_prim_paths
+
+        env_prim_paths = find_matching_prim_paths("/World/envs/env_.*", stage=self.scene.stage)
+        print(
+            "[SceneDebug] env prims after InteractiveScene: "
+            f"num_envs_setting={self.cfg.scene.num_envs}, env_prims={len(env_prim_paths)}"
+        )
+        import ipdb; ipdb.set_trace()
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
