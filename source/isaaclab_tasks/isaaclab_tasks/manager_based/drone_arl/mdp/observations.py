@@ -146,9 +146,9 @@ Actions.
 
 @generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
 def last_action_navigation(env: ManagerBasedEnv, action_name: str = "velocity_commands") -> torch.Tensor:
-    """The last processed velocity commands from the navigation action term.
+    """The last processed position/velocity/acceleration commands from the navigation action term.
 
-    This function accesses the velocity commands (vx, vy, vz, yaw_rate) that
+    This function accesses the position/velocity/acceleration commands (vx, vy, vz, yaw_rate) that
     were computed by the NavigationAction term. This avoids duplicating the
     action processing logic.
 
@@ -157,11 +157,11 @@ def last_action_navigation(env: ManagerBasedEnv, action_name: str = "velocity_co
         action_name: Name of the navigation action term. Defaults to "velocity_commands".
 
     Returns:
-        torch.Tensor: Shape (num_envs, 4) containing [vx, vy, vz, yaw_rate] commands.
+        torch.Tensor: Shape (num_envs, 4) containing position/velocity/acceleration commands.
     """
     action_term = env.action_manager.get_term(action_name)
     # Access the velocity_commands property from NavigationAction
-    return action_term.prev_velocity_commands
+    return action_term.prev_commands
 
 
 """

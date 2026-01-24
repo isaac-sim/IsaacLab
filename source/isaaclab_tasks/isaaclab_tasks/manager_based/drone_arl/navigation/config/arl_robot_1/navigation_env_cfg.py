@@ -6,9 +6,6 @@
 import math
 from dataclasses import MISSING
 
-from isaaclab_contrib.assets import MultirotorCfg
-from isaaclab_contrib.controllers import LeeVelControllerCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -26,6 +23,9 @@ from isaaclab.sensors.ray_caster.patterns import PinholeCameraPatternCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+
+from isaaclab_contrib.assets import MultirotorCfg
+from isaaclab_contrib.controllers import LeeVelControllerCfg
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
 
@@ -129,7 +129,6 @@ class ActionsCfg:
         offset=0.0,
         preserve_order=False,
         use_default_offset=False,
-        command_type="vel",
         controller_cfg=LeeVelControllerCfg(
             K_vel_range=((2.5, 2.5, 1.5), (3.5, 3.5, 2.0)),
             K_rot_range=((1.6, 1.6, 0.25), (1.85, 1.85, 0.4)),
@@ -137,6 +136,9 @@ class ActionsCfg:
             max_inclination_angle_rad=1.0471975511965976,
             max_yaw_rate=1.0471975511965976,
         ),
+        max_magnitude=2.0,
+        max_yawrate=3.14 / 3.0,
+        max_inclination_angle=3.14 / 4.0,
     )
 
 

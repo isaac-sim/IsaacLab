@@ -171,41 +171,33 @@ class ThrustActionCfg(ActionTermCfg):
 
 
 @configclass
-class NavigationActionCfg(ActionTermCfg):
+class NavigationActionCfg(ThrustActionCfg):
     """Configuration for the navigation action term.
+
+    This action term constrains the controller action to be within the field of view (FOV)
+    of the camera sensor. Specifically:
+
+    - **y-component**: Always 0, as the camera FOV constraint restricts lateral movement
+    - **x and z components**: Derived from the action max_magnitude and max_inclination_angle,
+      ensuring the desired acceleration/velocity/position vector remains aligned with the camera's
+      viewing direction
+
+    This constraint ensures that navigation commands respect the sensor's field of view
+    limitations, preventing commands that would be out of the camera's visual range.
 
     See :class:`NavigationAction` for more details.
     """
 
     class_type: type[ActionTerm] = thrust_actions.NavigationAction
 
-    asset_name: str = MISSING
-    """Name or regex expression of the asset that the action will be mapped to."""
-
-    scale: float | dict[str, float] = 1.0
-    """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
-
-    offset: float | dict[str, float] = 0.0
-    """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
-
-    preserve_order: bool = False
-    """Whether to preserve the order of the asset names in the action output. Defaults to False."""
-
-    use_default_offset: bool = False
-    """Whether to use default thrust (e.g. hover thrust) configured in the articulation asset as offset.
-    Defaults to False.
-
-    If True, this flag results in overwriting the values of :attr:`offset` to the default thrust values
-    from the articulation asset.
-    """
-
-    command_type: str = "vel"
-    """Type of command to apply: "vel" for velocity commands, "pos" for position commands.
-    "acc" for acceleration commands. Defaults to "vel".
-    """
-
-    action_dim: dict[str, int] = {"vel": 3, "pos": 3, "acc": 3}
-    """Dimension of the action space for each command type."""
-
     controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING
     """The configuration for the Lee velocity controller."""
+
+    max_magnitude: float = MISSING
+    """Maximum magnitude for position [m], velocity [m/s], or acceleration [m/s²] commands."""
+
+    max_yawrate: float = MISSING
+    """Maximum yaw rate [rad/s] for position, velocity and acceleration lee geometric controller."""
+
+    max_inclination_angle: float = MISSING
+    """Maximum inclination angle [rad] for position, velocity and acceleration lee geometric controller."""
