@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,10 +24,10 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import torch
 from enum import Enum, auto
 
 import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
@@ -39,7 +39,6 @@ from isaaclab.utils import configclass
 
 # Import hand configurations for articulated collision tests
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-
 
 ##
 # Unified Shape Type Enum
@@ -71,8 +70,11 @@ class ShapeType(Enum):
 # Convenience lists for parameterization
 PRIMITIVE_SHAPES = [ShapeType.SPHERE, ShapeType.BOX, ShapeType.CAPSULE, ShapeType.CYLINDER, ShapeType.CONE]
 MESH_SHAPES = [
-    ShapeType.MESH_SPHERE, ShapeType.MESH_BOX, ShapeType.MESH_CAPSULE,
-    ShapeType.MESH_CYLINDER, ShapeType.MESH_CONE
+    ShapeType.MESH_SPHERE,
+    ShapeType.MESH_BOX,
+    ShapeType.MESH_CAPSULE,
+    ShapeType.MESH_CYLINDER,
+    ShapeType.MESH_CONE,
 ]
 SDF_SHAPES = [ShapeType.SDF_SPHERE]
 ALL_SHAPES = PRIMITIVE_SHAPES + MESH_SHAPES + SDF_SHAPES
@@ -313,8 +315,8 @@ def apply_sdf_collision(prim_path: str) -> None:
     Args:
         prim_path: The prim path of the rigid object (e.g., "/World/Object")
     """
-    from pxr import PhysxSchema, UsdPhysics
     import omni.usd
+    from pxr import PhysxSchema, UsdPhysics
 
     stage = omni.usd.get_context().get_stage()
     mesh_prim_path = f"{prim_path}/geometry/mesh"
@@ -529,7 +531,8 @@ def test_horizontal_collision(
         assert collision_detected, "Collision should have occurred between objects"
 
         _verify_collision_behavior(
-            object_a, object_b,
+            object_a,
+            object_b,
             test_level=test_level,
             tolerance=0.1,
             initial_velocity=initial_velocity,
@@ -553,12 +556,7 @@ def test_falling_collision_with_ground(
     sim_dt, _ = setup_collision_params
     fall_steps = 480  # 2 seconds
 
-    with build_simulation_context(
-        device=device,
-        dt=sim_dt,
-        gravity_enabled=True,
-        add_ground_plane=True
-    ) as sim:
+    with build_simulation_context(device=device, dt=sim_dt, gravity_enabled=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = CollisionTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
@@ -605,9 +603,7 @@ STACKING_PAIRS = [
     STACKING_PAIRS,
     ids=[f"{shape_type_to_str(b)}_under_{shape_type_to_str(t)}" for b, t in STACKING_PAIRS],
 )
-def test_box_stacking_stability(
-    setup_collision_params, device: str, bottom_shape: ShapeType, top_shape: ShapeType
-):
+def test_box_stacking_stability(setup_collision_params, device: str, bottom_shape: ShapeType, top_shape: ShapeType):
     """Test that boxes can be stably stacked on top of each other.
 
     This tests the collision system's ability to maintain stable contacts
@@ -616,12 +612,7 @@ def test_box_stacking_stability(
     sim_dt, _ = setup_collision_params
     settle_steps = 480
 
-    with build_simulation_context(
-        device=device,
-        dt=sim_dt,
-        gravity_enabled=True,
-        add_ground_plane=True
-    ) as sim:
+    with build_simulation_context(device=device, dt=sim_dt, gravity_enabled=True, add_ground_plane=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = CollisionTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
@@ -755,8 +746,8 @@ def test_momentum_conservation_equal_mass(
         scene_cfg = CollisionTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
 
         separation = 1.0
-        scene_cfg.object_a = create_shape_cfg(sphere_a, "/World/SphereA", pos=(-separation/2, 0.0, 0.5))
-        scene_cfg.object_b = create_shape_cfg(sphere_b, "/World/SphereB", pos=(separation/2, 0.0, 0.5))
+        scene_cfg.object_a = create_shape_cfg(sphere_a, "/World/SphereA", pos=(-separation / 2, 0.0, 0.5))
+        scene_cfg.object_b = create_shape_cfg(sphere_b, "/World/SphereB", pos=(separation / 2, 0.0, 0.5))
 
         scene = InteractiveScene(scene_cfg)
 
@@ -819,9 +810,7 @@ ALLEGRO_FINGER_JOINTS = {
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("target_finger", ["index", "middle", "ring", "thumb"])
 @pytest.mark.parametrize("sphere_type", [ShapeType.SPHERE, ShapeType.MESH_SPHERE, ShapeType.SDF_SPHERE])
-def test_finger_collision_isolation(
-    setup_collision_params, device: str, target_finger: str, sphere_type: ShapeType
-):
+def test_finger_collision_isolation(setup_collision_params, device: str, target_finger: str, sphere_type: ShapeType):
     """Test that dropping an object on one finger only affects that finger.
 
     This test:
