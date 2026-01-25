@@ -74,6 +74,7 @@ def setup_simulation():
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()

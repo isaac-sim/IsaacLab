@@ -26,6 +26,7 @@ def sim():
     sim = SimulationContext(SimulationCfg(dt=dt))
     sim_utils.update_stage()
     yield sim
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()

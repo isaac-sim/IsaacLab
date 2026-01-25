@@ -56,6 +56,7 @@ def sim_config():
     sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()
