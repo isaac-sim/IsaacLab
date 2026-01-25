@@ -9,6 +9,8 @@ isaaclab_contrib.controllers
 
     LeeAccController
     LeeAccControllerCfg
+    LeeAttController
+    LeeAttControllerCfg
     LeePosController
     LeePosControllerCfg
     LeeVelController
@@ -23,6 +25,19 @@ Lee Acceleration Controller
   :show-inheritance:
 
 .. autoclass:: LeeAccControllerCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
+Lee Attitude Controller
+-------------------------
+.. autoclass:: LeeAttController
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: LeeAttControllerCfg
   :members:
   :inherited-members:
   :show-inheritance:
