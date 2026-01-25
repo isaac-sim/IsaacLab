@@ -164,7 +164,7 @@ class ObservationsCfg:
             params={"action_name": "velocity_commands"},
         )
         depth_latent = ObsTerm(
-            func=mdp.image_latents,
+            func=mdp.ImageLatentObservation,
             params={"sensor_cfg": SceneEntityCfg("depth_camera"), "data_type": "distance_to_image_plane"},
         )
 

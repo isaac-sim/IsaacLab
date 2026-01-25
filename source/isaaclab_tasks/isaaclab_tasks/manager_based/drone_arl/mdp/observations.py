@@ -11,6 +11,7 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import torch
@@ -18,13 +19,14 @@ import torch.jit
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.sensors import Camera, MultiMeshRayCasterCamera, RayCasterCamera, TiledCamera
 
 from isaaclab_contrib.assets import Multirotor
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.managers import ObservationTermCfg
 
 from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 
@@ -66,77 +68,62 @@ Sensors
 """
 
 
-class VAEModelManager:
-    """Manager for the VAE model."""
+class ImageLatentObservation(ManagerTermBase):
+    """Callable observation term that returns VAE latents from camera images.
 
-    _model = None
+    The VAE model is loaded once and cached on the class to avoid repeated disk loads.
+    Configure the sensor, data type, and normalization behavior at construction time.
+    """
+
+    _model: torch.jit.ScriptModule | None = None
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self.camera_sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[
+            cfg.params["sensor_cfg"].name
+        ]
+        self.data_type: str = cfg.params["data_type"]
+        self.convert_perspective_to_orthogonal: bool = (False,)
+        self.normalize: bool = True
 
     @classmethod
-    def get_model(cls, device):
-        """Get or load the VAE model."""
+    def _get_model(cls, device):
         if cls._model is None:
-            import os
-
             model_path = os.path.join(ISAACLAB_TASKS_EXT_DIR, "data", "drone_arl", "vae_model.pt")
             cls._model = torch.jit.load(model_path, map_location=device)
             cls._model.eval()
         return cls._model
 
+    def __call__(self, env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
+        """Return VAE latents for the configured camera feed.
 
-def image_latents(
-    env: ManagerBasedEnv,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
-    convert_perspective_to_orthogonal: bool = False,
-    normalize: bool = True,
-) -> torch.Tensor:
-    """Images of a specific datatype from the camera sensor.
+        Args:
+            env: The environment providing scene and device information.
 
-    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
-    data-types:
+        Returns:
+            Tensor of VAE latents from the camera feed.
+        """
 
-    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
-    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
+        images = self.camera_sensor.data.output[self.data_type]
 
-    Args:
-        env: The environment the cameras are placed within.
-        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
-        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
-            This is used only when the data type is "distance_to_camera". Defaults to False.
-        normalize: Whether to normalize the images. This depends on the selected data type.
-            Defaults to True.
+        if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
+            images = math_utils.orthogonalize_perspective_depth(images, self.camera_sensor.data.intrinsic_matrices)
 
-    Returns:
-        The images produced at the last time-step
-    """
-    # extract the used quantities (to enable type-hinting)
-    sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[sensor_cfg.name]
+        if self.normalize:
+            if self.data_type == "distance_to_image_plane":
+                images[images == float("inf")] = 10.0
+                images[images == -float("inf")] = 10.0
+                images[images > 10.0] = 10.0
+                images = images / 10.0
+                images[images < 0.02] = -1.0
+            else:
+                raise ValueError(f"Image data type: {self.data_type} not supported")
 
-    # obtain the input image
-    images = sensor.data.output[data_type]
+        vae_model = self._get_model(env.device)
+        with torch.no_grad():
+            latents = vae_model(images.squeeze(-1).half())
 
-    # depth image conversion
-    if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
-        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
-
-    # rgb/depth/normals image normalization
-    if normalize:
-        if data_type == "distance_to_image_plane":
-            images[images == float("inf")] = 10.0
-            images[images == -float("inf")] = 10.0
-            images[images > 10.0] = 10.0
-            images = images / 10.0  # normalize to 0-1
-            images[images < 0.02] = -1.0  # set very close values to -1
-        else:
-            raise ValueError(f"Image data type: {data_type} not supported")
-
-    _vae_model = VAEModelManager.get_model(env.device)
-
-    with torch.no_grad():
-        latents = _vae_model(images.squeeze(-1).half())
-
-    return latents
+        return latents
 
 
 """
