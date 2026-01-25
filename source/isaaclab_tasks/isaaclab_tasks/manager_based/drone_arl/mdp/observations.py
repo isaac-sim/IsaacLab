@@ -71,39 +71,115 @@ Sensors
 class ImageLatentObservation(ManagerTermBase):
     """Callable observation term that returns VAE latents from camera images.
 
-    The VAE model is loaded once and cached on the class to avoid repeated disk loads.
-    Configure the sensor, data type, and normalization behavior at construction time.
+    This observation term extracts images from a configured camera sensor, normalizes them
+    based on the data type, and passes them through a pre-trained VAE model to obtain
+    latent representations. The VAE model is loaded once and cached on the class to avoid
+    repeated disk loads across all instances.
+
+    The term is designed to work with the Isaac Lab observation manager and integrates
+    seamlessly with other observation terms in multi-modal observation spaces.
+
+    Attributes:
+        camera_sensor: The camera sensor to extract images from (TiledCamera, Camera,
+            RayCasterCamera, or MultiMeshRayCasterCamera).
+        data_type: Type of data to extract from the sensor (e.g., "distance_to_image_plane").
+        convert_perspective_to_orthogonal: Whether to convert perspective depth to orthogonal.
+        normalize: Whether to normalize images before passing to VAE.
+
+    Example:
+        To use this in an environment configuration:
+
+        .. code-block:: python
+
+            depth_latent = ObsTerm(
+                func=mdp.ImageLatentObservation,
+                params={
+                    "sensor_cfg": SceneEntityCfg("depth_camera"),
+                    "data_type": "distance_to_image_plane",
+                    "normalize": True,
+                },
+            )
     """
 
     _model: torch.jit.ScriptModule | None = None
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the image latent observation term.
+
+        Extracts configuration from cfg.params and caches a reference to the camera sensor
+        for efficient repeated access during observation collection.
+
+        Args:
+            cfg: Configuration object containing the observation term configuration,
+                including params dict with:
+                - sensor_cfg (SceneEntityCfg): Scene entity config for the camera sensor.
+                - data_type (str): Data type to extract from the sensor.
+                - convert_perspective_to_orthogonal (bool, optional): Whether to convert
+                  perspective to orthogonal depth. Defaults to False.
+                - normalize (bool, optional): Whether to normalize images. Defaults to True.
+            env: The manager-based RL environment instance.
+
+        Raises:
+            KeyError: If required params ("sensor_cfg", "data_type") are missing.
+            RuntimeError: If the specified camera sensor is not found in the scene.
+        """
         super().__init__(cfg, env)
         self.camera_sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[
             cfg.params["sensor_cfg"].name
         ]
         self.data_type: str = cfg.params["data_type"]
-        self.convert_perspective_to_orthogonal: bool = (False,)
-        self.normalize: bool = True
+        self.convert_perspective_to_orthogonal: bool = cfg.params.get("convert_perspective_to_orthogonal", False)
+        self.normalize: bool = cfg.params.get("normalize", True)
 
     @classmethod
     def _get_model(cls, device):
+        """Load or retrieve the cached VAE model.
+
+        The model is loaded from disk only once per process and cached on the class.
+        Subsequent calls return the cached instance, avoiding repeated I/O and model
+        initialization overhead.
+
+        Args:
+            device: PyTorch device to load the model onto (e.g., "cpu", "cuda:0").
+
+        Returns:
+            Loaded VAE model as a TorchScript ScriptModule, set to evaluation mode.
+
+        Raises:
+            FileNotFoundError: If the VAE model file cannot be found at the expected path.
+            RuntimeError: If the model cannot be loaded (e.g., corrupted file).
+        """
         if cls._model is None:
             model_path = os.path.join(ISAACLAB_TASKS_EXT_DIR, "data", "drone_arl", "vae_model.pt")
             cls._model = torch.jit.load(model_path, map_location=device)
             cls._model.eval()
         return cls._model
 
-    def __call__(self, env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
-        """Return VAE latents for the configured camera feed.
+    def __call__(self, env: ManagerBasedEnv, **kwargs) -> torch.Tensor:
+        """Compute VAE latents for the current camera frame.
+
+        Extracts images from the camera sensor, applies normalization if configured,
+        and passes them through the VAE model to obtain latent representations.
 
         Args:
-            env: The environment providing scene and device information.
+            env: The manager-based environment providing scene and device information.
+            **kwargs: Additional keyword arguments passed by the observation manager
+                (ignored, configuration is already set during initialization).
 
         Returns:
-            Tensor of VAE latents from the camera feed.
-        """
+            torch.Tensor: Latent representations from the VAE model.
+                Shape is determined by the VAE architecture (typically (num_envs, latent_dim)).
 
+        Raises:
+            ValueError: If data_type is "distance_to_image_plane" but normalize is False,
+                or if an unsupported data_type is encountered with normalize=True.
+            RuntimeError: If the VAE model inference fails or tensors have incompatible shapes.
+
+        Notes:
+            - Images are converted to float16 before passing to the VAE for efficiency.
+            - Infinity values in depth images are clamped to 10.0 during normalization.
+            - Very small depth values (< 0.02) are set to -1.0 to indicate invalid regions.
+        """
         images = self.camera_sensor.data.output[self.data_type]
 
         if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
