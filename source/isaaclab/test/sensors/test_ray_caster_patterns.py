@@ -130,9 +130,7 @@ class TestLidarPattern:
             ((-180.0, 180.0), 90.0, 1, (45.0, 45.0)),
         ],
     )
-    def test_lidar_pattern_num_rays(
-        self, device, horizontal_fov_range, horizontal_res, channels, vertical_fov_range
-    ):
+    def test_lidar_pattern_num_rays(self, device, horizontal_fov_range, horizontal_res, channels, vertical_fov_range):
         """Test that lidar pattern generates the correct number of rays."""
         cfg = patterns_cfg.LidarPatternCfg(
             horizontal_fov_range=horizontal_fov_range,
@@ -149,9 +147,9 @@ class TestLidarPattern:
                 math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
             ) - 1
         else:
-            expected_num_horizontal = math.ceil(
-                (horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res
-            ) + 1
+            expected_num_horizontal = (
+                math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
+            )
 
         expected_num_rays = channels * expected_num_horizontal
 
@@ -241,9 +239,9 @@ class TestLidarPattern:
         ray_starts, ray_directions = patterns.lidar_pattern(cfg, device)
 
         # Check that we have the right number of rays
-        assert (
-            ray_starts.shape[0] == expected_num_rays
-        ), f"Expected {expected_num_rays} rays, got {ray_starts.shape[0]} rays"
+        assert ray_starts.shape[0] == expected_num_rays, (
+            f"Expected {expected_num_rays} rays, got {ray_starts.shape[0]} rays"
+        )
 
         # Calculate angles from directions
         angles = torch.atan2(ray_directions[:, 1], ray_directions[:, 0])
@@ -256,9 +254,9 @@ class TestLidarPattern:
         for i in range(len(angles_deg_sorted) - 1):
             angular_diff = abs(angles_deg_sorted[i + 1].item() - angles_deg_sorted[i].item())
             # Allow small tolerance for floating point errors
-            assert (
-                abs(angular_diff - expected_angular_spacing) < 1.0
-            ), f"Angular spacing {angular_diff:.2f}° does not match expected {expected_angular_spacing}°"
+            assert abs(angular_diff - expected_angular_spacing) < 1.0, (
+                f"Angular spacing {angular_diff:.2f}° does not match expected {expected_angular_spacing}°"
+            )
 
         # For 360 degree FOV, also check that first and last angles wrap correctly
         is_360 = abs(abs(horizontal_fov_range[0] - horizontal_fov_range[1]) - 360.0) < 1e-6
@@ -267,9 +265,9 @@ class TestLidarPattern:
             first_angle = angles_deg_sorted[0].item()
             last_angle = angles_deg_sorted[-1].item()
             wraparound_diff = (first_angle + 360) - last_angle
-            assert (
-                abs(wraparound_diff - expected_angular_spacing) < 1.0
-            ), f"Wraparound spacing {wraparound_diff:.2f}° does not match expected {expected_angular_spacing}°"
+            assert abs(wraparound_diff - expected_angular_spacing) < 1.0, (
+                f"Wraparound spacing {wraparound_diff:.2f}° does not match expected {expected_angular_spacing}°"
+            )
 
 
 class TestBpearlPattern:
@@ -393,9 +391,7 @@ class TestPinholeCameraPattern:
         for i in range(batch_size):
             fx = fy = 500.0 + i * 100
             cx = cy = 25.0
-            intrinsic_matrices.append(
-                torch.tensor([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], device=device)
-            )
+            intrinsic_matrices.append(torch.tensor([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], device=device))
         intrinsic_matrices = torch.stack(intrinsic_matrices)
 
         ray_starts, ray_directions = patterns.pinhole_camera_pattern(cfg, intrinsic_matrices, device)
