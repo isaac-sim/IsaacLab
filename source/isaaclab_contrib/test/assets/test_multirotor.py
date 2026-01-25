@@ -23,11 +23,12 @@ import warnings
 
 import pytest
 import torch
-from isaaclab_contrib.assets import Multirotor, MultirotorCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import build_simulation_context
+
+from isaaclab_contrib.assets import Multirotor, MultirotorCfg
 
 # Best-effort: suppress unraisable destructor warnings emitted during
 # teardown of partially-constructed assets in CI/dev environments. We still
