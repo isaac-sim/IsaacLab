@@ -873,6 +873,113 @@ def test_sensor_print(setup_sim_camera):
     print(sensor)
 
 
+def test_camera_update_pose_with_moving_xform(setup_sim_camera):
+    """Test camera pose updates when attached to a robot base.
+
+    The camera is placed under the robot's base link with an offset, and we verify that when the
+    robot base moves, the camera's world pose is correctly updated when update_latest_camera_pose=True.
+    """
+    from isaaclab.assets import Articulation
+    from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
+
+    # Use the fixture to get sim context
+    sim, _, dt = setup_sim_camera
+
+    # Create articulation using existing ANYmal-C configuration
+    robot_cfg = ANYMAL_C_CFG.copy()
+    robot_cfg.prim_path = "/World/Robot"
+    robot = Articulation(robot_cfg)
+
+    # Create camera configuration with offset under the robot base
+    camera_offset = (0.5, 0.0, 0.2)  # Camera offset from robot base
+    camera_offset = (0.0, 0.0, 0.0)  # Camera offset from robot base
+    camera_cfg = CameraCfg(
+        height=HEIGHT,
+        width=WIDTH,
+        prim_path="/World/Robot/base/Camera",
+        update_period=0,
+        update_latest_camera_pose=True,  # Key parameter to test
+        data_types=["rgb"],
+        offset=CameraCfg.OffsetCfg(
+            pos=camera_offset,
+            convention="world",
+        ),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+    )
+
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Load stage and play sim
+    sim_utils.update_stage()
+    sim.reset()
+
+    # Update camera to get initial pose
+    camera.update(dt)
+    initial_camera_pos = camera.data.pos_w[0].clone()
+
+    # Get initial base position from articulation
+    initial_base_pos = camera.data.pos_w[0].clone()
+
+    # Calculate expected initial camera position: base pos + offset
+    expected_initial_camera_pos = initial_base_pos + torch.tensor(
+        camera_offset, device=sim.device
+    )
+
+    # Print initial debug information
+    print(f"\nInitial base: {initial_base_pos}")
+    print(f"Initial camera: {initial_camera_pos}")
+    print(f"Expected initial camera: {expected_initial_camera_pos}")
+    print(f"Initial camera error: {initial_camera_pos - expected_initial_camera_pos}")
+
+    # BUG: Even the initial camera position is incorrect when attached to a physics body!
+    # This demonstrates that update_latest_camera_pose has fundamental issues.
+    # NOTE: This assertion will fail
+    with pytest.raises(AssertionError):
+        torch.testing.assert_close(
+            initial_camera_pos, expected_initial_camera_pos, rtol=1e-3, atol=1e-3
+        )
+
+    # Simulate more steps (robot will move slightly due to physics/gravity)
+    for _ in range(10):
+        sim.step()
+        robot.update(dt)
+
+    # Update camera and get updated positions
+    camera.update(dt)
+    updated_camera_pos = camera.data.pos_w[0].clone()
+    updated_base_pos = robot.data.root_pos_w[0].clone()
+
+    # Calculate expected camera position based on actual base position
+    expected_updated_camera_pos = updated_base_pos + torch.tensor(
+        camera_offset, device=sim.device
+    )
+
+    # Print debug information
+    print(f"\nInitial base: {initial_base_pos}")
+    print(f"Updated base: {updated_base_pos}")
+    print(f"Base movement: {updated_base_pos - initial_base_pos}")
+    print(f"Initial camera: {initial_camera_pos}")
+    print(f"Updated camera: {updated_camera_pos}")
+    print(f"Expected camera: {expected_updated_camera_pos}")
+    print(f"Camera error: {updated_camera_pos - expected_updated_camera_pos}")
+
+    # Verify camera position still matches base + offset
+    # NOTE: This will fail, demonstrating the bug
+    with pytest.raises(AssertionError):
+        torch.testing.assert_close(
+            updated_camera_pos,
+            expected_updated_camera_pos,
+            rtol=1e-3,
+            atol=1e-3,
+        )
+
+
 def _populate_scene():
     """Add prims to the scene."""
     # Ground-plane
