@@ -196,8 +196,9 @@ class NavigationActionCfg(ThrustActionCfg):
     max_magnitude: float = MISSING
     """Maximum magnitude for position [m], velocity [m/s], or acceleration [m/s²] commands."""
 
-    max_yawrate: float = MISSING
-    """Maximum yaw rate [rad/s] for position, velocity and acceleration lee geometric controller."""
+    max_yaw_command: float = MISSING
+    """Maximum yaw command. Yaw rate [rad/s] for velocity and acceleration lee geometric controller and relative 
+    yaw change [rad] for position lee geometric controller."""
 
     max_inclination_angle: float = MISSING
     """Maximum inclination angle [rad] for position, velocity and acceleration lee geometric controller."""

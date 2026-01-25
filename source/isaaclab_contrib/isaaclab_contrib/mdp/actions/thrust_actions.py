@@ -284,14 +284,16 @@ class NavigationAction(ThrustAction):
             Always 0.0 (constrained to camera FOV)
         - Vertical position/velocity/acceleration:
             [0, max_magnitude] via (action[0] + 1) * sin(pitch) * max_magnitude / 2
-        - Yaw rate: [-max_yawrate, max_yawrate] via action[2] * max_yawrate
+        - Yaw command: [-max_yaw_command, max_yaw_command] via action[2] * max_yaw_command (yaw command is yawrate
+          [rad/s] for velocity and acceleration control and relative yaw change [rad] for position control)
 
         Where:
         - pitch angle is computed as: action[1] * max_inclination_angle
 
     Parameters (from cfg):
         max_magnitude: Maximum translational magnitude for position/velocity/acceleration commands.
-        max_yawrate: Maximum yaw rate in rad/s.
+        max_yaw_command: Maximum yaw command in rad/s for velocity and acceleration 
+                         control and relative yaw change [rad] for position control.
         max_inclination_angle: Maximum pitch angle in rad.
 
     Notes:
@@ -306,7 +308,7 @@ class NavigationAction(ThrustAction):
             controller_cfg=LeeVelControllerCfg(...),
             asset_name="robot",
             max_magnitude=2.0,
-            max_yawrate=1.047,  # pi/3
+            max_yaw_command=1.047,  
             max_inclination_angle=0.785,  # pi/4
         )
         nav_action = NavigationAction(cfg, env)
@@ -389,7 +391,7 @@ class NavigationAction(ThrustAction):
             * self.cfg.max_magnitude
             / 2.0
         )
-        processed_actions[:, 3] = clamped_action[:, 2] * self.cfg.max_yawrate
+        processed_actions[:, 3] = clamped_action[:, 2] * self.cfg.max_yaw_command
 
         # Store velocity commands for observations
         if not self._has_actions_updated:

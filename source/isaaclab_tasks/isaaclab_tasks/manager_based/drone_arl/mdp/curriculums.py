@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to create curriculum for the drone navigation environment.
+"""Common curriculum classes for the drone navigation environment.
 
-The functions can be passed to the :class:`isaaclab.managers.CurriculumTermCfg` object to enable
-the curriculum introduced by the function.
+The curriculum classes can be passed to the :class:`isaaclab.managers.CurriculumTermCfg` object to enable
+the curriculum introduced by the class.
 """
 
 from __future__ import annotations
@@ -17,90 +17,121 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def get_obstacle_curriculum_state(
-    env: ManagerBasedRLEnv,
-    min_difficulty: int = 2,
-    max_difficulty: int = 10,
-) -> dict:
-    """Get or lazily initialize the obstacle curriculum state dictionary.
+class ObstacleDensityCurriculum(ManagerTermBase):
+    """Curriculum that adjusts obstacle density based on performance.
 
-    This helper function manages the obstacle curriculum state by initializing it
-    on first call and returning the existing state on subsequent calls. The state
-    is stored as a private attribute on the environment instance.
+    The difficulty state is stored internally in the class instance, avoiding
+    the need to store state on the environment object.
 
-    The curriculum state tracks per-environment difficulty levels used to control
+    The curriculum tracks per-environment difficulty levels used to control
     the number of obstacles spawned in each environment. Difficulty progresses
     based on agent performance (successful goal reaching vs. collisions).
 
-    Args:
-        env: The manager-based RL environment instance.
-        min_difficulty: Minimum difficulty level for obstacle density. Lower values
-            mean fewer obstacles. Defaults to 2.
-        max_difficulty: Maximum difficulty level for obstacle density. Higher values
-            mean more obstacles. Defaults to 10.
-
-    Returns:
-        Dictionary containing:
-            - "difficulty_levels": torch.Tensor of shape (num_envs,) with per-environment
-              difficulty levels, initialized to min_difficulty
-            - "min_difficulty": int, the minimum difficulty value
-            - "max_difficulty": int, the maximum difficulty value
-
-    Note:
-        This function stores state directly on the environment as `_obstacle_curriculum_state`.
-        It's designed to be called from both curriculum terms and reward functions to ensure
-        consistent access to the difficulty state.
+    Attributes:
+        cfg: The configuration of the curriculum term.
+        _min_difficulty: Minimum difficulty level for obstacle density.
+        _max_difficulty: Maximum difficulty level for obstacle density.
+        _difficulty_levels: Tensor of shape (num_envs,) tracking difficulty per environment.
+        _asset_cfg: Scene entity configuration for the robot.
+        _command_name: Name of the command to track.
     """
 
-    if not hasattr(env, "_obstacle_curriculum_state"):
-        env._obstacle_curriculum_state = {
-            "difficulty_levels": torch.ones(env.num_envs, device=env.device) * min_difficulty,
-            "min_difficulty": min_difficulty,
-            "max_difficulty": max_difficulty,
-        }
-    return env._obstacle_curriculum_state
+    cfg: CurriculumTermCfg
+    """The configuration of the curriculum term."""
 
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the curriculum term.
 
-def obstacle_density_curriculum(
-    env: ManagerBasedRLEnv,
-    env_ids: Sequence[int],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    command_name: str = "target_pose",
-    max_difficulty: int = 10,
-    min_difficulty: int = 2,
-) -> float:
-    """Curriculum that adjusts obstacle density based on performance.
+        Args:
+            cfg: Configuration for the curriculum term.
+            env: The manager-based RL environment instance.
+        """
+        super().__init__(cfg, env)
 
-    The difficulty state is managed centrally via get_obstacle_curriculum_state().
-    This ensures consistent access across curriculum, reward, and event terms.
-    """
-    # Get or initialize curriculum state
-    curriculum_state = get_obstacle_curriculum_state(env, min_difficulty, max_difficulty)
+        # Extract parameters from config
+        self._min_difficulty = cfg.params.get("min_difficulty", 2)
+        self._max_difficulty = cfg.params.get("max_difficulty", 10)
+        self._asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        self._command_name = cfg.params.get("command_name", "target_pose")
 
-    # Extract robot and command
-    asset: Articulation = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
+        # Initialize difficulty levels for all environments
+        self._difficulty_levels = torch.ones(env.num_envs, device=env.device) * self._min_difficulty
 
-    target_position_w = command[:, :3].clone()
-    current_position = asset.data.root_pos_w - env.scene.env_origins
-    position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        command_name: str = "target_pose",
+        max_difficulty: int = 10,
+        min_difficulty: int = 2,
+    ) -> float:
+        """Update obstacle density curriculum based on performance.
 
-    # Decide difficulty changes
-    crashed = env.termination_manager.terminated[env_ids]
-    move_up = position_error < 1.5  # Success
-    move_down = crashed & ~move_up
+        Args:
+            env: The manager-based RL environment instance.
+            env_ids: Environment indices to update.
+            asset_cfg: Scene entity configuration for the robot. Defaults to SceneEntityCfg("robot").
+            command_name: Name of the command to track. Defaults to "target_pose".
+            max_difficulty: Maximum difficulty level. Defaults to 10.
+            min_difficulty: Minimum difficulty level. Defaults to 2.
 
-    # Update difficulty levels
-    difficulty_levels = curriculum_state["difficulty_levels"]
-    difficulty_levels[env_ids] += move_up.long() - move_down.long()
-    difficulty_levels[env_ids] = torch.clamp(
-        difficulty_levels[env_ids], min=curriculum_state["min_difficulty"], max=curriculum_state["max_difficulty"] - 1
-    )
+        Returns:
+            Mean difficulty level across all environments (for logging).
+        """
+        # Extract robot and command
+        asset: Articulation = env.scene[asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
 
-    return difficulty_levels.float().mean().item()
+        target_position_w = command[:, :3].clone()
+        current_position = asset.data.root_pos_w - env.scene.env_origins
+        position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
+
+        # Decide difficulty changes
+        crashed = env.termination_manager.terminated[env_ids]
+        move_up = position_error < 1.5  # Success
+        move_down = crashed & ~move_up
+
+        # Update difficulty levels
+        self._difficulty_levels[env_ids] += move_up.long() - move_down.long()
+        self._difficulty_levels[env_ids] = torch.clamp(
+            self._difficulty_levels[env_ids], min=min_difficulty, max=max_difficulty - 1
+        )
+
+        return self._difficulty_levels.float().mean().item()
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Reset the curriculum state for specified environments.
+
+        Args:
+            env_ids: Environment indices to reset. If None, resets all environments.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
+        self._difficulty_levels[env_ids] = self._min_difficulty
+
+    @property
+    def difficulty_levels(self) -> torch.Tensor:
+        """Get the current difficulty levels for all environments.
+
+        Returns:
+            Tensor of shape (num_envs,) with difficulty levels.
+        """
+        return self._difficulty_levels
+
+    @property
+    def min_difficulty(self) -> int:
+        """Get the minimum difficulty level."""
+        return self._min_difficulty
+
+    @property
+    def max_difficulty(self) -> int:
+        """Get the maximum difficulty level."""
+        return self._max_difficulty
