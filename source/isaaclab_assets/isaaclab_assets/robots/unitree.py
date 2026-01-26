@@ -56,7 +56,7 @@ This model is taken from: https://github.com/Improbable-AI/walk-these-ways
 
 UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -103,7 +103,7 @@ Note: Specifications taken from: https://www.trossenrobotics.com/a1-quadruped#sp
 
 UNITREE_GO1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -139,7 +139,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
 
 UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -266,12 +266,13 @@ H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_mi
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
+Uses the Physx_minimal variant from the h1.usd file.
 """
 
 
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_23dof/g1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -378,7 +379,7 @@ G1_CFG = ArticulationCfg(
 
 
 G1_MINIMAL_CFG = G1_CFG.copy()
-G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
+G1_MINIMAL_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1_23dof/g1_minimal.usd"
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
@@ -389,6 +390,7 @@ G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=False,
+        variants={"Physics": "PhysX"},
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             retain_accelerations=False,
@@ -555,16 +557,10 @@ Usage examples:
     mobile_cfg.spawn.articulation_props.fix_root_link = False
 """
 
-"""
-Configuration for the Unitree G1 Humanoid robot with Inspire 5fingers hand.
-The Unitree G1 URDF can be found here: https://github.com/unitreerobotics/unitree_ros/tree/master/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf
-The Inspire hand URDF is available at: https://github.com/unitreerobotics/xr_teleoperate/tree/main/assets/inspire_hand
-The merging code for the hand and robot can be found here: https://github.com/unitreerobotics/unitree_ros/blob/master/robots/g1_description/merge_g1_29dof_and_inspire_hand.ipynb,
-Necessary modifications should be made to ensure the correct parent–child relationship.
-"""
+
 # Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
 G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
-G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd"
+G1_INSPIRE_FTP_CFG.spawn.variants = {"Physics": "PhysX", "right_hand": "Inspire", "left_hand": "Inspire"}
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
 G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True
@@ -573,6 +569,8 @@ G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
     joint_pos={".*": 0.0},
     joint_vel={".*": 0.0},
 )
+# Create a new actuators dict to avoid shallow copy issues
+G1_INSPIRE_FTP_CFG.actuators = G1_INSPIRE_FTP_CFG.actuators.copy()
 # Actuator configuration for arms (stability focused for manipulation)
 # Increased damping improves stability of arm movements
 G1_INSPIRE_FTP_CFG.actuators["arms"] = ImplicitActuatorCfg(
@@ -609,3 +607,10 @@ G1_INSPIRE_FTP_CFG.actuators["hands"] = ImplicitActuatorCfg(
     damping=0.2,
     armature=0.001,
 )
+"""Configuration for the Unitree G1 Humanoid robot with Inspire 5fingers hand.
+
+The Unitree G1 URDF can be found here: https://github.com/unitreerobotics/unitree_ros/tree/master/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf
+The Inspire hand URDF is available at: https://github.com/unitreerobotics/xr_teleoperate/tree/main/assets/inspire_hand
+The merging code for the hand and robot can be found here: https://github.com/unitreerobotics/unitree_ros/blob/master/robots/g1_description/merge_g1_29dof_and_inspire_hand.ipynb,
+Necessary modifications should be made to ensure the correct parent–child relationship.
+"""

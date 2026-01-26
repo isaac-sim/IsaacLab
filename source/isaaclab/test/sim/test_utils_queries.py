@@ -18,7 +18,7 @@ import pytest
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -98,7 +98,9 @@ def test_get_all_matching_child_prims():
     # note: isaac sim function does not support instanced prims so we add it here
     #  after the above test for the above test to still pass.
     sim_utils.create_prim(
-        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
 
     # test with predicate
@@ -123,13 +125,19 @@ def test_get_first_matching_child_prim():
     # create scene
     sim_utils.create_prim("/World/Floor")
     sim_utils.create_prim(
-        "/World/env_1/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_1/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
     sim_utils.create_prim(
-        "/World/env_2/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_2/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
     sim_utils.create_prim(
-        "/World/env_0/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        "/World/env_0/Franka",
+        "Xform",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd",
     )
 
     # test
@@ -151,8 +159,10 @@ def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
     sim_utils.create_prim("/World")
-    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd")
+    sim_utils.create_prim(
+        "/World/Franka", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaEmika/panda_instanceable.usd"
+    )
     if "4.5" in ISAAC_NUCLEUS_DIR:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
     else:

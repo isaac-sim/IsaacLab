@@ -23,7 +23,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +76,7 @@ def test_create_prim():
     assert prim.GetAttribute("size").Get() == 100
 
     # check adding USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
     # check USD reference set
     assert prim.IsValid()
@@ -319,7 +319,7 @@ def test_delete_prim():
     # check for usd reference
     prim = sim_utils.create_prim(
         "/World/Test/USDReference",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         stage=stage,
     )
     # delete prim
@@ -345,7 +345,7 @@ def test_move_prim():
     prim = sim_utils.create_prim(
         "/World/Test/Xform",
         "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
         translation=(1.0, 2.0, 3.0),
         orientation=(0.0, 0.0, 0.0, 1.0),
         stage=stage,
@@ -392,7 +392,7 @@ def test_get_usd_references():
     assert len(refs) == 0
 
     # Create a prim with a USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
     # Check that it has the expected reference
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
