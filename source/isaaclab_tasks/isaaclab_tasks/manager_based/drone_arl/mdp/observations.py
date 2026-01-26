@@ -128,8 +128,8 @@ class ImageLatentObservation(ManagerTermBase):
             cfg.params["sensor_cfg"].name
         ]
         self.data_type: str = cfg.params["data_type"]
-        self.convert_perspective_to_orthogonal: bool = cfg.params.get("convert_perspective_to_orthogonal", False)
-        self.normalize: bool = cfg.params.get("normalize", True)
+        self.convert_perspective_to_orthogonal: bool = (False,)
+        self.normalize: bool = True
 
     @classmethod
     def _get_model(cls, device):
@@ -155,7 +155,7 @@ class ImageLatentObservation(ManagerTermBase):
             cls._model.eval()
         return cls._model
 
-    def __call__(self, env: ManagerBasedEnv, **kwargs) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
         """Compute VAE latents for the current camera frame.
 
         Extracts images from the camera sensor, applies normalization if configured,
