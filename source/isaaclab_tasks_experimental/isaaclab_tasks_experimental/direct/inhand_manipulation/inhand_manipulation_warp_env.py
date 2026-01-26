@@ -207,11 +207,8 @@ def compute_intermediate_values(
     fingertip_pos: wp.array2d(dtype=wp.vec3f),
     fingertip_rot: wp.array2d(dtype=wp.quatf),
     fingertip_velocities: wp.array2d(dtype=wp.spatial_vectorf),
-    object_pos: wp.array(dtype=wp.vec3f),
-    object_rot: wp.array(dtype=wp.quatf),
-    object_velocities: wp.array(dtype=wp.spatial_vectorf),
-    object_linvel: wp.array(dtype=wp.vec3f),
-    object_angvel: wp.array(dtype=wp.vec3f),
+    object_pose: wp.array(dtype=wp.transformf),
+    object_vels: wp.array(dtype=wp.spatial_vectorf),
 ):
     env_id = wp.tid()
 
@@ -221,24 +218,19 @@ def compute_intermediate_values(
         fingertip_rot[env_id, i] = body_quat_w[env_id, body_id]
         fingertip_velocities[env_id, i] = body_vel_w[env_id, body_id]
 
-    p = wp.transform_get_translation(object_root_pose_w[env_id])
-    object_pos[env_id] = p - env_origins[env_id]
-    object_rot[env_id] = wp.transform_get_rotation(object_root_pose_w[env_id])
-    object_velocities[env_id] = object_root_vel_w[env_id]
-    object_linvel[env_id] = wp.vec3f(
-        object_root_vel_w[env_id][0], object_root_vel_w[env_id][1], object_root_vel_w[env_id][2]
-    )
-    object_angvel[env_id] = wp.vec3f(
-        object_root_vel_w[env_id][3], object_root_vel_w[env_id][4], object_root_vel_w[env_id][5]
-    )
+    # Store object pose in env-local frame (translation only; orientation unchanged).
+    pos_w = wp.transform_get_translation(object_root_pose_w[env_id])
+    pos = pos_w - env_origins[env_id]
+    rot = wp.transform_get_rotation(object_root_pose_w[env_id])
+    object_pose[env_id] = wp.transform(pos, rot)
+    object_vels[env_id] = object_root_vel_w[env_id]
 
 
 @wp.kernel
 def get_dones(
     # input
     max_episode_length: wp.int32,
-    object_pos: wp.array(dtype=wp.vec3f),
-    object_rot: wp.array(dtype=wp.quatf),
+    object_pose: wp.array(dtype=wp.transformf),
     in_hand_pos: wp.array(dtype=wp.vec3f),
     goal_rot: wp.array(dtype=wp.quatf),
     fall_dist: wp.float32,
@@ -254,13 +246,16 @@ def get_dones(
 ):
     env_id = wp.tid()
 
-    goal_dist = wp.length(object_pos[env_id] - in_hand_pos[env_id])
+    object_pos = wp.transform_get_translation(object_pose[env_id])
+    object_rot = wp.transform_get_rotation(object_pose[env_id])
+
+    goal_dist = wp.length(object_pos - in_hand_pos[env_id])
     out_of_reach[env_id] = goal_dist >= fall_dist
 
     max_success_reached = False
     if max_consecutive_success > 0:
         # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-        rot_dist = rotation_distance(object_rot[env_id], goal_rot[env_id])
+        rot_dist = rotation_distance(object_rot, goal_rot[env_id])
         if wp.abs(rot_dist) <= success_tolerance:
             episode_length_buf[env_id] = 0
         max_success_reached = successes[env_id] >= wp.float32(max_consecutive_success)
@@ -273,8 +268,7 @@ def get_dones(
 def compute_reduced_observations(
     # input
     fingertip_pos: wp.array2d(dtype=wp.vec3f),
-    object_pos: wp.array(dtype=wp.vec3f),
-    object_rot: wp.array(dtype=wp.quatf),
+    object_pose: wp.array(dtype=wp.transformf),
     goal_rot: wp.array(dtype=wp.quatf),
     actions: wp.array2d(dtype=wp.float32),
     num_fingertips: wp.int32,
@@ -284,6 +278,9 @@ def compute_reduced_observations(
 ):
     env_id = wp.tid()
 
+    obj_pos = wp.transform_get_translation(object_pose[env_id])
+    obj_rot = wp.transform_get_rotation(object_pose[env_id])
+
     idx = int(0)
     for i in range(num_fingertips):
         observations[env_id, idx + 0] = fingertip_pos[env_id, i][0]
@@ -291,12 +288,12 @@ def compute_reduced_observations(
         observations[env_id, idx + 2] = fingertip_pos[env_id, i][2]
         idx += 3
 
-    observations[env_id, idx + 0] = object_pos[env_id][0]
-    observations[env_id, idx + 1] = object_pos[env_id][1]
-    observations[env_id, idx + 2] = object_pos[env_id][2]
+    observations[env_id, idx + 0] = obj_pos[0]
+    observations[env_id, idx + 1] = obj_pos[1]
+    observations[env_id, idx + 2] = obj_pos[2]
     idx += 3
 
-    rel = object_rot[env_id] * wp.quat_inverse(goal_rot[env_id])
+    rel = obj_rot * wp.quat_inverse(goal_rot[env_id])
     observations[env_id, idx + 0] = rel[0]
     observations[env_id, idx + 1] = rel[1]
     observations[env_id, idx + 2] = rel[2]
@@ -315,10 +312,8 @@ def compute_full_observations(
     hand_dof_lower_limits: wp.array2d(dtype=wp.float32),
     hand_dof_upper_limits: wp.array2d(dtype=wp.float32),
     vel_obs_scale: wp.float32,
-    object_pos: wp.array(dtype=wp.vec3f),
-    object_rot: wp.array(dtype=wp.quatf),
-    object_linvel: wp.array(dtype=wp.vec3f),
-    object_angvel: wp.array(dtype=wp.vec3f),
+    object_pose: wp.array(dtype=wp.transformf),
+    object_vels: wp.array(dtype=wp.spatial_vectorf),
     in_hand_pos: wp.array(dtype=wp.vec3f),
     goal_rot: wp.array(dtype=wp.quatf),
     fingertip_pos: wp.array2d(dtype=wp.vec3f),
@@ -345,25 +340,28 @@ def compute_full_observations(
     offset += num_hand_dofs
 
     # object
-    observations[env_id, offset + 0] = object_pos[env_id][0]
-    observations[env_id, offset + 1] = object_pos[env_id][1]
-    observations[env_id, offset + 2] = object_pos[env_id][2]
+    obj_pos = wp.transform_get_translation(object_pose[env_id])
+    obj_rot = wp.transform_get_rotation(object_pose[env_id])
+
+    observations[env_id, offset + 0] = obj_pos[0]
+    observations[env_id, offset + 1] = obj_pos[1]
+    observations[env_id, offset + 2] = obj_pos[2]
     offset += 3
 
-    observations[env_id, offset + 0] = object_rot[env_id][0]
-    observations[env_id, offset + 1] = object_rot[env_id][1]
-    observations[env_id, offset + 2] = object_rot[env_id][2]
-    observations[env_id, offset + 3] = object_rot[env_id][3]
+    observations[env_id, offset + 0] = obj_rot[0]
+    observations[env_id, offset + 1] = obj_rot[1]
+    observations[env_id, offset + 2] = obj_rot[2]
+    observations[env_id, offset + 3] = obj_rot[3]
     offset += 4
 
-    observations[env_id, offset + 0] = object_linvel[env_id][0]
-    observations[env_id, offset + 1] = object_linvel[env_id][1]
-    observations[env_id, offset + 2] = object_linvel[env_id][2]
+    observations[env_id, offset + 0] = object_vels[env_id][0]
+    observations[env_id, offset + 1] = object_vels[env_id][1]
+    observations[env_id, offset + 2] = object_vels[env_id][2]
     offset += 3
 
-    observations[env_id, offset + 0] = vel_obs_scale * object_angvel[env_id][0]
-    observations[env_id, offset + 1] = vel_obs_scale * object_angvel[env_id][1]
-    observations[env_id, offset + 2] = vel_obs_scale * object_angvel[env_id][2]
+    observations[env_id, offset + 0] = vel_obs_scale * object_vels[env_id][3]
+    observations[env_id, offset + 1] = vel_obs_scale * object_vels[env_id][4]
+    observations[env_id, offset + 2] = vel_obs_scale * object_vels[env_id][5]
     offset += 3
 
     # goal
@@ -378,7 +376,7 @@ def compute_full_observations(
     observations[env_id, offset + 3] = goal_rot[env_id][3]
     offset += 4
 
-    rel = object_rot[env_id] * wp.quat_inverse(goal_rot[env_id])
+    rel = obj_rot * wp.quat_inverse(goal_rot[env_id])
     observations[env_id, offset + 0] = rel[0]
     observations[env_id, offset + 1] = rel[1]
     observations[env_id, offset + 2] = rel[2]
@@ -430,8 +428,7 @@ def sanitize_and_print_once(
 def compute_rewards(
     # input
     reset_buf: wp.array(dtype=wp.bool),
-    object_pos: wp.array(dtype=wp.vec3f),
-    object_rot: wp.array(dtype=wp.quatf),
+    object_pose: wp.array(dtype=wp.transformf),
     target_pos: wp.array(dtype=wp.vec3f),
     target_rot: wp.array(dtype=wp.quatf),
     dist_reward_scale: wp.float32,
@@ -454,8 +451,11 @@ def compute_rewards(
 ):
     env_id = wp.tid()
 
-    goal_dist = wp.length(object_pos[env_id] - target_pos[env_id])
-    rot_dist = rotation_distance(object_rot[env_id], target_rot[env_id])
+    obj_pos = wp.transform_get_translation(object_pose[env_id])
+    obj_rot = wp.transform_get_rotation(object_pose[env_id])
+
+    goal_dist = wp.length(obj_pos - target_pos[env_id])
+    rot_dist = rotation_distance(obj_rot, target_rot[env_id])
 
     dist_rew = goal_dist * dist_reward_scale
     rot_rew = wp.float32(1.0) / (wp.abs(rot_dist) + rot_eps) * rot_reward_scale
@@ -637,11 +637,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             (self.num_envs, self.num_fingertips), dtype=wp.spatial_vectorf, device=self.device
         )
 
-        self.object_pos = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        self.object_rot = wp.zeros(self.num_envs, dtype=wp.quatf, device=self.device)
-        self.object_velocities = wp.zeros(self.num_envs, dtype=wp.spatial_vectorf, device=self.device)
-        self.object_linvel = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
-        self.object_angvel = wp.zeros(self.num_envs, dtype=wp.vec3f, device=self.device)
+        self.object_pose = wp.zeros(self.num_envs, dtype=wp.transformf, device=self.device)
+        self.object_vels = wp.zeros(self.num_envs, dtype=wp.spatial_vectorf, device=self.device)
 
         # RNG state (per-env) for randomizations in reset/goal resets.
         self.rng_state = wp.zeros(self.num_envs, dtype=wp.uint32, device=self.device)
@@ -729,8 +726,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             dim=self.num_envs,
             inputs=[
                 self.reset_buf,
-                self.object_pos,
-                self.object_rot,
+                self.object_pose,
                 self.in_hand_pos,
                 self.goal_rot,
                 self.cfg.dist_reward_scale,
@@ -782,8 +778,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             dim=self.num_envs,
             inputs=[
                 self.max_episode_length,
-                self.object_pos,
-                self.object_rot,
+                self.object_pose,
                 self.in_hand_pos,
                 self.goal_rot,
                 self.cfg.fall_dist,
@@ -912,11 +907,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.fingertip_pos,
                 self.fingertip_rot,
                 self.fingertip_velocities,
-                self.object_pos,
-                self.object_rot,
-                self.object_velocities,
-                self.object_linvel,
-                self.object_angvel,
+                self.object_pose,
+                self.object_vels,
             ],
             device=self.device,
         )
@@ -931,8 +923,7 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
             dim=self.num_envs,
             inputs=[
                 self.fingertip_pos,
-                self.object_pos,
-                self.object_rot,
+                self.object_pose,
                 self.goal_rot,
                 self.actions,
                 self.num_fingertips,
@@ -960,10 +951,8 @@ class InHandManipulationWarpEnv(DirectRLEnvWarp):
                 self.hand_dof_lower_limits,
                 self.hand_dof_upper_limits,
                 self.cfg.vel_obs_scale,
-                self.object_pos,
-                self.object_rot,
-                self.object_linvel,
-                self.object_angvel,
+                self.object_pose,
+                self.object_vels,
                 self.in_hand_pos,
                 self.goal_rot,
                 self.fingertip_pos,
