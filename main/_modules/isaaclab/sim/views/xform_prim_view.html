@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="2.3.0" />
-    <meta name="docbuild:last-update" content="Jan 22, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 26, 2026"/>
   </head>
   
   
@@ -612,6 +612,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -623,6 +624,8 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.utils.math</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">math_utils</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.warp</span><span class="w"> </span><span class="kn">import</span> <span class="n">fabric</span> <span class="k">as</span> <span class="n">fabric_utils</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="XformPrimView"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">XformPrimView</span><span class="p">:</span>
@@ -646,15 +649,15 @@
 <span class="sd">      Note: renderers typically consume USD-authored camera transforms.</span>
 
 <span class="sd">    .. warning::</span>
-<span class="sd">        **Fabric requires CUDA**: Fabric is only supported with `device=&quot;cuda&quot;`.</span>
-<span class="sd">        Warp&#39;s CPU backend for fabricarray writes has known issues, so attempting to use</span>
-<span class="sd">        Fabric with `device=&quot;cpu&quot;` will raise a ValueError at initialization.</span>
+<span class="sd">        **Fabric requires CUDA**: Fabric is only supported with on CUDA devices.</span>
+<span class="sd">        Warp&#39;s CPU backend for fabric-array writes has known issues, so attempting to use</span>
+<span class="sd">        Fabric with CPU device (``device=&quot;cpu&quot;``) will raise a ValueError at initialization.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        **Fabric Support:**</span>
 
 <span class="sd">        When Fabric is enabled, this view ensures prims have the required Fabric hierarchy</span>
-<span class="sd">        attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`). On first Fabric</span>
+<span class="sd">        attributes (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``). On first Fabric</span>
 <span class="sd">        read, USD-authored transforms initialize Fabric state. Fabric writes can optionally</span>
 <span class="sd">        be mirrored back to USD via :attr:`sync_usd_on_fabric_write`.</span>
 
@@ -711,24 +714,37 @@
 <span class="sd">                ``&quot;cuda:0&quot;``. Defaults to ``&quot;cpu&quot;``.</span>
 <span class="sd">            validate_xform_ops: Whether to validate that the prims have standard xform operations.</span>
 <span class="sd">                Defaults to True.</span>
-<span class="sd">            sync_usd_on_fabric_write: Whether Fabric pose/scale writes should also be mirrored</span>
-<span class="sd">                to USD. Defaults to False; set True when USD consumers (e.g., rendering cameras)</span>
-<span class="sd">                must observe pose updates.</span>
+<span class="sd">            sync_usd_on_fabric_write: Whether to mirror Fabric transform writes back to USD.</span>
+<span class="sd">                When True, transform updates are synchronized to USD so that USD data readers (e.g., rendering</span>
+<span class="sd">                cameras) can observe these changes. Defaults to False for better performance.</span>
 <span class="sd">            stage: USD stage to search for prims. Defaults to None, in which case the current active stage</span>
 <span class="sd">                from the simulation context is used.</span>
+
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: If any matched prim is not Xformable or doesn&#39;t have standardized</span>
 <span class="sd">                transform operations (translate, orient, scale in that order).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
-
         <span class="c1"># Store configuration</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prim_path</span> <span class="o">=</span> <span class="n">prim_path</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">device</span>
 
         <span class="c1"># Find and validate matching prims</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span> <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">stage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">]</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">find_matching_prims</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+
+        <span class="c1"># Validate all prims have standard xform operations</span>
+        <span class="k">if</span> <span class="n">validate_xform_ops</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">validate_standard_xform_ops</span><span class="p">(</span><span class="n">prim</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not a xformable prim with standard transform&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; operations [translate, orient, scale]. Received type: &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+                        <span class="s2">&quot; Use sim_utils.standardize_xform_ops() to prepare the prim.&quot;</span>
+                    <span class="p">)</span>
+
+        <span class="c1"># Determine if Fabric is supported on the device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">!=</span> <span class="s2">&quot;cpu&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using Fabric for the XFormPrimView over &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_prim_path</span><span class="si">}</span><span class="s2">&#39; on device &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Check for unsupported Fabric + CPU combination</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
@@ -757,26 +773,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1"># Create a valid USD attribute name: namespace:name</span>
         <span class="c1"># Use &quot;isaaclab&quot; namespace to identify our custom attributes</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_view_index_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;isaaclab:view_index:</span><span class="si">{</span><span class="nb">abs</span><span class="p">(</span><span class="nb">hash</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span>
-
-        <span class="c1"># Validate all prims have standard xform operations</span>
-        <span class="k">if</span> <span class="n">validate_xform_ops</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">:</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">validate_standard_xform_ops</span><span class="p">(</span><span class="n">prim</span><span class="p">):</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Prim at path &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="si">}</span><span class="s2">&#39; is not a xformable prim with standard transform&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot; operations [translate, orient, scale]. Received type: &#39;</span><span class="si">{</span><span class="n">prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-                        <span class="s2">&quot; Use sim_utils.standardize_xform_ops() to prepare the prim.&quot;</span>
-                    <span class="p">)</span></div>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_indices_wp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve view indices as a Warp array.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_view_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Fabric indices are not initialized.&quot;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_view_indices</span>
-        <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">indices_list</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view_index_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;isaaclab:view_index:</span><span class="si">{</span><span class="nb">abs</span><span class="p">(</span><span class="nb">hash</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
@@ -784,11 +781,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of prims in this view.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            The number of prims being managed by this view.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Number of prims in this view.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">)</span>
 
     <span class="nd">@property</span>
@@ -812,9 +805,6 @@
 <span class="sd">            For most use cases, prefer using :attr:`prims` directly as it provides direct access</span>
 <span class="sd">            to the USD prim objects without the conversion overhead. This property is mainly useful</span>
 <span class="sd">            for logging, debugging, or when string paths are explicitly required.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            List of prim paths (as strings) in the same order as :attr:`prims`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># we cache it the first time it is accessed.</span>
         <span class="c1"># we don&#39;t compute it in constructor because it is expensive and we don&#39;t need it most of the time.</span>
@@ -837,8 +827,10 @@
 
 <span class="sd">        This method sets the position and/or orientation of each prim in world space.</span>
 
-<span class="sd">        When Fabric is enabled, writes directly to Fabric using GPU-accelerated batch operations.</span>
-<span class="sd">        When Fabric is disabled, converts to local space and writes to USD attributes.</span>
+<span class="sd">        - When Fabric is enabled, the function writes directly to Fabric&#39;s ``omni:fabric:worldMatrix``</span>
+<span class="sd">          attribute using GPU-accelerated batch operations.</span>
+<span class="sd">        - When Fabric is disabled, the function converts to local space and writes to USD&#39;s ``xformOp:translate``</span>
+<span class="sd">          and ``xformOp:orient`` attributes.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            positions: World-space positions as a tensor of shape (M, 3) where M is the number of prims</span>
@@ -854,85 +846,228 @@
 <span class="sd">            ValueError: If the number of poses doesn&#39;t match the number of indices provided.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_fabric</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_fabric</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_usd</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_usd</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_set_world_poses_fabric</span><span class="p">(</span>
+<div class="viewcode-block" id="XformPrimView.set_local_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_local_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_local_poses</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">positions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">translations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set world poses using Fabric GPU batch operations.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set local-space poses for prims in the view.</span>
 
-<span class="sd">        Writes directly to Fabric&#39;s omni:fabric:worldMatrix attribute using Warp kernels.</span>
-<span class="sd">        Changes are propagated through Fabric&#39;s hierarchy system but remain GPU-resident.</span>
+<span class="sd">        This method sets the position and/or orientation of each prim in local space (relative to</span>
+<span class="sd">        their parent prims).</span>
 
-<span class="sd">        For workflows mixing Fabric world pose writes with USD local pose queries, note</span>
-<span class="sd">        that local poses read from USD&#39;s xformOp:* attributes, which may not immediately</span>
-<span class="sd">        reflect Fabric changes. For best performance and consistency, use Fabric methods</span>
-<span class="sd">        exclusively (get_world_poses/set_world_poses with Fabric enabled).</span>
+<span class="sd">        The function writes directly to USD&#39;s ``xformOp:translate`` and ``xformOp:orient`` attributes.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim&#39;s design</span>
+<span class="sd">            where Fabric is only used for world pose operations.</span>
+
+<span class="sd">            Rationale:</span>
+<span class="sd">                - Local pose writes need correct parent-child hierarchy relationships</span>
+<span class="sd">                - USD maintains these relationships correctly and efficiently</span>
+<span class="sd">                - Fabric is optimized for world pose operations, not local hierarchies</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims</span>
+<span class="sd">                to set (either all prims if indices is None, or the number of indices provided).</span>
+<span class="sd">                Defaults to None, in which case translations are not modified.</span>
+<span class="sd">            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (M, 4).</span>
+<span class="sd">                Defaults to None, in which case orientations are not modified.</span>
+<span class="sd">            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If translations shape is not (M, 3) or orientations shape is not (M, 4).</span>
+<span class="sd">            ValueError: If the number of poses doesn&#39;t match the number of indices provided.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Lazy initialization</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_initialized</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_fabric</span><span class="p">()</span>
-
-        <span class="c1"># Use cached Fabric hierarchy</span>
-        <span class="n">fabric_hierarchy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span>
-
-        <span class="c1"># Resolve indices (treat slice(None) as None for consistency with USD path)</span>
-        <span class="n">indices_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_indices_wp</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="n">count</span> <span class="o">=</span> <span class="n">indices_wp</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-        <span class="c1"># Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues</span>
-        <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">positions_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_fabric</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">positions_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_usd</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
 
-        <span class="k">if</span> <span class="n">orientations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">orientations_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">orientations</span><span class="p">)</span>
+<div class="viewcode-block" id="XformPrimView.set_scales"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_scales">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scales</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set scales for prims in the view.</span>
+
+<span class="sd">        This method sets the scale of each prim in the view.</span>
+
+<span class="sd">        - When Fabric is enabled, the function updates scales in Fabric matrices using GPU-accelerated batch operations.</span>
+<span class="sd">        - When Fabric is disabled, the function writes to USD&#39;s ``xformOp:scale`` attributes.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            scales: Scales as a tensor of shape (M, 3) where M is the number of prims</span>
+<span class="sd">                to set (either all prims if indices is None, or the number of indices provided).</span>
+<span class="sd">            indices: Indices of prims to set scales for. Defaults to None, in which case scales are set</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If scales shape is not (M, 3).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_scales_fabric</span><span class="p">(</span><span class="n">scales</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">orientations_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_scales_usd</span><span class="p">(</span><span class="n">scales</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
 
-        <span class="c1"># Dummy array for scales (not modifying)</span>
-        <span class="n">scales_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+<div class="viewcode-block" id="XformPrimView.set_visibility"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_visibility">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visibility</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set visibility for prims in the view.</span>
 
-        <span class="c1"># Use cached fabricarray for world matrices</span>
-        <span class="n">world_matrices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_world_matrices</span>
+<span class="sd">        This method sets the visibility of each prim in the view.</span>
 
-        <span class="c1"># Batch compose matrices with a single kernel launch</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">kernel</span><span class="o">=</span><span class="n">fabric_utils</span><span class="o">.</span><span class="n">compose_fabric_transformation_matrix_from_warp_arrays</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">world_matrices</span><span class="p">,</span>
-                <span class="n">positions_wp</span><span class="p">,</span>
-                <span class="n">orientations_wp</span><span class="p">,</span>
-                <span class="n">scales_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
-                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_positions</span>
-                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_orientations</span>
-                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_scales</span>
-                <span class="n">indices_wp</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_view_to_fabric</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
-        <span class="p">)</span>
+<span class="sd">        Args:</span>
+<span class="sd">            visibility: Visibility as a boolean tensor of shape (M,) where M is the</span>
+<span class="sd">                number of prims to set (either all prims if indices is None, or the number of indices provided).</span>
+<span class="sd">            indices: Indices of prims to set visibility for. Defaults to None, in which case visibility is set</span>
+<span class="sd">                for all prims in the view.</span>
 
-        <span class="c1"># Synchronize to ensure kernel completes</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If visibility shape is not (M,).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
 
-        <span class="c1"># Update world transforms within Fabric hierarchy</span>
-        <span class="n">fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
-        <span class="c1"># Fabric now has authoritative data; skip future USD syncs</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="c1"># Mirror to USD for renderer-facing prims when enabled.</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_usd_on_fabric_write</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_usd</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="c1"># Validate inputs</span>
+        <span class="k">if</span> <span class="n">visibility</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected visibility shape (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">)</span><span class="si">}</span><span class="s2">,), got </span><span class="si">{</span><span class="n">visibility</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Fabric writes are GPU-resident; local pose operations still use USD.</span>
+        <span class="c1"># Set visibility for each prim</span>
+        <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+                <span class="c1"># Convert prim to imageable</span>
+                <span class="n">imageable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Imageable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">])</span>
+                <span class="c1"># Set visibility</span>
+                <span class="k">if</span> <span class="n">visibility</span><span class="p">[</span><span class="n">idx</span><span class="p">]:</span>
+                    <span class="n">imageable</span><span class="o">.</span><span class="n">MakeVisible</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">imageable</span><span class="o">.</span><span class="n">MakeInvisible</span><span class="p">()</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations - Getters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="XformPrimView.get_world_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_world_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_world_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get world-space poses for prims in the view.</span>
+
+<span class="sd">        This method retrieves the position and orientation of each prim in world space by computing</span>
+<span class="sd">        the full transform hierarchy from the prim to the world root.</span>
+
+<span class="sd">        - When Fabric is enabled, the function uses Fabric batch operations with Warp kernels.</span>
+<span class="sd">        - When Fabric is disabled, the function uses USD XformCache.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Scale and skew are ignored. The returned poses contain only translation and rotation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of (positions, orientations) where:</span>
+
+<span class="sd">            - positions: Torch tensor of shape (M, 3) containing world-space positions (x, y, z),</span>
+<span class="sd">              where M is the number of prims queried.</span>
+<span class="sd">            - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_world_poses_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_world_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="XformPrimView.get_local_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_local_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_local_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local-space poses for prims in the view.</span>
+
+<span class="sd">        This method retrieves the position and orientation of each prim in local space (relative to</span>
+<span class="sd">        their parent prims). It reads directly from USD&#39;s ``xformOp:translate`` and ``xformOp:orient`` attributes.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim&#39;s design</span>
+<span class="sd">            where Fabric is only used for world pose operations.</span>
+
+<span class="sd">            Rationale:</span>
+<span class="sd">                - Local pose reads need correct parent-child hierarchy relationships</span>
+<span class="sd">                - USD maintains these relationships correctly and efficiently</span>
+<span class="sd">                - Fabric is optimized for world pose operations, not local hierarchies</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Scale is ignored. The returned poses contain only translation and rotation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of (translations, orientations) where:</span>
+
+<span class="sd">            - translations: Torch tensor of shape (M, 3) containing local-space translations (x, y, z),</span>
+<span class="sd">              where M is the number of prims queried.</span>
+<span class="sd">            - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="XformPrimView.get_scales"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_scales">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales for prims in the view.</span>
+
+<span class="sd">        This method retrieves the scale of each prim in the view.</span>
+
+<span class="sd">        - When Fabric is enabled, the function extracts scales from Fabric matrices using batch operations with</span>
+<span class="sd">          Warp kernels.</span>
+<span class="sd">        - When Fabric is disabled, the function reads from USD&#39;s ``xformOp:scale`` attributes.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scales_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scales_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="XformPrimView.get_visibility"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_visibility">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get visibility for prims in the view.</span>
+
+<span class="sd">        This method retrieves the visibility of each prim in the view.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved</span>
+<span class="sd">                for all prims in the view.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tensor of shape (M,) containing the visibility of each prim, where M is the number of prims queried.</span>
+<span class="sd">            The tensor is of type bool.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Convert to list if it is a tensor array</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Create buffers</span>
+        <span class="n">visibility</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+            <span class="c1"># Get prim</span>
+            <span class="n">imageable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Imageable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">])</span>
+            <span class="c1"># Get visibility</span>
+            <span class="n">visibility</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">imageable</span><span class="o">.</span><span class="n">ComputeVisibility</span><span class="p">()</span> <span class="o">!=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">invisible</span>
+
+        <span class="k">return</span> <span class="n">visibility</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal Functions - USD.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_world_poses_usd</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -1023,56 +1158,6 @@
                 <span class="k">if</span> <span class="n">local_quat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:orient&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">local_quat</span><span class="p">)</span>
 
-<div class="viewcode-block" id="XformPrimView.set_local_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_local_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_local_poses</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">translations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set local-space poses for prims in the view.</span>
-
-<span class="sd">        This method sets the position and/or orientation of each prim in local space (relative to</span>
-<span class="sd">        their parent prims).</span>
-
-<span class="sd">        When Fabric is enabled, writes directly to Fabric local matrices using GPU-accelerated batch operations.</span>
-<span class="sd">        When Fabric is disabled, writes directly to USD local transform attributes.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims</span>
-<span class="sd">                to set (either all prims if indices is None, or the number of indices provided).</span>
-<span class="sd">                Defaults to None, in which case translations are not modified.</span>
-<span class="sd">            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (M, 4).</span>
-<span class="sd">                Defaults to None, in which case orientations are not modified.</span>
-<span class="sd">            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If translations shape is not (M, 3) or orientations shape is not (M, 4).</span>
-<span class="sd">            ValueError: If the number of poses doesn&#39;t match the number of indices provided.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_fabric</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_usd</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_set_local_poses_fabric</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">translations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set local poses using USD (matches Isaac Sim&#39;s design).</span>
-
-<span class="sd">        Note: Even in Fabric mode, local pose operations use USD.</span>
-<span class="sd">        This is Isaac Sim&#39;s design - the `usd=False` parameter only affects world poses.</span>
-
-<span class="sd">        Rationale:</span>
-<span class="sd">        - Local pose writes need correct parent-child hierarchy relationships</span>
-<span class="sd">        - USD maintains these relationships correctly and efficiently</span>
-<span class="sd">        - Fabric is optimized for world pose operations, not local hierarchies</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_usd</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
-
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_local_poses_usd</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">translations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1109,36 +1194,208 @@
                 <span class="k">if</span> <span class="n">orientations_array</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:orient&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">orientations_array</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
 
-<div class="viewcode-block" id="XformPrimView.set_scales"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_scales">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scales</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set scales for prims in the view.</span>
-
-<span class="sd">        This method sets the scale of each prim in the view.</span>
-
-<span class="sd">        When Fabric is enabled, updates scales in Fabric matrices using GPU-accelerated batch operations.</span>
-<span class="sd">        When Fabric is disabled, writes to USD scale attributes.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            scales: Scales as a tensor of shape (M, 3) where M is the number of prims</span>
-<span class="sd">                to set (either all prims if indices is None, or the number of indices provided).</span>
-<span class="sd">            indices: Indices of prims to set scales for. Defaults to None, in which case scales are set</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If scales shape is not (M, 3).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_scales_fabric</span><span class="p">(</span><span class="n">scales</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_scales_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scales</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set scales to USD.&quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_scales_usd</span><span class="p">(</span><span class="n">scales</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span></div>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Validate inputs</span>
+        <span class="k">if</span> <span class="n">scales</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),</span> <span class="mi">3</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected scales shape (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">)</span><span class="si">}</span><span class="s2">, 3), got </span><span class="si">{</span><span class="n">scales</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+        <span class="n">scales_array</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="o">.</span><span class="n">FromNumpy</span><span class="p">(</span><span class="n">scales</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
+        <span class="c1"># Set scales for each prim</span>
+        <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+                <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
+                <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">scales_array</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_world_poses_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get world poses from USD.&quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Convert to list if it is a tensor array</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Create buffers</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">QuatdArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
+        <span class="c1"># Create xform cache instance</span>
+        <span class="n">xform_cache</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformCache</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+
+        <span class="c1"># Note: We don&#39;t use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`</span>
+        <span class="c1">#   here since it isn&#39;t optimized for batch operations.</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+            <span class="c1"># Get prim</span>
+            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
+            <span class="c1"># get prim xform</span>
+            <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform_cache</span><span class="o">.</span><span class="n">GetLocalToWorldTransform</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
+            <span class="c1"># sanitize quaternion</span>
+            <span class="c1"># this is needed, otherwise the quaternion might be non-normalized</span>
+            <span class="n">prim_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
+            <span class="c1"># extract position and orientation</span>
+            <span class="n">positions</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()</span>
+            <span class="n">orientations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span>
+
+        <span class="c1"># move to torch tensors</span>
+        <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">positions</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">orientations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="c1"># underlying data is in xyzw order, convert to wxyz order</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span>  <span class="c1"># type: ignore</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_local_poses_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local poses from USD.&quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Create buffers</span>
+        <span class="n">translations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">QuatdArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
+
+        <span class="c1"># Create a fresh XformCache to avoid stale cached values</span>
+        <span class="n">xform_cache</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformCache</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
+            <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform_cache</span><span class="o">.</span><span class="n">GetLocalTransformation</span><span class="p">(</span><span class="n">prim</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">prim_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
+            <span class="n">translations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()</span>
+            <span class="n">orientations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span>
+
+        <span class="n">translations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">translations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">orientations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="n">orientations</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span>  <span class="c1"># type: ignore</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_scales_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales from USD.&quot;&quot;&quot;</span>
+        <span class="c1"># Resolve indices</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Create buffers</span>
+        <span class="n">scales</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
+            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
+            <span class="n">scales</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+
+        <span class="c1"># Convert to tensor</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">scales</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal Functions - Fabric.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_world_poses_fabric</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">positions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set world poses using Fabric GPU batch operations.</span>
+
+<span class="sd">        Writes directly to Fabric&#39;s ``omni:fabric:worldMatrix`` attribute using Warp kernels.</span>
+<span class="sd">        Changes are propagated through Fabric&#39;s hierarchy system but remain GPU-resident.</span>
+
+<span class="sd">        For workflows mixing Fabric world pose writes with USD local pose queries, note</span>
+<span class="sd">        that local poses read from USD&#39;s xformOp:* attributes, which may not immediately</span>
+<span class="sd">        reflect Fabric changes. For best performance and consistency, use Fabric methods</span>
+<span class="sd">        exclusively (get_world_poses/set_world_poses with Fabric enabled).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Lazy initialization</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_initialized</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_fabric</span><span class="p">()</span>
+
+        <span class="c1"># Resolve indices (treat slice(None) as None for consistency with USD path)</span>
+        <span class="n">indices_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_indices_wp</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="n">indices_wp</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues</span>
+        <span class="k">if</span> <span class="n">positions</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">positions_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">positions</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">positions_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">orientations</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">orientations_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">from_torch</span><span class="p">(</span><span class="n">orientations</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">orientations_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="c1"># Dummy array for scales (not modifying)</span>
+        <span class="n">scales_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+        <span class="c1"># Use cached fabricarray for world matrices</span>
+        <span class="n">world_matrices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_world_matrices</span>
+
+        <span class="c1"># Batch compose matrices with a single kernel launch</span>
+        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+            <span class="n">kernel</span><span class="o">=</span><span class="n">fabric_utils</span><span class="o">.</span><span class="n">compose_fabric_transformation_matrix_from_warp_arrays</span><span class="p">,</span>
+            <span class="n">dim</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">world_matrices</span><span class="p">,</span>
+                <span class="n">positions_wp</span><span class="p">,</span>
+                <span class="n">orientations_wp</span><span class="p">,</span>
+                <span class="n">scales_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
+                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_positions</span>
+                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_orientations</span>
+                <span class="kc">False</span><span class="p">,</span>  <span class="c1"># broadcast_scales</span>
+                <span class="n">indices_wp</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_view_to_fabric</span><span class="p">,</span>
+            <span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Synchronize to ensure kernel completes</span>
+        <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+
+        <span class="c1"># Update world transforms within Fabric hierarchy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
+        <span class="c1"># Fabric now has authoritative data; skip future USD syncs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># Mirror to USD for renderer-facing prims when enabled.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_usd_on_fabric_write</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_world_poses_usd</span><span class="p">(</span><span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+
+        <span class="c1"># Fabric writes are GPU-resident; local pose operations still use USD.</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_local_poses_fabric</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">translations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">orientations</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set local poses using USD (matches Isaac Sim&#39;s design).</span>
+
+<span class="sd">        Note: Even in Fabric mode, local pose operations use USD.</span>
+<span class="sd">        This is Isaac Sim&#39;s design: the ``usd=False`` parameter only affects world poses.</span>
+
+<span class="sd">        Rationale:</span>
+<span class="sd">        - Local pose writes need correct parent-child hierarchy relationships</span>
+<span class="sd">        - USD maintains these relationships correctly and efficiently</span>
+<span class="sd">        - Fabric is optimized for world pose operations, not local hierarchies</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_local_poses_usd</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_set_scales_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scales</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set scales using Fabric GPU batch operations.&quot;&quot;&quot;</span>
         <span class="c1"># Lazy initialization</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_initialized</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_fabric</span><span class="p">()</span>
-
-        <span class="c1"># Use cached Fabric hierarchy</span>
-        <span class="n">fabric_hierarchy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span>
 
         <span class="c1"># Resolve indices (treat slice(None) as None for consistency with USD path)</span>
         <span class="n">indices_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_indices_wp</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
@@ -1177,98 +1434,12 @@
         <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
 
         <span class="c1"># Update world transforms to propagate changes</span>
-        <span class="n">fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
         <span class="c1"># Fabric now has authoritative data; skip future USD syncs</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1"># Mirror to USD for renderer-facing prims when enabled.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sync_usd_on_fabric_write</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_set_scales_usd</span><span class="p">(</span><span class="n">scales</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_set_scales_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scales</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set scales to USD.&quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="c1"># Validate inputs</span>
-        <span class="k">if</span> <span class="n">scales</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),</span> <span class="mi">3</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected scales shape (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">)</span><span class="si">}</span><span class="s2">, 3), got </span><span class="si">{</span><span class="n">scales</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-
-        <span class="n">scales_array</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="o">.</span><span class="n">FromNumpy</span><span class="p">(</span><span class="n">scales</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
-        <span class="c1"># Set scales for each prim</span>
-        <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-                <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
-                <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">scales_array</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
-
-<div class="viewcode-block" id="XformPrimView.set_visibility"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.set_visibility">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visibility</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set visibility for prims in the view.</span>
-
-<span class="sd">        This method sets the visibility of each prim in the view.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            visibility: Visibility as a boolean tensor of shape (M,) where M is the</span>
-<span class="sd">                number of prims to set (either all prims if indices is None, or the number of indices provided).</span>
-<span class="sd">            indices: Indices of prims to set visibility for. Defaults to None, in which case visibility is set</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If visibility shape is not (M,).</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="c1"># Validate inputs</span>
-        <span class="k">if</span> <span class="n">visibility</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected visibility shape (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">)</span><span class="si">}</span><span class="s2">,), got </span><span class="si">{</span><span class="n">visibility</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
-
-        <span class="c1"># Set visibility for each prim</span>
-        <span class="k">with</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">ChangeBlock</span><span class="p">():</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-                <span class="c1"># Convert prim to imageable</span>
-                <span class="n">imageable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Imageable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">])</span>
-                <span class="c1"># Set visibility</span>
-                <span class="k">if</span> <span class="n">visibility</span><span class="p">[</span><span class="n">idx</span><span class="p">]:</span>
-                    <span class="n">imageable</span><span class="o">.</span><span class="n">MakeVisible</span><span class="p">()</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">imageable</span><span class="o">.</span><span class="n">MakeInvisible</span><span class="p">()</span></div>
-
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Operations - Getters.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="XformPrimView.get_world_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_world_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_world_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get world-space poses for prims in the view.</span>
-
-<span class="sd">        This method retrieves the position and orientation of each prim in world space by computing</span>
-<span class="sd">        the full transform hierarchy from the prim to the world root.</span>
-
-<span class="sd">        When Fabric is enabled, uses Fabric batch operations with Warp kernels.</span>
-<span class="sd">        When Fabric is disabled, uses USD XformCache.</span>
-
-<span class="sd">        Note:</span>
-<span class="sd">            Scale and skew are ignored. The returned poses contain only translation and rotation.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            A tuple of (positions, orientations) where:</span>
-
-<span class="sd">            - positions: Torch tensor of shape (M, 3) containing world-space positions (x, y, z),</span>
-<span class="sd">              where M is the number of prims queried.</span>
-<span class="sd">            - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_world_poses_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_world_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_world_poses_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get world poses from Fabric using GPU batch operations.&quot;&quot;&quot;</span>
@@ -1328,63 +1499,87 @@
             <span class="n">orientations</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">orientations_wp</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_world_poses_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get world poses from USD.&quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_local_poses_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local poses using USD (matches Isaac Sim&#39;s design).</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Even in Fabric mode, local pose operations use USD&#39;s XformCache.</span>
+<span class="sd">            This is Isaac Sim&#39;s design: the ``usd=False`` parameter only affects world poses.</span>
+
+<span class="sd">        Rationale:</span>
+<span class="sd">            - Local pose computation requires parent transforms which may not be in the view</span>
+<span class="sd">            - USD&#39;s XformCache provides efficient hierarchy-aware local transform queries</span>
+<span class="sd">            - Fabric is optimized for world pose operations, not local hierarchies</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_scales_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales from Fabric using GPU batch operations.&quot;&quot;&quot;</span>
+        <span class="c1"># Lazy initialization</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_initialized</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_fabric</span><span class="p">()</span>
+        <span class="c1"># Sync once from USD to ensure reads see the latest authored transforms</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sync_fabric_from_usd_once</span><span class="p">()</span>
+
+        <span class="c1"># Resolve indices (treat slice(None) as None for consistency with USD path)</span>
+        <span class="n">indices_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_indices_wp</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="n">indices_wp</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Use pre-allocated buffers for full reads, allocate only for partial reads</span>
+        <span class="n">use_cached_buffers</span> <span class="o">=</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">use_cached_buffers</span><span class="p">:</span>
+            <span class="c1"># Full read: Use cached buffers (zero allocation overhead!)</span>
+            <span class="n">scales_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_scales_buffer</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Convert to list if it is a tensor array</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+            <span class="c1"># Partial read: Need to allocate buffer of appropriate size</span>
+            <span class="n">scales_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
-        <span class="c1"># Create buffers</span>
-        <span class="n">positions</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">QuatdArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
-        <span class="c1"># Create xform cache instance</span>
-        <span class="n">xform_cache</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformCache</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
+        <span class="c1"># Always use dummy buffers for positions and orientations (not needed for scales)</span>
+        <span class="n">positions_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_dummy_buffer</span>
+        <span class="n">orientations_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_dummy_buffer</span>
 
-        <span class="c1"># Note: We don&#39;t use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`</span>
-        <span class="c1">#   here since it isn&#39;t optimized for batch operations.</span>
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-            <span class="c1"># Get prim</span>
-            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
-            <span class="c1"># get prim xform</span>
-            <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform_cache</span><span class="o">.</span><span class="n">GetLocalToWorldTransform</span><span class="p">(</span><span class="n">prim</span><span class="p">)</span>
-            <span class="c1"># sanitize quaternion</span>
-            <span class="c1"># this is needed, otherwise the quaternion might be non-normalized</span>
-            <span class="n">prim_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
-            <span class="c1"># extract position and orientation</span>
-            <span class="n">positions</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()</span>
-            <span class="n">orientations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span>
+        <span class="c1"># Use cached fabricarray for world matrices</span>
+        <span class="n">world_matrices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_world_matrices</span>
 
-        <span class="c1"># move to torch tensors</span>
-        <span class="n">positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">positions</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">orientations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="c1"># underlying data is in xyzw order, convert to wxyz order</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+        <span class="c1"># Launch GPU kernel to decompose matrices in parallel</span>
+        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
+            <span class="n">kernel</span><span class="o">=</span><span class="n">fabric_utils</span><span class="o">.</span><span class="n">decompose_fabric_transformation_matrix_to_warp_arrays</span><span class="p">,</span>
+            <span class="n">dim</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
+                <span class="n">world_matrices</span><span class="p">,</span>
+                <span class="n">positions_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
+                <span class="n">orientations_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
+                <span class="n">scales_wp</span><span class="p">,</span>
+                <span class="n">indices_wp</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_view_to_fabric</span><span class="p">,</span>
+            <span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
+        <span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">positions</span><span class="p">,</span> <span class="n">orientations</span>  <span class="c1"># type: ignore</span>
+        <span class="c1"># Return tensor: zero-copy for cached buffers, conversion for partial reads</span>
+        <span class="k">if</span> <span class="n">use_cached_buffers</span><span class="p">:</span>
+            <span class="c1"># Zero-copy! The Warp kernel wrote directly into the PyTorch tensor</span>
+            <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_scales_torch</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Partial read: Need to convert from Warp to torch</span>
+            <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">scales_wp</span><span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_fabric_hierarchy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get Fabric hierarchy interface (cached).&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>
-
-            <span class="n">fabric_stage</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">(</span><span class="n">fabric</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span> <span class="o">=</span> <span class="n">usdrt</span><span class="o">.</span><span class="n">hierarchy</span><span class="o">.</span><span class="n">IFabricHierarchy</span><span class="p">()</span><span class="o">.</span><span class="n">get_fabric_hierarchy</span><span class="p">(</span>
-                <span class="n">fabric_stage</span><span class="o">.</span><span class="n">GetFabricId</span><span class="p">(),</span> <span class="n">fabric_stage</span><span class="o">.</span><span class="n">GetStageIdAsStageId</span><span class="p">()</span>
-            <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal Functions - Initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize Fabric batch infrastructure for GPU-accelerated pose queries.</span>
 
 <span class="sd">        This method ensures all prims have the required Fabric hierarchy attributes</span>
-<span class="sd">        (omni:fabric:localMatrix and omni:fabric:worldMatrix) and creates the necessary</span>
+<span class="sd">        (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``) and creates the necessary</span>
 <span class="sd">        infrastructure for batch GPU operations using Warp.</span>
 
 <span class="sd">        Based on the Fabric Hierarchy documentation, when Fabric Scene Delegate is enabled,</span>
-<span class="sd">        all Boundable prims should have these attributes. This method ensures they exist</span>
+<span class="sd">        all boundable prims should have these attributes. This method ensures they exist</span>
 <span class="sd">        and are properly synchronized with USD.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">usdrt</span>
@@ -1418,8 +1613,10 @@
             <span class="n">rt_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view_index_attr</span><span class="p">)</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
 
         <span class="c1"># After syncing all prims, update the Fabric hierarchy to ensure world matrices are computed</span>
-        <span class="n">fabric_hierarchy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fabric_hierarchy</span><span class="p">()</span>
-        <span class="n">fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span> <span class="o">=</span> <span class="n">usdrt</span><span class="o">.</span><span class="n">hierarchy</span><span class="o">.</span><span class="n">IFabricHierarchy</span><span class="p">()</span><span class="o">.</span><span class="n">get_fabric_hierarchy</span><span class="p">(</span>
+            <span class="n">fabric_stage</span><span class="o">.</span><span class="n">GetFabricId</span><span class="p">(),</span> <span class="n">fabric_stage</span><span class="o">.</span><span class="n">GetStageIdAsStageId</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_hierarchy</span><span class="o">.</span><span class="n">update_world_xforms</span><span class="p">()</span>
 
         <span class="c1"># Step 2: Create index arrays for batch operations</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_default_view_indices</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
@@ -1440,9 +1637,8 @@
         <span class="c1"># This works correctly for full-view operations but partial indexing still has issues.</span>
         <span class="n">fabric_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">==</span> <span class="s2">&quot;cuda&quot;</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Fabric device is not specified, defaulting to &#39;cuda:0&#39;.&quot;</span><span class="p">)</span>
             <span class="n">fabric_device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;:&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">:</span>
-            <span class="n">fabric_device</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="si">}</span><span class="s2">:0&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_selection</span> <span class="o">=</span> <span class="n">fabric_stage</span><span class="o">.</span><span class="n">SelectPrims</span><span class="p">(</span>
             <span class="n">require_attrs</span><span class="o">=</span><span class="p">[</span>
@@ -1512,197 +1708,14 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span> <span class="o">=</span> <span class="kc">True</span>
 
-<div class="viewcode-block" id="XformPrimView.get_local_poses"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_local_poses">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_local_poses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local-space poses for prims in the view.</span>
-
-<span class="sd">        This method retrieves the position and orientation of each prim in local space (relative to</span>
-<span class="sd">        their parent prims).</span>
-
-<span class="sd">        When Fabric is enabled, reads from Fabric local matrices using batch operations with Warp kernels.</span>
-<span class="sd">        When Fabric is disabled, reads directly from USD local transform attributes.</span>
-
-<span class="sd">        Note:</span>
-<span class="sd">            Scale is ignored. The returned poses contain only translation and rotation.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            A tuple of (translations, orientations) where:</span>
-
-<span class="sd">            - translations: Torch tensor of shape (M, 3) containing local-space translations (x, y, z),</span>
-<span class="sd">              where M is the number of prims queried.</span>
-<span class="sd">            - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_local_poses_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local poses using USD (matches Isaac Sim&#39;s design).</span>
-
-<span class="sd">        Note: Even in Fabric mode, local pose operations use USD&#39;s XformCache.</span>
-<span class="sd">        This is Isaac Sim&#39;s design - the `usd=False` parameter only affects world poses.</span>
-
-<span class="sd">        Rationale:</span>
-<span class="sd">        - Local pose computation requires parent transforms which may not be in the view</span>
-<span class="sd">        - USD&#39;s XformCache provides efficient hierarchy-aware local transform queries</span>
-<span class="sd">        - Fabric is optimized for world pose operations, not local hierarchies</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_local_poses_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_local_poses_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get local poses from USD.&quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_indices_wp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Resolve view indices as a Warp array.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="c1"># Create buffers</span>
-        <span class="n">translations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">QuatdArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
-
-        <span class="c1"># Create a fresh XformCache to avoid stale cached values</span>
-        <span class="n">xform_cache</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">XformCache</span><span class="p">(</span><span class="n">Usd</span><span class="o">.</span><span class="n">TimeCode</span><span class="o">.</span><span class="n">Default</span><span class="p">())</span>
-
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
-            <span class="n">prim_tf</span> <span class="o">=</span> <span class="n">xform_cache</span><span class="o">.</span><span class="n">GetLocalTransformation</span><span class="p">(</span><span class="n">prim</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">prim_tf</span><span class="o">.</span><span class="n">Orthonormalize</span><span class="p">()</span>
-            <span class="n">translations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractTranslation</span><span class="p">()</span>
-            <span class="n">orientations</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim_tf</span><span class="o">.</span><span class="n">ExtractRotationQuat</span><span class="p">()</span>
-
-        <span class="n">translations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">translations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">orientations</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-        <span class="n">orientations</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">orientations</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="n">translations</span><span class="p">,</span> <span class="n">orientations</span>  <span class="c1"># type: ignore</span>
-
-<div class="viewcode-block" id="XformPrimView.get_scales"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_scales">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales for prims in the view.</span>
-
-<span class="sd">        This method retrieves the scale of each prim in the view.</span>
-
-<span class="sd">        When Fabric is enabled, extracts scales from Fabric matrices using batch operations with Warp kernels.</span>
-<span class="sd">        When Fabric is disabled, reads from USD scale attributes.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scales_fabric</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scales_usd</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_scales_fabric</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales from Fabric using GPU batch operations.&quot;&quot;&quot;</span>
-        <span class="c1"># Lazy initialization</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_initialized</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_fabric</span><span class="p">()</span>
-        <span class="c1"># Sync once from USD to ensure reads see the latest authored transforms</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_usd_sync_done</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_sync_fabric_from_usd_once</span><span class="p">()</span>
-
-        <span class="c1"># Resolve indices (treat slice(None) as None for consistency with USD path)</span>
-        <span class="n">indices_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_indices_wp</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="n">count</span> <span class="o">=</span> <span class="n">indices_wp</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-        <span class="c1"># Use pre-allocated buffers for full reads, allocate only for partial reads</span>
-        <span class="n">use_cached_buffers</span> <span class="o">=</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">use_cached_buffers</span><span class="p">:</span>
-            <span class="c1"># Full read: Use cached buffers (zero allocation overhead!)</span>
-            <span class="n">scales_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_scales_buffer</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Partial read: Need to allocate buffer of appropriate size</span>
-            <span class="n">scales_wp</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">count</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-
-        <span class="c1"># Always use dummy buffers for positions and orientations (not needed for scales)</span>
-        <span class="n">positions_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_dummy_buffer</span>
-        <span class="n">orientations_wp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_dummy_buffer</span>
-
-        <span class="c1"># Use cached fabricarray for world matrices</span>
-        <span class="n">world_matrices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_world_matrices</span>
-
-        <span class="c1"># Launch GPU kernel to decompose matrices in parallel</span>
-        <span class="n">wp</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span>
-            <span class="n">kernel</span><span class="o">=</span><span class="n">fabric_utils</span><span class="o">.</span><span class="n">decompose_fabric_transformation_matrix_to_warp_arrays</span><span class="p">,</span>
-            <span class="n">dim</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
-            <span class="n">inputs</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">world_matrices</span><span class="p">,</span>
-                <span class="n">positions_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
-                <span class="n">orientations_wp</span><span class="p">,</span>  <span class="c1"># dummy array instead of None</span>
-                <span class="n">scales_wp</span><span class="p">,</span>
-                <span class="n">indices_wp</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_view_to_fabric</span><span class="p">,</span>
-            <span class="p">],</span>
-            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="c1"># Return tensor: zero-copy for cached buffers, conversion for partial reads</span>
-        <span class="k">if</span> <span class="n">use_cached_buffers</span><span class="p">:</span>
-            <span class="c1"># Zero-copy! The Warp kernel wrote directly into the PyTorch tensor</span>
-            <span class="n">wp</span><span class="o">.</span><span class="n">synchronize</span><span class="p">()</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fabric_scales_torch</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Partial read: Need to convert from Warp to torch</span>
-            <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">to_torch</span><span class="p">(</span><span class="n">scales_wp</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_scales_usd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get scales from USD.&quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="c1"># Create buffers</span>
-        <span class="n">scales</span> <span class="o">=</span> <span class="n">Vt</span><span class="o">.</span><span class="n">Vec3dArray</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">))</span>
-
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-            <span class="n">prim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">]</span>
-            <span class="n">scales</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:scale&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
-
-        <span class="c1"># Convert to tensor</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">scales</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-
-<div class="viewcode-block" id="XformPrimView.get_visibility"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sim.views.html#isaaclab.sim.views.XformPrimView.get_visibility">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get visibility for prims in the view.</span>
-
-<span class="sd">        This method retrieves the visibility of each prim in the view.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved</span>
-<span class="sd">                for all prims in the view.</span>
-
-<span class="sd">        Returns:</span>
-<span class="sd">            A tensor of shape (M,) containing the visibility of each prim, where M is the number of prims queried.</span>
-<span class="sd">            The tensor is of type bool.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Resolve indices</span>
-        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">indices</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Convert to list if it is a tensor array</span>
-            <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
-
-        <span class="c1"># Create buffers</span>
-        <span class="n">visibility</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indices_list</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">prim_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">indices_list</span><span class="p">):</span>
-            <span class="c1"># Get prim</span>
-            <span class="n">imageable</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Imageable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prims</span><span class="p">[</span><span class="n">prim_idx</span><span class="p">])</span>
-            <span class="c1"># Get visibility</span>
-            <span class="n">visibility</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">imageable</span><span class="o">.</span><span class="n">ComputeVisibility</span><span class="p">()</span> <span class="o">!=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">invisible</span>
-
-        <span class="k">return</span> <span class="n">visibility</span></div></div>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_view_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Fabric indices are not initialized.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_view_indices</span>
+        <span class="n">indices_list</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">indices_list</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">wp</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>
@@ -1750,7 +1763,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 22, 2026.
+  Last updated on Jan 26, 2026.
   <br/>
 </p>
   </div>
