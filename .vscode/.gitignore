@@ -8,3 +8,6 @@
 # Ignore all other files
 .python.env
 *.json
+
+# Ignore Local Assets
+local_assets/

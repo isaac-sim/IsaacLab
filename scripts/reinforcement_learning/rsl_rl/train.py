@@ -34,12 +34,32 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument(
+    "--local",
+    action="store_true",
+    default=False,
+    help="Use local assets and configurations (offline mode)"
+)
+
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
 
+if args_cli.local:
+    import os
+    print("[INFO] Running in LOCAL/OFFLINE mode")
+    
+    # Set environment variables for offline mode
+    os.environ["ISAACLAB_OFFLINE"] = "1"
+    os.environ["CARB_APP_RUN_OFFLINE"] = "1"
+    
+    # Transform task name to use local variant
+    if "Flat" in args_cli.task:
+        args_cli.task = args_cli.task.replace("Flat", "LocalFlat")
+        print(f"[INFO] Using local task: {args_cli.task}")
+        
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -114,6 +134,8 @@ torch.backends.cudnn.benchmark = False
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Train with RSL-RL agent."""
+    import os 
+    
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -121,6 +143,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
 
+    # Handle local mode - modify config to use local assets
+    if args_cli.local:
+        import os
+        print("[INFO] Configuring local assets")
+        
+        # Override robot USD path to use local assets
+        isaaclab_path = os.environ.get('ISAACLAB_PATH', os.getcwd())
+        local_usd_path = f"{isaaclab_path}/local_assets/unitree_model/Go2/usd/go2.usd"
+        
+        if hasattr(env_cfg.scene, 'robot') and hasattr(env_cfg.scene.robot, 'spawn'):
+            env_cfg.scene.robot.spawn.usd_path = local_usd_path
+            print(f"[INFO] Using local robot USD: {local_usd_path}")
+    
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
