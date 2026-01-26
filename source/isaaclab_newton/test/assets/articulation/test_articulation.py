@@ -343,6 +343,83 @@ class TestFinders:
         mask_ref[5] = True
         assert wp.to_torch(mask).allclose(mask_ref)
 
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_bodies_with_subset(self, device: str):
+        """Test that find_bodies with body_subset returns correct global indices.
+
+        This test validates the fix for the body_subset parameter, mirroring
+        the fix for find_joints with joint_subset (GitHub issue #4439).
+        """
+        # Create articulation with 8 bodies
+        body_names = [
+            "torso",
+            "head",
+            "left_arm",
+            "left_hand",
+            "right_arm",
+            "right_hand",
+            "left_leg",
+            "right_leg",
+        ]
+        articulation, _, _ = create_test_articulation(
+            device=device, num_joints=7, num_bodies=8, body_names=body_names
+        )
+
+        # Search within a subset
+        body_subset = ["torso", "head", "left_leg", "right_leg"]
+        mask, names, indices = articulation.find_bodies(".*", body_subset=body_subset)
+
+        # All bodies in subset should match ".*"
+        assert names == ["torso", "head", "left_leg", "right_leg"]
+        # Critical: indices should be GLOBAL indices [0, 1, 6, 7], not local indices [0, 1, 2, 3]
+        assert indices == [0, 1, 6, 7], f"Expected global indices [0, 1, 6, 7], got {indices}"
+
+        # Mask should be True at global positions 0, 1, 6, 7
+        mask_ref = torch.zeros((8,), dtype=torch.bool, device=device)
+        mask_ref[0] = True
+        mask_ref[1] = True
+        mask_ref[6] = True
+        mask_ref[7] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_bodies_with_subset_partial_match(self, device: str):
+        """Test find_bodies with subset when only some bodies in subset match."""
+        articulation, _, _ = create_test_articulation(device=device)
+
+        # Search for only body_1 and body_5 within a subset that includes them
+        body_subset = ["body_1", "body_3", "body_5"]
+        mask, names, indices = articulation.find_bodies("body_[15]", body_subset=body_subset)
+
+        assert names == ["body_1", "body_5"]
+        # Global indices for body_1 (1) and body_5 (5)
+        assert indices == [1, 5]
+
+        mask_ref = torch.zeros((7,), dtype=torch.bool, device=device)
+        mask_ref[1] = True
+        mask_ref[5] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_bodies_with_subset_and_preserve_order(self, device: str):
+        """Test find_bodies with both body_subset and preserve_order."""
+        articulation, _, _ = create_test_articulation(device=device)
+
+        body_subset = ["body_1", "body_3", "body_5"]
+        # Request in reverse order with preserve_order=True
+        mask, names, indices = articulation.find_bodies(
+            ["body_5", "body_1"], body_subset=body_subset, preserve_order=True
+        )
+
+        assert names == ["body_5", "body_1"]
+        # Indices should follow the requested order with global indices
+        assert indices == [5, 1]
+
+        mask_ref = torch.zeros((7,), dtype=torch.bool, device=device)
+        mask_ref[1] = True
+        mask_ref[5] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
     @pytest.mark.parametrize(
         "joint_names",
         [
@@ -393,6 +470,84 @@ class TestFinders:
         mask_ref = torch.zeros((6,), dtype=torch.bool, device=device)
         mask_ref[1] = True
         mask_ref[3] = True
+        mask_ref[5] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_joints_with_subset(self, device: str):
+        """Test that find_joints with joint_subset returns correct global indices.
+
+        This test validates the fix for GitHub issue #4439.
+        When joint_subset is provided, the returned indices should be global
+        indices relative to joint_names, not local indices within the subset.
+        """
+        # Create articulation with 8 joints (like the Ant robot from the issue)
+        joint_names = [
+            "front_left_leg",
+            "front_left_foot",
+            "front_right_leg",
+            "front_right_foot",
+            "left_back_leg",
+            "left_back_foot",
+            "right_back_leg",
+            "right_back_foot",
+        ]
+        articulation, _, _ = create_test_articulation(
+            device=device, num_joints=8, num_bodies=9, joint_names=joint_names
+        )
+
+        # Search within a subset
+        joint_subset = ["front_left_leg", "front_left_foot", "left_back_leg", "left_back_foot"]
+        mask, names, indices = articulation.find_joints(".*", joint_subset=joint_subset)
+
+        # All joints in subset should match ".*"
+        assert names == ["front_left_leg", "front_left_foot", "left_back_leg", "left_back_foot"]
+        # Critical: indices should be GLOBAL indices [0, 1, 4, 5], not local indices [0, 1, 2, 3]
+        assert indices == [0, 1, 4, 5], f"Expected global indices [0, 1, 4, 5], got {indices}"
+
+        # Mask should be True at global positions 0, 1, 4, 5
+        mask_ref = torch.zeros((8,), dtype=torch.bool, device=device)
+        mask_ref[0] = True
+        mask_ref[1] = True
+        mask_ref[4] = True
+        mask_ref[5] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_joints_with_subset_partial_match(self, device: str):
+        """Test find_joints with subset when only some joints in subset match."""
+        articulation, _, _ = create_test_articulation(device=device)
+
+        # Search for only joint_1 and joint_5 within a subset that includes them
+        joint_subset = ["joint_1", "joint_3", "joint_5"]
+        mask, names, indices = articulation.find_joints("joint_[15]", joint_subset=joint_subset)
+
+        assert names == ["joint_1", "joint_5"]
+        # Global indices for joint_1 (1) and joint_5 (5)
+        assert indices == [1, 5]
+
+        mask_ref = torch.zeros((6,), dtype=torch.bool, device=device)
+        mask_ref[1] = True
+        mask_ref[5] = True
+        assert wp.to_torch(mask).allclose(mask_ref)
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+    def test_find_joints_with_subset_and_preserve_order(self, device: str):
+        """Test find_joints with both joint_subset and preserve_order."""
+        articulation, _, _ = create_test_articulation(device=device)
+
+        joint_subset = ["joint_1", "joint_3", "joint_5"]
+        # Request in reverse order with preserve_order=True
+        mask, names, indices = articulation.find_joints(
+            ["joint_5", "joint_1"], joint_subset=joint_subset, preserve_order=True
+        )
+
+        assert names == ["joint_5", "joint_1"]
+        # Indices should follow the requested order with global indices
+        assert indices == [5, 1]
+
+        mask_ref = torch.zeros((6,), dtype=torch.bool, device=device)
+        mask_ref[1] = True
         mask_ref[5] = True
         assert wp.to_torch(mask).allclose(mask_ref)
 

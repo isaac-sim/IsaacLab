@@ -263,7 +263,7 @@ class RigidObject(BaseRigidObject):
     """
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
+        self, name_keys: str | Sequence[str], body_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the rigid body based on the name keys.
 
@@ -272,12 +272,14 @@ class RigidObject(BaseRigidObject):
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
+            body_subset: A subset of bodies to search for. Defaults to None, which means all bodies
+                in the rigid object are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the body mask, names and indices.
         """
-        return find_bodies(self.body_names, name_keys, preserve_order, self.device)
+        return find_bodies(self.body_names, name_keys, body_subset, preserve_order, self.device)
 
     """
     Operations - Write to simulation.
