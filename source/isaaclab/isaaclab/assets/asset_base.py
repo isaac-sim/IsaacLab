@@ -15,6 +15,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import warp as wp
+
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationContext
@@ -243,11 +245,12 @@ class AssetBase(ABC):
         return True
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
         """Resets all internal buffers of selected environments.
 
         Args:
             env_ids: The indices of the object to reset. Defaults to None (all instances).
+            env_mask: The mask of the object to reset. Defaults to None (all instances).
         """
         raise NotImplementedError
 

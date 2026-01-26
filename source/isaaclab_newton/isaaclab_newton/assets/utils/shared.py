@@ -14,6 +14,7 @@ import isaaclab.utils.string as string_utils
 def find_bodies(
     body_names: list[str],
     name_keys: str | Sequence[str],
+    body_subset: list[str] | None = None,
     preserve_order: bool = False,
     device: str = "cuda:0",
 ) -> tuple[wp.array, list[str], list[int]]:
@@ -25,12 +26,25 @@ def find_bodies(
     Args:
         body_names: The names of all the bodies in the articulation / assets.
         name_keys: A regular expression or a list of regular expressions to match the body names.
+        body_subset: A subset of bodies to search for. Defaults to None, which means all bodies
+            in the articulation are searched.
         preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
         device: The device to use for the output mask. Defaults to "cuda:0".
     Returns:
         A tuple of lists containing the body mask, names, and indices.
     """
-    indices, names = string_utils.resolve_matching_names(name_keys, body_names, preserve_order)
+    # Use subset if provided, otherwise default to full list
+    search_target = body_subset if body_subset is not None else body_names
+
+    # Search in the target (subset or full)
+    indices, names = string_utils.resolve_matching_names(name_keys, search_target, preserve_order)
+
+    # If a subset was explicitly provided, map names back to global indices.
+    # This block is skipped if body_subset is None, preserving zero overhead for default usage.
+    if body_subset is not None:
+        indices = [body_names.index(n) for n in names]
+
+    # Create global mask
     mask = np.zeros(len(body_names), dtype=bool)
     mask[indices] = True
     mask = wp.array(mask, dtype=wp.bool, device=device)
@@ -59,10 +73,18 @@ def find_joints(
     Returns:
         A tuple of lists containing the joint mask, names, and indices.
     """
-    if joint_subset is None:
-        joint_subset = joint_names
-    # find joints
-    indices, names = string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
+    # Use subset if provided, otherwise default to full list
+    search_target = joint_subset if joint_subset is not None else joint_names
+
+    # Search in the target (subset or full)
+    indices, names = string_utils.resolve_matching_names(name_keys, search_target, preserve_order)
+
+    # If a subset was explicitly provided, map names back to global indices.
+    # This block is skipped if joint_subset is None, preserving zero overhead for default usage.
+    if joint_subset is not None:
+        indices = [joint_names.index(n) for n in names]
+
+    # Create global mask
     mask = np.zeros(len(joint_names), dtype=bool)
     mask[indices] = True
     mask = wp.array(mask, dtype=wp.bool, device=device)

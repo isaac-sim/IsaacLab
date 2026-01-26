@@ -6,9 +6,12 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
+import logging
 import torch
 
 from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
+
+logger = logging.getLogger(__name__)
 
 
 class ContactSensorData(BaseContactSensorData):
@@ -166,8 +169,8 @@ class ContactSensorData(BaseContactSensorData):
             track_pose: Whether to track the pose.
             device: The device to use.
         """
-        print(
-            f"[INFO] Creating buffers for contact sensor data with num_envs: {num_envs}, num_bodies: {num_bodies},"
+        logger.info(
+            f"Creating buffers for contact sensor data with num_envs: {num_envs}, num_bodies: {num_bodies},"
             f" num_filters: {num_filters}, history_length: {history_length}, generate_force_matrix:"
             f" {generate_force_matrix}, track_air_time: {track_air_time}, track_pose: {track_pose}, device: {device}"
         )

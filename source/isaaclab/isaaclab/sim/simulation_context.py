@@ -385,6 +385,7 @@ class SimulationContext:
 
         self.settings.set_bool("/app/player/playSimulations", False)
         NewtonManager.set_simulation_dt(self.cfg.dt)
+        NewtonManager.set_device(self.device)
         NewtonManager._gravity_vector = self.cfg.gravity
         NewtonManager.set_solver_settings(newton_params)
 
@@ -1000,17 +1001,12 @@ class SimulationContext:
     def reset(self, soft: bool = False):
         self.settings.set_bool("/app/player/playSimulations", False)
         self._disable_app_control_on_stop_handle = True
-        # # check if we need to raise an exception that was raised in a callback
-        # if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
-        #     exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
-        #     builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-        #     raise exception_to_raise
 
         if not soft:
             # if not self.is_stopped():
             #     self.stop()
             NewtonManager.start_simulation()
-            # self.play()
+            self.play()
             NewtonManager.initialize_solver()
             self._is_playing = True
 
@@ -1031,6 +1027,12 @@ class SimulationContext:
             self.initialize_visualizers()
 
         self._disable_app_control_on_stop_handle = False
+
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -1135,6 +1137,7 @@ class SimulationContext:
     def play(self):
         """Starts the simulation."""
 
+        print("Playing simulation")
         if self.has_omniverse_visualizer():
             import omni.kit.app
             import omni.timeline
@@ -1326,6 +1329,7 @@ class SimulationContext:
         This method should be called when you want to destroy the simulation context
         and create a new one with different settings.
         """
+        print("Clearing simulation context instance")
         # clear the callback
         if cls._instance is not None:
             if (
@@ -1337,6 +1341,11 @@ class SimulationContext:
             # close all visualizers
             if hasattr(cls._instance, "_visualizers"):
                 cls._instance.close_visualizers()
+            # detach the stage from the USD stage cache
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
+            if stage_id > 0:
+                stage_cache.Erase(cls._instance._initial_stage)
             # clear stage references
             if hasattr(cls._instance, "_initial_stage"):
                 cls._instance._initial_stage = None
@@ -1465,6 +1474,7 @@ def build_simulation_context(
         if create_new_stage:
             stage_utils.create_new_stage()
 
+        # FIXME: Why do we only do this if the sim_cfg is not provided? Should we always do this?
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device
             sim_cfg = SimulationCfg(dt=dt)

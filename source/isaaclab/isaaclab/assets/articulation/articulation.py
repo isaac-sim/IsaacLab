@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from isaaclab_newton.assets.articulation import ArticulationData as NewtonArticulationData
 
 
-class Articulation(FactoryBase):
+class Articulation(FactoryBase, BaseArticulation):
     """Factory for creating articulation instances."""
 
     data: BaseArticulationData | NewtonArticulationData

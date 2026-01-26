@@ -102,6 +102,7 @@ class ActuatorNetLSTM(DCMotor):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )
 
 
@@ -198,4 +199,5 @@ class ActuatorNetMLP(DCMotor):
                 self._env_mask,
                 self._joint_mask,
             ],
+            device=self._device,
         )

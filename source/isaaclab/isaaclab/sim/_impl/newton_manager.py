@@ -5,19 +5,22 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import re
 
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.examples import create_collision_pipeline
-from newton.sensors import ContactSensor as NewtonContactSensor
+from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
+
+logger = logging.getLogger(__name__)
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -197,15 +200,15 @@ class NewtonManager:
             else:
                 NewtonManager._needs_collision_pipeline = True
 
-        # Ensure we are using a CUDA enabled device
-        assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
-
         # Capture the graph if CUDA is enabled
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:", enable=True, format="ms"):
-            if NewtonManager._cfg.use_cuda_graph:
+            if NewtonManager._cfg.use_cuda_graph and NewtonManager._device.startswith("cuda"):
                 with wp.ScopedCapture() as capture:
                     NewtonManager.simulate()
                 NewtonManager._graph = capture.graph
+            elif NewtonManager._cfg.use_cuda_graph and not NewtonManager._device.startswith("cuda"):
+                logger.warning("CUDA graphs requested but device is CPU. Disabling CUDA graphs.")
+                NewtonManager._cfg.use_cuda_graph = False
 
     @classmethod
     def simulate(cls) -> None:
