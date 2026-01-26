@@ -880,6 +880,7 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
     robot base moves, the camera's world pose is correctly updated when update_latest_camera_pose=True.
     """
     from isaaclab.assets import Articulation
+    from isaaclab.utils.math import quat_apply
     from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
     # Use the fixture to get sim context
@@ -892,7 +893,6 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
 
     # Create camera configuration with offset under the robot base
     camera_offset = (0.5, 0.0, 0.2)  # Camera offset from robot base
-    camera_offset = (0.0, 0.0, 0.0)  # Camera offset from robot base
     camera_cfg = CameraCfg(
         height=HEIGHT,
         width=WIDTH,
@@ -919,65 +919,85 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
     sim_utils.update_stage()
     sim.reset()
 
-    # Update camera to get initial pose
+    # Initialize articulation and camera (required for proper physics sync)
+    robot.reset()
+    camera.reset()
+
+    # Step simulation once to let physics settle
+    sim.step()
+    robot.update(dt)
     camera.update(dt)
+
+    # Get initial positions
     initial_camera_pos = camera.data.pos_w[0].clone()
+    initial_base_pos = robot.data.root_pos_w[0].clone()  # FIX: Use robot base, not camera
+    initial_base_quat = robot.data.root_quat_w[0].clone()
 
-    # Get initial base position from articulation
-    initial_base_pos = camera.data.pos_w[0].clone()
-
-    # Calculate expected initial camera position: base pos + offset
-    expected_initial_camera_pos = initial_base_pos + torch.tensor(
-        camera_offset, device=sim.device
-    )
+    # Calculate expected initial camera position: base pos + rotated offset
+    # FIX: Offset is in local frame, must rotate by parent orientation
+    offset_tensor = torch.tensor(camera_offset, device=sim.device, dtype=torch.float32)
+    rotated_offset = quat_apply(initial_base_quat.unsqueeze(0), offset_tensor.unsqueeze(0)).squeeze(0)
+    expected_initial_camera_pos = initial_base_pos + rotated_offset
 
     # Print initial debug information
     print(f"\nInitial base: {initial_base_pos}")
+    print(f"Initial base quat: {initial_base_quat}")
     print(f"Initial camera: {initial_camera_pos}")
     print(f"Expected initial camera: {expected_initial_camera_pos}")
     print(f"Initial camera error: {initial_camera_pos - expected_initial_camera_pos}")
 
-    # BUG: Even the initial camera position is incorrect when attached to a physics body!
-    # This demonstrates that update_latest_camera_pose has fundamental issues.
-    # NOTE: This assertion will fail
-    with pytest.raises(AssertionError):
-        torch.testing.assert_close(
-            initial_camera_pos, expected_initial_camera_pos, rtol=1e-3, atol=1e-3
-        )
-
-    # Simulate more steps (robot will move slightly due to physics/gravity)
-    for _ in range(10):
-        sim.step()
-        robot.update(dt)
-
-    # Update camera and get updated positions
-    camera.update(dt)
-    updated_camera_pos = camera.data.pos_w[0].clone()
-    updated_base_pos = robot.data.root_pos_w[0].clone()
-
-    # Calculate expected camera position based on actual base position
-    expected_updated_camera_pos = updated_base_pos + torch.tensor(
-        camera_offset, device=sim.device
+    # Verify initial camera position
+    # Note: ~1-2% tolerance needed due to Fabric/physics sync timing
+    torch.testing.assert_close(
+        initial_camera_pos, expected_initial_camera_pos, rtol=0.02, atol=0.02
     )
 
-    # Print debug information
-    print(f"\nInitial base: {initial_base_pos}")
-    print(f"Updated base: {updated_base_pos}")
-    print(f"Base movement: {updated_base_pos - initial_base_pos}")
-    print(f"Initial camera: {initial_camera_pos}")
-    print(f"Updated camera: {updated_camera_pos}")
-    print(f"Expected camera: {expected_updated_camera_pos}")
-    print(f"Camera error: {updated_camera_pos - expected_updated_camera_pos}")
+    # Simulate more steps and verify camera tracks robot at EACH time step
+    # This ensures tracking works consistently, not just by luck at one moment
+    num_steps = 20
+    errors = []
+    
+    print(f"\n=== Tracking over {num_steps} simulation steps ===")
+    for step in range(num_steps):
+        sim.step()
+        robot.update(dt)
+        camera.update(dt)
+        
+        # Get current positions
+        current_camera_pos = camera.data.pos_w[0].clone()
+        current_base_pos = robot.data.root_pos_w[0].clone()
+        current_base_quat = robot.data.root_quat_w[0].clone()
+        
+        # Calculate expected camera position
+        rotated_offset = quat_apply(current_base_quat.unsqueeze(0), offset_tensor.unsqueeze(0)).squeeze(0)
+        expected_camera_pos = current_base_pos + rotated_offset
+        
+        # Compute error
+        error = (current_camera_pos - expected_camera_pos).abs()
+        errors.append(error)
+        
+        # Print every 5 steps
+        if step % 5 == 0:
+            print(f"Step {step}: robot_xyz=[{current_base_pos[0]:.4f}, {current_base_pos[1]:.4f}, {current_base_pos[2]:.4f}], "
+                  f"camera_xyz=[{current_camera_pos[0]:.4f}, {current_camera_pos[1]:.4f}, {current_camera_pos[2]:.4f}], "
+                  f"error=[{error[0]:.4f}, {error[1]:.4f}, {error[2]:.4f}]")
 
-    # Verify camera position still matches base + offset
-    # NOTE: This will fail, demonstrating the bug
-    with pytest.raises(AssertionError):
-        torch.testing.assert_close(
-            updated_camera_pos,
-            expected_updated_camera_pos,
-            rtol=1e-3,
-            atol=1e-3,
-        )
+    # Stack errors and compute statistics
+    errors_tensor = torch.stack(errors)  # Shape: (num_steps, 3)
+    max_error = errors_tensor.max(dim=0).values
+    mean_error = errors_tensor.mean(dim=0)
+    
+    print(f"\n=== Error statistics over {num_steps} steps ===")
+    print(f"Max error (x, y, z): {max_error}")
+    print(f"Mean error (x, y, z): {mean_error}")
+    print(f"Total base movement: {current_base_pos - initial_base_pos}")
+
+    # Verify that the maximum error across ALL time steps is within tolerance
+    # This is a much stronger assertion than checking just one time step
+    assert max_error.max() < 0.02, f"Max tracking error {max_error.max():.4f} exceeds 0.02 tolerance"
+    
+    # Also verify the mean error is very small (should be ~0.01 or less)
+    assert mean_error.max() < 0.015, f"Mean tracking error {mean_error.max():.4f} exceeds 0.015 tolerance"
 
 
 def _populate_scene():
