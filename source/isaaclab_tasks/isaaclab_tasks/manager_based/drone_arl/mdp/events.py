@@ -90,12 +90,12 @@ def reset_obstacles_with_individual_ranges(
     if use_curriculum:
         curriculum_term = _get_obstacle_curriculum_term(env)
         if curriculum_term is not None:
+            difficulty_levels = curriculum_term.difficulty_levels[env_ids]
+            max_difficulty = curriculum_term.max_difficulty
+        else:
             # Fallback: use max obstacles if curriculum not found
             difficulty_levels = torch.ones(num_envs, device=env.device) * max_num_obstacles
             max_difficulty = max_num_obstacles
-        else:
-            difficulty_levels = curriculum_term.difficulty_levels[env_ids]
-            max_difficulty = curriculum_term.max_difficulty
     else:
         difficulty_levels = torch.ones(num_envs, device=env.device) * max_num_obstacles
         max_difficulty = max_num_obstacles

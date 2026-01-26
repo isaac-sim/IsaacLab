@@ -56,8 +56,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Extract parameters from config
-        self._min_difficulty = cfg.params.get("min_difficulty", 2)
-        self._max_difficulty = cfg.params.get("max_difficulty", 10)
+        self._min_difficulty = cfg.params["min_difficulty"]
+        self._max_difficulty = cfg.params["max_difficulty"]
         self._asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
         self._command_name = cfg.params.get("command_name", "target_pose")
 
@@ -70,8 +70,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         env_ids: Sequence[int],
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         command_name: str = "target_pose",
-        max_difficulty: int = 10,
-        min_difficulty: int = 2,
+        min_difficulty: int | None = None,
+        max_difficulty: int | None = None,
     ) -> float:
         """Update obstacle density curriculum based on performance.
 
@@ -102,7 +102,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         # Update difficulty levels
         self._difficulty_levels[env_ids] += move_up.long() - move_down.long()
         self._difficulty_levels[env_ids] = torch.clamp(
-            self._difficulty_levels[env_ids], min=min_difficulty, max=max_difficulty - 1
+            self._difficulty_levels[env_ids], min=self._min_difficulty, max=self._max_difficulty - 1
         )
 
         return self._difficulty_levels.float().mean().item()
