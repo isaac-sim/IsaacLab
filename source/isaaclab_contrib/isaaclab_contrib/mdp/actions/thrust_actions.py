@@ -333,10 +333,12 @@ class NavigationAction(ThrustAction):
             self._lc = LeePosController(
                 cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
             )
+            logger.warning("Navigation task tuned for velocity control. Consider using velocity controller for better performance or retune reward function")
         elif isinstance(self.cfg.controller_cfg, LeeAccControllerCfg):
             self._lc = LeeAccController(
                 cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
             )
+            logger.warning("Navigation task tuned for velocity control. Consider using velocity controller for better performance or retune reward function")
         else:
             raise ValueError(
                 f"Unsupported controller_cfg type: {type(self.cfg.controller_cfg)}. "
