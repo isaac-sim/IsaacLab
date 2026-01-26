@@ -12,9 +12,9 @@ particularly when joint_subset is provided.
 from __future__ import annotations
 
 import numpy as np
+
 import pytest
 import warp as wp
-
 from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 
 # Initialize Warp
@@ -208,9 +208,7 @@ class TestFindJoints:
     def test_find_joints_preserve_order(self, device: str):
         """Test that find_joints respects preserve_order parameter."""
         joint_names = ["joint_0", "joint_1", "joint_2", "joint_3"]
-        mask, names, indices = find_joints(
-            joint_names, ["joint_3", "joint_1"], preserve_order=True, device=device
-        )
+        mask, names, indices = find_joints(joint_names, ["joint_3", "joint_1"], preserve_order=True, device=device)
 
         assert names == ["joint_3", "joint_1"]
         assert indices == [3, 1]

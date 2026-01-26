@@ -361,9 +361,7 @@ class TestFinders:
             "left_leg",
             "right_leg",
         ]
-        articulation, _, _ = create_test_articulation(
-            device=device, num_joints=7, num_bodies=8, body_names=body_names
-        )
+        articulation, _, _ = create_test_articulation(device=device, num_joints=7, num_bodies=8, body_names=body_names)
 
         # Search within a subset
         body_subset = ["torso", "head", "left_leg", "right_leg"]
