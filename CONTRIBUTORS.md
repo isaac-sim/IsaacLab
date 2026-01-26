@@ -99,6 +99,7 @@ Guidelines for modifications:
 * Kourosh Darvish
 * Kousheek Chakraborty
 * Lionel Gulich
+* Litian Gong
 * Lotus Li
 * Louis Le Lay
 * Lorenz Wellhausen
