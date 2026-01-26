@@ -881,6 +881,7 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
     """
     from isaaclab.assets import Articulation
     from isaaclab.utils.math import quat_apply
+
     from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
     # Use the fixture to get sim context
@@ -948,45 +949,46 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
 
     # Verify initial camera position
     # Note: ~1-2% tolerance needed due to Fabric/physics sync timing
-    torch.testing.assert_close(
-        initial_camera_pos, expected_initial_camera_pos, rtol=0.02, atol=0.02
-    )
+    torch.testing.assert_close(initial_camera_pos, expected_initial_camera_pos, rtol=0.02, atol=0.02)
 
     # Simulate more steps and verify camera tracks robot at EACH time step
     # This ensures tracking works consistently, not just by luck at one moment
     num_steps = 20
     errors = []
-    
+
     print(f"\n=== Tracking over {num_steps} simulation steps ===")
     for step in range(num_steps):
         sim.step()
         robot.update(dt)
         camera.update(dt)
-        
+
         # Get current positions
         current_camera_pos = camera.data.pos_w[0].clone()
         current_base_pos = robot.data.root_pos_w[0].clone()
         current_base_quat = robot.data.root_quat_w[0].clone()
-        
+
         # Calculate expected camera position
         rotated_offset = quat_apply(current_base_quat.unsqueeze(0), offset_tensor.unsqueeze(0)).squeeze(0)
         expected_camera_pos = current_base_pos + rotated_offset
-        
+
         # Compute error
         error = (current_camera_pos - expected_camera_pos).abs()
         errors.append(error)
-        
+
         # Print every 5 steps
         if step % 5 == 0:
-            print(f"Step {step}: robot_xyz=[{current_base_pos[0]:.4f}, {current_base_pos[1]:.4f}, {current_base_pos[2]:.4f}], "
-                  f"camera_xyz=[{current_camera_pos[0]:.4f}, {current_camera_pos[1]:.4f}, {current_camera_pos[2]:.4f}], "
-                  f"error=[{error[0]:.4f}, {error[1]:.4f}, {error[2]:.4f}]")
+            print(
+                f"Step {step}: robot_xyz=[{current_base_pos[0]:.4f}, {current_base_pos[1]:.4f}, "
+                f"{current_base_pos[2]:.4f}], camera_xyz=[{current_camera_pos[0]:.4f}, "
+                f"{current_camera_pos[1]:.4f}, {current_camera_pos[2]:.4f}], error=[{error[0]:.4f}, "
+                f"{error[1]:.4f}, {error[2]:.4f}]"
+            )
 
     # Stack errors and compute statistics
     errors_tensor = torch.stack(errors)  # Shape: (num_steps, 3)
     max_error = errors_tensor.max(dim=0).values
     mean_error = errors_tensor.mean(dim=0)
-    
+
     print(f"\n=== Error statistics over {num_steps} steps ===")
     print(f"Max error (x, y, z): {max_error}")
     print(f"Mean error (x, y, z): {mean_error}")
@@ -995,7 +997,7 @@ def test_camera_update_pose_with_moving_xform(setup_sim_camera):
     # Verify that the maximum error across ALL time steps is within tolerance
     # This is a much stronger assertion than checking just one time step
     assert max_error.max() < 0.02, f"Max tracking error {max_error.max():.4f} exceeds 0.02 tolerance"
-    
+
     # Also verify the mean error is very small (should be ~0.01 or less)
     assert mean_error.max() < 0.015, f"Mean tracking error {mean_error.max():.4f} exceeds 0.015 tolerance"
 
