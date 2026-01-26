@@ -68,7 +68,13 @@ RUN set -euo pipefail && \
     wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
     mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
     apt-get update && \
-    apt-get install -y --no-install-recommends cuda-toolkit-12-8 && \
+    apt-get install -y --no-install-recommends \
+        cuda-toolkit-12-8 \
+        libcudnn9-cuda-12 \
+        libcusparselt0 \
+        libnccl2 \
+        libnccl-dev \
+        libnvjitlink-12-8 && \
     apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
@@ -115,17 +121,22 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
+# HACK: Remove pre-bundled torch BEFORE installing Isaac Lab dependencies.
+# This forces isaaclab.sh --install to install torch fresh to site-packages,
+# rather than skipping because it detects the pre-bundled version.
+RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
+
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
+# HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
     "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
-
-# HACK: Remove install of quadprog dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
