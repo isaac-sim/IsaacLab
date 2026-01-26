@@ -207,6 +207,7 @@ class ImageLatentObservation(ManagerTermBase):
 
         return latents
 
+
 """
 Actions.
 """

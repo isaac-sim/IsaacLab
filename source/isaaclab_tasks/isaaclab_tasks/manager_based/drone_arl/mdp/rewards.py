@@ -117,14 +117,14 @@ def distance_to_goal_exp_curriculum(
 
     # compute the error
     position_error_square = torch.sum(torch.square(command[:, :3] - current_position), dim=1)
-    
+
     # Get curriculum term and compute weight
     curriculum_term = _get_obstacle_curriculum_term(env)
     if curriculum_term is not None:
         weight = 1.0 + curriculum_term.difficulty_levels.float() / float(curriculum_term.max_difficulty)
     else:
         weight = 1.0
-    
+
     return weight * torch.exp(-position_error_square / std**2)
 
 
@@ -200,14 +200,14 @@ def velocity_to_goal_reward_curriculum(
     direction_to_goal = direction_to_goal / (torch.norm(direction_to_goal, dim=1, keepdim=True) + 1e-8)
     # compute the reward as the dot product between the velocity and the direction to the goal
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
-    
+
     # Get curriculum term and compute weight
     curriculum_term = _get_obstacle_curriculum_term(env)
     if curriculum_term is not None:
         weight = 1.0 + curriculum_term.difficulty_levels.float() / float(curriculum_term.max_difficulty)
     else:
         weight = 1.0
-    
+
     return weight * velocity_towards_goal
 
 

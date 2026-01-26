@@ -292,7 +292,7 @@ class NavigationAction(ThrustAction):
 
     Parameters (from cfg):
         max_magnitude: Maximum translational magnitude for position/velocity/acceleration commands.
-        max_yaw_command: Maximum yaw command in rad/s for velocity and acceleration 
+        max_yaw_command: Maximum yaw command in rad/s for velocity and acceleration
                          control and relative yaw change [rad] for position control.
         max_inclination_angle: Maximum pitch angle in rad.
 
@@ -308,7 +308,7 @@ class NavigationAction(ThrustAction):
             controller_cfg=LeeVelControllerCfg(...),
             asset_name="robot",
             max_magnitude=2.0,
-            max_yaw_command=1.047,  
+            max_yaw_command=1.047,
             max_inclination_angle=0.785,  # pi/4
         )
         nav_action = NavigationAction(cfg, env)
@@ -333,12 +333,18 @@ class NavigationAction(ThrustAction):
             self._lc = LeePosController(
                 cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
             )
-            logger.warning("Navigation task tuned for velocity control. Consider using velocity controller for better performance or retune reward function")
+            logger.warning(
+                "Navigation task tuned for velocity control."
+                "Consider using velocity controller for better performance or retune reward function"
+            )
         elif isinstance(self.cfg.controller_cfg, LeeAccControllerCfg):
             self._lc = LeeAccController(
                 cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
             )
-            logger.warning("Navigation task tuned for velocity control. Consider using velocity controller for better performance or retune reward function")
+            logger.warning(
+                "Navigation task tuned for velocity control."
+                "Consider using velocity controller for better performance or retune reward function"
+            )
         else:
             raise ValueError(
                 f"Unsupported controller_cfg type: {type(self.cfg.controller_cfg)}. "

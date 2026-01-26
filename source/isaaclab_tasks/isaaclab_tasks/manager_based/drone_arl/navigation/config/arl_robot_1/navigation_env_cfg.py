@@ -275,7 +275,7 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     obstacle_levels = CurrTerm(
-        func=mdp.ObstacleDensityCurriculum,  
+        func=mdp.ObstacleDensityCurriculum,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "max_difficulty": 10,
