@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 import numpy as np
@@ -16,6 +17,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import fabric as fabric_utils
+
+logger = logging.getLogger(__name__)
 
 
 class XformPrimView:
@@ -39,15 +42,15 @@ class XformPrimView:
       Note: renderers typically consume USD-authored camera transforms.
 
     .. warning::
-        **Fabric requires CUDA**: Fabric is only supported with `device="cuda"`.
-        Warp's CPU backend for fabricarray writes has known issues, so attempting to use
-        Fabric with `device="cpu"` will raise a ValueError at initialization.
+        **Fabric requires CUDA**: Fabric is only supported with on CUDA devices.
+        Warp's CPU backend for fabric-array writes has known issues, so attempting to use
+        Fabric with CPU device (``device="cpu"``) will raise a ValueError at initialization.
 
     .. note::
         **Fabric Support:**
 
         When Fabric is enabled, this view ensures prims have the required Fabric hierarchy
-        attributes (`omni:fabric:localMatrix` and `omni:fabric:worldMatrix`). On first Fabric
+        attributes (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``). On first Fabric
         read, USD-authored transforms initialize Fabric state. Fabric writes can optionally
         be mirrored back to USD via :attr:`sync_usd_on_fabric_write`.
 
@@ -104,24 +107,37 @@ class XformPrimView:
                 ``"cuda:0"``. Defaults to ``"cpu"``.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
-            sync_usd_on_fabric_write: Whether Fabric pose/scale writes should also be mirrored
-                to USD. Defaults to False; set True when USD consumers (e.g., rendering cameras)
-                must observe pose updates.
+            sync_usd_on_fabric_write: Whether to mirror Fabric transform writes back to USD.
+                When True, transform updates are synchronized to USD so that USD data readers (e.g., rendering
+                cameras) can observe these changes. Defaults to False for better performance.
             stage: USD stage to search for prims. Defaults to None, in which case the current active stage
                 from the simulation context is used.
+
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
                 transform operations (translate, orient, scale in that order).
         """
-        stage = sim_utils.get_current_stage() if stage is None else stage
-
         # Store configuration
         self._prim_path = prim_path
         self._device = device
 
         # Find and validate matching prims
+        stage = sim_utils.get_current_stage() if stage is None else stage
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+
+        # Validate all prims have standard xform operations
+        if validate_xform_ops:
+            for prim in self._prims:
+                if not sim_utils.validate_standard_xform_ops(prim):
+                    raise ValueError(
+                        f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
+                        f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
+                        " Use sim_utils.standardize_xform_ops() to prepare the prim."
+                    )
+
+        # Determine if Fabric is supported on the device
         self._use_fabric = self._device != "cpu"
+        logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":
@@ -152,36 +168,13 @@ class XformPrimView:
         # Use "isaaclab" namespace to identify our custom attributes
         self._view_index_attr = f"isaaclab:view_index:{abs(hash(self))}"
 
-        # Validate all prims have standard xform operations
-        if validate_xform_ops:
-            for prim in self._prims:
-                if not sim_utils.validate_standard_xform_ops(prim):
-                    raise ValueError(
-                        f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
-                        f" operations [translate, orient, scale]. Received type: '{prim.GetTypeName()}'."
-                        " Use sim_utils.standardize_xform_ops() to prepare the prim."
-                    )
-
-    def _resolve_indices_wp(self, indices: Sequence[int] | None) -> wp.array:
-        """Resolve view indices as a Warp array."""
-        if indices is None or indices == slice(None):
-            if self._default_view_indices is None:
-                raise RuntimeError("Fabric indices are not initialized.")
-            return self._default_view_indices
-        indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-        return wp.array(indices_list, dtype=wp.uint32).to(self._device)
-
     """
     Properties.
     """
 
     @property
     def count(self) -> int:
-        """Number of prims in this view.
-
-        Returns:
-            The number of prims being managed by this view.
-        """
+        """Number of prims in this view."""
         return len(self._prims)
 
     @property
@@ -205,9 +198,6 @@ class XformPrimView:
             For most use cases, prefer using :attr:`prims` directly as it provides direct access
             to the USD prim objects without the conversion overhead. This property is mainly useful
             for logging, debugging, or when string paths are explicitly required.
-
-        Returns:
-            List of prim paths (as strings) in the same order as :attr:`prims`.
         """
         # we cache it the first time it is accessed.
         # we don't compute it in constructor because it is expensive and we don't need it most of the time.
@@ -230,8 +220,10 @@ class XformPrimView:
 
         This method sets the position and/or orientation of each prim in world space.
 
-        When Fabric is enabled, writes directly to Fabric using GPU-accelerated batch operations.
-        When Fabric is disabled, converts to local space and writes to USD attributes.
+        - When Fabric is enabled, the function writes directly to Fabric's ``omni:fabric:worldMatrix``
+          attribute using GPU-accelerated batch operations.
+        - When Fabric is disabled, the function converts to local space and writes to USD's ``xformOp:translate``
+          and ``xformOp:orient`` attributes.
 
         Args:
             positions: World-space positions as a tensor of shape (M, 3) where M is the number of prims
@@ -247,85 +239,228 @@ class XformPrimView:
             ValueError: If the number of poses doesn't match the number of indices provided.
         """
         if self._use_fabric:
-            return self._set_world_poses_fabric(positions, orientations, indices)
+            self._set_world_poses_fabric(positions, orientations, indices)
         else:
-            return self._set_world_poses_usd(positions, orientations, indices)
+            self._set_world_poses_usd(positions, orientations, indices)
 
-    def _set_world_poses_fabric(
+    def set_local_poses(
         self,
-        positions: torch.Tensor | None = None,
+        translations: torch.Tensor | None = None,
         orientations: torch.Tensor | None = None,
         indices: Sequence[int] | None = None,
     ):
-        """Set world poses using Fabric GPU batch operations.
+        """Set local-space poses for prims in the view.
 
-        Writes directly to Fabric's omni:fabric:worldMatrix attribute using Warp kernels.
-        Changes are propagated through Fabric's hierarchy system but remain GPU-resident.
+        This method sets the position and/or orientation of each prim in local space (relative to
+        their parent prims).
 
-        For workflows mixing Fabric world pose writes with USD local pose queries, note
-        that local poses read from USD's xformOp:* attributes, which may not immediately
-        reflect Fabric changes. For best performance and consistency, use Fabric methods
-        exclusively (get_world_poses/set_world_poses with Fabric enabled).
+        The function writes directly to USD's ``xformOp:translate`` and ``xformOp:orient`` attributes.
+
+        Note:
+            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim's design
+            where Fabric is only used for world pose operations.
+
+            Rationale:
+                - Local pose writes need correct parent-child hierarchy relationships
+                - USD maintains these relationships correctly and efficiently
+                - Fabric is optimized for world pose operations, not local hierarchies
+
+        Args:
+            translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims
+                to set (either all prims if indices is None, or the number of indices provided).
+                Defaults to None, in which case translations are not modified.
+            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (M, 4).
+                Defaults to None, in which case orientations are not modified.
+            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set
+                for all prims in the view.
+
+        Raises:
+            ValueError: If translations shape is not (M, 3) or orientations shape is not (M, 4).
+            ValueError: If the number of poses doesn't match the number of indices provided.
         """
-        # Lazy initialization
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        # Use cached Fabric hierarchy
-        fabric_hierarchy = self._fabric_hierarchy
-
-        # Resolve indices (treat slice(None) as None for consistency with USD path)
-        indices_wp = self._resolve_indices_wp(indices)
-
-        count = indices_wp.shape[0]
-
-        # Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues
-        if positions is not None:
-            positions_wp = wp.from_torch(positions)
+        if self._use_fabric:
+            self._set_local_poses_fabric(translations, orientations, indices)
         else:
-            positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
+            self._set_local_poses_usd(translations, orientations, indices)
 
-        if orientations is not None:
-            orientations_wp = wp.from_torch(orientations)
+    def set_scales(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
+        """Set scales for prims in the view.
+
+        This method sets the scale of each prim in the view.
+
+        - When Fabric is enabled, the function updates scales in Fabric matrices using GPU-accelerated batch operations.
+        - When Fabric is disabled, the function writes to USD's ``xformOp:scale`` attributes.
+
+        Args:
+            scales: Scales as a tensor of shape (M, 3) where M is the number of prims
+                to set (either all prims if indices is None, or the number of indices provided).
+            indices: Indices of prims to set scales for. Defaults to None, in which case scales are set
+                for all prims in the view.
+
+        Raises:
+            ValueError: If scales shape is not (M, 3).
+        """
+        if self._use_fabric:
+            self._set_scales_fabric(scales, indices)
         else:
-            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
+            self._set_scales_usd(scales, indices)
 
-        # Dummy array for scales (not modifying)
-        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
+    def set_visibility(self, visibility: torch.Tensor, indices: Sequence[int] | None = None):
+        """Set visibility for prims in the view.
 
-        # Use cached fabricarray for world matrices
-        world_matrices = self._fabric_world_matrices
+        This method sets the visibility of each prim in the view.
 
-        # Batch compose matrices with a single kernel launch
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales_wp,  # dummy array instead of None
-                False,  # broadcast_positions
-                False,  # broadcast_orientations
-                False,  # broadcast_scales
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._device,
-        )
+        Args:
+            visibility: Visibility as a boolean tensor of shape (M,) where M is the
+                number of prims to set (either all prims if indices is None, or the number of indices provided).
+            indices: Indices of prims to set visibility for. Defaults to None, in which case visibility is set
+                for all prims in the view.
 
-        # Synchronize to ensure kernel completes
-        wp.synchronize()
+        Raises:
+            ValueError: If visibility shape is not (M,).
+        """
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
 
-        # Update world transforms within Fabric hierarchy
-        fabric_hierarchy.update_world_xforms()
-        # Fabric now has authoritative data; skip future USD syncs
-        self._fabric_usd_sync_done = True
-        # Mirror to USD for renderer-facing prims when enabled.
-        if self._sync_usd_on_fabric_write:
-            self._set_world_poses_usd(positions, orientations, indices)
+        # Validate inputs
+        if visibility.shape != (len(indices_list),):
+            raise ValueError(f"Expected visibility shape ({len(indices_list)},), got {visibility.shape}.")
 
-        # Fabric writes are GPU-resident; local pose operations still use USD.
+        # Set visibility for each prim
+        with Sdf.ChangeBlock():
+            for idx, prim_idx in enumerate(indices_list):
+                # Convert prim to imageable
+                imageable = UsdGeom.Imageable(self._prims[prim_idx])
+                # Set visibility
+                if visibility[idx]:
+                    imageable.MakeVisible()
+                else:
+                    imageable.MakeInvisible()
+
+    """
+    Operations - Getters.
+    """
+
+    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get world-space poses for prims in the view.
+
+        This method retrieves the position and orientation of each prim in world space by computing
+        the full transform hierarchy from the prim to the world root.
+
+        - When Fabric is enabled, the function uses Fabric batch operations with Warp kernels.
+        - When Fabric is disabled, the function uses USD XformCache.
+
+        Note:
+            Scale and skew are ignored. The returned poses contain only translation and rotation.
+
+        Args:
+            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
+                for all prims in the view.
+
+        Returns:
+            A tuple of (positions, orientations) where:
+
+            - positions: Torch tensor of shape (M, 3) containing world-space positions (x, y, z),
+              where M is the number of prims queried.
+            - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)
+        """
+        if self._use_fabric:
+            return self._get_world_poses_fabric(indices)
+        else:
+            return self._get_world_poses_usd(indices)
+
+    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get local-space poses for prims in the view.
+
+        This method retrieves the position and orientation of each prim in local space (relative to
+        their parent prims). It reads directly from USD's ``xformOp:translate`` and ``xformOp:orient`` attributes.
+
+        Note:
+            Even in Fabric mode, local pose operations use USD. This behavior is based on Isaac Sim's design
+            where Fabric is only used for world pose operations.
+
+            Rationale:
+                - Local pose reads need correct parent-child hierarchy relationships
+                - USD maintains these relationships correctly and efficiently
+                - Fabric is optimized for world pose operations, not local hierarchies
+
+        Note:
+            Scale is ignored. The returned poses contain only translation and rotation.
+
+        Args:
+            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
+                for all prims in the view.
+
+        Returns:
+            A tuple of (translations, orientations) where:
+
+            - translations: Torch tensor of shape (M, 3) containing local-space translations (x, y, z),
+              where M is the number of prims queried.
+            - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)
+        """
+        if self._use_fabric:
+            return self._get_local_poses_fabric(indices)
+        else:
+            return self._get_local_poses_usd(indices)
+
+    def get_scales(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+        """Get scales for prims in the view.
+
+        This method retrieves the scale of each prim in the view.
+
+        - When Fabric is enabled, the function extracts scales from Fabric matrices using batch operations with
+          Warp kernels.
+        - When Fabric is disabled, the function reads from USD's ``xformOp:scale`` attributes.
+
+        Args:
+            indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved
+                for all prims in the view.
+
+        Returns:
+            A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.
+        """
+        if self._use_fabric:
+            return self._get_scales_fabric(indices)
+        else:
+            return self._get_scales_usd(indices)
+
+    def get_visibility(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+        """Get visibility for prims in the view.
+
+        This method retrieves the visibility of each prim in the view.
+
+        Args:
+            indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved
+                for all prims in the view.
+
+        Returns:
+            A tensor of shape (M,) containing the visibility of each prim, where M is the number of prims queried.
+            The tensor is of type bool.
+        """
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Create buffers
+        visibility = torch.zeros(len(indices_list), dtype=torch.bool, device=self._device)
+
+        for idx, prim_idx in enumerate(indices_list):
+            # Get prim
+            imageable = UsdGeom.Imageable(self._prims[prim_idx])
+            # Get visibility
+            visibility[idx] = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+
+        return visibility
+
+    """
+    Internal Functions - USD.
+    """
 
     def _set_world_poses_usd(
         self,
@@ -416,56 +551,6 @@ class XformPrimView:
                 if local_quat is not None:
                     prim.GetAttribute("xformOp:orient").Set(local_quat)
 
-    def set_local_poses(
-        self,
-        translations: torch.Tensor | None = None,
-        orientations: torch.Tensor | None = None,
-        indices: Sequence[int] | None = None,
-    ):
-        """Set local-space poses for prims in the view.
-
-        This method sets the position and/or orientation of each prim in local space (relative to
-        their parent prims).
-
-        When Fabric is enabled, writes directly to Fabric local matrices using GPU-accelerated batch operations.
-        When Fabric is disabled, writes directly to USD local transform attributes.
-
-        Args:
-            translations: Local-space translations as a tensor of shape (M, 3) where M is the number of prims
-                to set (either all prims if indices is None, or the number of indices provided).
-                Defaults to None, in which case translations are not modified.
-            orientations: Local-space orientations as quaternions (w, x, y, z) with shape (M, 4).
-                Defaults to None, in which case orientations are not modified.
-            indices: Indices of prims to set poses for. Defaults to None, in which case poses are set
-                for all prims in the view.
-
-        Raises:
-            ValueError: If translations shape is not (M, 3) or orientations shape is not (M, 4).
-            ValueError: If the number of poses doesn't match the number of indices provided.
-        """
-        if self._use_fabric:
-            return self._set_local_poses_fabric(translations, orientations, indices)
-        else:
-            return self._set_local_poses_usd(translations, orientations, indices)
-
-    def _set_local_poses_fabric(
-        self,
-        translations: torch.Tensor | None = None,
-        orientations: torch.Tensor | None = None,
-        indices: Sequence[int] | None = None,
-    ):
-        """Set local poses using USD (matches Isaac Sim's design).
-
-        Note: Even in Fabric mode, local pose operations use USD.
-        This is Isaac Sim's design - the `usd=False` parameter only affects world poses.
-
-        Rationale:
-        - Local pose writes need correct parent-child hierarchy relationships
-        - USD maintains these relationships correctly and efficiently
-        - Fabric is optimized for world pose operations, not local hierarchies
-        """
-        self._set_local_poses_usd(translations, orientations, indices)
-
     def _set_local_poses_usd(
         self,
         translations: torch.Tensor | None = None,
@@ -502,36 +587,208 @@ class XformPrimView:
                 if orientations_array is not None:
                     prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
-        """Set scales for prims in the view.
-
-        This method sets the scale of each prim in the view.
-
-        When Fabric is enabled, updates scales in Fabric matrices using GPU-accelerated batch operations.
-        When Fabric is disabled, writes to USD scale attributes.
-
-        Args:
-            scales: Scales as a tensor of shape (M, 3) where M is the number of prims
-                to set (either all prims if indices is None, or the number of indices provided).
-            indices: Indices of prims to set scales for. Defaults to None, in which case scales are set
-                for all prims in the view.
-
-        Raises:
-            ValueError: If scales shape is not (M, 3).
-        """
-        if self._use_fabric:
-            return self._set_scales_fabric(scales, indices)
+    def _set_scales_usd(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
+        """Set scales to USD."""
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
         else:
-            return self._set_scales_usd(scales, indices)
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Validate inputs
+        if scales.shape != (len(indices_list), 3):
+            raise ValueError(f"Expected scales shape ({len(indices_list)}, 3), got {scales.shape}.")
+
+        scales_array = Vt.Vec3dArray.FromNumpy(scales.cpu().numpy())
+        # Set scales for each prim
+        with Sdf.ChangeBlock():
+            for idx, prim_idx in enumerate(indices_list):
+                prim = self._prims[prim_idx]
+                prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
+
+    def _get_world_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get world poses from USD."""
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            # Convert to list if it is a tensor array
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Create buffers
+        positions = Vt.Vec3dArray(len(indices_list))
+        orientations = Vt.QuatdArray(len(indices_list))
+        # Create xform cache instance
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+
+        # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
+        #   here since it isn't optimized for batch operations.
+        for idx, prim_idx in enumerate(indices_list):
+            # Get prim
+            prim = self._prims[prim_idx]
+            # get prim xform
+            prim_tf = xform_cache.GetLocalToWorldTransform(prim)
+            # sanitize quaternion
+            # this is needed, otherwise the quaternion might be non-normalized
+            prim_tf.Orthonormalize()
+            # extract position and orientation
+            positions[idx] = prim_tf.ExtractTranslation()
+            orientations[idx] = prim_tf.ExtractRotationQuat()
+
+        # move to torch tensors
+        positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
+        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        # underlying data is in xyzw order, convert to wxyz order
+        orientations = math_utils.convert_quat(orientations, to="wxyz")
+
+        return positions, orientations  # type: ignore
+
+    def _get_local_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get local poses from USD."""
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Create buffers
+        translations = Vt.Vec3dArray(len(indices_list))
+        orientations = Vt.QuatdArray(len(indices_list))
+
+        # Create a fresh XformCache to avoid stale cached values
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+
+        for idx, prim_idx in enumerate(indices_list):
+            prim = self._prims[prim_idx]
+            prim_tf = xform_cache.GetLocalTransformation(prim)[0]
+            prim_tf.Orthonormalize()
+            translations[idx] = prim_tf.ExtractTranslation()
+            orientations[idx] = prim_tf.ExtractRotationQuat()
+
+        translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
+        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
+        orientations = math_utils.convert_quat(orientations, to="wxyz")
+
+        return translations, orientations  # type: ignore
+
+    def _get_scales_usd(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+        """Get scales from USD."""
+        # Resolve indices
+        if indices is None or indices == slice(None):
+            indices_list = self._ALL_INDICES
+        else:
+            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+
+        # Create buffers
+        scales = Vt.Vec3dArray(len(indices_list))
+
+        for idx, prim_idx in enumerate(indices_list):
+            prim = self._prims[prim_idx]
+            scales[idx] = prim.GetAttribute("xformOp:scale").Get()
+
+        # Convert to tensor
+        return torch.tensor(np.array(scales), dtype=torch.float32, device=self._device)
+
+    """
+    Internal Functions - Fabric.
+    """
+
+    def _set_world_poses_fabric(
+        self,
+        positions: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
+    ):
+        """Set world poses using Fabric GPU batch operations.
+
+        Writes directly to Fabric's ``omni:fabric:worldMatrix`` attribute using Warp kernels.
+        Changes are propagated through Fabric's hierarchy system but remain GPU-resident.
+
+        For workflows mixing Fabric world pose writes with USD local pose queries, note
+        that local poses read from USD's xformOp:* attributes, which may not immediately
+        reflect Fabric changes. For best performance and consistency, use Fabric methods
+        exclusively (get_world_poses/set_world_poses with Fabric enabled).
+        """
+        # Lazy initialization
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+
+        # Resolve indices (treat slice(None) as None for consistency with USD path)
+        indices_wp = self._resolve_indices_wp(indices)
+
+        count = indices_wp.shape[0]
+
+        # Convert torch to warp (if provided), use dummy arrays for None to avoid Warp kernel issues
+        if positions is not None:
+            positions_wp = wp.from_torch(positions)
+        else:
+            positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
+
+        if orientations is not None:
+            orientations_wp = wp.from_torch(orientations)
+        else:
+            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
+
+        # Dummy array for scales (not modifying)
+        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
+
+        # Use cached fabricarray for world matrices
+        world_matrices = self._fabric_world_matrices
+
+        # Batch compose matrices with a single kernel launch
+        wp.launch(
+            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
+            dim=count,
+            inputs=[
+                world_matrices,
+                positions_wp,
+                orientations_wp,
+                scales_wp,  # dummy array instead of None
+                False,  # broadcast_positions
+                False,  # broadcast_orientations
+                False,  # broadcast_scales
+                indices_wp,
+                self._view_to_fabric,
+            ],
+            device=self._device,
+        )
+
+        # Synchronize to ensure kernel completes
+        wp.synchronize()
+
+        # Update world transforms within Fabric hierarchy
+        self._fabric_hierarchy.update_world_xforms()
+        # Fabric now has authoritative data; skip future USD syncs
+        self._fabric_usd_sync_done = True
+        # Mirror to USD for renderer-facing prims when enabled.
+        if self._sync_usd_on_fabric_write:
+            self._set_world_poses_usd(positions, orientations, indices)
+
+        # Fabric writes are GPU-resident; local pose operations still use USD.
+
+    def _set_local_poses_fabric(
+        self,
+        translations: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
+    ):
+        """Set local poses using USD (matches Isaac Sim's design).
+
+        Note: Even in Fabric mode, local pose operations use USD.
+        This is Isaac Sim's design: the ``usd=False`` parameter only affects world poses.
+
+        Rationale:
+        - Local pose writes need correct parent-child hierarchy relationships
+        - USD maintains these relationships correctly and efficiently
+        - Fabric is optimized for world pose operations, not local hierarchies
+        """
+        self._set_local_poses_usd(translations, orientations, indices)
 
     def _set_scales_fabric(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
         """Set scales using Fabric GPU batch operations."""
         # Lazy initialization
         if not self._fabric_initialized:
             self._initialize_fabric()
-
-        # Use cached Fabric hierarchy
-        fabric_hierarchy = self._fabric_hierarchy
 
         # Resolve indices (treat slice(None) as None for consistency with USD path)
         indices_wp = self._resolve_indices_wp(indices)
@@ -570,98 +827,12 @@ class XformPrimView:
         wp.synchronize()
 
         # Update world transforms to propagate changes
-        fabric_hierarchy.update_world_xforms()
+        self._fabric_hierarchy.update_world_xforms()
         # Fabric now has authoritative data; skip future USD syncs
         self._fabric_usd_sync_done = True
         # Mirror to USD for renderer-facing prims when enabled.
         if self._sync_usd_on_fabric_write:
             self._set_scales_usd(scales, indices)
-
-    def _set_scales_usd(self, scales: torch.Tensor, indices: Sequence[int] | None = None):
-        """Set scales to USD."""
-        # Resolve indices
-        if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-
-        # Validate inputs
-        if scales.shape != (len(indices_list), 3):
-            raise ValueError(f"Expected scales shape ({len(indices_list)}, 3), got {scales.shape}.")
-
-        scales_array = Vt.Vec3dArray.FromNumpy(scales.cpu().numpy())
-        # Set scales for each prim
-        with Sdf.ChangeBlock():
-            for idx, prim_idx in enumerate(indices_list):
-                prim = self._prims[prim_idx]
-                prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
-
-    def set_visibility(self, visibility: torch.Tensor, indices: Sequence[int] | None = None):
-        """Set visibility for prims in the view.
-
-        This method sets the visibility of each prim in the view.
-
-        Args:
-            visibility: Visibility as a boolean tensor of shape (M,) where M is the
-                number of prims to set (either all prims if indices is None, or the number of indices provided).
-            indices: Indices of prims to set visibility for. Defaults to None, in which case visibility is set
-                for all prims in the view.
-
-        Raises:
-            ValueError: If visibility shape is not (M,).
-        """
-        # Resolve indices
-        if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-
-        # Validate inputs
-        if visibility.shape != (len(indices_list),):
-            raise ValueError(f"Expected visibility shape ({len(indices_list)},), got {visibility.shape}.")
-
-        # Set visibility for each prim
-        with Sdf.ChangeBlock():
-            for idx, prim_idx in enumerate(indices_list):
-                # Convert prim to imageable
-                imageable = UsdGeom.Imageable(self._prims[prim_idx])
-                # Set visibility
-                if visibility[idx]:
-                    imageable.MakeVisible()
-                else:
-                    imageable.MakeInvisible()
-
-    """
-    Operations - Getters.
-    """
-
-    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get world-space poses for prims in the view.
-
-        This method retrieves the position and orientation of each prim in world space by computing
-        the full transform hierarchy from the prim to the world root.
-
-        When Fabric is enabled, uses Fabric batch operations with Warp kernels.
-        When Fabric is disabled, uses USD XformCache.
-
-        Note:
-            Scale and skew are ignored. The returned poses contain only translation and rotation.
-
-        Args:
-            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
-                for all prims in the view.
-
-        Returns:
-            A tuple of (positions, orientations) where:
-
-            - positions: Torch tensor of shape (M, 3) containing world-space positions (x, y, z),
-              where M is the number of prims queried.
-            - orientations: Torch tensor of shape (M, 4) containing world-space quaternions (w, x, y, z)
-        """
-        if self._use_fabric:
-            return self._get_world_poses_fabric(indices)
-        else:
-            return self._get_world_poses_usd(indices)
 
     def _get_world_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get world poses from Fabric using GPU batch operations."""
@@ -721,63 +892,87 @@ class XformPrimView:
             orientations = wp.to_torch(orientations_wp)
             return positions, orientations
 
-    def _get_world_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get world poses from USD."""
-        # Resolve indices
-        if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
+    def _get_local_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Get local poses using USD (matches Isaac Sim's design).
+
+        Note:
+            Even in Fabric mode, local pose operations use USD's XformCache.
+            This is Isaac Sim's design: the ``usd=False`` parameter only affects world poses.
+
+        Rationale:
+            - Local pose computation requires parent transforms which may not be in the view
+            - USD's XformCache provides efficient hierarchy-aware local transform queries
+            - Fabric is optimized for world pose operations, not local hierarchies
+        """
+        return self._get_local_poses_usd(indices)
+
+    def _get_scales_fabric(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+        """Get scales from Fabric using GPU batch operations."""
+        # Lazy initialization
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+        # Sync once from USD to ensure reads see the latest authored transforms
+        if not self._fabric_usd_sync_done:
+            self._sync_fabric_from_usd_once()
+
+        # Resolve indices (treat slice(None) as None for consistency with USD path)
+        indices_wp = self._resolve_indices_wp(indices)
+
+        count = indices_wp.shape[0]
+
+        # Use pre-allocated buffers for full reads, allocate only for partial reads
+        use_cached_buffers = indices is None or indices == slice(None)
+        if use_cached_buffers:
+            # Full read: Use cached buffers (zero allocation overhead!)
+            scales_wp = self._fabric_scales_buffer
         else:
-            # Convert to list if it is a tensor array
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+            # Partial read: Need to allocate buffer of appropriate size
+            scales_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
 
-        # Create buffers
-        positions = Vt.Vec3dArray(len(indices_list))
-        orientations = Vt.QuatdArray(len(indices_list))
-        # Create xform cache instance
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+        # Always use dummy buffers for positions and orientations (not needed for scales)
+        positions_wp = self._fabric_dummy_buffer
+        orientations_wp = self._fabric_dummy_buffer
 
-        # Note: We don't use :func:`isaaclab.sim.utils.transforms.resolve_prim_pose`
-        #   here since it isn't optimized for batch operations.
-        for idx, prim_idx in enumerate(indices_list):
-            # Get prim
-            prim = self._prims[prim_idx]
-            # get prim xform
-            prim_tf = xform_cache.GetLocalToWorldTransform(prim)
-            # sanitize quaternion
-            # this is needed, otherwise the quaternion might be non-normalized
-            prim_tf.Orthonormalize()
-            # extract position and orientation
-            positions[idx] = prim_tf.ExtractTranslation()
-            orientations[idx] = prim_tf.ExtractRotationQuat()
+        # Use cached fabricarray for world matrices
+        world_matrices = self._fabric_world_matrices
 
-        # move to torch tensors
-        positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
-        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        # underlying data is in xyzw order, convert to wxyz order
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
+        # Launch GPU kernel to decompose matrices in parallel
+        wp.launch(
+            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
+            dim=count,
+            inputs=[
+                world_matrices,
+                positions_wp,  # dummy array instead of None
+                orientations_wp,  # dummy array instead of None
+                scales_wp,
+                indices_wp,
+                self._view_to_fabric,
+            ],
+            device=self._device,
+        )
 
-        return positions, orientations  # type: ignore
+        # Return tensor: zero-copy for cached buffers, conversion for partial reads
+        if use_cached_buffers:
+            # Zero-copy! The Warp kernel wrote directly into the PyTorch tensor
+            wp.synchronize()
+            return self._fabric_scales_torch
+        else:
+            # Partial read: Need to convert from Warp to torch
+            return wp.to_torch(scales_wp)
 
-    def _get_fabric_hierarchy(self):
-        """Get Fabric hierarchy interface (cached)."""
-        if self._fabric_hierarchy is None:
-            import usdrt
-
-            fabric_stage = sim_utils.get_current_stage(fabric=True)
-            self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
-            )
-        return self._fabric_hierarchy
+    """
+    Internal Functions - Initialization.
+    """
 
     def _initialize_fabric(self) -> None:
         """Initialize Fabric batch infrastructure for GPU-accelerated pose queries.
 
         This method ensures all prims have the required Fabric hierarchy attributes
-        (omni:fabric:localMatrix and omni:fabric:worldMatrix) and creates the necessary
+        (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``) and creates the necessary
         infrastructure for batch GPU operations using Warp.
 
         Based on the Fabric Hierarchy documentation, when Fabric Scene Delegate is enabled,
-        all Boundable prims should have these attributes. This method ensures they exist
+        all boundable prims should have these attributes. This method ensures they exist
         and are properly synchronized with USD.
         """
         import usdrt
@@ -811,8 +1006,10 @@ class XformPrimView:
             rt_prim.GetAttribute(self._view_index_attr).Set(i)
 
         # After syncing all prims, update the Fabric hierarchy to ensure world matrices are computed
-        fabric_hierarchy = self._get_fabric_hierarchy()
-        fabric_hierarchy.update_world_xforms()
+        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
+        )
+        self._fabric_hierarchy.update_world_xforms()
 
         # Step 2: Create index arrays for batch operations
         self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32).to(self._device)
@@ -833,9 +1030,8 @@ class XformPrimView:
         # This works correctly for full-view operations but partial indexing still has issues.
         fabric_device = self._device
         if self._device == "cuda":
+            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
             fabric_device = "cuda:0"
-        elif self._device.startswith("cuda") and ":" not in self._device:
-            fabric_device = f"{self._device}:0"
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
@@ -905,194 +1101,11 @@ class XformPrimView:
 
         self._fabric_usd_sync_done = True
 
-    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get local-space poses for prims in the view.
-
-        This method retrieves the position and orientation of each prim in local space (relative to
-        their parent prims).
-
-        When Fabric is enabled, reads from Fabric local matrices using batch operations with Warp kernels.
-        When Fabric is disabled, reads directly from USD local transform attributes.
-
-        Note:
-            Scale is ignored. The returned poses contain only translation and rotation.
-
-        Args:
-            indices: Indices of prims to get poses for. Defaults to None, in which case poses are retrieved
-                for all prims in the view.
-
-        Returns:
-            A tuple of (translations, orientations) where:
-
-            - translations: Torch tensor of shape (M, 3) containing local-space translations (x, y, z),
-              where M is the number of prims queried.
-            - orientations: Torch tensor of shape (M, 4) containing local-space quaternions (w, x, y, z)
-        """
-        if self._use_fabric:
-            return self._get_local_poses_fabric(indices)
-        else:
-            return self._get_local_poses_usd(indices)
-
-    def _get_local_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get local poses using USD (matches Isaac Sim's design).
-
-        Note: Even in Fabric mode, local pose operations use USD's XformCache.
-        This is Isaac Sim's design - the `usd=False` parameter only affects world poses.
-
-        Rationale:
-        - Local pose computation requires parent transforms which may not be in the view
-        - USD's XformCache provides efficient hierarchy-aware local transform queries
-        - Fabric is optimized for world pose operations, not local hierarchies
-        """
-        return self._get_local_poses_usd(indices)
-
-    def _get_local_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get local poses from USD."""
-        # Resolve indices
+    def _resolve_indices_wp(self, indices: Sequence[int] | None) -> wp.array:
+        """Resolve view indices as a Warp array."""
         if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-
-        # Create buffers
-        translations = Vt.Vec3dArray(len(indices_list))
-        orientations = Vt.QuatdArray(len(indices_list))
-
-        # Create a fresh XformCache to avoid stale cached values
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
-        for idx, prim_idx in enumerate(indices_list):
-            prim = self._prims[prim_idx]
-            prim_tf = xform_cache.GetLocalTransformation(prim)[0]
-            prim_tf.Orthonormalize()
-            translations[idx] = prim_tf.ExtractTranslation()
-            orientations[idx] = prim_tf.ExtractRotationQuat()
-
-        translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
-        orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
-
-        return translations, orientations  # type: ignore
-
-    def get_scales(self, indices: Sequence[int] | None = None) -> torch.Tensor:
-        """Get scales for prims in the view.
-
-        This method retrieves the scale of each prim in the view.
-
-        When Fabric is enabled, extracts scales from Fabric matrices using batch operations with Warp kernels.
-        When Fabric is disabled, reads from USD scale attributes.
-
-        Args:
-            indices: Indices of prims to get scales for. Defaults to None, in which case scales are retrieved
-                for all prims in the view.
-
-        Returns:
-            A tensor of shape (M, 3) containing the scales of each prim, where M is the number of prims queried.
-        """
-        if self._use_fabric:
-            return self._get_scales_fabric(indices)
-        else:
-            return self._get_scales_usd(indices)
-
-    def _get_scales_fabric(self, indices: Sequence[int] | None = None) -> torch.Tensor:
-        """Get scales from Fabric using GPU batch operations."""
-        # Lazy initialization
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-        # Sync once from USD to ensure reads see the latest authored transforms
-        if not self._fabric_usd_sync_done:
-            self._sync_fabric_from_usd_once()
-
-        # Resolve indices (treat slice(None) as None for consistency with USD path)
-        indices_wp = self._resolve_indices_wp(indices)
-
-        count = indices_wp.shape[0]
-
-        # Use pre-allocated buffers for full reads, allocate only for partial reads
-        use_cached_buffers = indices is None or indices == slice(None)
-        if use_cached_buffers:
-            # Full read: Use cached buffers (zero allocation overhead!)
-            scales_wp = self._fabric_scales_buffer
-        else:
-            # Partial read: Need to allocate buffer of appropriate size
-            scales_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
-
-        # Always use dummy buffers for positions and orientations (not needed for scales)
-        positions_wp = self._fabric_dummy_buffer
-        orientations_wp = self._fabric_dummy_buffer
-
-        # Use cached fabricarray for world matrices
-        world_matrices = self._fabric_world_matrices
-
-        # Launch GPU kernel to decompose matrices in parallel
-        wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,  # dummy array instead of None
-                orientations_wp,  # dummy array instead of None
-                scales_wp,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._device,
-        )
-
-        # Return tensor: zero-copy for cached buffers, conversion for partial reads
-        if use_cached_buffers:
-            # Zero-copy! The Warp kernel wrote directly into the PyTorch tensor
-            wp.synchronize()
-            return self._fabric_scales_torch
-        else:
-            # Partial read: Need to convert from Warp to torch
-            return wp.to_torch(scales_wp)
-
-    def _get_scales_usd(self, indices: Sequence[int] | None = None) -> torch.Tensor:
-        """Get scales from USD."""
-        # Resolve indices
-        if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
-        else:
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-
-        # Create buffers
-        scales = Vt.Vec3dArray(len(indices_list))
-
-        for idx, prim_idx in enumerate(indices_list):
-            prim = self._prims[prim_idx]
-            scales[idx] = prim.GetAttribute("xformOp:scale").Get()
-
-        # Convert to tensor
-        return torch.tensor(np.array(scales), dtype=torch.float32, device=self._device)
-
-    def get_visibility(self, indices: Sequence[int] | None = None) -> torch.Tensor:
-        """Get visibility for prims in the view.
-
-        This method retrieves the visibility of each prim in the view.
-
-        Args:
-            indices: Indices of prims to get visibility for. Defaults to None, in which case visibility is retrieved
-                for all prims in the view.
-
-        Returns:
-            A tensor of shape (M,) containing the visibility of each prim, where M is the number of prims queried.
-            The tensor is of type bool.
-        """
-        # Resolve indices
-        if indices is None or indices == slice(None):
-            indices_list = self._ALL_INDICES
-        else:
-            # Convert to list if it is a tensor array
-            indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
-
-        # Create buffers
-        visibility = torch.zeros(len(indices_list), dtype=torch.bool, device=self._device)
-
-        for idx, prim_idx in enumerate(indices_list):
-            # Get prim
-            imageable = UsdGeom.Imageable(self._prims[prim_idx])
-            # Get visibility
-            visibility[idx] = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-
-        return visibility
+            if self._default_view_indices is None:
+                raise RuntimeError("Fabric indices are not initialized.")
+            return self._default_view_indices
+        indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
+        return wp.array(indices_list, dtype=wp.uint32).to(self._device)
