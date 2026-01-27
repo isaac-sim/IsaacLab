@@ -20,6 +20,7 @@ from isaaclab_newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 from isaaclab_newton.kernels import (
+    apply_gravity_compensation_force,
     project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose_and_velocity,
     transform_CoM_pose_to_link_frame_masked_root,
@@ -46,6 +47,7 @@ from isaaclab.utils.warp.update_kernels import (
     update_array2D_with_array1D_indexed,
     update_array2D_with_array2D_masked,
     update_array2D_with_value_masked,
+    update_array2D_with_value_indexed,
 )
 from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_dual_index,
@@ -351,6 +353,7 @@ class Articulation(BaseArticulation):
                     ],
                 )
         self._instantaneous_wrench_composer.reset()
+        self._apply_gravity_compensation()
         # apply actuator models. Actuator models automatically write the joint efforts into the simulation.
         self._apply_actuator_model()
         # Write the actuator targets into the simulation
@@ -2150,6 +2153,7 @@ class Articulation(BaseArticulation):
         self._process_cfg()
         self._process_actuators_cfg()
         self._process_tendons()
+        self._process_gravity_compensation()
         # validate configuration
         self._validate_cfg()
         # update the robot data
@@ -2172,6 +2176,11 @@ class Articulation(BaseArticulation):
                 self.cfg.soft_joint_pos_limit_factor,
             ],
         )
+        # Create gravity compensation buffer (initialized to 0 = no compensation)
+        self._gravity_compensation_factor = wp.zeros(
+            (self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device
+        )
+        self._has_gravity_compensation = False
 
         # Assign joint and body names to the data
         self._data.joint_names = self.joint_names
@@ -2370,6 +2379,53 @@ class Articulation(BaseArticulation):
         if self.num_fixed_tendons > 0:
             raise NotImplementedError("Tendons are not implemented yet")
 
+    def _process_gravity_compensation(self):
+        """Process and apply gravity compensation configuration.
+
+        This method reads the gravity compensation configuration from the articulation config
+        and initializes a buffer of gravity compensation wrenches for all bodies.
+
+        Gravity compensation is applied through body_f (external wrench) by adding the opposite
+        of the gravitational force scaled by the compensation factor during write_data_to_sim.
+        """
+        # Skip if no gravity compensation is configured
+        if self.cfg.gravity_compensation is None:
+            return
+
+        # Resolve body names and values from the configuration
+        indices_list, names_list, values_list = string_utils.resolve_matching_names_values(
+            self.cfg.gravity_compensation, self.body_names
+        )
+
+        if len(indices_list) == 0:
+            warnings.warn(
+                f"No bodies matched the gravity compensation patterns: {list(self.cfg.gravity_compensation.keys())}. "
+                f"Available body names: {self.body_names}",
+                UserWarning,
+            )
+            return
+
+        # Log the gravity compensation settings
+        logger.info(
+            f"Applying gravity compensation for articulation '{self.cfg.prim_path}': "
+            f"{dict(zip(names_list, values_list))}"
+        )
+
+        # Fill in the values for matched bodies
+        wp.launch(
+            update_array2D_with_value_indexed, 
+            dim=(self.num_instances, len(indices_list)), 
+            device=self.device, 
+            inputs=[
+                1.0,
+                self._gravity_compensation_factor,
+                None,
+                wp.array(indices_list, dtype=wp.int32, device=self.device),
+            ],
+        )
+
+        self._has_gravity_compensation = True
+
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
 
@@ -2382,6 +2438,22 @@ class Articulation(BaseArticulation):
             # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
             # if hasattr(actuator, "gear_ratio"):
             #    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+
+    def _apply_gravity_compensation(self):
+        """Apply gravity compensation to the articulation."""
+        if self._has_gravity_compensation:
+            gravity = NewtonManager._gravity_vector  # Already a tuple (x, y, z)
+            wp.launch(
+                apply_gravity_compensation_force,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self._data.body_mass,
+                    self._gravity_compensation_factor,
+                    wp.vec3f(gravity[0], gravity[1], gravity[2]),
+                    self._data._sim_bind_body_external_wrench,
+                ],
+                device=self.device,
+            )
 
     """
     Internal helpers -- Debugging.

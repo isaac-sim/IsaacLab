@@ -83,6 +83,8 @@ tests:
       orientation: [0.7071, 0.0, 0.0, 0.7071]
     - position: [0.18, 0.2, 0.8]
       orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.3, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
     allowed_steps_per_motion: 60
     repeat: 2
     requires_waist_bending: true

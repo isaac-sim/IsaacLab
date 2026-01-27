@@ -22,7 +22,7 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments (use parse_known_args to ignore pytest arguments)
 args_cli, _ = parser.parse_known_args()
 # Always run tests in headless mode by default
-args_cli.headless = False
+args_cli.headless = True
 args_cli.visualizer = ['newton']
 args_cli.num_envs = 1
 

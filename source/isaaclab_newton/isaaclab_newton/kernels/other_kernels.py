@@ -91,3 +91,27 @@ def populate_empty_array(
 ):
     index = wp.tid()
     output_array[indices[index]] = input_array[index]
+
+
+@wp.kernel
+def apply_gravity_compensation_force(
+    body_mass: wp.array2d(dtype=wp.float32),
+    gravcomp: wp.array2d(dtype=wp.float32),
+    gravity: wp.vec3f,
+    body_f: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Apply gravity compensation force to body_f.
+
+    The compensation force is: F = m * (-g) * gravcomp_factor
+    where m is body mass, g is gravity vector, and gravcomp_factor is the compensation factor.
+    """
+    env_index, body_index = wp.tid()
+    mass = body_mass[env_index, body_index]
+    comp_factor = gravcomp[env_index, body_index]
+    # Calculate the opposite of gravity force scaled by compensation factor
+    comp_force = wp.vec3f(-gravity[0] * mass * comp_factor, -gravity[1] * mass * comp_factor, -gravity[2] * mass * comp_factor)
+    # Add to existing wrench (keep torque, add to force)
+    current_wrench = body_f[env_index, body_index]
+    current_force = wp.spatial_top(current_wrench)
+    new_force = wp.vec3f(current_force[0] + comp_force[0], current_force[1] + comp_force[1], current_force[2] + comp_force[2])
+    body_f[env_index, body_index] = wp.spatial_vector(new_force, wp.spatial_bottom(current_wrench), wp.float32)
