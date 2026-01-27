@@ -36,7 +36,8 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
+from isaaclab.assets import Articulation
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 from isaaclab.sim import SimulationContext
 
 ##

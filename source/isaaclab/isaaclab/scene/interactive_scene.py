@@ -18,15 +18,14 @@ from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
     AssetBaseCfg,
-    DeformableObject,
-    DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg, VisuoTactileSensorCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id

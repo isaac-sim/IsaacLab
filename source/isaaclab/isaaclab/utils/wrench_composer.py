@@ -14,11 +14,11 @@ from isaaclab.utils.math import convert_quat
 from isaaclab.utils.warp.kernels import add_forces_and_torques_at_position, set_forces_and_torques_at_position
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
+    from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
 
 
 class WrenchComposer:
-    def __init__(self, asset: Articulation | RigidObject | RigidObjectCollection) -> None:
+    def __init__(self, asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection) -> None:
         """Wrench composer.
 
         This class is used to compose forces and torques at the body's link frame.
@@ -32,7 +32,7 @@ class WrenchComposer:
         if hasattr(asset, "num_bodies"):
             self.num_bodies = asset.num_bodies
         else:
-            self.num_bodies = asset.num_objects
+            raise ValueError(f"Unsupported asset type: {asset.__class__.__name__}")
         self.device = asset.device
         self._asset = asset
         self._active = False
@@ -41,9 +41,6 @@ class WrenchComposer:
         if hasattr(self._asset.data, "body_link_pos_w") and hasattr(self._asset.data, "body_link_quat_w"):
             self._get_link_position_fn = lambda a=self._asset: a.data.body_link_pos_w[..., :3]
             self._get_link_quaternion_fn = lambda a=self._asset: a.data.body_link_quat_w[..., :4]
-        elif hasattr(self._asset.data, "object_link_pos_w") and hasattr(self._asset.data, "object_link_quat_w"):
-            self._get_link_position_fn = lambda a=self._asset: a.data.object_link_pos_w[..., :3]
-            self._get_link_quaternion_fn = lambda a=self._asset: a.data.object_link_quat_w[..., :4]
         else:
             raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 

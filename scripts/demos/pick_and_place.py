@@ -36,9 +36,8 @@ from isaaclab.assets import (
     ArticulationCfg,
     RigidObject,
     RigidObjectCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveSceneCfg

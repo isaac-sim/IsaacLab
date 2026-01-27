@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for surface_gripper assets."""
+"""Sub-module for rigid articulated assets."""
 
-from .surface_gripper import SurfaceGripper
-from .surface_gripper_cfg import SurfaceGripperCfg
+from .articulation import Articulation
+from .articulation_data import ArticulationData
+
+__all__ = [
+    "Articulation",
+    "ArticulationData",
+]

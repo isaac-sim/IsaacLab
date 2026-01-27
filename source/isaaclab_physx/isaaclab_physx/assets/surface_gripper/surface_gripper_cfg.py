@@ -7,7 +7,7 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
-from ..asset_base_cfg import AssetBaseCfg
+from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from .surface_gripper import SurfaceGripper
 
 

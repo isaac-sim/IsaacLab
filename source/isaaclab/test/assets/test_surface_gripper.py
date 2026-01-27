@@ -26,9 +26,8 @@ from isaaclab.assets import (
     ArticulationCfg,
     RigidObject,
     RigidObjectCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
