@@ -6,13 +6,12 @@
 
 """Scene data providers for visualizers and renderers."""
 
-from .scene_data_provider import SceneDataProvider, SceneDataProviderBase
 from .newton_scene_data_provider import NewtonSceneDataProvider
-from .ov_scene_data_provider import OmniSceneDataProvider
+from .ov_scene_data_provider import OVSceneDataProvider
+from .scene_data_provider import SceneDataProvider
 
 __all__ = [
     "SceneDataProvider",
-    "SceneDataProviderBase",
     "NewtonSceneDataProvider",
-    "OmniSceneDataProvider",
+    "OVSceneDataProvider",
 ]
