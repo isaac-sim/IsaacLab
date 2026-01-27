@@ -4,39 +4,46 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script downloads all assets from Nucleus server (ISAACLAB_NUCLEUS_DIR) and mirrors 
-the directory structure locally in the offline_assets folder. This enables offline/local training
-without requiring S3/Nucleus connectivity. Must be connected to the internet to use!
+Download Isaac Lab assets from Nucleus server for offline training.
+
+This script downloads assets from the Nucleus server and mirrors the directory structure
+locally in the offline_assets folder. This enables offline training without requiring
+internet connectivity.
+
+Requirements:
+    pip install tqdm
 
 Usage:
-    ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
-    ./isaaclab.sh -p scripts/offline_setup/download_assets.py [--subset ROBOT_NAME]
+    # Download all assets
+    ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories all
+    
+    # Download specific categories
+    ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Robots Props
+    
+    # Download specific robot subset
+    ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Robots --subset Unitree
+
+Available Categories:
+    Props, Robots, Environments, Materials, Controllers, ActuatorNets, Policies, Mimic
 """
 
 import argparse
 import os
 from pathlib import Path
 
-# Initialize Isaac Sim app first to get access to omni modules
+from tqdm import tqdm
 from isaaclab.app import AppLauncher
 
-# Create minimal app launcher to initialize Isaac Sim environment
+# Initialize Isaac Sim environment
 app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 import carb
 import omni.client
 
-try:
-    from tqdm import tqdm
-    HAS_TQDM = True
-except ImportError:
-    HAS_TQDM = False
-    print("Note: Install tqdm for progress bars: pip install tqdm")
-
 # Get Isaac Lab paths
 ISAACLAB_PATH = os.environ.get("ISAACLAB_PATH", os.getcwd())
-offline_assets_DIR = os.path.join(ISAACLAB_PATH, "offline_assets")
+OFFLINE_ASSETS_DIR = os.path.join(ISAACLAB_PATH, "offline_assets")
 
 # Get the Nucleus directory from settings
 settings = carb.settings.get_settings()
@@ -51,7 +58,6 @@ ASSET_CATEGORIES = {
     "Robots": {"desc": "Robot USD files and configurations", "base": ISAAC_NUCLEUS_DIR},
     "Environments": {"desc": "Environment assets and terrains", "base": ISAAC_NUCLEUS_DIR},
     "Materials": {"desc": "Materials and textures including sky HDRs", "base": ISAAC_NUCLEUS_DIR},
-    
     # Isaac Lab specific assets (Isaac/IsaacLab/)
     "Controllers": {"desc": "IK controllers and kinematics assets", "base": ISAACLAB_NUCLEUS_DIR},
     "ActuatorNets": {"desc": "Actuator network models", "base": ISAACLAB_NUCLEUS_DIR},
@@ -60,96 +66,129 @@ ASSET_CATEGORIES = {
 }
 
 
-def ensure_offline_directory(offline_path: str) -> None:
-    """Create offline directory if it doesn't exist."""
-    os.makedirs(offline_path, exist_ok=True)
-
-
-def download_file(remote_path: str, offline_path: str) -> bool:
+def format_size(bytes_size: int) -> str:
     """
-    Download a single file from Nucleus to offline storage.
+    Format bytes into human-readable size.
     
     Args:
-        remote_path: Full Nucleus URL (e.g., omniverse://...)
-        offline_path: Offline file system path
+        bytes_size: Size in bytes
+        
+    Returns:
+        Human-readable size string (e.g., "1.5 GB")
+    """
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_size < 1024.0:
+            return f"{bytes_size:.1f} {unit}"
+        bytes_size /= 1024.0
+    return f"{bytes_size:.1f} PB"
+
+
+def get_local_directory_size(path: str) -> int:
+    """
+    Calculate total size of a local directory.
+    
+    Args:
+        path: Local directory path
+        
+    Returns:
+        Total size in bytes
+    """
+    total_size = 0
+    if os.path.exists(path):
+        for dirpath, dirnames, filenames in os.walk(path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if os.path.exists(filepath):
+                    total_size += os.path.getsize(filepath)
+    return total_size
+
+
+def get_remote_directory_info(remote_path: str) -> tuple[int, int]:
+    """
+    Get file count and total size of a remote Nucleus directory.
+    
+    Args:
+        remote_path: Nucleus directory URL
+        
+    Returns:
+        Tuple of (file_count, total_size_bytes)
+    """
+    file_count = 0
+    total_size = 0
+    
+    result, entries = omni.client.list(remote_path)
+    if result != omni.client.Result.OK:
+        return 0, 0
+    
+    for entry in entries:
+        is_dir = entry.flags & omni.client.ItemFlags.CAN_HAVE_CHILDREN
+        remote_item = f"{remote_path}/{entry.relative_path}"
+        
+        if is_dir:
+            # Recursively get info from subdirectory
+            sub_count, sub_size = get_remote_directory_info(remote_item)
+            file_count += sub_count
+            total_size += sub_size
+        else:
+            # Get file size
+            file_count += 1
+            stat_result, stat_entry = omni.client.stat(remote_item)
+            if stat_result == omni.client.Result.OK:
+                total_size += stat_entry.size
+    
+    return file_count, total_size
+
+
+def ensure_directory(path: str) -> None:
+    """Create directory if it doesn't exist."""
+    os.makedirs(path, exist_ok=True)
+
+
+def download_file(remote_path: str, local_path: str) -> bool:
+    """
+    Download a single file from Nucleus to local storage.
+    
+    Args:
+        remote_path: Full Nucleus URL
+        local_path: Local file system path
         
     Returns:
         True if successful, False otherwise
     """
     try:
-        # Create parent directory if needed
-        os.makedirs(os.path.dirname(offline_path), exist_ok=True)
-        
-        # Copy file from Nucleus to offline
-        result = omni.client.copy(remote_path, offline_path)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        result = omni.client.copy(remote_path, local_path)
         return result == omni.client.Result.OK
     except Exception as e:
         print(f"Error downloading {remote_path}: {e}")
         return False
 
 
-def list_nucleus_directory(remote_path: str) -> list[tuple[str, bool]]:
+def download_directory_recursive(remote_path: str, local_base: str, progress_bar) -> None:
     """
-    List all files and directories in a Nucleus path.
+    Recursively download a directory from Nucleus to local storage.
     
     Args:
         remote_path: Nucleus directory URL
-        
-    Returns:
-        List of (item_name, is_directory) tuples
+        local_base: Local directory to mirror structure
+        progress_bar: tqdm progress bar instance
     """
     result, entries = omni.client.list(remote_path)
     if result != omni.client.Result.OK:
-        return []
+        return
     
-    items = []
     for entry in entries:
         is_dir = entry.flags & omni.client.ItemFlags.CAN_HAVE_CHILDREN
-        items.append((entry.relative_path, bool(is_dir)))
-    return items
-
-
-def download_directory_recursive(remote_path: str, offline_base: str, progress_bar=None) -> None:
-    """
-    Recursively download a directory from Nucleus to offline storage.
-    
-    Args:
-        remote_path: Nucleus directory URL
-        offline_base: Offline directory to mirror structure
-        progress_bar: Optional tqdm progress bar (or None)
-    """
-    items = list_nucleus_directory(remote_path)
-    
-    for item_name, is_directory in items:
-        remote_item = f"{remote_path}/{item_name}"
-        offline_item = os.path.join(offline_base, item_name)
+        remote_item = f"{remote_path}/{entry.relative_path}"
+        local_item = os.path.join(local_base, entry.relative_path)
         
-        if is_directory:
-            # Recursively download subdirectory
-            ensure_offline_directory(offline_item)
-            download_directory_recursive(remote_item, offline_item, progress_bar)
+        if is_dir:
+            ensure_directory(local_item)
+            download_directory_recursive(remote_item, local_item, progress_bar)
         else:
-            # Download file
-            if progress_bar is not None:
-                progress_bar.set_description(f"Downloading {item_name}")
-            else:
-                print(f"  Downloading: {item_name}")
-            download_file(remote_item, offline_item)
-            if progress_bar is not None:
-                progress_bar.update(1)
-
-
-def count_files_recursive(remote_path: str) -> int:
-    """Count total files in a directory tree for progress tracking."""
-    count = 0
-    items = list_nucleus_directory(remote_path)
-    
-    for item_name, is_directory in items:
-        if is_directory:
-            count += count_files_recursive(f"{remote_path}/{item_name}")
-        else:
-            count += 1
-    return count
+            progress_bar.set_description(f"Downloading {entry.relative_path[:50]}")
+            download_file(remote_item, local_item)
+            progress_bar.update(1)
 
 
 def download_asset_category(category: str, subset: str = None) -> None:
@@ -165,19 +204,18 @@ def download_asset_category(category: str, subset: str = None) -> None:
     description = category_info["desc"]
     
     remote_dir = f"{base_path}/{category}"
-    offline_dir = os.path.join(offline_assets_DIR, category)
+    local_dir = os.path.join(OFFLINE_ASSETS_DIR, category)
     
-    print(f"\n{'='*60}")
-    print(f"Downloading {category}: {description}")
-    print(f"From: {remote_dir}")
-    print(f"To:   {offline_dir}")
-    print(f"{'='*60}")
-    
-    # If subset is specified, only download that subset
+    # Apply subset filter if specified
     if subset and category == "Robots":
         remote_dir = f"{remote_dir}/{subset}"
-        offline_dir = os.path.join(offline_dir, subset)
-        print(f"Filtering to subset: {subset}")
+        local_dir = os.path.join(local_dir, subset)
+    
+    print(f"\n{'='*70}")
+    print(f"📦 {category}: {description}")
+    print(f"{'='*70}")
+    print(f"Source: {remote_dir}")
+    print(f"Target: {local_dir}")
     
     # Check if remote directory exists
     result, _ = omni.client.stat(remote_dir)
@@ -186,46 +224,55 @@ def download_asset_category(category: str, subset: str = None) -> None:
         print(f"    This category may not be available or may be in a different location.")
         return
     
-    # Count files for progress bar
-    print("Counting files...")
-    total_files = count_files_recursive(remote_dir)
-    print(f"Found {total_files} files to download")
+    # Count files and get size
+    print("📊 Analyzing remote directory...")
+    file_count, total_size = get_remote_directory_info(remote_dir)
     
-    if total_files == 0:
-        print("No files to download")
+    if file_count == 0:
+        print("✓ No files to download")
         return
     
+    print(f"   Files: {file_count:,}")
+    print(f"   Size:  {format_size(total_size)}")
+    
     # Download with progress bar
-    ensure_offline_directory(offline_dir)
-    if HAS_TQDM:
-        with tqdm(total=total_files, unit="file") as pbar:
-            download_directory_recursive(remote_dir, offline_dir, pbar)
-    else:
-        print(f"Downloading {total_files} files (install tqdm for progress bars)...")
-        download_directory_recursive(remote_dir, offline_dir, None)
+    ensure_directory(local_dir)
+    with tqdm(total=file_count, unit="file", desc="Progress") as pbar:
+        download_directory_recursive(remote_dir, local_dir, pbar)
     
     print(f"✓ Completed {category}")
 
 
-def verify_downloads(category: str = None) -> None:
-    """Verify that offline assets directory has expected structure."""
-    print("\n" + "="*60)
-    print("Verifying offline assets...")
-    print("="*60)
+def verify_downloads() -> None:
+    """Display summary of downloaded assets."""
+    print("\n" + "="*70)
+    print("📊 Downloaded Assets Summary")
+    print("="*70)
     
-    categories_to_check = [category] if category else ASSET_CATEGORIES.keys()
+    total_size = 0
+    total_files = 0
     
-    for cat in categories_to_check:
-        offline_dir = os.path.join(offline_assets_DIR, cat)
-        if os.path.exists(offline_dir):
-            file_count = sum(1 for _ in Path(offline_dir).rglob("*") if _.is_file())
-            print(f"✓ {cat}: {file_count} files")
+    for category in ASSET_CATEGORIES.keys():
+        local_dir = os.path.join(OFFLINE_ASSETS_DIR, category)
+        if os.path.exists(local_dir):
+            size = get_local_directory_size(local_dir)
+            files = sum(1 for _ in Path(local_dir).rglob("*") if _.is_file())
+            total_size += size
+            total_files += files
+            print(f"✓ {category:<15} {files:>6,} files    {format_size(size):>10}")
         else:
-            print(f"✗ {cat}: Not found")
+            print(f"✗ {category:<15} Not found")
+    
+    print("=" * 70)
+    print(f"{'TOTAL':<15} {total_files:>6,} files    {format_size(total_size):>10}")
+    print("=" * 70)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download Isaac Lab assets from Nucleus to offline storage")
+    parser = argparse.ArgumentParser(
+        description="Download Isaac Lab assets from Nucleus to local storage for offline training",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--categories",
         nargs="+",
@@ -247,13 +294,13 @@ def main():
     args = parser.parse_args()
     
     try:
-        print("\n" + "="*60)
-        print("Isaac Lab Asset Downloader")
-        print("="*60)
-        print(f"Isaac Sim assets:  {ISAAC_NUCLEUS_DIR}")
-        print(f"Isaac Lab assets:  {ISAACLAB_NUCLEUS_DIR}")
-        print(f"Offline target:      {offline_assets_DIR}")
-        print("="*60)
+        print("\n" + "="*70)
+        print("🚀 Isaac Lab Offline Asset Downloader")
+        print("="*70)
+        print(f"Isaac Sim Assets:  {ISAAC_NUCLEUS_DIR}")
+        print(f"Isaac Lab Assets:  {ISAACLAB_NUCLEUS_DIR}")
+        print(f"Local Target:      {OFFLINE_ASSETS_DIR}")
+        print("="*70)
         
         if args.verify_only:
             verify_downloads()
@@ -266,42 +313,69 @@ def main():
             else args.categories
         )
         
-        print(f"\nWill download: {', '.join(categories)}")
+        print(f"\n📋 Selected Categories: {', '.join(categories)}")
         if args.subset:
-            print(f"Subset filter: {args.subset}")
+            print(f"🔍 Subset Filter: {args.subset}")
+        
+        # Calculate total download size
+        print("\n📊 Calculating download size...")
+        total_files = 0
+        total_size = 0
+        
+        for category in categories:
+            category_info = ASSET_CATEGORIES[category]
+            base_path = category_info["base"]
+            remote_dir = f"{base_path}/{category}"
+            
+            # Apply subset filter
+            if args.subset and category == "Robots":
+                remote_dir = f"{remote_dir}/{args.subset}"
+            
+            # Check if directory exists
+            result, _ = omni.client.stat(remote_dir)
+            if result == omni.client.Result.OK:
+                files, size = get_remote_directory_info(remote_dir)
+                total_files += files
+                total_size += size
+                print(f"   {category}: {files:,} files ({format_size(size)})")
+        
+        print("\n" + "="*70)
+        print(f"📦 Total Download: {total_files:,} files ({format_size(total_size)})")
+        print("="*70)
         
         # Confirm before proceeding
         response = input("\nProceed with download? [y/N]: ")
         if response.lower() not in ["y", "yes"]:
-            print("Download cancelled")
+            print("❌ Download cancelled")
             return
         
         # Download each category
+        print("\n🔽 Starting download...")
         for category in categories:
             try:
                 download_asset_category(category, args.subset)
             except KeyboardInterrupt:
-                print("\n\nDownload interrupted by user")
+                print("\n\n⚠️  Download interrupted by user")
                 raise
             except Exception as e:
                 print(f"\n❌ Error downloading {category}: {e}")
                 continue
         
-        # Verify downloads
+        # Show final summary
         verify_downloads()
         
-        print("\n" + "="*60)
-        print("✓ Download complete!")
-        print("="*60)
-        print(f"\Offline assets are now available in: {offline_assets_DIR}")
-        print("\nYou can now use the --offline flag in training:")
+        print("\n" + "="*70)
+        print("✅ Download Complete!")
+        print("="*70)
+        print(f"\nOffline assets are available in: {OFFLINE_ASSETS_DIR}")
+        print("\n💡 Usage: Add --offline flag to your training commands")
+        print("\nExample:")
         print("  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \\")
         print("      --task Isaac-Velocity-Flat-Unitree-Go2-v0 \\")
         print("      --num_envs 128 \\")
-        print("      --offline")
+        print("      --offline\n")
     
     finally:
-        # Always clean up simulation app
         simulation_app.close()
 
 

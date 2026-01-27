@@ -15,16 +15,16 @@
 - Internet connection for initial asset download
 
 ## 🚀 Quick Start
-### 1. Download essential assets (one-time, ~2-4 GB)
+### 1. Download essential assets (one-time, `all` ~30 GB)
 #### Assets download to the `~/IsaacLab/offline_assets` directory: `cd ~/IsaacLab`
 ```
 ./isaaclab.sh -p scripts/offline_setup/download_assets.py \
     --categories all
 ```
-#### _Optional Note: Specific category fields can be specified separately_
+#### _Optional Note: Category fields can be specified separately_
 ```
 ./isaaclab.sh -p scripts/offline_setup/download_assets.py \
-    --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
+    --categories Robots --subset Unitree
 ```
 ### 2. Train completely offline with any robot via the `--offline` flag (also works with `/play`)
 #### Supported for: `rl_games`, `rsl_rl`, `sb3`, `skrl`, and `sim2transfer`
@@ -42,7 +42,7 @@
     --video_length 1000
     --offline
 ```
-#### _Note: For offline training, assets that cannot be found in `offline_assets` will be fetched from the [Nucleus Server](https://docs.omniverse.nvidia.com/nucleus/latest/index.html)._
+#### _Note: For offline training, assets that cannot be found in `offline_assets` will attempted to be fetched from the [Nucleus Server](https://docs.omniverse.nvidia.com/nucleus/latest/index.html)._
 
 ## 📁 Asset Layout
 #### Offline assets are organized to mirror Nucleus (`ISAAC_NUCLEUS_DIR` & `ISAACLAB_NUCLEUS_DIR`) meaning that no code changes are required!
