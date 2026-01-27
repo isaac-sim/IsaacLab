@@ -35,7 +35,6 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 parser.add_argument( "--offline", action="store_true", default=False, help="Use local assets and configurations (offline mode)")
-
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args

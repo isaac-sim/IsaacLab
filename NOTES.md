@@ -19,7 +19,7 @@ conda deactivate
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
     --task Isaac-Velocity-Flat-H1-v0 \
-    --num_envs 128 \
+    --num_envs 496 \
     --offline
 ```
 
@@ -46,11 +46,11 @@ conda deactivate
 <!-- Play -->
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
-    --num_envs 128 \
-    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-01-21_14-38-05/model_299.pt
-```
-
+    --task Isaac-Velocity-Flat-H1-v0 \
+    --num_envs 1 \
+    --checkpoint logs/rsl_rl/h1_flat/2026-01-27_14-58-33/model_800.pt \
+    --offline
+    
 <!-- Video -->
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
@@ -65,10 +65,10 @@ conda deactivate
 <!-- Video 2 -->
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
-    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --task Isaac-Velocity-Flat-H1-v0 \
     --num_envs 1 \
-    --load_run 2025-11-29_11-15-51 \
-    --checkpoint model_350.pt \
+    --load_run 2026-01-27_14-58-33 \
+    --checkpoint model_800.pt \
     --video \
     --video_length 500
 ```
