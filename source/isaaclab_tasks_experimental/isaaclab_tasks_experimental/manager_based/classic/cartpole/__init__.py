@@ -10,7 +10,7 @@ Cartpole balancing environment (experimental manager-based entry point).
 import gymnasium as gym
 
 gym.register(
-    id="Isaac-Cartpole-Managed-Warp-v0",
+    id="Isaac-Cartpole-Warp-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

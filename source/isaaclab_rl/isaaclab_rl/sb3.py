@@ -25,7 +25,7 @@ import torch.nn as nn  # noqa: F401
 import warnings
 from typing import Any
 
-from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
@@ -136,7 +136,9 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
+    def __init__(
+        self, env: ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp, fast_variant: bool = True
+    ):
         """Initialize the wrapper.
 
         Args:
@@ -151,9 +153,11 @@ class Sb3VecEnvWrapper(VecEnv):
             not isinstance(env.unwrapped, ManagerBasedRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnvWarp)
+            and not isinstance(env.unwrapped, ManagerBasedRLEnvWarp)
         ):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
         # initialize the wrapper
@@ -187,7 +191,7 @@ class Sb3VecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
