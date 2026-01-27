@@ -39,23 +39,20 @@ class OVVisualizer(Visualizer):
             return
 
         usd_stage = None
-        simulation_context = None
+        scene_data_provider = None
         if scene_data is not None:
             usd_stage = scene_data.get("usd_stage")
-            simulation_context = scene_data.get("simulation_context")
+            scene_data_provider = scene_data.get("scene_data_provider")
 
         if usd_stage is None:
             raise RuntimeError("OV visualizer requires a USD stage.")
 
         metadata = {}
-        if simulation_context is not None:
-            num_envs = 0
-            if hasattr(simulation_context, "scene") and simulation_context.scene is not None:
-                if hasattr(simulation_context.scene, "num_envs"):
-                    num_envs = simulation_context.scene.num_envs
-
+        if scene_data_provider is not None:
+            metadata = scene_data_provider.get_metadata()
+        else:
             metadata = {
-                "num_envs": num_envs,
+                "num_envs": 0,
                 "physics_backend": "omni",
                 "env_prim_pattern": "/World/envs/env_{}",
             }

@@ -149,7 +149,7 @@ class ManagerBasedEnv:
             "[SceneDebug] env prims after InteractiveScene: "
             f"num_envs_setting={self.cfg.scene.num_envs}, env_prims={len(env_prim_paths)}"
         )
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning

@@ -17,25 +17,21 @@ logger = logging.getLogger(__name__)
 
 
 class NewtonSceneDataProvider(SceneDataProviderBase):
-    """Newton-backed scene data provider (when Newton physics is the active backend)."""
+    """Scene data provider for Newton Warp physics backend.
+    
+    Native (cheap): Newton Model/State from NewtonManager
+    Adapted (future): USD stage (would need Newton→USD sync for OV visualizer)
+    """
 
     def __init__(self, visualizer_cfgs: list[Any] | None) -> None:
-        self._has_newton_visualizer = False
-        self._has_rerun_visualizer = False
         self._has_ov_visualizer = False
         self._metadata: dict[str, Any] = {}
 
         if visualizer_cfgs:
             for cfg in visualizer_cfgs:
-                viz_type = getattr(cfg, "visualizer_type", None)
-                if viz_type == "newton":
-                    self._has_newton_visualizer = True
-                elif viz_type == "rerun":
-                    self._has_rerun_visualizer = True
-                elif viz_type == "omniverse":
+                if getattr(cfg, "visualizer_type", None) == "omniverse":
                     self._has_ov_visualizer = True
 
-        # Lazy import to keep develop usable without Newton installed.
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
 
@@ -49,51 +45,54 @@ class NewtonSceneDataProvider(SceneDataProviderBase):
             self._metadata = {"physics_backend": "newton"}
 
     def update(self) -> None:
-        return None
+        """No-op for Newton backend (state updated by Newton solver)."""
+        pass
 
-    def get_model(self):
-        if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return None
+    def get_newton_model(self) -> Any | None:
+        """NATIVE: Newton Model from NewtonManager."""
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
-
             return NewtonManager._model
         except Exception:
             return None
 
-    def get_state(self):
-        if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return None
+    def get_newton_state(self) -> Any | None:
+        """NATIVE: Newton State from NewtonManager."""
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
-
             return NewtonManager._state_0
         except Exception:
             return None
+
+    def get_usd_stage(self) -> None:
+        """UNAVAILABLE: Newton backend doesn't provide USD (future: Newton→USD sync)."""
+        return None
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
 
     def get_transforms(self) -> dict[str, Any] | None:
+        """Extract transforms from Newton state (future work)."""
         return None
 
     def get_velocities(self) -> dict[str, Any] | None:
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
-
-            state = NewtonManager._state_0
-            if state is None:
+            if NewtonManager._state_0 is None:
                 return None
-            return {"body_qd": state.body_qd}
+            return {"body_qd": NewtonManager._state_0.body_qd}
         except Exception:
             return None
 
     def get_contacts(self) -> dict[str, Any] | None:
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
-
             if NewtonManager._contacts is None:
                 return None
             return {"contacts": NewtonManager._contacts}
         except Exception:
             return None
+
+    def get_mesh_data(self) -> dict[str, Any] | None:
+        """ADAPTED: Extract mesh data from Newton shapes (future work)."""
+        return None

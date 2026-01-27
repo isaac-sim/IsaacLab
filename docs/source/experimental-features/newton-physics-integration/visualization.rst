@@ -213,8 +213,8 @@ Newton Visualizer
         enable_wireframe=False,                   # Enable wireframe mode
 
         # Color customization
-        background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
-        ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
+        sky_upper_color=(0.53, 0.81, 0.92),      # Sky upper color (RGB [0,1])
+        sky_lower_color=(0.18, 0.20, 0.25),      # Sky lower color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
     )
 

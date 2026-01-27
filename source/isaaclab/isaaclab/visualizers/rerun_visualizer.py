@@ -93,8 +93,8 @@ class RerunVisualizer(Visualizer):
 
         metadata = {}
         if self._scene_data_provider:
-            self._model = self._scene_data_provider.get_model()
-            self._state = self._scene_data_provider.get_state()
+            self._model = self._scene_data_provider.get_newton_model()
+            self._state = self._scene_data_provider.get_newton_state()
             metadata = self._scene_data_provider.get_metadata()
         else:
             try:
@@ -171,7 +171,7 @@ class RerunVisualizer(Visualizer):
             return
 
         if self._scene_data_provider:
-            self._state = self._scene_data_provider.get_state()
+            self._state = self._scene_data_provider.get_newton_state()
         else:
             try:
                 from isaaclab.sim._impl.newton_manager import NewtonManager

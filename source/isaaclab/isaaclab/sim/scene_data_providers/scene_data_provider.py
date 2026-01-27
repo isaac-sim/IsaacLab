@@ -16,46 +16,52 @@ logger = logging.getLogger(__name__)
 
 
 class SceneDataProviderBase(ABC):
-    """Base interface for scene data providers."""
+    """Base interface for scene data providers.
+    
+    Provides simulation data in multiple formats for visualizers, renderers,
+    and other downstream consumers. Each backend provider implements this interface,
+    exposing native data cheaply and adapted data when needed.
+    """
 
     @abstractmethod
     def update(self) -> None:
-        """Sync any per-step data needed by visualizers."""
+        """Update adapted data for current simulation step."""
 
     @abstractmethod
-    def get_model(self):
-        """Return a physics-backend model object, if applicable."""
+    def get_newton_model(self) -> Any | None:
+        """Get Newton Model."""
 
     @abstractmethod
-    def get_state(self):
-        """Return a physics-backend state object, if applicable."""
+    def get_newton_state(self) -> Any | None:
+        """Get Newton State."""
+
+    @abstractmethod
+    def get_usd_stage(self) -> Any | None:
+        """Get USD stage."""
 
     @abstractmethod
     def get_metadata(self) -> dict[str, Any]:
-        """Return basic metadata about the scene/backend."""
+        """Get provider metadata and performance hints."""
 
     @abstractmethod
     def get_transforms(self) -> dict[str, Any] | None:
-        """Return transform data keyed by semantic names."""
+        """Get world-space transforms in backend-agnostic format."""
 
     def get_velocities(self) -> dict[str, Any] | None:
-        """Return velocity data keyed by semantic names."""
-        # TODO: Populate linear/angular velocities once available per backend.
+        """Get velocities in backend-agnostic format."""
         return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        """Return contact data keyed by semantic names."""
-        # TODO: Populate contact data once available per backend.
+        """Get contact data in backend-agnostic format."""
         return None
 
-    def get_meshes(self) -> dict[str, Any] | None:
-        """Return mesh/material data keyed by semantic names."""
-        # TODO: Populate mesh/material data once available per backend.
+    def get_mesh_data(self) -> dict[str, Any] | None:
+        """Get mesh geometry and materials."""
         return None
 
 
 class SceneDataProvider:
-    """Facade that selects the correct scene data provider for the active backend."""
+    """Facade that creates appropriate provider based on physics backend."""
 
     def __init__(
         self,
@@ -73,30 +79,33 @@ class SceneDataProvider:
             self._provider = NewtonSceneDataProvider(visualizer_cfgs)
         elif backend == "omni":
             if stage is None or simulation_context is None:
-                logger.warning(
-                    "Omni scene data provider requires stage and simulation context; skipping initialization."
-                )
+                logger.warning("OV scene data provider requires stage and simulation context.")
                 self._provider = None
             else:
-                from .ov_scene_data_provider import OmniSceneDataProvider
+                from .ov_scene_data_provider import OVSceneDataProvider
 
-                self._provider = OmniSceneDataProvider(visualizer_cfgs, stage, simulation_context)
+                self._provider = OVSceneDataProvider(visualizer_cfgs, stage, simulation_context)
         else:
-            logger.warning(f"Unknown physics backend '{backend}'. No scene data provider created.")
+            logger.warning(f"Unknown physics backend '{backend}'.")
 
     def update(self) -> None:
         if self._provider is not None:
             self._provider.update()
 
-    def get_model(self):
+    def get_newton_model(self) -> Any | None:
         if self._provider is None:
             return None
-        return self._provider.get_model()
+        return self._provider.get_newton_model()
 
-    def get_state(self):
+    def get_newton_state(self) -> Any | None:
         if self._provider is None:
             return None
-        return self._provider.get_state()
+        return self._provider.get_newton_state()
+
+    def get_usd_stage(self) -> Any | None:
+        if self._provider is None:
+            return None
+        return self._provider.get_usd_stage()
 
     def get_metadata(self) -> dict[str, Any]:
         if self._provider is None:
@@ -118,7 +127,7 @@ class SceneDataProvider:
             return None
         return self._provider.get_contacts()
 
-    def get_meshes(self) -> dict[str, Any] | None:
+    def get_mesh_data(self) -> dict[str, Any] | None:
         if self._provider is None:
             return None
-        return self._provider.get_meshes()
+        return self._provider.get_mesh_data()

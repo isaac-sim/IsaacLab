@@ -122,7 +122,7 @@ class InteractiveScene:
         self.cfg = cfg
 
         # TODO(mtrepte): remove
-        # self.cfg.clone_in_fabric = False
+        self.cfg.clone_in_fabric = False
 
         # initialize scene elements
         self._terrain = None

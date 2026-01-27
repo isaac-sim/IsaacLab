@@ -47,11 +47,11 @@ class NewtonVisualizerCfg(VisualizerCfg):
     enable_wireframe: bool = False
     """Enable wireframe rendering."""
 
-    background_color: tuple[float, float, float] = (0.53, 0.81, 0.92)
-    """Background/sky color RGB [0,1]."""
+    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
+    """Sky upper color RGB [0,1]."""
 
-    ground_color: tuple[float, float, float] = (0.18, 0.20, 0.25)
-    """Ground color RGB [0,1]."""
+    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
+    """Sky lower color RGB [0,1]."""
 
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0,1]."""

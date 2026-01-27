@@ -160,8 +160,8 @@ class NewtonViewerGL(ViewerGL):
                 changed, self.renderer.draw_wireframe = imgui.checkbox("Wireframe", self.renderer.draw_wireframe)
 
                 changed, self.renderer._light_color = imgui.color_edit3("Light Color", self.renderer._light_color)
-                changed, self.renderer.sky_upper = imgui.color_edit3("Sky Color", self.renderer.sky_upper)
-                changed, self.renderer.sky_lower = imgui.color_edit3("Ground Color", self.renderer.sky_lower)
+                changed, self.renderer.sky_upper = imgui.color_edit3("Upper Sky Color", self.renderer.sky_upper)
+                changed, self.renderer.sky_lower = imgui.color_edit3("Lower Sky Color", self.renderer.sky_lower)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Camera"):
@@ -213,8 +213,8 @@ class NewtonVisualizer(Visualizer):
 
         metadata = {}
         if self._scene_data_provider:
-            self._model = self._scene_data_provider.get_model()
-            self._state = self._scene_data_provider.get_state()
+            self._model = self._scene_data_provider.get_newton_model()
+            self._state = self._scene_data_provider.get_newton_state()
             metadata = self._scene_data_provider.get_metadata()
         else:
             try:
@@ -268,8 +268,8 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer.draw_sky = self.cfg.enable_sky
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
 
-        self._viewer.renderer.sky_upper = self.cfg.background_color
-        self._viewer.renderer.sky_lower = self.cfg.ground_color
+        self._viewer.renderer.sky_upper = self.cfg.sky_upper_color
+        self._viewer.renderer.sky_lower = self.cfg.sky_lower_color
         self._viewer.renderer._light_color = self.cfg.light_color
 
         self._is_initialized = True
@@ -281,13 +281,23 @@ class NewtonVisualizer(Visualizer):
         self._sim_time += dt
         self._step_counter += 1
 
+        contacts = None
+        contacts_data = None
         if self._scene_data_provider:
-            self._state = self._scene_data_provider.get_state()
+            self._state = self._scene_data_provider.get_newton_state()
+            if self._viewer.show_contacts:
+                contacts_data = self._scene_data_provider.get_contacts()
+                if isinstance(contacts_data, dict):
+                    contacts = contacts_data.get("contacts", contacts_data)
+                else:
+                    contacts = contacts_data
         else:
             try:
                 from isaaclab.sim._impl.newton_manager import NewtonManager
 
                 self._state = NewtonManager._state_0
+                if self._viewer.show_contacts:
+                    contacts = NewtonManager._contacts
             except Exception:
                 self._state = None
 
@@ -300,6 +310,11 @@ class NewtonVisualizer(Visualizer):
                 self._viewer.begin_frame(self._sim_time)
                 if self._state is not None:
                     self._viewer.log_state(self._state)
+                    if contacts is not None and hasattr(self._viewer, "log_contacts"):
+                        try:
+                            self._viewer.log_contacts(contacts, self._state)
+                        except Exception as exc:
+                            logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
                 self._viewer.end_frame()
             else:
                 self._viewer._update()

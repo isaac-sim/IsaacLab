@@ -4,11 +4,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Omni PhysX-backed scene data provider."""
+"""OV (Omniverse) scene data provider for Omni PhysX backend."""
 
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any
 
@@ -17,11 +18,13 @@ from .scene_data_provider import SceneDataProviderBase
 logger = logging.getLogger(__name__)
 
 
-class OmniSceneDataProvider(SceneDataProviderBase):
-    """Omni PhysX-backed scene data provider.
-
-    This provider can generate a Newton-compatible Model/State for use by Newton and Rerun
-    visualizers while the active physics backend is Omni PhysX.
+class OVSceneDataProvider(SceneDataProviderBase):
+    """Scene data provider for Omni PhysX physics backend.
+    
+    Native (cheap): USD stage, PhysX transforms/velocities/contacts
+    Adapted (expensive): Newton Model/State (built from USD, synced each step)
+    
+    Performance: Only builds Newton data if Newton/Rerun visualizers are active.
     """
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
@@ -65,10 +68,13 @@ class OmniSceneDataProvider(SceneDataProviderBase):
         self._set_body_q_kernel = None
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
 
+        # Only build Newton model if Newton/Rerun visualizers need it
         if self._has_newton_visualizer or self._has_rerun_visualizer:
             self._build_newton_model_from_usd()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
+        elif self._has_ov_visualizer:
+            logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
     def _get_num_envs(self) -> int:
         try:
@@ -115,7 +121,7 @@ class OmniSceneDataProvider(SceneDataProviderBase):
 
             num_envs = self._get_num_envs()
 
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             env_prim_paths = find_matching_prim_paths("/World/envs/env_.*", stage=self._stage)
             print(
                 "[SceneDataProvider] Stage env prims before add_usd: "+
@@ -453,8 +459,9 @@ class OmniSceneDataProvider(SceneDataProviderBase):
             return None
 
     def update(self) -> None:
+        """Sync PhysX transforms to Newton state if Newton/Rerun visualizers are active."""
         if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return
+            return  # OV visualizer only - USD auto-synced by omni.physics
         self._refresh_newton_model_if_needed()
         if self._newton_state is None:
             return
@@ -490,9 +497,12 @@ class OmniSceneDataProvider(SceneDataProviderBase):
 
             positions = positions.reshape(-1, 3).to(dtype=torch.float32, device=self._device)
             orientations = orientations.reshape(-1, 4).to(dtype=torch.float32, device=self._device)
-            # TODO(mtrepte) currently converting quaternion convention from wxyz to xyzw
-            # in the future, we can avoid this step
-            orientations_xyzw = convert_quat(orientations, to="xyzw")
+            # NOTE: PhysX tensor views return quats in xyzw, while XformPrimView returns wxyz.
+            # Convert only when needed to avoid scrambling orientations.
+            if source_view == "xform_view":
+                orientations_xyzw = convert_quat(orientations, to="xyzw")
+            else:
+                orientations_xyzw = orientations
 
             positions_wp = wp.from_torch(positions, dtype=wp.vec3)
             orientations_wp = wp.from_torch(orientations_xyzw, dtype=wp.quatf)
@@ -522,15 +532,25 @@ class OmniSceneDataProvider(SceneDataProviderBase):
         except Exception as exc:
             logger.debug(f"[SceneDataProvider] Failed to sync Omni transforms to Newton state: {exc}")
 
-    def get_model(self):
+    def get_newton_model(self) -> Any | None:
+        """ADAPTED: Newton Model built from USD (only if Newton/Rerun visualizers active)."""
         if not (self._has_newton_visualizer or self._has_rerun_visualizer):
             return None
         return self._newton_model
 
-    def get_state(self):
+    def get_newton_state(self) -> Any | None:
+        """ADAPTED: Newton State synced from PhysX (only if Newton/Rerun visualizers active)."""
         if not (self._has_newton_visualizer or self._has_rerun_visualizer):
             return None
         return self._newton_state
+
+    def get_usd_stage(self) -> Any:
+        """NATIVE: USD stage."""
+        return self._stage
+
+    def get_mesh_data(self) -> dict[str, Any] | None:
+        """NATIVE: Extract mesh data from USD stage (future work)."""
+        return None
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
