@@ -10,9 +10,6 @@ This script downloads assets from the Nucleus server and mirrors the directory s
 locally in the offline_assets folder. This enables offline training without requiring
 internet connectivity.
 
-Requirements:
-    pip install tqdm
-
 Usage:
     # Download all assets
     ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories all

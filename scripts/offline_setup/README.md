@@ -21,7 +21,7 @@
 ./isaaclab.sh -p scripts/offline_setup/download_assets.py \
     --categories all
 ```
-#### _Optional Note: Category fields can be specified separately_
+#### _Alternative Note: Category fields can be specified separately_
 ```
 ./isaaclab.sh -p scripts/offline_setup/download_assets.py \
     --categories Robots --subset Unitree
@@ -37,15 +37,15 @@
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
     --num_envs 128 \
-    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-01-27_14-58-33/model_800.pt \
+    --checkpoint logs/rsl_rl/<robot>_flat/<timestamp>/model_<num>.pt \
     --video \
-    --video_length 1000
+    --video_length 1000 \
     --offline
 ```
 #### _Note: For offline training, assets that cannot be found in `offline_assets` will attempted to be fetched from the [Nucleus Server](https://docs.omniverse.nvidia.com/nucleus/latest/index.html)._
 
 ## 📁 Asset Layout
-#### Offline assets are organized to mirror Nucleus (`ISAAC_NUCLEUS_DIR` & `ISAACLAB_NUCLEUS_DIR`) meaning that no code changes are required!
+#### Offline assets are organized to mirror Nucleus (`ISAAC_NUCLEUS_DIR` & `ISAACLAB_NUCLEUS_DIR`) under the `offline_assets` directory, meaning that no code changes are required for offline running! We flatten `Isaac/IsaacLab/` to just the category names (`Robots/`, `Controllers/`, etc.) for cleaner local structure. This happens in `asset_resolver.py`, where the resolver maintains a 1:1 mapping between Nucleus and local storage.
 
 ```
 IsaacLab/
@@ -68,12 +68,12 @@ IsaacLab/
     │   └── UIElements/
     │       └── arrow_x.usd
     └── Robots/                     # Robot USD files
-        ├── Unitree/
-        │   ├── Go2/
-        │   │   └── go2.usd
-        │   └── H1/
-        │       └── h1.usd
-        └── ANYbotics/
-            └── ANYmal-D/
-                └── anymal_d.usd
+        ├── BostonDynamics/
+        │   └── spot/
+        │       └── spot.usd
+        └── Unitree/
+            ├── Go2/
+            │   └── go2.usd
+            └── H1/
+                └── h1.usd
 ```
