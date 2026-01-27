@@ -175,6 +175,7 @@ Guidelines for modifications:
 * Weihua Zhang
 * Tsz Ki GAO
 * Anke Zhao
+* Mikhail Yurasov
 
 ## Acknowledgements
 
