@@ -6,8 +6,6 @@
 import math
 from dataclasses import MISSING
 
-from isaaclab_contrib.assets import MultirotorCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -21,6 +19,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+
+from isaaclab_contrib.assets import MultirotorCfg
 
 import isaaclab_tasks.manager_based.drone_arl.mdp as mdp
 

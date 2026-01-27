@@ -25,7 +25,13 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
--  Install a CUDA-enabled PyTorch 2.9.0 that matches your system architecture:
+-  Install the Isaac Lab packages along with Isaac Sim:
+
+   .. code-block:: none
+
+      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
+
+-  Install a CUDA-enabled PyTorch 2.9.0 build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform
@@ -71,12 +77,6 @@ Installing dependencies
 
             This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
             removing the preload warnings during runtime.
-
--  Install the Isaac Lab packages along with Isaac Sim:
-
-   .. code-block:: none
-
-      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
 
 -  If you want to use ``rl_games`` for training and inferencing, install
    its Python 3.11+ enabled fork:
