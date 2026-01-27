@@ -105,10 +105,23 @@ and member lists, etc.) will not work by default. To set it up (define the searc
 the path to the default Python interpreter, and other settings), for a given workspace folder,
 run the following command:
 
-.. code-block:: bash
+ .. tab-set::
+      :sync-group: pip-platform
 
-   python -m isaaclab --generate-vscode-settings
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
+         :sync: linux
 
+         .. code-block:: bash
+
+            ./isaaclab.sh --vscode
+
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
+         :sync: windows
+
+         .. code-block:: cmd
+
+            ./isaaclab.bat --vscode
+-
 
 .. warning::
 
