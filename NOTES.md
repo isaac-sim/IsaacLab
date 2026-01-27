@@ -1,7 +1,5 @@
 conda deactivate
 
-./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
-
 <!-- Running Local Training Headless -->
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
