@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class OVSceneDataProvider:
     """Scene data provider for Omni PhysX physics backend.
     
-    Native (cheap): USD stage, PhysX transforms/velocities/contacts
+    Native (cheap): USD stage, PhysX transforms/velocities
     Adapted (expensive): Newton Model/State (built from USD, synced each step)
     
     Performance: Only builds Newton data if Newton/Rerun visualizers are active.
@@ -34,7 +34,6 @@ class OVSceneDataProvider:
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         self._rigid_body_view = None
         self._articulation_view = None
-        self._contact_view = None
         self._xform_views: dict[str, Any] = {}
         self._body_key_index_map: dict[str, int] = {}
         self._view_body_index_map: dict[str, list[int]] = {}
@@ -75,6 +74,7 @@ class OVSceneDataProvider:
             logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
     def _get_num_envs(self) -> int:
+        # TODO(mtrepte): is there a better way to get num_envs?
         try:
             import carb
 
@@ -135,7 +135,6 @@ class OVSceneDataProvider:
             self._newton_state = self._newton_model.state()
             self._rigid_body_paths = list(self._newton_model.body_key)
             self._xform_views.clear()
-            self._contact_view = None
             self._body_key_index_map = {path: i for i, path in enumerate(self._rigid_body_paths)}
             self._view_body_index_map = {}
         except ModuleNotFoundError as exc:
@@ -187,6 +186,7 @@ class OVSceneDataProvider:
             self._articulation_view = None
 
     def _get_view_world_poses(self, view):
+        # TODO(mtrepte): this can be revisited & simplifiedafter the function naming gets unified
         if view is None:
             return None, None
 
@@ -271,146 +271,6 @@ class OVSceneDataProvider:
 
         return None, None
 
-    def _setup_contact_view(self) -> None:
-        if not self._rigid_body_paths or self._contact_view is not None:
-            return
-        try:
-            from pxr import PhysxSchema
-
-            contact_paths = [
-                path
-                for path in self._rigid_body_paths
-                if self._stage.GetPrimAtPath(path).HasAPI(PhysxSchema.PhysxContactReportAPI)
-            ]
-            if contact_paths:
-                contact_paths = self._wildcard_env_paths(contact_paths)
-                self._contact_view = self._physics_sim_view.create_rigid_contact_view(contact_paths)
-        except Exception as exc:
-            logger.debug(f"[SceneDataProvider] Failed to create ContactView: {exc}")
-            self._contact_view = None
-
-    def _get_view_contacts(self, view):
-        if view is None:
-            return None
-        dt = getattr(self._simulation_context, "cfg", None)
-        dt = getattr(dt, "dt", 1.0 / 60.0) if dt is not None else 1.0 / 60.0
-
-        try:
-            num_envs = int(self._metadata.get("num_envs") or 1)
-            view_count = getattr(view, "count", 0)
-            num_bodies = view_count // num_envs if num_envs > 0 and view_count else 0
-            num_filters = getattr(view, "filter_count", 0)
-
-            output: dict[str, Any] = {}
-
-            method = getattr(view, "get_net_contact_forces", None)
-            if method is not None:
-                output["net_forces_w"] = method(dt=dt)
-
-            method = getattr(view, "get_contact_data", None)
-            if method is not None:
-                data = method(dt=dt)
-                if isinstance(data, tuple) and len(data) >= 6:
-                    _, contact_points, contact_normals, contact_distances, buffer_count, buffer_start_indices = data[:6]
-                    if num_envs > 0 and num_bodies > 0 and num_filters > 0:
-                        output["contact_points_w"] = self._unpack_contact_buffer_data(
-                            contact_points,
-                            buffer_count,
-                            buffer_start_indices,
-                            num_envs,
-                            num_bodies,
-                            num_filters,
-                            avg=True,
-                            default=float("nan"),
-                        )
-                        output["contact_normals_w"] = self._unpack_contact_buffer_data(
-                            contact_normals,
-                            buffer_count,
-                            buffer_start_indices,
-                            num_envs,
-                            num_bodies,
-                            num_filters,
-                            avg=True,
-                            default=float("nan"),
-                        )
-                        output["contact_distances"] = self._unpack_contact_buffer_data(
-                            contact_distances.view(-1, 1),
-                            buffer_count,
-                            buffer_start_indices,
-                            num_envs,
-                            num_bodies,
-                            num_filters,
-                            avg=True,
-                            default=float("nan"),
-                        ).squeeze(-1)
-
-            method = getattr(view, "get_friction_data", None)
-            if method is not None:
-                data = method(dt=dt)
-                if isinstance(data, tuple) and len(data) >= 4:
-                    friction_forces, _, buffer_count, buffer_start_indices = data[:4]
-                    if num_envs > 0 and num_bodies > 0 and num_filters > 0:
-                        output["friction_forces_w"] = self._unpack_contact_buffer_data(
-                            friction_forces,
-                            buffer_count,
-                            buffer_start_indices,
-                            num_envs,
-                            num_bodies,
-                            num_filters,
-                            avg=False,
-                            default=0.0,
-                        )
-
-            if not output:
-                return None
-            return output
-        except Exception as exc:
-            logger.debug(f"[SceneDataProvider] Failed to read ContactView data: {exc}")
-            return None
-
-    def _unpack_contact_buffer_data(
-        self,
-        contact_data,
-        buffer_count,
-        buffer_start_indices,
-        num_envs: int,
-        num_bodies: int,
-        num_filters: int,
-        avg: bool = True,
-        default: float = float("nan"),
-    ):
-        try:
-            import torch
-
-            if num_envs <= 0 or num_bodies <= 0 or num_filters <= 0:
-                return None
-
-            counts = buffer_count.view(-1)
-            starts = buffer_start_indices.view(-1)
-            n_rows = counts.numel()
-            if contact_data is None or n_rows == 0:
-                return None
-
-            data = contact_data
-            if data.ndim == 1:
-                data = data.view(-1, 1)
-            dim = data.shape[-1]
-
-            agg = torch.full((n_rows, dim), default, device=data.device, dtype=data.dtype)
-            total = int(counts.sum().item())
-            if total > 0:
-                row_ids = torch.repeat_interleave(torch.arange(n_rows, device=data.device), counts)
-                block_starts = counts.cumsum(0) - counts
-                deltas = torch.arange(row_ids.numel(), device=data.device) - block_starts.repeat_interleave(counts)
-                flat_idx = starts[row_ids] + deltas
-                pts = data.index_select(0, flat_idx)
-                agg = agg.zero_().index_add_(0, row_ids, pts)
-                agg = agg / counts.clamp_min(1).unsqueeze(-1) if avg else agg
-                agg[counts == 0] = default
-
-            return agg.view(num_envs, num_bodies, num_filters, dim)
-        except Exception:
-            return None
 
     def _get_xform_world_poses(self):
         if not self._rigid_body_paths:
@@ -525,7 +385,6 @@ class OVSceneDataProvider:
 
             # Future extensions:
             # - Populate velocities into self._newton_state.body_qd
-            # - Sync contacts into Newton Contacts for richer debug visualizations
             # - Cache mesh/material data for Rerun/renderer integrations
         except Exception as exc:
             logger.debug(f"[SceneDataProvider] Failed to sync Omni transforms to Newton state: {exc}")
@@ -580,10 +439,5 @@ class OVSceneDataProvider:
         return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        if self._contact_view is None:
-            self._setup_contact_view()
-        data = self._get_view_contacts(self._contact_view)
-        if data is None:
-            return None
-        data["source"] = "contact_view"
-        return data
+        """Contacts not yet supported for OV backend."""
+        return None

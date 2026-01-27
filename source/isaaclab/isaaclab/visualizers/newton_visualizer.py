@@ -208,31 +208,13 @@ class NewtonVisualizer(Visualizer):
         if self._is_initialized:
             return
 
-        if scene_data and "scene_data_provider" in scene_data:
-            self._scene_data_provider = scene_data["scene_data_provider"]
+        if not scene_data or "scene_data_provider" not in scene_data:
+            raise RuntimeError("Newton visualizer requires scene_data_provider.")
 
-        metadata = {}
-        if self._scene_data_provider:
-            self._model = self._scene_data_provider.get_newton_model()
-            self._state = self._scene_data_provider.get_newton_state()
-            metadata = self._scene_data_provider.get_metadata()
-        else:
-            try:
-                from isaaclab.sim._impl.newton_manager import NewtonManager
-
-                self._model = NewtonManager._model
-                self._state = NewtonManager._state_0
-                metadata = {
-                    "physics_backend": "newton",
-                    "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
-                    "gravity_vector": NewtonManager._gravity_vector,
-                    "clone_physics_only": NewtonManager._clone_physics_only,
-                }
-            except Exception:
-                pass
-
-        if self._model is None:
-            raise RuntimeError("Newton visualizer requires a Newton Model. Ensure a scene data provider is available.")
+        self._scene_data_provider = scene_data["scene_data_provider"]
+        self._model = self._scene_data_provider.get_newton_model()
+        self._state = self._scene_data_provider.get_newton_state()
+        metadata = self._scene_data_provider.get_metadata()
 
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
@@ -281,25 +263,15 @@ class NewtonVisualizer(Visualizer):
         self._sim_time += dt
         self._step_counter += 1
 
+        self._state = self._scene_data_provider.get_newton_state()
+        
         contacts = None
-        contacts_data = None
-        if self._scene_data_provider:
-            self._state = self._scene_data_provider.get_newton_state()
-            if self._viewer.show_contacts:
-                contacts_data = self._scene_data_provider.get_contacts()
-                if isinstance(contacts_data, dict):
-                    contacts = contacts_data.get("contacts", contacts_data)
-                else:
-                    contacts = contacts_data
-        else:
-            try:
-                from isaaclab.sim._impl.newton_manager import NewtonManager
-
-                self._state = NewtonManager._state_0
-                if self._viewer.show_contacts:
-                    contacts = NewtonManager._contacts
-            except Exception:
-                self._state = None
+        if self._viewer.show_contacts:
+            contacts_data = self._scene_data_provider.get_contacts()
+            if isinstance(contacts_data, dict):
+                contacts = contacts_data.get("contacts", contacts_data)
+            else:
+                contacts = contacts_data
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:

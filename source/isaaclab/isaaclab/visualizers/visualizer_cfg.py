@@ -50,14 +50,6 @@ class VisualizerCfg:
 
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
-            if self.visualizer_type in ("newton", "rerun"):
-                raise ImportError(
-                    f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
-                    "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
-                )
-            raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. "
-                "Valid types: 'newton', 'rerun', 'omniverse'."
-            )
+            raise ValueError(f"Visualizer type '{self.visualizer_type}' is not available.")
 
         return visualizer_class(self)

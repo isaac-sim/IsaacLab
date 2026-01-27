@@ -13,22 +13,14 @@ from typing import Any
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
 
+import rerun as rr
+import rerun.blueprint as rrb
+from newton.viewer import ViewerRerun
+
 logger = logging.getLogger(__name__)
 
-try:
-    import rerun as rr
-    import rerun.blueprint as rrb
-    from newton.viewer import ViewerRerun
 
-    _RERUN_AVAILABLE = True
-except ImportError:
-    rr = None
-    rrb = None
-    ViewerRerun = None
-    _RERUN_AVAILABLE = False
-
-
-class NewtonViewerRerun(ViewerRerun if _RERUN_AVAILABLE else object):
+class NewtonViewerRerun(ViewerRerun):
     """Isaac Lab wrapper for Newton's ViewerRerun."""
 
     def __init__(
@@ -72,10 +64,6 @@ class RerunVisualizer(Visualizer):
     def __init__(self, cfg: RerunVisualizerCfg):
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
-
-        if not _RERUN_AVAILABLE:
-            raise ImportError("Rerun visualizer requires rerun-sdk and Newton. Install: pip install rerun-sdk")
-
         self._viewer: NewtonViewerRerun | None = None
         self._model = None
         self._state = None
@@ -85,39 +73,16 @@ class RerunVisualizer(Visualizer):
 
     def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
         if self._is_initialized:
-            logger.warning("[RerunVisualizer] Already initialized. Skipping re-initialization.")
+            logger.warning("[RerunVisualizer] Already initialized.")
             return
 
-        if scene_data and "scene_data_provider" in scene_data:
-            self._scene_data_provider = scene_data["scene_data_provider"]
+        if not scene_data or "scene_data_provider" not in scene_data:
+            raise RuntimeError("Rerun visualizer requires scene_data_provider.")
 
-        metadata = {}
-        if self._scene_data_provider:
-            self._model = self._scene_data_provider.get_newton_model()
-            self._state = self._scene_data_provider.get_newton_state()
-            metadata = self._scene_data_provider.get_metadata()
-        else:
-            try:
-                from isaaclab.sim._impl.newton_manager import NewtonManager
-
-                self._model = NewtonManager._model
-                self._state = NewtonManager._state_0
-                metadata = {
-                    "physics_backend": "newton",
-                    "num_envs": NewtonManager._num_envs if NewtonManager._num_envs is not None else 0,
-                    "gravity_vector": NewtonManager._gravity_vector,
-                    "clone_physics_only": NewtonManager._clone_physics_only,
-                }
-            except Exception:
-                pass
-
-        if self._model is None:
-            raise RuntimeError(
-                "Rerun visualizer requires a Newton Model. Ensure a scene data provider is available."
-            )
-
-        if self._state is None:
-            logger.warning("[RerunVisualizer] No Newton State available. Visualization may not work correctly.")
+        self._scene_data_provider = scene_data["scene_data_provider"]
+        self._model = self._scene_data_provider.get_newton_model()
+        self._state = self._scene_data_provider.get_newton_state()
+        metadata = self._scene_data_provider.get_metadata()
 
         try:
             if self.cfg.record_to_rrd:
@@ -166,25 +131,11 @@ class RerunVisualizer(Visualizer):
             raise
 
     def step(self, dt: float, state: Any | None = None) -> None:
-        if not self._is_initialized or self._viewer is None:
-            logger.warning("[RerunVisualizer] Not initialized. Call initialize() first.")
-            return
-
-        if self._scene_data_provider:
-            self._state = self._scene_data_provider.get_newton_state()
-        else:
-            try:
-                from isaaclab.sim._impl.newton_manager import NewtonManager
-
-                self._state = NewtonManager._state_0
-            except Exception:
-                self._state = None
-
+        self._state = self._scene_data_provider.get_newton_state()
         self._sim_time += dt
 
         self._viewer.begin_frame(self._sim_time)
-        if self._state is not None:
-            self._viewer.log_state(self._state)
+        self._viewer.log_state(self._state)
         self._viewer.end_frame()
 
     def close(self) -> None:
