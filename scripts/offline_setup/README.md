@@ -27,6 +27,7 @@
     --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
 ```
 ### 2. Train completely offline with any robot via the `--offline` flag (also works with `/play`)
+#### Supported for: `rl_games`, `rsl_rl`, `sb3`, `skrl`, and `sim2transfer`
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
@@ -35,7 +36,7 @@
 
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
-    --num_envs 1 \
+    --num_envs 128 \
     --checkpoint logs/rsl_rl/unitree_go2_flat/2026-01-27_14-58-33/model_800.pt \
     --video \
     --video_length 1000

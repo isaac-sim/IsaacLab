@@ -91,9 +91,9 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
     multi_agent_to_single_agent,
 )
+from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
-from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
@@ -115,6 +115,10 @@ torch.backends.cudnn.benchmark = False
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Train with RSL-RL agent."""
+    # Handle config to use offline_assets
+    if args_cli.offline:
+        setup_offline_mode()
+        patch_config_for_offline_mode(env_cfg)
 
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
@@ -122,11 +126,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg.max_iterations = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
-
-    # Handle config to use offline_assets
-    if args_cli.offline:
-        setup_offline_mode()
-        patch_config_for_offline_mode(env_cfg)
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here

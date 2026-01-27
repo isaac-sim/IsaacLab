@@ -67,9 +67,9 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
     multi_agent_to_single_agent,
 )
+from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -84,6 +84,11 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
+    # Handle config to use offline_assets
+    if args_cli.offline:
+        setup_offline_mode()
+        patch_config_for_offline_mode(env_cfg)
+
     # grab task name for checkpoint path
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
@@ -91,11 +96,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # override configurations with non-hydra CLI arguments
     agent_cfg: RslRlBaseRunnerCfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-
-    # Handle config to use offline_assets
-    if args_cli.offline:
-        setup_offline_mode()
-        patch_config_for_offline_mode(env_cfg)
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
