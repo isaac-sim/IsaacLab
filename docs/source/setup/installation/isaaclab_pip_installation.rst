@@ -121,7 +121,6 @@ run the following command:
          .. code-block:: cmd
 
             ./isaaclab.bat --vscode
--
 
 .. warning::
 
