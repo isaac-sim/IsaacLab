@@ -32,10 +32,7 @@ class SceneEntityCfg(_SceneEntityCfg):
         super().resolve(scene)
 
         # Build a Warp joint mask for articulations.
-        entity = scene[self.name]
-        if not isinstance(entity, Articulation):
-            self.joint_mask = None
-            return
+        entity: Articulation = scene[self.name]
 
         # Pre-allocate a full-length mask (all True for default selection).
         if self.joint_ids == slice(None):
