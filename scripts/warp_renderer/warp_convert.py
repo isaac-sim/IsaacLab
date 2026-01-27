@@ -34,6 +34,21 @@ def triangulate_faces(num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.
         out_triangles[tri + i * 3 + 2] = face_indices[offset + i + 2]
 
 
+@wp.kernel(enable_backward=False)
+def update_transforms(fabric_matrices: wp.fabricarray(dtype=wp.mat44d), mapping: wp.array(dtype=wp.int32), transforms: wp.array(dtype=wp.transformf)):
+    tid = wp.tid()
+    if mapping[tid] > -1:
+        m = fabric_matrices[mapping[tid]]
+
+        orientation = wp.mat33f(wp.float32(m[0, 0]), wp.float32(m[1, 0]), wp.float32(m[2, 0]),
+                                wp.float32(m[0, 1]), wp.float32(m[1, 1]), wp.float32(m[2, 1]),
+                                wp.float32(m[0, 2]), wp.float32(m[1, 2]), wp.float32(m[2, 2]))
+
+        position = wp.vec3f(wp.float32(m[3, 0]), wp.float32(m[3, 1]), wp.float32(m[3, 2]))
+
+        transforms[tid] = wp.transformf(position, wp.normalize(wp.quat_from_matrix(orientation)))
+
+
 class WarpRenderer:
     @dataclass
     class PrimData:
@@ -62,6 +77,8 @@ class WarpRenderer:
         shape_world_indices = []
 
         self.__warp_meshes = []
+        self.__fabric_selection: usdrt.RtPrimSelection = None
+        self.__fabric_selection_mapping: list[int] = []
 
         for prim_path, prim_data in self.prim_data.items():
             if prim_data.is_shared:
@@ -98,23 +115,33 @@ class WarpRenderer:
         self.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(self.camera_fovs)
         self.color_image = self.render_context.create_color_image_output()
 
-    def update(self):
-        shape_transforms = []
-
+    def __update_fabric_selection(self):
         stage_id = isaaclab_sim.get_current_stage_id()
         rt_stage = usdrt.Usd.Stage.Attach(stage_id)
 
-        for prim_path, prim_data in self.prim_data.items():
-            if prim_data.is_shared:
-                for world_id, prim in prim_data.prims:
-                    rt_prim = rt_stage.GetPrimAtPath(prim_path % world_id)
-                    rt_xformable = usdrt.Rt.Xformable(rt_prim)
-                    rt_world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
-                    rt_matrix = rt_world_matrix_attr.Get()
-                    rt_pos = rt_matrix.ExtractTranslation()
-                    rt_quat = rt_matrix.ExtractRotationQuat()
-                    shape_transforms.append(wp.transformf(wp.vec3f(rt_pos), wp.quatf(rt_quat.imaginary[0], rt_quat.imaginary[1], rt_quat.imaginary[2], rt_quat.real)))
-        self.render_context.shape_transforms = wp.array(shape_transforms, dtype=wp.transformf)
+        update_mapping = False
+        if self.__fabric_selection is None:
+            self.__fabric_selection = rt_stage.SelectPrims(require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)], want_paths=True, device=wp.get_device().alias)
+            update_mapping = True
+        else:
+            update_mapping = self.__fabric_selection.PrepareForReuse()
+
+        if update_mapping:
+            self.__fabric_selection_mapping = []
+            selection_paths = self.__fabric_selection.GetPaths()
+            for prim_path, prim_data in self.prim_data.items():
+                if prim_data.is_shared:
+                    for world_id, prim in prim_data.prims:
+                        try:
+                            self.__fabric_selection_mapping.append(selection_paths.index(prim_path % world_id))
+                        except ValueError:
+                            self.__fabric_selection_mapping.append(-1)
+
+
+    def update(self):
+        self.__update_fabric_selection()
+        fabric_matrices = wp.fabricarray(self.__fabric_selection.__fabric_arrays_interface__, "omni:fabric:worldMatrix", dtype=wp.mat44d)
+        wp.launch(update_transforms, len(self.__fabric_selection_mapping), [fabric_matrices, wp.array(self.__fabric_selection_mapping, dtype=wp.int32), self.render_context.shape_transforms])
 
     def render(self):
         self.render_context.render(self.__get_camera_transforms(), self.camera_rays, self.color_image)
