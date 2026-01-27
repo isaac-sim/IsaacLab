@@ -1,5 +1,5 @@
 # Everything past this stage is to install
-# ROS2 Humble
+# ROS2 Jazzy
 
 # What is the docker name suffix for the base image to load? (defaults to empty string)
 ARG DOCKER_NAME_SUFFIX=""
@@ -9,30 +9,37 @@ FROM isaac-lab-base${DOCKER_NAME_SUFFIX} AS ros2
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
 
-# ROS2 Humble Apt installations
+# ROS2 Jazzy Apt installations
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    # Install ROS2 Humble \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    apt-transport-https \
     software-properties-common && \
     add-apt-repository universe && \
+    # Add ROS2 apt repository keyring and source (use host release codename)
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo jammy) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-${ROS2_APT_PACKAGE} \
-    ros-humble-vision-msgs \
+    ros-jazzy-${ROS2_APT_PACKAGE} \
+    ros-jazzy-vision-msgs \
     # Install both FastRTPS and CycloneDDS
-    ros-humble-rmw-cyclonedds-cpp \
-    ros-humble-rmw-fastrtps-cpp \
+    ros-jazzy-rmw-cyclonedds-cpp \
+    ros-jazzy-rmw-fastrtps-cpp \
     # This includes various dev tools including colcon
-    ros-dev-tools && \
+    ros-dev-tools \
+    python3-rosdep && \
+    # Initialize rosdep (ignore errors if already initialized) and update
+    rosdep init || true && rosdep update || true && \
     # Install rosdeps for extensions that declare a ros_ws in
     # their extension.toml
     ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py rosdep ${ISAACLAB_PATH}/source && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     # Add sourcing of setup.bash to .bashrc
-    echo "source /opt/ros/humble/setup.bash" >> ${HOME}/.bashrc
+    echo "source /opt/ros/jazzy/setup.bash" >> ${HOME}/.bashrc
 
 # Copy the RMW specifications for ROS2
 # https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html
