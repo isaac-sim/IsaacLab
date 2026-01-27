@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
     CODENAME="$(. /etc/os-release && echo $VERSION_CODENAME)" && \
     VERSION_ID="$(. /etc/os-release && echo $VERSION_ID)" && \
+    echo "Detected Ubuntu VERSION_ID=${VERSION_ID}, CODENAME=${CODENAME}" && \
     if [ "$VERSION_ID" = "22.04" ]; then ROS_DISTRO="humble"; \
     elif [ "$VERSION_ID" = "24.04" ]; then ROS_DISTRO="jazzy"; \
     else echo "Unsupported Ubuntu version: $VERSION_ID" >&2; exit 1; fi && \
