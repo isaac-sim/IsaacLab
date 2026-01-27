@@ -28,5 +28,6 @@ from .ridgeback_franka import *
 from .sawyer import *
 from .shadow_hand import *
 from .spot import *
+from .t3_hexapod import *
 from .unitree import *
 from .universal_robots import *
