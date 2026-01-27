@@ -53,10 +53,10 @@ class SimulationContext:
     * playing, pausing, stepping and stopping the simulation
     * adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.
 
-    This class inherits from the :class:`isaacsim.core.api.simulation_context.SimulationContext` class and
-    adds additional functionalities such as setting up the simulation context with a configuration object,
-    exposing other commonly used simulator-related functions, and performing version checks of Isaac Sim
-    to ensure compatibility between releases.
+    This class provides a standalone simulation context for Isaac Lab, with additional functionalities
+    such as setting up the simulation context with a configuration object, exposing commonly used
+    simulator-related functions, and performing version checks of Isaac Sim to ensure compatibility
+    between releases.
 
     The simulation context is a singleton object. This means that there can only be one instance
     of the simulation context at any given time. This is enforced by the parent class. Therefore, it is
@@ -458,6 +458,11 @@ class SimulationContext:
             The physics time step of the simulation.
         """
         return self.cfg.dt
+
+    @property
+    def physics_prim_path(self) -> str:
+        """The path to the physics scene prim."""
+        return self.cfg.physics_prim_path
 
     def get_rendering_dt(self) -> float:
         """Returns the rendering time step of the simulation.
@@ -897,6 +902,11 @@ class SimulationContext:
             # save the device
             self._physics_device = "cpu"
 
+        # Configure simulation manager backend
+        # Isaac Lab always uses torch tensors for consistency, even on CPU
+        SimulationManager.set_backend("torch")
+        SimulationManager.set_physics_sim_device(self._physics_device)
+
         # --------------------------
         # USDPhysics API settings
         # --------------------------
@@ -1313,6 +1323,9 @@ def build_simulation_context(
     """
     try:
         if create_new_stage:
+            # Clear any existing simulation context before creating a new stage
+            # This ensures proper resource cleanup and allows a fresh initialization
+            SimulationContext.clear_instance()
             sim_utils.create_new_stage()
 
         if sim_cfg is None:

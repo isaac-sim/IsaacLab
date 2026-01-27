@@ -158,7 +158,7 @@ def main():
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_balls)
     cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
-    physics_scene_path = sim.get_physics_context().prim_path
+    physics_scene_path = sim.physics_prim_path
     cloner.filter_collisions(
         physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
