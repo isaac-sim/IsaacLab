@@ -77,6 +77,7 @@ class WarpRenderer:
         shape_world_indices = []
 
         self.__warp_meshes = []
+        self.__fabric_stage_id = None
         self.__fabric_selection: usdrt.RtPrimSelection = None
         self.__fabric_selection_mapping: list[int] = []
 
@@ -117,11 +118,15 @@ class WarpRenderer:
 
     def __update_fabric_selection(self):
         stage_id = isaaclab_sim.get_current_stage_id()
-        rt_stage = usdrt.Usd.Stage.Attach(stage_id)
+        if self.__fabric_stage_id != stage_id:
+            self.__fabric_stage_id = stage_id
+            self.__fabric_selection = None
+
+        stage = usdrt.Usd.Stage.Attach(stage_id)
 
         update_mapping = False
         if self.__fabric_selection is None:
-            self.__fabric_selection = rt_stage.SelectPrims(require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)], want_paths=True, device=wp.get_device().alias)
+            self.__fabric_selection = stage.SelectPrims(require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)], want_paths=True, device=wp.get_device().alias)
             update_mapping = True
         else:
             update_mapping = self.__fabric_selection.PrepareForReuse()
@@ -136,7 +141,6 @@ class WarpRenderer:
                             self.__fabric_selection_mapping.append(selection_paths.index(prim_path % world_id))
                         except ValueError:
                             self.__fabric_selection_mapping.append(-1)
-
 
     def update(self):
         self.__update_fabric_selection()
