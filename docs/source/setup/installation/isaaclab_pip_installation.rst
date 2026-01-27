@@ -103,7 +103,7 @@ Generating VS Code Settings
 Due to the structure resulting from the installation, VS Code IntelliSense (code completion, parameter info
 and member lists, etc.) will not work by default. To set it up (define the search paths for import resolution,
 the path to the default Python interpreter, and other settings), for a given workspace folder,
-run the following command:
+run the following command from the Isaac Lab installation directory:
 
 .. tab-set::
       :sync-group: pip-platform
@@ -120,7 +120,7 @@ run the following command:
 
          .. code-block:: cmd
 
-            ./isaaclab.bat --vscode
+            isaaclab.bat --vscode
 
 .. warning::
 
