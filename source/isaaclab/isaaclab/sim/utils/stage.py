@@ -435,7 +435,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     import carb
     import omni.physx
     import omni.usd
-    from isaacsim.core.simulation_manager import SimulationManager
+    from isaaclab.sim.simulation_manager import SimulationManager
 
     from isaaclab.sim.simulation_context import SimulationContext
 

@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg

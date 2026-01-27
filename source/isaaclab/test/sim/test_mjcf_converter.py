@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import os
 import pytest
 
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils

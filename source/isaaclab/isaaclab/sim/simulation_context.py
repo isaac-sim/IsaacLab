@@ -28,7 +28,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
@@ -292,6 +292,8 @@ class SimulationContext:
             self._configure_simulation_dt()
             # apply physics settings (carb and physx)
             self._apply_physics_settings()
+            # initialize the simulation manager callbacks
+            SimulationManager.initialize()
 
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
@@ -339,6 +341,8 @@ class SimulationContext:
             if cls._instance._app_control_on_stop_handle is not None:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
+            # clear the simulation manager state (notifies assets to cleanup)
+            SimulationManager.clear()
             # detach the stage from physx
             if cls._instance._physx_sim_iface is not None:
                 cls._instance._physx_sim_iface.detach_stage()

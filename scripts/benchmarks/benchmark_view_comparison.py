@@ -67,8 +67,7 @@ import cProfile
 import time
 import torch
 
-from isaacsim.core.simulation_manager import SimulationManager
-
+from isaaclab.sim.simulation_manager import SimulationManager
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sim.views import XformPrimView

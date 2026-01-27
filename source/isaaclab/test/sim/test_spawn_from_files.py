@@ -16,7 +16,7 @@ import pytest
 from packaging.version import Version
 
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR

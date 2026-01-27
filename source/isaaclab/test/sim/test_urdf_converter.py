@@ -18,7 +18,7 @@ import pytest
 from packaging.version import Version
 
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils

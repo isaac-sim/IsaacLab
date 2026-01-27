@@ -6,7 +6,7 @@
 import torch
 from dataclasses import MISSING
 
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.prims import SingleArticulation
 
 # enable motion generation extensions

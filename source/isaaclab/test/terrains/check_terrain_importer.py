@@ -69,7 +69,7 @@ import omni.kit.commands
 from isaacsim.core.api.materials import PhysicsMaterial
 from isaacsim.core.api.materials.preview_surface import PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension

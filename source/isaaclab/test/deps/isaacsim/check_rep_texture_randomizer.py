@@ -46,7 +46,7 @@ import numpy as np
 import torch
 
 import omni.replicator.core as rep
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim

@@ -12,7 +12,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 
 from isaaclab.managers import ManagerBase
 from isaaclab.utils import configclass

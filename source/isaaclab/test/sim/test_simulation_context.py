@@ -18,7 +18,7 @@ import pytest
 import weakref
 
 import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaaclab.sim import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -27,14 +27,16 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     """Setup and teardown for each test."""
-    # Setup: Clear any existing simulation context
+    # Setup: Clear any existing simulation context and create a fresh stage
     SimulationContext.clear_instance()
+    sim_utils.create_new_stage()
 
     # Yield for the test
     yield
 
     # Teardown: Clear the simulation context after each test
-    SimulationContext.clear()
+    if SimulationContext.instance() is not None:
+        SimulationContext.clear()
     SimulationContext.clear_instance()
 
 

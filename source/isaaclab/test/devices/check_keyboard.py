@@ -23,7 +23,7 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 

@@ -19,7 +19,7 @@ import random
 import tempfile
 
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils

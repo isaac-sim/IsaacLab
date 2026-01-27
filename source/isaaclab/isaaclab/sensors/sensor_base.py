@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaaclab.sim import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.stage import get_current_stage
@@ -311,15 +311,16 @@ class SensorBase(ABC):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
+    def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
 
         Args:
-            prim_path: The path to the prim that is being deleted.
+            event: The prim deletion event containing the prim path in payload.
 
         Note:
             This function is called when the prim is deleted.
         """
+        prim_path = event.payload["prim_path"]
         if prim_path == "/":
             self._clear_callbacks()
             return

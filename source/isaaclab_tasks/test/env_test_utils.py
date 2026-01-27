@@ -184,6 +184,9 @@ def _check_random_actions(
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
     """
+    # Import here to use in exception handler
+    from isaaclab.sim import SimulationContext
+    
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
         omni.usd.get_context().new_stage()
@@ -191,6 +194,7 @@ def _check_random_actions(
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
 
+    env = None
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
@@ -211,64 +215,67 @@ def _check_random_actions(
                 return
             env = gym.make(task_name, cfg=env_cfg)
 
+        # disable control on stop
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
+
+        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
+        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
+
+        # reset environment
+        obs, _ = env.reset()
+
+        # check signal
+        assert _check_valid_tensor(obs)
+
+        # simulate environment for num_steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
+                if multi_agent:
+                    actions = {
+                        agent: sample_space(
+                            env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
+                        )
+                        for agent in env.unwrapped.possible_agents
+                    }
+                else:
+                    actions = sample_space(
+                        env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                    )
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition[:-1]:  # exclude info
+                    if multi_agent:
+                        for agent, agent_data in data.items():
+                            assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    else:
+                        assert _check_valid_tensor(data), f"Invalid data: {data}"
+
+        # close environment
+        env.close()
+
+        # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
+        # This is necessary when using stage in memory, as the in-memory stage is destroyed on close
+        if create_stage_in_memory:
+            sim_utils.create_new_stage()
+
     except Exception as e:
         # try to close environment on exception
-        if "env" in locals() and hasattr(env, "_is_closed"):
+        if env is not None and hasattr(env, "_is_closed"):
             env.close()
+        elif hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
+            e.obj.close()
         else:
-            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                e.obj.close()
+            # Ensure simulation context is cleared even if env creation failed
+            SimulationContext.clear_instance()
+        
         pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
-
-    # disable control on stop
-    env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
-
-    # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        for i in range(env.unwrapped.single_action_space.shape[0]):
-            if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                env.unwrapped.single_action_space.low[i] = -1.0
-            if env.unwrapped.single_action_space.high[i] == float("inf"):
-                env.unwrapped.single_action_space.low[i] = 1.0
-
-    # reset environment
-    obs, _ = env.reset()
-
-    # check signal
-    assert _check_valid_tensor(obs)
-
-    # simulate environment for num_steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            if multi_agent:
-                actions = {
-                    agent: sample_space(
-                        env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
-                    )
-                    for agent in env.unwrapped.possible_agents
-                }
-            else:
-                actions = sample_space(
-                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
-                )
-            # apply actions
-            transition = env.step(actions)
-            # check signals
-            for data in transition[:-1]:  # exclude info
-                if multi_agent:
-                    for agent, agent_data in data.items():
-                        assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
-                else:
-                    assert _check_valid_tensor(data), f"Invalid data: {data}"
-
-    # close environment
-    env.close()
-
-    # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
-    # This is necessary when using stage in memory, as the in-memory stage is destroyed on close
-    if create_stage_in_memory:
-        sim_utils.create_new_stage()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

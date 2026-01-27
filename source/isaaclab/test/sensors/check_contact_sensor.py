@@ -36,7 +36,7 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaacsim.core.api.simulation_context import SimulationContext
+from isaaclab.sim import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.viewports import set_camera_view
 

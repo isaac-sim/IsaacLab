@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab.sim.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -737,15 +737,16 @@ class RigidObjectCollection(AssetBase):
         # set all existing views to None to invalidate them
         self._root_physx_view = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
+    def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
 
         Args:
-            prim_path: The path to the prim that is being deleted.
+            event: The prim deletion event containing the prim path in payload.
 
         Note:
             This function is called when the prim is deleted.
         """
+        prim_path = event.payload["prim_path"]
         if prim_path == "/":
             self._clear_callbacks()
             return

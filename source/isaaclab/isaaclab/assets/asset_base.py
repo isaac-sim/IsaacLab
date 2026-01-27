@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+from isaaclab.sim import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.stage import get_current_stage
@@ -330,15 +330,16 @@ class AssetBase(ABC):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
+    def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
 
         Args:
-            prim_path: The path to the prim that is being deleted.
+            event: The prim deletion event containing the prim path in payload.
 
         Note:
             This function is called when the prim is deleted.
         """
+        prim_path = event.payload["prim_path"]
         if prim_path == "/":
             self._clear_callbacks()
             return
@@ -348,8 +349,12 @@ class AssetBase(ABC):
         if result:
             self._clear_callbacks()
 
-    def _clear_callbacks(self) -> None:
-        """Clears the callbacks."""
+    def _clear_callbacks(self, event: Any = None) -> None:
+        """Clears the callbacks.
+
+        Args:
+            event: Optional event that triggered the callback (unused but required for event handlers).
+        """
         if self._prim_deletion_callback_id:
             SimulationManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
