@@ -150,6 +150,24 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
 
 
 @height_field_to_mesh
+def rough_slope_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRoughSlopeTerrainCfg) -> np.ndarray:
+    # combine the two methods
+    terrain1 = pyramid_sloped_terrain.__wrapped__(difficulty, cfg)
+    terrain2 = random_uniform_terrain.__wrapped__(difficulty, cfg)
+    hf = terrain1 + terrain2
+
+    # the platform at center do not need to be rough
+    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    platform_width = int(cfg.platform_width / cfg.horizontal_scale / 2)
+    x_pf = width_pixels // 2 - platform_width
+    y_pf = length_pixels // 2 - platform_width
+    z_pf = hf[x_pf, y_pf]
+    hf = np.clip(hf, min(0, z_pf), max(0, z_pf))
+    return hf
+
+
+@height_field_to_mesh
 def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStairsTerrainCfg) -> np.ndarray:
     """Generate a terrain with a pyramid stair pattern.
 
