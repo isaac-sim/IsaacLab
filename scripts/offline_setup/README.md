@@ -26,11 +26,19 @@
 ./isaaclab.sh -p scripts/offline_setup/download_assets.py \
     --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
 ```
-### 2. Train completely offline with any robot via the `--offline` flag
+### 2. Train completely offline with any robot via the `--offline` flag (also works with `/play`)
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
     --num_envs 128 \
+    --offline
+
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --num_envs 1 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-01-27_14-58-33/model_800.pt \
+    --video \
+    --video_length 1000
     --offline
 ```
 #### _Note: For offline training, assets that cannot be found in `offline_assets` will be fetched from the [Nucleus Server](https://docs.omniverse.nvidia.com/nucleus/latest/index.html)._
