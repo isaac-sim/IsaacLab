@@ -13,7 +13,6 @@ from .interpolation import *
 from .logger import *
 from .mesh import *
 from .modifiers import *
-from .simulation_runner import close_simulation, is_simulation_running
 from .string import *
 from .timer import Timer
 from .types import *
