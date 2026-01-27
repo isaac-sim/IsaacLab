@@ -13,12 +13,10 @@ import os
 import re
 from typing import Any
 
-from .scene_data_provider import SceneDataProviderBase
-
 logger = logging.getLogger(__name__)
 
 
-class OVSceneDataProvider(SceneDataProviderBase):
+class OVSceneDataProvider:
     """Scene data provider for Omni PhysX physics backend.
     
     Native (cheap): USD stage, PhysX transforms/velocities/contacts

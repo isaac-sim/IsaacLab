@@ -4,64 +4,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data provider abstraction for visualizers and renderers."""
+"""Scene data provider for visualizers and renderers."""
 
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class SceneDataProviderBase(ABC):
-    """Base interface for scene data providers.
-    
-    Provides simulation data in multiple formats for visualizers, renderers,
-    and other downstream consumers. Each backend provider implements this interface,
-    exposing native data cheaply and adapted data when needed.
-    """
-
-    @abstractmethod
-    def update(self) -> None:
-        """Update adapted data for current simulation step."""
-
-    @abstractmethod
-    def get_newton_model(self) -> Any | None:
-        """Get Newton Model."""
-
-    @abstractmethod
-    def get_newton_state(self) -> Any | None:
-        """Get Newton State."""
-
-    @abstractmethod
-    def get_usd_stage(self) -> Any | None:
-        """Get USD stage."""
-
-    @abstractmethod
-    def get_metadata(self) -> dict[str, Any]:
-        """Get provider metadata and performance hints."""
-
-    @abstractmethod
-    def get_transforms(self) -> dict[str, Any] | None:
-        """Get world-space transforms in backend-agnostic format."""
-
-    def get_velocities(self) -> dict[str, Any] | None:
-        """Get velocities in backend-agnostic format."""
-        return None
-
-    def get_contacts(self) -> dict[str, Any] | None:
-        """Get contact data in backend-agnostic format."""
-        return None
-
-    def get_mesh_data(self) -> dict[str, Any] | None:
-        """Get mesh geometry and materials."""
-        return None
-
-
 class SceneDataProvider:
-    """Facade that creates appropriate provider based on physics backend."""
+    """Creates appropriate data provider based on physics backend."""
 
     def __init__(
         self,
@@ -71,7 +25,7 @@ class SceneDataProvider:
         simulation_context=None,
     ) -> None:
         self._backend = backend
-        self._provider: SceneDataProviderBase | None = None
+        self._provider = None
 
         if backend == "newton":
             from .newton_scene_data_provider import NewtonSceneDataProvider

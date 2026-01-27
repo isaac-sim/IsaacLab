@@ -11,12 +11,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .scene_data_provider import SceneDataProviderBase
-
 logger = logging.getLogger(__name__)
 
 
-class NewtonSceneDataProvider(SceneDataProviderBase):
+class NewtonSceneDataProvider:
     """Scene data provider for Newton Warp physics backend.
     
     Native (cheap): Newton Model/State from NewtonManager
