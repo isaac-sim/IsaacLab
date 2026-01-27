@@ -145,6 +145,7 @@ Guidelines for modifications:
 * Xavier Nal
 * Xinjie Yao
 * Xinpeng Liu
+* Xin Xu
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
