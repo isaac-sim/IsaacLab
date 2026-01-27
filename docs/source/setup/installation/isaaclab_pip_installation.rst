@@ -105,7 +105,7 @@ and member lists, etc.) will not work by default. To set it up (define the searc
 the path to the default Python interpreter, and other settings), for a given workspace folder,
 run the following command:
 
- .. tab-set::
+.. tab-set::
       :sync-group: pip-platform
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux
