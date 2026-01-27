@@ -41,7 +41,7 @@ with measure_time("Imports time"):
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils import configclass
     from isaaclab_assets import ANYMAL_D_CFG
-    from warp_convert import WarpRTX_Renderer
+    from warp_convert import WarpRenderer
 
 
 @configclass
@@ -52,7 +52,7 @@ class SceneCfg(InteractiveSceneCfg):
     robot.prim_path = "{ENV_REGEX_NS}/Robot"
 
 
-def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, renderer: WarpRTX_Renderer, save_images: bool):
+def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, renderer: WarpRenderer, save_images: bool):
     robot: Articulation = scene["robot"]
     for step in range(num_steps):
         if step % 500 == 0:
@@ -105,7 +105,7 @@ def main():
         )
         scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg)
 
-        renderer = WarpRTX_Renderer(scene, 400, 400)
+        renderer = WarpRenderer(scene, 400, 400)
 
         # stage = isaaclab_sim.get_current_stage()
         # stage.Export("/home/dhasenbring/development/isaac/IsaacLab/stage.usda")

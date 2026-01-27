@@ -34,7 +34,7 @@ def triangulate_faces(num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.
         out_triangles[tri + i * 3 + 2] = face_indices[offset + i + 2]
 
 
-class WarpRTX_Renderer:
+class WarpRenderer:
     @dataclass
     class PrimData:
         is_shared: bool = False
@@ -51,8 +51,8 @@ class WarpRTX_Renderer:
     def __init__(self, scene: InteractiveScene, width: int, height: int):
         self.num_worlds = 0
         self.num_cameras = 1
-        self.camera_data: dict[str, WarpRTX_Renderer.CameraData] = {}
-        self.prim_data: dict[str, WarpRTX_Renderer.PrimData] = {}
+        self.camera_data: dict[str, WarpRenderer.CameraData] = {}
+        self.prim_data: dict[str, WarpRenderer.PrimData] = {}
         self.__collect_prims(isaaclab_sim.get_current_stage())
 
         shape_transforms = []
@@ -103,6 +103,7 @@ class WarpRTX_Renderer:
 
         stage_id = isaaclab_sim.get_current_stage_id()
         rt_stage = usdrt.Usd.Stage.Attach(stage_id)
+
         for prim_path, prim_data in self.prim_data.items():
             if prim_data.is_shared:
                 for world_id, prim in prim_data.prims:
@@ -165,12 +166,12 @@ class WarpRTX_Renderer:
                 shape_type = RenderShapeType.PLANE
             elif prim.IsA(UsdGeom.Camera):
                 if not prim_path in self.camera_data:
-                    self.camera_data[prim_path] = WarpRTX_Renderer.CameraData(world_id > -1, prim)
+                    self.camera_data[prim_path] = WarpRenderer.CameraData(world_id > -1, prim)
                 self.camera_data[prim_path].prims.append((world_id, prim))
 
             if shape_type != RenderShapeType.NONE:
                 if not prim_path in self.prim_data:
-                    self.prim_data[prim_path] = WarpRTX_Renderer.PrimData(world_id > -1, shape_type, prim)
+                    self.prim_data[prim_path] = WarpRenderer.PrimData(world_id > -1, shape_type, prim)
                 self.prim_data[prim_path].prims.append((world_id, prim))
 
             if child_prims := prim.GetFilteredChildren(Usd.TraverseInstanceProxies()):
@@ -274,4 +275,4 @@ class WarpRTX_Renderer:
         return wp.array(camera_transforms, dtype=wp.transformf)
 
 
-# c && python ./scripts/benchmarks/benchmark_warp_raytrace.py --headless --steps 200 --enable_cameras --kit_args "--enable omni.warp.core-1.11.0-rc.1+lx64"
+# c && python ./scripts/warp_renderer/example.py --headless --steps 200 --enable_cameras --kit_args "--enable omni.warp.core-1.11.0-rc.1+lx64" --num_envs 4
