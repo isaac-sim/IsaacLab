@@ -41,6 +41,7 @@ with measure_time("Imports time"):
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils import configclass
     from isaaclab_assets import ANYMAL_D_CFG
+    from warp_convert import WarpRTX_Renderer
 
 
 @configclass
@@ -51,19 +52,7 @@ class SceneCfg(InteractiveSceneCfg):
     robot.prim_path = "{ENV_REGEX_NS}/Robot"
 
 
-def save_image(sensor, frame_no: int):
-    tiled_camera: TiledCamera = sensor
-    data = tiled_camera.data.output["rgb"].cpu().numpy()
-    shape = data.shape
-    for tile in range(shape[0]):
-        tile_data = data[tile,:,:]
-        
-        from PIL import Image
-        os.makedirs("benchmark_tiled_camera", exist_ok=True)
-        Image.fromarray(tile_data).save(f"benchmark_tiled_camera/rgb.{tile:02d}.{frame_no:04d}.png")
-
-
-def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, save_images: bool):
+def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, renderer: WarpRTX_Renderer, save_images: bool):
     robot: Articulation = scene["robot"]
     for step in range(num_steps):
         if step % 500 == 0:
@@ -88,11 +77,12 @@ def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, 
 
         scene.write_data_to_sim()
         sim.step()
-        sim.render()
         scene.update(sim.get_physics_dt())
 
+        renderer.update()
+        renderer.render()
         if save_images:
-            save_image(scene.sensors["tiled_camera"], step)
+            renderer.save_image(f"warp_renderer/rgb.{step:04d}.png")
 
 def main():
     with measure_time("Simulation Context creation time"):
@@ -115,6 +105,8 @@ def main():
         )
         scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg)
 
+        renderer = WarpRTX_Renderer(scene, 400, 400)
+
         # stage = isaaclab_sim.get_current_stage()
         # stage.Export("/home/dhasenbring/development/isaac/IsaacLab/stage.usda")
 
@@ -122,7 +114,7 @@ def main():
         sim.reset()
 
     with measure_time("Average sim step time", iterations=args.steps):
-        run_simulator(sim, scene, args.steps, args.save_images)
+        run_simulator(sim, scene, args.steps, renderer, args.save_images)
 
 
 if __name__ == "__main__":

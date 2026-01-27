@@ -4,10 +4,11 @@ import isaaclab.sim as isaaclab_sim
 
 from dataclasses import dataclass, field
 from warp_raytrace import RenderContext, RenderShapeType
-from pxr import Usd, UsdGeom, Gf
+from pxr import Usd, UsdGeom
 
 import numpy as np
 import warp as wp
+import usdrt
 import re
 import os
 
@@ -37,7 +38,7 @@ class WarpRTX_Renderer:
     @dataclass
     class PrimData:
         is_shared: bool = False
-        prim_type: RenderShapeType = RenderShapeType.NONE
+        shape_type: RenderShapeType = RenderShapeType.NONE
         master_prim: Usd.Prim | None = None
         prims: list[tuple[int, Usd.Prim]] = field(default_factory=lambda: [])
 
@@ -64,16 +65,17 @@ class WarpRTX_Renderer:
 
         for prim_path, prim_data in self.prim_data.items():
             if prim_data.is_shared:
-                if prim_data.prim_type == RenderShapeType.MESH:
+                mesh_index = -1
+                if prim_data.shape_type == RenderShapeType.MESH:
                     mesh_index = len(self.__warp_meshes)
                     self.__warp_meshes.append(self.__build_mesh(prim_data.master_prim))
 
-                    for world_id, prim in prim_data.prims:
-                        shape_transforms.append(self.__resolve_transform(prim))
-                        shape_sizes.append(self.__resolve_scale(prim))
-                        shape_types.append(RenderShapeType.MESH)
-                        shape_mesh_indices.append(mesh_index)
-                        shape_world_indices.append(world_id)
+                for world_id, prim in prim_data.prims:
+                    shape_types.append(prim_data.shape_type)
+                    shape_transforms.append(self.__resolve_transform(prim))
+                    shape_sizes.append(self.__resolve_shape_size(prim_data.shape_type, prim))
+                    shape_mesh_indices.append(mesh_index)
+                    shape_world_indices.append(world_id)
 
         self.render_context = RenderContext(width, height, self.num_worlds, self.num_cameras)
         self.render_context.num_shapes_total = len(shape_transforms)
@@ -97,17 +99,31 @@ class WarpRTX_Renderer:
         self.color_image = self.render_context.create_color_image_output()
 
     def update(self):
-        # ... update from stage!
-        pass
+        shape_transforms = []
+
+        stage_id = isaaclab_sim.get_current_stage_id()
+        rt_stage = usdrt.Usd.Stage.Attach(stage_id)
+        for prim_path, prim_data in self.prim_data.items():
+            if prim_data.is_shared:
+                for world_id, prim in prim_data.prims:
+                    rt_prim = rt_stage.GetPrimAtPath(prim_path % world_id)
+                    rt_xformable = usdrt.Rt.Xformable(rt_prim)
+                    rt_world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
+                    rt_matrix = rt_world_matrix_attr.Get()
+                    rt_pos = rt_matrix.ExtractTranslation()
+                    rt_quat = rt_matrix.ExtractRotationQuat()
+                    shape_transforms.append(wp.transformf(wp.vec3f(rt_pos), wp.quatf(rt_quat.imaginary[0], rt_quat.imaginary[1], rt_quat.imaginary[2], rt_quat.real)))
+        self.render_context.shape_transforms = wp.array(shape_transforms, dtype=wp.transformf)
 
     def render(self):
         self.render_context.render(self.__get_camera_transforms(), self.camera_rays, self.color_image)
 
+    def save_image(self, filename: str):
         color_data = self.render_context.utils.flatten_color_image_to_rgba(self.color_image)
         
         from PIL import Image
-        os.makedirs("benchmark_warp_raytrace", exist_ok=True)
-        Image.fromarray(color_data.numpy()).save(f"benchmark_warp_raytrace/meow.png")
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        Image.fromarray(color_data.numpy()).save(filename)
 
     def __collect_prims(self, stage: Usd.Stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)"):
         env_pattern = re.compile(env_regex)
@@ -131,17 +147,31 @@ class WarpRTX_Renderer:
             if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
                 continue
 
-            # Capsule, Cube, Cylinder, Mesh, Plane, Sphere
-
+            shape_type = RenderShapeType.NONE
+            
             if prim.IsA(UsdGeom.Mesh):
-                if not prim_path in self.prim_data:
-                    self.prim_data[prim_path] = WarpRTX_Renderer.PrimData(world_id > -1, RenderShapeType.MESH, prim)
-                self.prim_data[prim_path].prims.append((world_id, prim))
-
-            if prim.IsA(UsdGeom.Camera):
+                shape_type = RenderShapeType.MESH
+            elif prim.IsA(UsdGeom.Sphere):
+                shape_type = RenderShapeType.SPHERE
+            elif prim.IsA(UsdGeom.Capsule):
+                shape_type = RenderShapeType.CAPSULE
+            elif prim.IsA(UsdGeom.Cube):
+                shape_type = RenderShapeType.BOX
+            elif prim.IsA(UsdGeom.Cylinder):
+                shape_type = RenderShapeType.CYLINDER
+            elif prim.IsA(UsdGeom.Cone):
+                shape_type = RenderShapeType.CONE
+            elif prim.IsA(UsdGeom.Plane):
+                shape_type = RenderShapeType.PLANE
+            elif prim.IsA(UsdGeom.Camera):
                 if not prim_path in self.camera_data:
                     self.camera_data[prim_path] = WarpRTX_Renderer.CameraData(world_id > -1, prim)
                 self.camera_data[prim_path].prims.append((world_id, prim))
+
+            if shape_type != RenderShapeType.NONE:
+                if not prim_path in self.prim_data:
+                    self.prim_data[prim_path] = WarpRTX_Renderer.PrimData(world_id > -1, shape_type, prim)
+                self.prim_data[prim_path].prims.append((world_id, prim))
 
             if child_prims := prim.GetFilteredChildren(Usd.TraverseInstanceProxies()):
                 stage_prims.extend(child_prims)
@@ -179,15 +209,60 @@ class WarpRTX_Renderer:
         return wp.vec3f(scale)
 
     def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
+        position, orientation = isaaclab_sim.resolve_prim_pose(prim)
+        return wp.transformf(position, wp.quatf(orientation[1], -orientation[2], -orientation[3], orientation[0]))
         # position, orientation = isaaclab_sim.resolve_prim_pose(prim)
         # t = torch.tensor(orientation, dtype=torch.float32, device="cpu").unsqueeze(0)
         # t = convert_camera_frame_orientation_convention(t)
         # orientation = t.squeeze(0).cpu().numpy()
         # return wp.transformf(position, wp.quatf(orientation))
 
-        position, orientation = isaaclab_sim.resolve_prim_pose(prim)
-        return wp.transformf(position, wp.quatf(orientation[1], -orientation[2], -orientation[3], orientation[0]))
+    def __resolve_shape_size(self, shape_type: RenderShapeType, prim: Usd.Prim) -> wp.vec3f:
+        if shape_type == RenderShapeType.SPHERE:
+            return self.__resolve_shape_size_sphere(prim)
+        if shape_type == RenderShapeType.CAPSULE:
+            return self.__resolve_shape_size_capsule(prim)
+        if shape_type == RenderShapeType.BOX:
+            return self.__resolve_shape_size_box(prim)
+        if shape_type == RenderShapeType.CYLINDER:
+            return self.__resolve_shape_size_cylinder(prim)
+        if shape_type == RenderShapeType.CONE:
+            return self.__resolve_shape_size_cone(prim)
+        if shape_type == RenderShapeType.PLANE:
+            return self.__resolve_shape_size_plane(prim)
+        return self.__resolve_scale(prim)
 
+    def __resolve_shape_size_sphere(self, prim: Usd.Prim) -> wp.vec3f:
+        sphere = UsdGeom.Sphere(prim)
+        radius = sphere.GetRadiusAttr().Get()
+        return wp.vec3f(radius, 0.0, 0.0)
+
+    def __resolve_shape_size_capsule(self, prim: Usd.Prim) -> wp.vec3f:
+        capsule = UsdGeom.Capsule(prim)
+        radius = capsule.GetRadiusAttr().Get()
+        height = capsule.GetHeightAttr().Get()
+        return wp.vec3f(radius, height, 0.0)
+
+    def __resolve_shape_size_box(self, prim: Usd.Prim) -> wp.vec3f:
+        cube = UsdGeom.Cube(prim)
+        size = cube.GetSizeAttr().Get()
+        scale = self.__resolve_scale(prim)
+        return wp.vec3f(size * scale[0], size * scale[1], size * scale[2])
+
+    def __resolve_shape_size_cylinder(self, prim: Usd.Prim) -> wp.vec3f:
+        cylinder = UsdGeom.Cylinder(prim)
+        radius = cylinder.GetRadiusAttr().Get()
+        height = cylinder.GetHeightAttr().Get()
+        return wp.vec3f(radius, height, 0.0)
+
+    def __resolve_shape_size_cone(self, prim: Usd.Prim) -> wp.vec3f:
+        cone = UsdGeom.Cone(prim)
+        radius = cone.GetRadiusAttr().Get()
+        height = cone.GetHeightAttr().Get()
+        return wp.vec3f(radius, height, 0.0)
+
+    def __resolve_shape_size_plane(self, prim: Usd.Prim) -> wp.vec3f:
+        return wp.vec3f(0.0)
 
     def __get_camera_transforms(self) -> wp.array(dtype=wp.transformf):
         camera_transforms = [[] for i in range(self.num_worlds)]
@@ -199,102 +274,4 @@ class WarpRTX_Renderer:
         return wp.array(camera_transforms, dtype=wp.transformf)
 
 
-# def extract_scene_geometry_per_frame(
-#     scene: InteractiveScene,
-#     sim: isaaclab_sim.SimulationContext,
-#     root_path: str = "/World",
-# ) -> List[GeometryData]:
-#     """Extract geometry with current frame transforms.
-    
-#     Call this function after scene.update() to get per-frame transforms.
-#     This version handles multi-env scenarios better by extracting transforms
-#     for all environments.
-    
-#     Args:
-#         scene: The interactive scene
-#         sim: The simulation context  
-#         root_path: Root path to search from
-        
-#     Returns:
-#         List of GeometryData objects with current frame transforms
-#     """
-#     # Update scene to get latest transforms
-#     scene.update(sim.get_physics_dt())
-    
-#     stage = isaaclab_sim.get_current_stage()
-#     geometry_list = []
-    
-#     def is_geometry_prim(prim: Usd.Prim) -> bool:
-#         prim_type = prim.GetTypeName()
-#         return prim_type == "Mesh" or prim_type in PRIMITIVE_MESH_TYPES
-    
-#     all_geometry_prims = isaaclab_sim.get_all_matching_child_prims(
-#         root_path,
-#         predicate=is_geometry_prim,
-#         traverse_instance_prims=True,
-#     )
-    
-#     for geom_prim in all_geometry_prims:
-#         prim_path = geom_prim.GetPath().pathString
-#         prim_type = geom_prim.GetTypeName()
-        
-#         if not geom_prim.IsValid():
-#             continue
-        
-#         # Extract mesh geometry (static, doesn't change per frame)
-#         try:
-#             if prim_type == "Mesh":
-#                 trimesh_obj = create_trimesh_from_geom_mesh(geom_prim)
-#             else:
-#                 trimesh_obj = create_trimesh_from_geom_shape(geom_prim)
-            
-#             vertices = trimesh_obj.vertices
-#             faces = trimesh_obj.faces
-#         except Exception as e:
-#             continue
-        
-#         # Get current frame transform
-#         try:
-#             pos_w, quat_w = isaaclab_sim.resolve_prim_pose(geom_prim)
-#             pos_w = np.array(pos_w)
-#             quat_w = np.array(quat_w)
-#         except Exception as e:
-#             continue
-        
-#         # Build transform matrix
-#         w, x, y, z = quat_w
-#         rotation_matrix = np.array([
-#             [1 - 2*(y**2 + z**2), 2*(x*y - z*w), 2*(x*z + y*w)],
-#             [2*(x*y + z*w), 1 - 2*(x**2 + z**2), 2*(y*z - x*w)],
-#             [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x**2 + y**2)]
-#         ])
-        
-#         transform_matrix = np.eye(4)
-#         transform_matrix[:3, :3] = rotation_matrix
-#         transform_matrix[:3, 3] = pos_w
-        
-#         # Check if physics object
-#         is_physics = (
-#             geom_prim.HasAPI(UsdPhysics.RigidBodyAPI) or
-#             geom_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or
-#             any(geom_prim.GetPath().IsDescendantPath(Usd.Stage.GetPrimAtPath(stage, asset.cfg.prim_path).GetPath())
-#                 for asset_list in [scene.articulations.values(), scene.rigid_objects.values()]
-#                 for asset in asset_list)
-#         )
-        
-#         geom_data = GeometryData(
-#             prim_path=prim_path,
-#             vertices=vertices,
-#             faces=faces,
-#             position=pos_w,
-#             quaternion=quat_w,
-#             transform_matrix=transform_matrix,
-#             prim_type=prim_type,
-#             is_physics=is_physics,
-#         )
-        
-#         geometry_list.append(geom_data)
-    
-#     return geometry_list
-
-
+# c && python ./scripts/benchmarks/benchmark_warp_raytrace.py --headless --steps 200 --enable_cameras --kit_args "--enable omni.warp.core-1.11.0-rc.1+lx64"
