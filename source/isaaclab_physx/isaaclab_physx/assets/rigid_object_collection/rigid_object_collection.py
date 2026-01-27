@@ -147,7 +147,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, object_ids: slice | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None) -> None:
         """Resets all internal buffers of selected environments and objects.
 
         Args:
@@ -236,7 +236,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_state_to_sim(
         self,
         body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the bodies state over selected environment indices into the simulation.
@@ -255,7 +255,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_com_state_to_sim(
         self,
         body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body center of mass state over selected environment and body indices into the simulation.
@@ -274,7 +274,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_link_state_to_sim(
         self,
         body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body link state over selected environment and body indices into the simulation.
@@ -293,7 +293,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_pose_to_sim(
         self,
         body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body poses over selected environment and body indices into the simulation.
@@ -310,7 +310,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_link_pose_to_sim(
         self,
         body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
@@ -362,7 +362,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_com_pose_to_sim(
         self,
         body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
@@ -407,7 +407,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_velocity_to_sim(
         self,
         body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
@@ -425,7 +425,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_com_velocity_to_sim(
         self,
         body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
@@ -466,7 +466,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def write_body_link_velocity_to_sim(
         self,
         body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
@@ -512,8 +512,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def set_masses(
         self,
         masses: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        body_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | None = None,
     ):
         """Set masses of all bodies.
 
@@ -526,8 +526,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def set_coms(
         self,
         coms: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        body_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | None = None,
     ):
         """Set center of mass positions of all bodies.
 
@@ -540,8 +540,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def set_inertias(
         self,
         inertias: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        body_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | None = None,
     ):
         """Set inertias of all bodies.
 
@@ -556,8 +556,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         forces: torch.Tensor,
         torques: torch.Tensor,
         positions: torch.Tensor | None = None,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        body_ids: torch.Tensor | slice | None = None,
+        env_ids: torch.Tensor | None = None,
         is_global: bool = False,
     ) -> None:
         """Set external force and torque to apply on the rigid object collection's bodies in their local frame.
@@ -794,7 +794,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data.default_body_vel = default_body_vels
 
     def _env_body_ids_to_view_ids(
-        self, env_ids: torch.Tensor, body_ids: Sequence[int] | slice | torch.Tensor
+        self, env_ids: torch.Tensor, body_ids: torch.Tensor | slice | torch.Tensor
     ) -> torch.Tensor:
         """Converts environment and body indices to indices consistent with data from :attr:`root_physx_view`.
 
@@ -843,3 +843,144 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             if result:
                 self._clear_callbacks()
                 return
+
+    @property
+    def num_objects(self) -> int:
+        """Deprecated property. Please use :attr:`num_bodies` instead."""
+        logger.warning(
+            "The `num_objects` property will be deprecated in a future release. Please use `num_bodies` instead."
+        )
+        return self.num_bodies
+
+    @property
+    def object_names(self) -> list[str]:
+        """Deprecated property. Please use :attr:`body_names` instead."""
+        logger.warning(
+            "The `object_names` property will be deprecated in a future release. Please use `body_names` instead."
+        )
+        return self.body_names
+
+    @property
+    def root_physx_view(self) -> physx.RigidBodyView:
+        """Deprecated property. Please use :attr:`root_view` instead."""
+        logger.warning(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        )
+        return self.root_view
+
+    def write_object_state_to_sim(
+        self,
+        object_state: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_state_to_sim` instead."""
+        logger.warning(
+            "The `write_object_state_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_state_to_sim` instead."
+        )
+        self.write_body_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_com_state_to_sim(
+        self,
+        object_state: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_com_state_to_sim` instead."""
+        logger.warning(
+            "The `write_object_com_state_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_com_state_to_sim` instead."
+        )
+        self.write_body_com_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_link_state_to_sim(
+        self,
+        object_state: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ):
+        """Deprecated method. Please use :meth:`write_body_link_state_to_sim` instead."""
+        logger.warning(
+            "The `write_object_link_state_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_link_state_to_sim` instead."
+        )
+        self.write_body_link_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_pose_to_sim(
+        self,
+        object_pose: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ):
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim` instead."""
+        logger.warning(
+            "The `write_object_pose_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_pose_to_sim` instead."
+        )
+        self.write_body_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_link_pose_to_sim(
+        self,
+        object_pose: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_link_pose_to_sim` instead."""
+        logger.warning(
+            "The `write_object_link_pose_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_link_pose_to_sim` instead."
+        )
+        self.write_body_link_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_com_pose_to_sim(
+        self,
+        object_pose: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim` instead."""
+        logger.warning(
+            "The `write_object_com_pose_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_com_pose_to_sim` instead."
+        )
+        self.write_body_com_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_velocity_to_sim(
+        self,
+        object_velocity: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
+        logger.warning(
+            "The `write_object_velocity_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_com_velocity_to_sim` instead."
+        )
+        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_com_velocity_to_sim(
+        self,
+        object_velocity: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
+        logger.warning(
+            "The `write_object_com_velocity_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_com_velocity_to_sim` instead."
+        )
+        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+
+    def write_object_link_velocity_to_sim(
+        self,
+        object_velocity: torch.Tensor,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim` instead."""
+        logger.warning(
+            "The `write_object_link_velocity_to_sim` method will be deprecated in a future release. Please use"
+            " `write_body_link_velocity_to_sim` instead."
+        )
+        self.write_body_link_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
