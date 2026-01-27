@@ -9,5 +9,5 @@
 .python.env
 *.json
 
-# Ignore Local Assets
-local_assets/
+# Offline assets
+offline_assets/*

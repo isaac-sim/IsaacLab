@@ -5,15 +5,15 @@
 
 """
 This module provides utilities to transparently redirect asset paths from Nucleus
-to local storage when running in offline mode. It maintains the same directory structure
-so that configs require no changes.
+to offline storage when running in --offline mode. It maintains the same directory 
+structure so that configs require no changes.
 
 Usage:
     enable_offline_mode()
     
-    All subsequent asset paths will be resolved to local_assets/
+    All subsequent asset paths will be resolved to offline_assets/
     path = resolve_asset_path(ISAACLAB_NUCLEUS_DIR + "/Robots/...")
-    Returns: /path/to/isaaclab/local_assets/Robots/...
+    Returns: /path/to/isaaclab/offline_assets/Robots/...
 """
 
 import os
@@ -22,23 +22,23 @@ from typing import Optional
 import carb.settings
 
 
-class LocalAssetResolver:
+class OfflineAssetResolver:
     """
-    Singleton class to manage local asset path resolution.
+    Singleton class to manage offline asset path resolution.
     
     When enabled, this resolver intercepts asset paths that point to Nucleus
-    and redirects them to the local_assets directory.
+    and redirects them to the offline_assets directory.
     """
     
-    _instance: Optional['LocalAssetResolver'] = None
+    _instance: Optional['OfflineAssetResolver'] = None
     _enabled: bool = False
-    _local_assets_dir: Optional[str] = None
+    _offline_assets_dir: Optional[str] = None
     _nucleus_dir: Optional[str] = None
     _isaac_nucleus_dir: Optional[str] = None
     
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(LocalAssetResolver, cls).__new__(cls)
+            cls._instance = super(OfflineAssetResolver, cls).__new__(cls)
             cls._instance._initialize()
         return cls._instance
     
@@ -47,8 +47,8 @@ class LocalAssetResolver:
         # Get Isaac Lab root path
         self.isaaclab_path = os.environ.get('ISAACLAB_PATH', os.getcwd())
         
-        # Set local assets directory
-        self._local_assets_dir = os.path.join(self.isaaclab_path, "local_assets")
+        # Set offline assets directory
+        self._offline_assets_dir = os.path.join(self.isaaclab_path, "offline_assets")
         
         # Get Nucleus directories from settings
         settings = carb.settings.get_settings()
@@ -59,40 +59,40 @@ class LocalAssetResolver:
             self._isaac_nucleus_dir = f"{nucleus_root}/Isaac"
             self._isaaclab_nucleus_dir = f"{nucleus_root}/Isaac/IsaacLab"
         
-        print(f"[LocalAssetResolver] Initialized")
-        print(f"  Local assets dir: {self._local_assets_dir}")
+        print(f"[OfflineAssetResolver] Initialized")
+        print(f"  Offline assets dir: {self._offline_assets_dir}")
         if self._isaaclab_nucleus_dir:
             print(f"  Nucleus dir:      {self._isaaclab_nucleus_dir}")
     
     def enable(self):
-        """Enable local asset resolution."""
+        """Enable offline asset resolution."""
         self._enabled = True
-        print(f"[LocalAssetResolver] Local mode ENABLED")
-        print(f"  All assets will be loaded from: {self._local_assets_dir}")
+        print(f"[OfflineAssetResolver] Offline mode ENABLED")
+        print(f"  All assets will be loaded from: {self._offline_assets_dir}")
         
-        # Verify local assets directory exists
-        if not os.path.exists(self._local_assets_dir):
-            print(f"[LocalAssetResolver] ⚠️  WARNING: Local assets directory not found!")
-            print(f"  Please run: ./isaaclab.sh -p scripts/setup/download_assets.py")
+        # Verify offline assets directory exists
+        if not os.path.exists(self._offline_assets_dir):
+            print(f"[OfflineAssetResolver] ⚠️  WARNING: Offline assets directory not found!")
+            print(f"  Please run: ./isaaclab.sh -p scripts/offline_setup/download_assets.py")
     
     def disable(self):
-        """Disable local asset resolution."""
+        """Disable offline asset resolution."""
         self._enabled = False
-        print(f"[LocalAssetResolver] Local mode DISABLED")
+        print(f"[OfflineAssetResolver] Offline mode DISABLED")
     
     def is_enabled(self) -> bool:
-        """Check if local mode is enabled."""
+        """Check if offline mode is enabled."""
         return self._enabled
     
     def resolve_path(self, asset_path: str) -> str:
         """
-        Resolve an asset path to either Nucleus or local storage.
+        Resolve an asset path to either Nucleus or offline storage.
         
         Args:
             asset_path: Original asset path (may contain Nucleus URL)
             
         Returns:
-            Resolved path (local if enabled, otherwise original)
+            Resolved path (offline if enabled, otherwise original)
         """
         if not self._enabled:
             return asset_path
@@ -127,75 +127,75 @@ class LocalAssetResolver:
             isaac_relative = asset_path[len(self._isaac_nucleus_dir):].lstrip("/")
             path_to_convert = isaac_relative
         
-        # If we identified a path to convert, create the local path
+        # If we identified a path to convert, create the offline path
         if path_to_convert:
-            local_path = os.path.join(self._local_assets_dir, path_to_convert)
+            offline_path = os.path.join(self._offline_assets_dir, path_to_convert)
             
-            # Verify the local file exists
-            if os.path.exists(local_path):
-                print(f"[LocalAssetResolver] ✓ Using local: {path_to_convert}")
-                return local_path
+            # Verify the offline file exists
+            if os.path.exists(offline_path):
+                print(f"[OfflineAssetResolver] ✓ Using offline: {path_to_convert}")
+                return offline_path
             else:
-                print(f"[LocalAssetResolver] ⚠️  Not found locally: {path_to_convert}")
-                print(f"[LocalAssetResolver]    Falling back to Nucleus")
+                print(f"[OfflineAssetResolver] ⚠️  Not found locally: {path_to_convert}")
+                print(f"[OfflineAssetResolver]    Falling back to Nucleus")
                 return asset_path
         
         # If not a Nucleus path, return original
         return asset_path
     
-    def get_local_assets_dir(self) -> str:
-        """Get the local assets directory path."""
-        return self._local_assets_dir
+    def get_offline_assets_dir(self) -> str:
+        """Get the offline assets directory path."""
+        return self._offline_assets_dir
 
 
 # Global resolver instance
-_resolver = LocalAssetResolver()
+_resolver = OfflineAssetResolver()
 
 
-def enable_local_mode():
-    """Enable local asset resolution globally."""
+def enable_offline_mode():
+    """Enable offline asset resolution globally."""
     _resolver.enable()
 
 
-def disable_local_mode():
-    """Disable local asset resolution globally."""
+def disable_offline_mode():
+    """Disable offline asset resolution globally."""
     _resolver.disable()
 
 
-def is_local_mode_enabled() -> bool:
-    """Check if local mode is currently enabled."""
+def is_offline_mode_enabled() -> bool:
+    """Check if offline mode is currently enabled."""
     return _resolver.is_enabled()
 
 
 def resolve_asset_path(asset_path: str) -> str:
     """
-    Resolve an asset path, redirecting to local storage if enabled.
+    Resolve an asset path, redirecting to offline storage if enabled.
     
     Args:
         asset_path: Original asset path (may contain Nucleus URL)
         
     Returns:
-        Resolved path (local if mode is enabled and file exists, otherwise original)
+        Resolved path (offline if mode is enabled and file exists, otherwise original)
     """
     return _resolver.resolve_path(asset_path)
 
 
-def get_local_assets_dir() -> str:
-    """Get the local assets directory path."""
-    return _resolver.get_local_assets_dir()
+def get_offline_assets_dir() -> str:
+    """Get the offline assets directory path."""
+    return _resolver.get_offline_assets_dir()
 
 
-def patch_config_for_local_mode(env_cfg):
+def patch_config_for_offline_mode(env_cfg):
     """
     Patch specific known paths in the environment config.
     
     Args:
         env_cfg: Environment configuration object
     """
-    if not is_local_mode_enabled():
+    if not is_offline_mode_enabled():
         return
     
-    print("[LocalAssetResolver] Patching configuration...")
+    print("[OfflineAssetResolver] Patching configuration...")
     patches_made = 0
     
     # Patch robot USD path
@@ -206,7 +206,7 @@ def patch_config_for_local_mode(env_cfg):
             if resolved != original:
                 env_cfg.scene.robot.spawn.usd_path = resolved
                 patches_made += 1
-                print(f"[LocalAssetResolver]   ✓ Patched robot USD path")
+                print(f"[OfflineAssetResolver]   ✓ Patched robot USD path")
     
     # Patch terrain/ground plane paths
     if hasattr(env_cfg, 'scene') and hasattr(env_cfg.scene, 'terrain'):
@@ -224,7 +224,7 @@ def patch_config_for_local_mode(env_cfg):
             if resolved != original:
                 terrain_cfg.usd_path = resolved
                 patches_made += 1
-                print(f"[LocalAssetResolver]   ✓ Patched terrain USD path")
+                print(f"[OfflineAssetResolver]   ✓ Patched terrain USD path")
     
     # Patch sky light textures
     if hasattr(env_cfg, 'scene') and hasattr(env_cfg.scene, 'sky_light'):
@@ -235,7 +235,7 @@ def patch_config_for_local_mode(env_cfg):
                 if resolved != original:
                     env_cfg.scene.sky_light.spawn.texture_file = resolved
                     patches_made += 1
-                    print(f"[LocalAssetResolver]   ✓ Patched sky light texture")
+                    print(f"[OfflineAssetResolver]   ✓ Patched sky light texture")
     
     # Patch visualization markers (arrows, etc.)
     if hasattr(env_cfg, 'commands'):
@@ -253,7 +253,7 @@ def patch_config_for_local_mode(env_cfg):
                             if resolved != original:
                                 marker_cfg.usd_path = resolved
                                 patches_made += 1
-                                print(f"[LocalAssetResolver]   ✓ Patched {marker_name} marker")
+                                print(f"[OfflineAssetResolver]   ✓ Patched {marker_name} marker")
 
     if hasattr(env_cfg, 'commands'):
         for command_name in dir(env_cfg.commands):
@@ -273,19 +273,19 @@ def patch_config_for_local_mode(env_cfg):
                                     if resolved != original:
                                         marker_cfg.usd_path = resolved
                                         patches_made += 1
-                                        print(f"[LocalAssetResolver]   ✓ Patched {marker_name} in {viz_name}")
+                                        print(f"[OfflineAssetResolver]   ✓ Patched {marker_name} in {viz_name}")
     
     if patches_made > 0:
-        print(f"[LocalAssetResolver] Patched {patches_made} asset paths")
+        print(f"[OfflineAssetResolver] Patched {patches_made} asset paths")
     else:
-        print(f"[LocalAssetResolver] No paths needed patching (already correct)")
+        print(f"[OfflineAssetResolver] No paths needed patching (already correct)")
 
-# Monkey patch common Isaac Lab modules to use local resolver
+# Monkey patch common Isaac Lab modules to use offline resolver
 def install_path_hooks():
     """
     Install hooks into Isaac Lab's asset loading to automatically resolve paths.
     
-    This patches the spawn configs to automatically resolve paths when local mode is enabled.
+    This patches the spawn configs to automatically resolve paths when offline mode is enabled.
     """
     try:
         import isaaclab.sim as sim_utils
@@ -297,12 +297,12 @@ def install_path_hooks():
             def patched_usd_init(self, *args, **kwargs):
                 # Call original init
                 original_usd_init(self, *args, **kwargs)
-                # Resolve the usd_path if local mode is enabled
-                if hasattr(self, 'usd_path') and is_local_mode_enabled():
+                # Resolve the usd_path if offline mode is enabled
+                if hasattr(self, 'usd_path') and is_offline_mode_enabled():
                     self.usd_path = resolve_asset_path(self.usd_path)
             
             sim_utils.UsdFileCfg.__init__ = patched_usd_init
-            print("[LocalAssetResolver] Installed UsdFileCfg path hook")
+            print("[OfflineAssetResolver] Installed UsdFileCfg path hook")
         
         # Patch GroundPlaneCfg (for terrain)
         if hasattr(sim_utils, 'GroundPlaneCfg'):
@@ -311,15 +311,15 @@ def install_path_hooks():
             def patched_ground_init(self, *args, **kwargs):
                 # Call original init
                 original_ground_init(self, *args, **kwargs)
-                # Resolve the usd_path if local mode is enabled
-                if hasattr(self, 'usd_path') and is_local_mode_enabled():
+                # Resolve the usd_path if offline mode is enabled
+                if hasattr(self, 'usd_path') and is_offline_mode_enabled():
                     original_path = self.usd_path
                     self.usd_path = resolve_asset_path(self.usd_path)
                     if self.usd_path != original_path:
-                        print(f"[LocalAssetResolver] ✓ Resolved ground plane: {os.path.basename(self.usd_path)}")
+                        print(f"[OfflineAssetResolver] ✓ Resolved ground plane: {os.path.basename(self.usd_path)}")
             
             sim_utils.GroundPlaneCfg.__init__ = patched_ground_init
-            print("[LocalAssetResolver] Installed GroundPlaneCfg path hook")
+            print("[OfflineAssetResolver] Installed GroundPlaneCfg path hook")
         
         # Patch PreviewSurfaceCfg for textures
         if hasattr(sim_utils, 'PreviewSurfaceCfg'):
@@ -327,19 +327,19 @@ def install_path_hooks():
             
             def patched_surface_init(self, *args, **kwargs):
                 original_surface_init(self, *args, **kwargs)
-                if hasattr(self, 'texture_file') and is_local_mode_enabled():
+                if hasattr(self, 'texture_file') and is_offline_mode_enabled():
                     if self.texture_file:
                         self.texture_file = resolve_asset_path(self.texture_file)
             
             sim_utils.PreviewSurfaceCfg.__init__ = patched_surface_init
-            print("[LocalAssetResolver] Installed PreviewSurfaceCfg path hook")
+            print("[OfflineAssetResolver] Installed PreviewSurfaceCfg path hook")
             
     except ImportError:
-        print("[LocalAssetResolver] Could not install path hooks - isaaclab.sim not available")
+        print("[OfflineAssetResolver] Could not install path hooks - isaaclab.sim not available")
 
 
-# Set up local mode with all hooks
-def setup_local_mode():
-    enable_local_mode()
+# Set up offline mode with all hooks
+def setup_offline_mode():
+    enable_offline_mode()
     install_path_hooks()
-    print("[LocalAssetResolver] Local mode fully configured")
+    print("[OfflineAssetResolver] Offline mode fully configured")

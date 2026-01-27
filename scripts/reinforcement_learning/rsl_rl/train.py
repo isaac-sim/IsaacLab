@@ -34,7 +34,7 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
-parser.add_argument( "--local", action="store_true", default=False, help="Use local assets and configurations (offline mode)")
+parser.add_argument( "--offline", action="store_true", default=False, help="Use local assets and configurations (offline mode)")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -77,8 +77,8 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 
 """Rest everything follows."""
 
-import os
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -95,6 +95,7 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
@@ -124,11 +125,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
 
-    # Handle local config to use local assets
-    if args_cli.local:
-        from isaaclab_tasks.utils.local_asset_resolver import setup_local_mode, patch_config_for_local_mode
-        setup_local_mode()
-        patch_config_for_local_mode(env_cfg)
+    # Handle config to use offline_assets
+    if args_cli.offline:
+        setup_offline_mode()
+        patch_config_for_offline_mode(env_cfg)
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here

@@ -73,4 +73,6 @@ tests/
 # TacSL sensor
 **/tactile_record/*
 **/gelsight_r15_data/*
-local_assets/
+
+# Offline assets
+offline_assets/*

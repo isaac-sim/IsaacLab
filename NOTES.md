@@ -1,6 +1,6 @@
 conda deactivate
 
-./isaaclab.sh -p scripts/setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
+./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
 
 <!-- Running Local Training Headless -->
 ```
@@ -15,14 +15,14 @@ conda deactivate
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
     --num_envs 128 \
-    --local
+    --offline
 ```
 
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
     --task Isaac-Velocity-Flat-H1-v0 \
     --num_envs 128 \
-    --local
+    --offline
 ```
 
 <!-- Resume Training from latest checkpoint -->

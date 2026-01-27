@@ -5,12 +5,12 @@
 
 """
 This script downloads all assets from Nucleus server (ISAACLAB_NUCLEUS_DIR) and mirrors 
-the directory structure locally in the local_assets folder. This enables offline/local training
+the directory structure locally in the offline_assets folder. This enables offline/local training
 without requiring S3/Nucleus connectivity. Must be connected to the internet to use!
 
 Usage:
-    ./isaaclab.sh -p scripts/setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
-    ./isaaclab.sh -p scripts/setup/download_assets.py [--subset ROBOT_NAME]
+    ./isaaclab.sh -p scripts/offline_setup/download_assets.py --categories Props Robots Environments Materials Controllers ActuatorNets Policies Mimic
+    ./isaaclab.sh -p scripts/offline_setup/download_assets.py [--subset ROBOT_NAME]
 """
 
 import argparse
@@ -36,7 +36,7 @@ except ImportError:
 
 # Get Isaac Lab paths
 ISAACLAB_PATH = os.environ.get("ISAACLAB_PATH", os.getcwd())
-LOCAL_ASSETS_DIR = os.path.join(ISAACLAB_PATH, "local_assets")
+offline_assets_DIR = os.path.join(ISAACLAB_PATH, "offline_assets")
 
 # Get the Nucleus directory from settings
 settings = carb.settings.get_settings()
@@ -60,28 +60,28 @@ ASSET_CATEGORIES = {
 }
 
 
-def ensure_local_directory(local_path: str) -> None:
-    """Create local directory if it doesn't exist."""
-    os.makedirs(local_path, exist_ok=True)
+def ensure_offline_directory(offline_path: str) -> None:
+    """Create offline directory if it doesn't exist."""
+    os.makedirs(offline_path, exist_ok=True)
 
 
-def download_file(remote_path: str, local_path: str) -> bool:
+def download_file(remote_path: str, offline_path: str) -> bool:
     """
-    Download a single file from Nucleus to local storage.
+    Download a single file from Nucleus to offline storage.
     
     Args:
         remote_path: Full Nucleus URL (e.g., omniverse://...)
-        local_path: Local file system path
+        offline_path: Offline file system path
         
     Returns:
         True if successful, False otherwise
     """
     try:
         # Create parent directory if needed
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        os.makedirs(os.path.dirname(offline_path), exist_ok=True)
         
-        # Copy file from Nucleus to local
-        result = omni.client.copy(remote_path, local_path)
+        # Copy file from Nucleus to offline
+        result = omni.client.copy(remote_path, offline_path)
         return result == omni.client.Result.OK
     except Exception as e:
         print(f"Error downloading {remote_path}: {e}")
@@ -109,32 +109,32 @@ def list_nucleus_directory(remote_path: str) -> list[tuple[str, bool]]:
     return items
 
 
-def download_directory_recursive(remote_path: str, local_base: str, progress_bar=None) -> None:
+def download_directory_recursive(remote_path: str, offline_base: str, progress_bar=None) -> None:
     """
-    Recursively download a directory from Nucleus to local storage.
+    Recursively download a directory from Nucleus to offline storage.
     
     Args:
         remote_path: Nucleus directory URL
-        local_base: Local directory to mirror structure
+        offline_base: Offline directory to mirror structure
         progress_bar: Optional tqdm progress bar (or None)
     """
     items = list_nucleus_directory(remote_path)
     
     for item_name, is_directory in items:
         remote_item = f"{remote_path}/{item_name}"
-        local_item = os.path.join(local_base, item_name)
+        offline_item = os.path.join(offline_base, item_name)
         
         if is_directory:
             # Recursively download subdirectory
-            ensure_local_directory(local_item)
-            download_directory_recursive(remote_item, local_item, progress_bar)
+            ensure_offline_directory(offline_item)
+            download_directory_recursive(remote_item, offline_item, progress_bar)
         else:
             # Download file
             if progress_bar is not None:
                 progress_bar.set_description(f"Downloading {item_name}")
             else:
                 print(f"  Downloading: {item_name}")
-            download_file(remote_item, local_item)
+            download_file(remote_item, offline_item)
             if progress_bar is not None:
                 progress_bar.update(1)
 
@@ -165,18 +165,18 @@ def download_asset_category(category: str, subset: str = None) -> None:
     description = category_info["desc"]
     
     remote_dir = f"{base_path}/{category}"
-    local_dir = os.path.join(LOCAL_ASSETS_DIR, category)
+    offline_dir = os.path.join(offline_assets_DIR, category)
     
     print(f"\n{'='*60}")
     print(f"Downloading {category}: {description}")
     print(f"From: {remote_dir}")
-    print(f"To:   {local_dir}")
+    print(f"To:   {offline_dir}")
     print(f"{'='*60}")
     
     # If subset is specified, only download that subset
     if subset and category == "Robots":
         remote_dir = f"{remote_dir}/{subset}"
-        local_dir = os.path.join(local_dir, subset)
+        offline_dir = os.path.join(offline_dir, subset)
         print(f"Filtering to subset: {subset}")
     
     # Check if remote directory exists
@@ -196,36 +196,36 @@ def download_asset_category(category: str, subset: str = None) -> None:
         return
     
     # Download with progress bar
-    ensure_local_directory(local_dir)
+    ensure_offline_directory(offline_dir)
     if HAS_TQDM:
         with tqdm(total=total_files, unit="file") as pbar:
-            download_directory_recursive(remote_dir, local_dir, pbar)
+            download_directory_recursive(remote_dir, offline_dir, pbar)
     else:
         print(f"Downloading {total_files} files (install tqdm for progress bars)...")
-        download_directory_recursive(remote_dir, local_dir, None)
+        download_directory_recursive(remote_dir, offline_dir, None)
     
     print(f"✓ Completed {category}")
 
 
 def verify_downloads(category: str = None) -> None:
-    """Verify that local assets directory has expected structure."""
+    """Verify that offline assets directory has expected structure."""
     print("\n" + "="*60)
-    print("Verifying local assets...")
+    print("Verifying offline assets...")
     print("="*60)
     
     categories_to_check = [category] if category else ASSET_CATEGORIES.keys()
     
     for cat in categories_to_check:
-        local_dir = os.path.join(LOCAL_ASSETS_DIR, cat)
-        if os.path.exists(local_dir):
-            file_count = sum(1 for _ in Path(local_dir).rglob("*") if _.is_file())
+        offline_dir = os.path.join(offline_assets_DIR, cat)
+        if os.path.exists(offline_dir):
+            file_count = sum(1 for _ in Path(offline_dir).rglob("*") if _.is_file())
             print(f"✓ {cat}: {file_count} files")
         else:
             print(f"✗ {cat}: Not found")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download Isaac Lab assets from Nucleus to local storage")
+    parser = argparse.ArgumentParser(description="Download Isaac Lab assets from Nucleus to offline storage")
     parser.add_argument(
         "--categories",
         nargs="+",
@@ -252,7 +252,7 @@ def main():
         print("="*60)
         print(f"Isaac Sim assets:  {ISAAC_NUCLEUS_DIR}")
         print(f"Isaac Lab assets:  {ISAACLAB_NUCLEUS_DIR}")
-        print(f"Local target:      {LOCAL_ASSETS_DIR}")
+        print(f"Offline target:      {offline_assets_DIR}")
         print("="*60)
         
         if args.verify_only:
@@ -293,12 +293,12 @@ def main():
         print("\n" + "="*60)
         print("✓ Download complete!")
         print("="*60)
-        print(f"\nLocal assets are now available in: {LOCAL_ASSETS_DIR}")
-        print("\nYou can now use the --local flag in training:")
+        print(f"\Offline assets are now available in: {offline_assets_DIR}")
+        print("\nYou can now use the --offline flag in training:")
         print("  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \\")
         print("      --task Isaac-Velocity-Flat-Unitree-Go2-v0 \\")
         print("      --num_envs 128 \\")
-        print("      --local")
+        print("      --offline")
     
     finally:
         # Always clean up simulation app

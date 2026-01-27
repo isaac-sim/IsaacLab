@@ -17,3 +17,4 @@ from .string import *
 from .timer import Timer
 from .types import *
 from .version import *
+from .asset_resolver import *
