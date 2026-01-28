@@ -20,7 +20,6 @@ import math
 import pytest
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
@@ -119,7 +118,7 @@ def setup(sensor_type: str = "cube"):
         Tuple containing simulation context, sensor config, timestep, robot config, cube config, and nut config.
     """
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Simulation time-step
     dt = 0.01
@@ -181,7 +180,7 @@ def setup(sensor_type: str = "cube"):
     sensor_cfg = get_sensor_cfg_by_type(sensor_type)
 
     # load stage
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     return sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg
 
 
