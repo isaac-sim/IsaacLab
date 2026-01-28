@@ -5,7 +5,7 @@ Visualization
 
 Isaac Lab offers several lightweight visualizers for real-time simulation inspection and debugging. Unlike renderers that process sensor data, visualizers are meant for fast, interactive feedback.
 
-You can use any visualizer regardless of your chosen physics engine or rendering backend.
+You can launch any number of visualizers at once, and they work with any physics engine or rendering backend.
 
 
 Overview
@@ -31,7 +31,7 @@ Isaac Lab supports three visualizer backends, each optimized for different use c
      - Webviewer, time scrubbing, recording export
 
 
-*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+*The following visualizers are shown training Isaac-Velocity-Flat-Anymal-D-v0 with 4096 concurrent environments.*
 
 .. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%
@@ -139,8 +139,8 @@ Omniverse Visualizer
         window_height=720,                        # Viewport height in pixels
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        camera_position=(8.0, 8.0, 3.0),          # Initial camera position (x, y, z)
+        camera_target=(0.0, 0.0, 0.0),            # Camera look-at target
 
         # Feature toggles
         enable_markers=True,                      # Enable visualization markers
@@ -195,8 +195,8 @@ Newton Visualizer
         window_height=1080,                       # Window height in pixels
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        camera_position=(8.0, 8.0, 3.0),          # Initial camera position (x, y, z)
+        camera_target=(0.0, 0.0, 0.0),            # Camera look-at target
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -213,9 +213,9 @@ Newton Visualizer
         enable_wireframe=False,                   # Enable wireframe mode
 
         # Color customization
-        background_color=(0.53, 0.81, 0.92),     # Sky/background color (RGB [0,1])
-        ground_color=(0.18, 0.20, 0.25),         # Ground plane color (RGB [0,1])
-        light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
+        sky_upper_color=(0.53, 0.81, 0.92),       # Sky upper color (RGB [0,1])
+        sky_lower_color=(0.18, 0.20, 0.25),       # Sky lower color (RGB [0,1])
+        light_color=(1.0, 1.0, 1.0),              # Directional light color (RGB [0,1])
     )
 
 
@@ -241,8 +241,8 @@ Rerun Visualizer
         web_port=9090,                            # Port for local web viewer (launched in browser)
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        camera_position=(8.0, 8.0, 3.0),          # Initial camera position (x, y, z)
+        camera_target=(0.0, 0.0, 0.0),            # Camera look-at target
 
         # History settings
         keep_historical_data=False,               # Keep transforms for time scrubbing
@@ -260,7 +260,7 @@ To reduce overhead when visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
-- Higher update frequencies
+- Lower update frequencies
 - Pausing visualizers while they are not being used
 
 

@@ -29,11 +29,19 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet<2",
+    "pyglet>=2.1.6",
     # image processing
     "transformers",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "warp-lang>=1.11.0.dev20251205",
+    # newton visualizers / backend dependencies
+    "mujoco>=3.4.0.dev839962392",
+    "mujoco-warp>=0.0.1",
+    "cbor2>=5.7.0",
+    "newton>=0.2.1",
+    "imgui_bundle>=1.92.0",
+    "PyOpenGL-accelerate==3.1.10",
+    "rerun-sdk>=0.27.1",
     # make sure this is consistent with isaac sim version
     "pillow==11.3.0",
     # livestream
@@ -56,6 +64,8 @@ INSTALL_REQUIRES += [
     f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    f"usd-core==25.05.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    f"usd-exchange>=2.1 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]

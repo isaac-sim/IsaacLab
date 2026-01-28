@@ -120,6 +120,10 @@ class InteractiveScene:
         cfg.validate()
         # store inputs
         self.cfg = cfg
+
+        # TODO(mtrepte): rm after fix
+        self.cfg.clone_in_fabric = False
+        
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()

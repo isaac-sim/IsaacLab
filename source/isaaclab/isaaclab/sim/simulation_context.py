@@ -34,9 +34,11 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
 from isaaclab.utils.version import get_isaac_sim_version
 
+from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
+from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -255,6 +257,11 @@ class SimulationContext(_SimulationContext):
         else:
             self._app_control_on_stop_handle = None
         self._disable_app_control_on_stop_handle = False
+
+        # initialize visualizers and scene data provider
+        self._visualizers: list[Visualizer] = []
+        self._visualizer_step_counter = 0
+        self._scene_data_provider: SceneDataProvider | None = None
 
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
@@ -506,6 +513,117 @@ class SimulationContext(_SimulationContext):
         return self._initial_stage
 
     """
+    Visualizers.
+    """
+
+    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
+        """Create default visualizer configs for requested types."""
+        default_configs = []
+        for viz_type in requested_visualizers:
+            try:
+                if viz_type == "newton":
+                    default_configs.append(NewtonVisualizerCfg())
+                elif viz_type == "rerun":
+                    default_configs.append(RerunVisualizerCfg())
+                elif viz_type == "omniverse":
+                    default_configs.append(OVVisualizerCfg())
+                else:
+                    logger.warning(
+                        f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
+                        "Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
+                    )
+            except Exception as exc:
+                logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
+        return default_configs
+
+    def initialize_visualizers(self) -> None:
+        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
+        visualizer_cfgs: list = []
+        if self.cfg.visualizer_cfgs is not None:
+            if isinstance(self.cfg.visualizer_cfgs, list):
+                visualizer_cfgs = self.cfg.visualizer_cfgs
+            else:
+                visualizer_cfgs = [self.cfg.visualizer_cfgs]
+
+        if len(visualizer_cfgs) == 0:
+            requested_visualizers_str = self.get_setting("/isaaclab/visualizer")
+            if requested_visualizers_str:
+                requested_visualizers = [v.strip() for v in requested_visualizers_str.split(",") if v.strip()]
+                visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
+            else:
+                return
+
+        self._scene_data_provider = SceneDataProvider(
+            backend=self.cfg.physics_backend,
+            visualizer_cfgs=visualizer_cfgs,
+            stage=self.stage,
+            simulation_context=self,
+        )
+
+        for viz_cfg in visualizer_cfgs:
+            try:
+                visualizer = viz_cfg.create_visualizer()
+                scene_data: dict[str, Any] = {"scene_data_provider": self._scene_data_provider}
+                
+                # OV visualizer gets USD stage
+                if viz_cfg.visualizer_type == "omniverse":
+                    if self._scene_data_provider:
+                        scene_data["usd_stage"] = self._scene_data_provider.get_usd_stage()
+                    else:
+                        scene_data["usd_stage"] = self.stage
+
+                visualizer.initialize(scene_data)
+                self._visualizers.append(visualizer)
+                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
+            except Exception as exc:
+                logger.error(
+                    f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' ({type(viz_cfg).__name__}): {exc}"
+                )
+
+    def step_visualizers(self, dt: float) -> None:
+        """Update all active visualizers."""
+        if not self._visualizers:
+            return
+
+        self._visualizer_step_counter += 1
+        if self._scene_data_provider:
+            self._scene_data_provider.update()
+
+        visualizers_to_remove = []
+        for visualizer in self._visualizers:
+            try:
+                if not visualizer.is_running():
+                    visualizers_to_remove.append(visualizer)
+                    continue
+
+                while visualizer.is_training_paused() and visualizer.is_running():
+                    visualizer.step(0.0, state=None)
+
+                visualizer.step(dt, state=None)
+            except Exception as exc:
+                logger.error(f"Error stepping visualizer '{type(visualizer).__name__}': {exc}")
+                visualizers_to_remove.append(visualizer)
+
+        for visualizer in visualizers_to_remove:
+            try:
+                visualizer.close()
+                self._visualizers.remove(visualizer)
+                logger.info(f"Removed visualizer: {type(visualizer).__name__}")
+            except Exception as exc:
+                logger.error(f"Error closing visualizer: {exc}")
+
+    def close_visualizers(self) -> None:
+        """Close all active visualizers and clean up resources."""
+        for visualizer in self._visualizers:
+            try:
+                visualizer.close()
+            except Exception as exc:
+                logger.error(f"Error closing visualizer '{type(visualizer).__name__}': {exc}")
+
+        self._visualizers.clear()
+        logger.info("All visualizers closed")
+
+    """
     Operations - Override (standalone)
     """
 
@@ -528,6 +646,8 @@ class SimulationContext(_SimulationContext):
         if not soft:
             for _ in range(2):
                 self.render()
+        if not soft and not self._visualizers:
+            self.initialize_visualizers()
         self._disable_app_control_on_stop_handle = False
 
     def forward(self) -> None:
@@ -577,6 +697,9 @@ class SimulationContext(_SimulationContext):
 
         # step the simulation
         super().step(render=render)
+
+        # Update visualizers after stepping
+        self.step_visualizers(self.cfg.dt)
 
         # app.update() may be changing the cuda device in step, so we force it back to our desired device here
         if "cuda" in self.device:
@@ -676,6 +799,8 @@ class SimulationContext(_SimulationContext):
             if cls._instance._app_control_on_stop_handle is not None:
                 cls._instance._app_control_on_stop_handle.unsubscribe()
                 cls._instance._app_control_on_stop_handle = None
+            if hasattr(cls._instance, "_visualizers"):
+                cls._instance.close_visualizers()
         # call parent to clear the instance
         super().clear_instance()
 

@@ -115,6 +115,7 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._visualizer: list[str] | None  # Visualizer backends to use
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -304,6 +305,16 @@ class AppLauncher:
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
+        arg_group.add_argument(
+            "--visualizer",
+            type=str,
+            nargs="+",
+            default=None,
+            help=(
+                "Visualizer backend(s) to use. Valid values: newton, rerun, omniverse."
+                " Multiple visualizers can be specified: --visualizer rerun newton"
+            ),
+        )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
         arg_group.add_argument(
@@ -389,6 +400,7 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
+        "visualizer": ([list, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -488,6 +500,7 @@ class AppLauncher:
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
+        self._resolve_visualizer_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
 
         # Handle device and distributed settings
@@ -777,6 +790,46 @@ class AppLauncher:
                 )
             sys.argv += ["--enable", "omni.physx.pvd"]
 
+    def _resolve_visualizer_settings(self, launcher_args: dict) -> None:
+        """Resolve visualizer related settings."""
+        visualizers = launcher_args.pop("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
+        valid_visualizers = {"newton", "rerun", "omniverse"}
+        if visualizers is not None and len(visualizers) > 0:
+            invalid = [v for v in visualizers if v not in valid_visualizers]
+            if invalid:
+                raise ValueError(
+                    f"Invalid visualizer(s) specified: {invalid}. Valid options are: {sorted(valid_visualizers)}"
+                )
+        self._visualizer = visualizers if visualizers and len(visualizers) > 0 else None
+
+        # Auto-adjust headless based on requested visualizers (parity with feature/newton behavior).
+        if self._visualizer is None:
+            if not self._headless and self._livestream not in {1, 2}:
+                self._headless = True
+                launcher_args["headless"] = True
+                print(
+                    "[INFO][AppLauncher]: No visualizers specified. "
+                    "Automatically enabling headless mode. Use --visualizer <type> to enable GUI."
+                )
+            return
+
+        if "omniverse" in self._visualizer:
+            if self._headless:
+                self._headless = False
+                launcher_args["headless"] = False
+                print(
+                    "[INFO][AppLauncher]: Omniverse visualizer requested. "
+                    "Forcing headless=False for GUI."
+                )
+        else:
+            if not self._headless and self._livestream not in {1, 2}:
+                self._headless = True
+                launcher_args["headless"] = True
+                print(
+                    f"[INFO][AppLauncher]: Visualizer(s) {self._visualizer} requested. "
+                    "Enabling headless mode for SimulationApp (visualizers run independently)."
+                )
+
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
         # Resolve additional arguments passed to Kit
@@ -866,6 +919,12 @@ class AppLauncher:
         # this flag is set to True when an RTX-rendering related sensor is created
         # for example: the `Camera` sensor class
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # store visualizer selection for SimulationContext
+        if self._visualizer is not None:
+            carb_settings_iface.set_string("/isaaclab/visualizer", ",".join(self._visualizer))
+        else:
+            carb_settings_iface.set_string("/isaaclab/visualizer", "")
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())

@@ -60,30 +60,32 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # in that case is always the one from USD Context which makes it difficult to
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
-        if material_prim:
-            shader_prim = CreateShaderPrimFromSdrCommand(
-                parent_path=prim_path,
-                identifier="UsdPreviewSurface",
-                stage_or_context=stage,
-                name="Shader",
-            ).do()
-            # bind the shader graph to the material
-            if shader_prim:
-                surface_out = shader_prim.GetOutput("surface")
-                if surface_out:
-                    material_prim.CreateSurfaceOutput().ConnectToSource(surface_out)
-
-                displacement_out = shader_prim.GetOutput("displacement")
-                if displacement_out:
-                    material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
-        else:
+        if not material_prim:
             raise ValueError(f"Failed to create preview surface shader at path: '{prim_path}'.")
+        
+        shader_prim = CreateShaderPrimFromSdrCommand(
+            parent_path=prim_path,
+            identifier="UsdPreviewSurface",
+            stage_or_context=stage,
+        ).do()
+        
+        if not shader_prim:
+            raise ValueError(f"Failed to create shader prim at path: '{prim_path}'.")
+        
+        # The command returns a Shader object directly, not a path
+        if shader_prim:
+            surface_out = shader_prim.GetOutput("surface")
+            if surface_out:
+                material_prim.CreateSurfaceOutput().ConnectToSource(surface_out)
+
+            displacement_out = shader_prim.GetOutput("displacement")
+            if displacement_out:
+                material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    # obtain prim
-    prim = stage.GetPrimAtPath(f"{prim_path}/Shader")
-    # check prim is valid
+    # Get the underlying prim from the shader
+    prim = shader_prim.GetPrim()
     if not prim.IsValid():
         raise ValueError(f"Failed to create preview surface material at path: '{prim_path}'.")
     # apply properties
