@@ -311,12 +311,12 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_mass(self) -> torch.Tensor:
         """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
-        return self._body_mass
+        return self._body_mass.to(self.device)
 
     @property
     def body_inertia(self) -> torch.Tensor:
         """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
-        return self._body_inertia
+        return self._body_inertia.to(self.device)
 
     @property
     def body_link_pose_w(self) -> torch.Tensor:

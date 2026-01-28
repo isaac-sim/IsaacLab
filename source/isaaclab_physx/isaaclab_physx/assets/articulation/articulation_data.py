@@ -578,12 +578,12 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_mass(self) -> torch.Tensor:
         """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
-        return self._body_mass
+        return self._body_mass.to(self.device)
 
     @property
     def body_inertia(self) -> torch.Tensor:
         """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
-        return self._body_inertia
+        return self._body_inertia.to(self.device)
 
     @property
     def body_link_pose_w(self) -> torch.Tensor:

@@ -337,8 +337,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
                     " physics errors."
                 )
 
-        self.default_mass = self.asset.data.default_mass
-        self.default_inertia = self.asset.data.default_inertia
+        self.default_mass = None
+        self.default_inertia = None
+        
 
     def __call__(
         self,
@@ -351,20 +352,25 @@ class randomize_rigid_body_mass(ManagerTermBase):
         recompute_inertia: bool = True,
         min_mass: float = 1e-6,
     ):
+        if self.default_mass is None:
+            self.default_mass = self.asset.data.body_mass
+        if self.default_inertia is None:
+            self.default_inertia = self.asset.data.body_inertia
+
         # resolve environment ids
         if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
         else:
-            env_ids = env_ids.cpu()
+            env_ids = env_ids.to(self.asset.device)
 
         # resolve body indices
         if self.asset_cfg.body_ids == slice(None):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device="cpu")
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)
         else:
-            body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device="cpu")
+            body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
 
         # get the current masses of the bodies (num_assets, num_bodies)
-        masses = self.asset.root_view.get_masses()
+        masses = self.asset.data.body_mass.clone()
 
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -380,7 +386,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = torch.clamp(masses, min=min_mass)  # ensure masses are positive
 
         # set the mass into the physics simulation
-        self.asset.root_view.set_masses(masses, env_ids)
+        self.asset.set_masses(masses, None, env_ids)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -388,8 +394,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
             ratios = masses[env_ids[:, None], body_ids] / self.default_mass[env_ids[:, None], body_ids]
             # scale the inertia tensors by the the ratios
             # since mass randomization is done on default values, we can use the default inertia tensors
-            inertias = self.asset.root_view.get_inertias()
-            if isinstance(self.asset, Articulation):
+            inertias = self.asset.data.body_inertia.clone()
+            print("inertias device: ", inertias.device)
+            print("inertias shape: ", inertias.shape)
+            if isinstance(self.asset, BaseArticulation):
                 # inertia has shape: (num_envs, num_bodies, 9) for articulation
                 inertias[env_ids[:, None], body_ids] = (
                     self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
@@ -398,7 +406,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 # inertia has shape: (num_envs, 9) for rigid object
                 inertias[env_ids] = self.default_inertia[env_ids] * ratios
             # set the inertia tensors into the physics simulation
-            self.asset.root_view.set_inertias(inertias, env_ids)
+            self.asset.set_inertias(inertias, None, env_ids)
 
 
 def randomize_rigid_body_com(
@@ -410,36 +418,36 @@ def randomize_rigid_body_com(
     """Randomize the center of mass (CoM) of rigid bodies by adding a random value sampled from the given ranges.
 
     .. note::
-        This function uses CPU tensors to assign the CoM. It is recommended to use this function
-        only during the initialization of the environment.
+        This function does not properly track the original CoM values. It is recommended to use this function
+        only once, during the initialization of the environment.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # resolve environment ids
     if env_ids is None:
-        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        env_ids = torch.arange(env.scene.num_envs, device=asset.device)
     else:
-        env_ids = env_ids.cpu()
+        env_ids = env_ids.to(asset.device)
 
     # resolve body indices
     if asset_cfg.body_ids == slice(None):
-        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device="cpu")
+        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device=asset.device)
     else:
-        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device="cpu")
+        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device=asset.device)
 
     # sample random CoM values
     range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device="cpu")
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device="cpu").unsqueeze(1)
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device).unsqueeze(1)
 
     # get the current com of the bodies (num_assets, num_bodies)
-    coms = asset.root_view.get_coms().clone()
+    coms = asset.data.body_com_pose_b.clone()
 
     # Randomize the com in range
     coms[env_ids[:, None], body_ids, :3] += rand_samples
 
     # Set the new coms
-    asset.root_view.set_coms(coms, env_ids)
+    asset.set_coms(coms, None, env_ids)
 
 
 def randomize_rigid_body_collider_offsets(
