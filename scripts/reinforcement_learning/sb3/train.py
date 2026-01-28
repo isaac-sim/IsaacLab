@@ -95,7 +95,7 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
     multi_agent_to_single_agent,
 )
-from isaaclab.utils.asset_resolver import setup_offline_mode, patch_config_for_offline_mode
+from isaaclab.utils.asset_resolver import patch_config_for_offline_mode, setup_offline_mode
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
@@ -116,7 +116,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if args_cli.offline:
         setup_offline_mode()
         patch_config_for_offline_mode(env_cfg)
-        
+
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
