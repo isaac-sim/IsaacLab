@@ -95,7 +95,7 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
     multi_agent_to_single_agent,
 )
-from isaaclab.utils.asset_resolver import patch_config_for_offline_mode, setup_offline_mode
+from isaaclab.utils import patch_config_for_offline_mode, setup_offline_mode
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
