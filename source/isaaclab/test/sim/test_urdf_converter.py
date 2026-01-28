@@ -19,10 +19,10 @@ import pytest
 from packaging.version import Version
 
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.utils.version import get_isaac_sim_version
 
@@ -53,9 +53,10 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()
