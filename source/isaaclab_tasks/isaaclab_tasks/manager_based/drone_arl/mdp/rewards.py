@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
-
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 

@@ -126,6 +126,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         """Get the maximum difficulty level."""
         return self._max_difficulty
 
+
 def get_obstacle_curriculum_term(env: ManagerBasedRLEnv) -> ObstacleDensityCurriculum | None:
     """Get the ObstacleDensityCurriculum instance from the curriculum manager.
 

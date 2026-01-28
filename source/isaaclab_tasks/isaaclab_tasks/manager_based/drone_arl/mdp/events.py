@@ -93,7 +93,7 @@ def reset_obstacles_with_individual_ranges(
     obstacles_per_env = (
         min_num_obstacles + (difficulty_levels / max_difficulty) * (max_num_obstacles - min_num_obstacles)
     ).long()
-    
+
     # Prepare tensors
     all_poses = torch.zeros(num_envs, num_objects, 7, device=env.device)
     all_velocities = torch.zeros(num_envs, num_objects, 6, device=env.device)
