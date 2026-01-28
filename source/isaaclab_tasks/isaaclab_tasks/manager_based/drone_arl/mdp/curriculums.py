@@ -107,16 +107,6 @@ class ObstacleDensityCurriculum(ManagerTermBase):
 
         return self._difficulty_levels.float().mean().item()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        """Reset the curriculum state for specified environments.
-
-        Args:
-            env_ids: Environment indices to reset. If None, resets all environments.
-        """
-        if env_ids is None:
-            env_ids = slice(None)
-        self._difficulty_levels[env_ids] = self._min_difficulty
-
     @property
     def difficulty_levels(self) -> torch.Tensor:
         """Get the current difficulty levels for all environments.
@@ -135,3 +125,22 @@ class ObstacleDensityCurriculum(ManagerTermBase):
     def max_difficulty(self) -> int:
         """Get the maximum difficulty level."""
         return self._max_difficulty
+
+def get_obstacle_curriculum_term(env: ManagerBasedRLEnv) -> ObstacleDensityCurriculum | None:
+    """Get the ObstacleDensityCurriculum instance from the curriculum manager.
+
+    This helper function searches the curriculum manager for an active
+    ObstacleDensityCurriculum term and returns it if found. This allows
+    other MDP components (rewards, events) to access the curriculum state.
+
+    Args:
+        env: The manager-based RL environment instance.
+
+    Returns:
+        The ObstacleDensityCurriculum instance if found, None otherwise.
+    """
+    curriculum_manager = env.curriculum_manager
+    for term_cfg in curriculum_manager._term_cfgs:
+        if isinstance(term_cfg.func, ObstacleDensityCurriculum):
+            return term_cfg.func
+    return None

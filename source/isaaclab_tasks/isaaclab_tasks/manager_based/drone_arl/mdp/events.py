@@ -15,27 +15,10 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCollection
 from isaaclab.managers import SceneEntityCfg
 
+from .curriculums import get_obstacle_curriculum_term
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-# Import the curriculum class
-from .curriculums import ObstacleDensityCurriculum
-
-
-def _get_obstacle_curriculum_term(env: ManagerBasedRLEnv) -> ObstacleDensityCurriculum | None:
-    """Get the ObstacleDensityCurriculum instance from the curriculum manager.
-
-    Args:
-        env: The manager-based RL environment instance.
-
-    Returns:
-        The ObstacleDensityCurriculum instance if found, None otherwise.
-    """
-    curriculum_manager = env.curriculum_manager
-    for term_cfg in curriculum_manager._term_cfgs:
-        if isinstance(term_cfg.func, ObstacleDensityCurriculum):
-            return term_cfg.func
-    return None
 
 
 def reset_obstacles_with_individual_ranges(
@@ -81,9 +64,9 @@ def reset_obstacles_with_individual_ranges(
             Defaults to 0.1 meters.
 
     Note:
-        This function expects an ObstacleDensityCurriculum instance in the curriculum manager
-        when `use_curriculum=True`. The curriculum state is accessed from the curriculum manager
-        rather than from environment attributes.
+        This function expects the environment to have `_obstacle_difficulty_levels` and
+        `_max_obstacle_difficulty` attributes when `use_curriculum=True`. These are
+        typically set by :func:`obstacle_density_curriculum`.
     """
     obstacles: RigidObjectCollection = env.scene[asset_cfg.name]
 
@@ -93,8 +76,9 @@ def reset_obstacles_with_individual_ranges(
 
     # Get difficulty levels per environment
     if use_curriculum:
-        curriculum_term = _get_obstacle_curriculum_term(env)
+        curriculum_term = get_obstacle_curriculum_term(env)
         if curriculum_term is not None:
+            # Get difficulty levels for the specific environments being reset
             difficulty_levels = curriculum_term.difficulty_levels[env_ids]
             max_difficulty = curriculum_term.max_difficulty
         else:
@@ -109,8 +93,7 @@ def reset_obstacles_with_individual_ranges(
     obstacles_per_env = (
         min_num_obstacles + (difficulty_levels / max_difficulty) * (max_num_obstacles - min_num_obstacles)
     ).long()
-
-    # ... rest of the function remains the same ...
+    
     # Prepare tensors
     all_poses = torch.zeros(num_envs, num_objects, 7, device=env.device)
     all_velocities = torch.zeros(num_envs, num_objects, 6, device=env.device)

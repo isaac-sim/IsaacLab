@@ -11,34 +11,18 @@ import torch
 
 import isaaclab.utils.math as math_utils
 
-if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
-
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 
 # Import the curriculum class
-from .curriculums import ObstacleDensityCurriculum
+from .curriculums import get_obstacle_curriculum_term
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedRLEnv
 
 """
 Drone control rewards.
 """
-
-
-def _get_obstacle_curriculum_term(env: ManagerBasedRLEnv) -> ObstacleDensityCurriculum | None:
-    """Get the ObstacleDensityCurriculum instance from the curriculum manager.
-
-    Args:
-        env: The manager-based RL environment instance.
-
-    Returns:
-        The ObstacleDensityCurriculum instance if found, None otherwise.
-    """
-    curriculum_manager = env.curriculum_manager
-    for term_cfg in curriculum_manager._term_cfgs:
-        if isinstance(term_cfg.func, ObstacleDensityCurriculum):
-            return term_cfg.func
-    return None
 
 
 def distance_to_goal_exp(
@@ -119,7 +103,7 @@ def distance_to_goal_exp_curriculum(
     position_error_square = torch.sum(torch.square(command[:, :3] - current_position), dim=1)
 
     # Get curriculum term and compute weight
-    curriculum_term = _get_obstacle_curriculum_term(env)
+    curriculum_term = get_obstacle_curriculum_term(env)
     if curriculum_term is not None:
         weight = 1.0 + curriculum_term.difficulty_levels.float() / float(curriculum_term.max_difficulty)
     else:
@@ -202,7 +186,7 @@ def velocity_to_goal_reward_curriculum(
     velocity_towards_goal = torch.sum(asset.data.root_lin_vel_w * direction_to_goal, dim=1)
 
     # Get curriculum term and compute weight
-    curriculum_term = _get_obstacle_curriculum_term(env)
+    curriculum_term = get_obstacle_curriculum_term(env)
     if curriculum_term is not None:
         weight = 1.0 + curriculum_term.difficulty_levels.float() / float(curriculum_term.max_difficulty)
     else:
