@@ -886,11 +886,11 @@ class BaseArticulation(AssetBase):
         This function does not apply the tendon limit to the simulation. It only fills the buffers with
         the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
-         Args:
-             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+        Args:
+            limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
                 (num_instances, num_fixed_tendons).
-             fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
-             env_ids: The environment indices to set the limit for. Defaults to None (all environments).
+            fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the limit for. Defaults to None (all environments).
         """
         raise NotImplementedError()
 

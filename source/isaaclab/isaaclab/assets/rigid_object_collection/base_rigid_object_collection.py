@@ -174,7 +174,7 @@ class BaseRigidObjectCollection(AssetBase):
 
         The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame. Shape is
-            (len(env_ids), len(body_ids), 13).
+        ``(len(env_ids), len(body_ids), 13)``.
 
         Args:
             body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).

@@ -2,6 +2,7 @@
 =====================
 
 .. automodule:: isaaclab_physx.assets
+  :noindex:
 
   .. rubric:: Classes
 
@@ -81,7 +82,7 @@ Deformable Object
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, InitialStateCfg
 
 Surface Gripper
 ---------------
@@ -95,4 +96,4 @@ Surface Gripper
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, InitialStateCfg
