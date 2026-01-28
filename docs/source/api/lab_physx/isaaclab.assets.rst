@@ -1,5 +1,5 @@
 ﻿isaaclab_physx.assets
-===============
+=====================
 
 .. automodule:: isaaclab_physx.assets
 
@@ -7,12 +7,12 @@
 
   .. autosummary::
 
+    Articulation
+    ArticulationData
     RigidObject
     RigidObjectData
     RigidObjectCollection
     RigidObjectCollectionData
-    Articulation
-    ArticulationData
     DeformableObject
     DeformableObjectData
     DeformableObjectCfg
@@ -20,56 +20,6 @@
     SurfaceGripperCfg
 
 .. currentmodule:: isaaclab_physx.assets
-
-Asset Base
-----------
-
-.. autoclass:: AssetBase
-    :members:
-
-.. autoclass:: AssetBaseCfg
-    :members:
-    :exclude-members: __init__, class_type, InitialStateCfg
-
-Rigid Object
-------------
-
-.. autoclass:: RigidObject
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: RigidObjectData
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__
-
-.. autoclass:: RigidObjectCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Rigid Object Collection
------------------------
-
-.. autoclass:: RigidObjectCollection
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: RigidObjectCollectionData
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__
-
-.. autoclass:: RigidObjectCollectionCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
 
 Articulation
 ------------
@@ -85,11 +35,33 @@ Articulation
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: ArticulationCfg
+Rigid Object
+------------
+
+.. autoclass:: RigidObject
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+
+.. autoclass:: RigidObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+Rigid Object Collection
+-----------------------
+
+.. autoclass:: RigidObjectCollection
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: RigidObjectCollectionData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
 
 Deformable Object
 -----------------

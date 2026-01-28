@@ -31,6 +31,7 @@ class RigidObjectData(BaseRigidObjectData):
     - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
       with the rigid body schema.
     - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
     Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
     This needs to be taken into account when interpreting the data.
 
