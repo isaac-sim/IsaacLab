@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from newton.sensors import MatchKind
-from newton.sensors import SensorContact as NewtonContactSensor
+from newton.sensors import ContactSensor as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
@@ -119,7 +119,7 @@ class ContactSensor(BaseContactSensor):
     @property
     def contact_view(self) -> NewtonContactSensor:
         """View for the contact forces captured (Newton)."""
-        return NewtonManager._newton_contact_sensor
+        return NewtonManager._newton_contact_sensors[self._sensor_key]
 
     """
     Operations
@@ -259,7 +259,7 @@ class ContactSensor(BaseContactSensor):
         else:
             contact_partners_shape_regex = None
 
-        NewtonManager.add_contact_sensor(
+        self._sensor_key = NewtonManager.add_contact_sensor(
             body_names_expr=body_names_regex,
             shape_names_expr=shape_names_regex,
             contact_partners_body_expr=contact_partners_body_regex,

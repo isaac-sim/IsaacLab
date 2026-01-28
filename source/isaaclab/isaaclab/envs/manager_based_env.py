@@ -15,7 +15,7 @@ from isaaclab.managers import ActionManager, EventManager, ObservationManager, R
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
+# from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
