@@ -176,12 +176,12 @@ class Articulation(BaseArticulation):
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer for the articulation."""
-        raise self._instantaneous_wrench_composer
+        return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
         """Permanent wrench composer for the articulation."""
-        raise self._permanent_wrench_composer
+        return self._permanent_wrench_composer
 
     """
     Operations.
@@ -2175,3 +2175,11 @@ class Articulation(BaseArticulation):
             " use 'set_fixed_tendon_position_limit' instead."
         )
         self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+
+    @property
+    def root_physx_view(self) -> physx.RigidBodyView:
+        """Deprecated property. Please use :attr:`root_view` instead."""
+        logger.warning(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        )
+        return self.root_view

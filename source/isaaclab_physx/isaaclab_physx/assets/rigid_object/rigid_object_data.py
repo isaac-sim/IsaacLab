@@ -72,6 +72,8 @@ class RigidObjectData(BaseRigidObjectData):
         self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_view.count, 1)
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
 
+        self._create_buffers()
+
     @property
     def is_primed(self) -> bool:
         """Whether the rigid object data is fully instantiated and ready to use."""

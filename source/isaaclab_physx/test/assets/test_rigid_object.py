@@ -24,7 +24,8 @@ import torch
 from flaky import flaky
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab_physx.assets import RigidObject
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -118,8 +119,8 @@ def test_initialization(num_cubes, device):
         # Check buffers that exists and have correct shapes
         assert cube_object.data.root_pos_w.shape == (num_cubes, 3)
         assert cube_object.data.root_quat_w.shape == (num_cubes, 4)
-        assert cube_object.data.default_mass.shape == (num_cubes, 1)
-        assert cube_object.data.default_inertia.shape == (num_cubes, 9)
+        assert cube_object.data.body_mass.shape == (num_cubes, 1)
+        assert cube_object.data.body_inertia.shape == (num_cubes, 9)
 
         # Simulate physics
         for _ in range(2):

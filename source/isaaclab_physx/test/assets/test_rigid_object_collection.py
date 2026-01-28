@@ -22,7 +22,8 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
+from isaaclab_physx.assets import RigidObjectCollection
+from isaaclab.assets import RigidObjectCollectionCfg, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -126,8 +127,8 @@ def test_initialization(sim, num_envs, num_cubes, device):
     # Check buffers that exist and have correct shapes
     assert object_collection.data.object_link_pos_w.shape == (num_envs, num_cubes, 3)
     assert object_collection.data.object_link_quat_w.shape == (num_envs, num_cubes, 4)
-    assert object_collection.data.default_mass.shape == (num_envs, num_cubes, 1)
-    assert object_collection.data.default_inertia.shape == (num_envs, num_cubes, 9)
+    assert object_collection.data.body_mass.shape == (num_envs, num_cubes, 1)
+    assert object_collection.data.body_inertia.shape == (num_envs, num_cubes, 9)
 
     # Simulate physics
     for _ in range(2):
@@ -150,20 +151,20 @@ def test_id_conversion(sim, device):
         torch.tensor([1, 3, 5], device=device, dtype=torch.long),
     ]
 
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2]
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES, object_collection._ALL_BODY_INDICES[None, 2]
     )
     assert (view_ids == expected[0]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2]
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_BODY_INDICES[None, 2]
     )
     assert (view_ids == expected[1]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_BODY_INDICES
     )
     assert (view_ids == expected[2]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_BODY_INDICES
     )
     assert (view_ids == expected[3]).all()
 
@@ -281,7 +282,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
     # Sample a force equal to the weight of the object
     external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
     # Every 2nd cube should have a force applied to it
-    external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
+    external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.body_mass[:, 0::2, 0]
 
     for i in range(5):
         # reset object state

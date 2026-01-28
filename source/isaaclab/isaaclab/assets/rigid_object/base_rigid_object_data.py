@@ -232,7 +232,7 @@ class BaseRigidObjectData(ABC):
     @abstractmethod
     def body_com_state_w(self) -> torch.Tensor:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
+        Shape is (num_instances, 1, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
@@ -270,7 +270,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_inertia(self) -> torch.Tensor:
-        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
+        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 9)."""
         raise NotImplementedError()
 
     ##

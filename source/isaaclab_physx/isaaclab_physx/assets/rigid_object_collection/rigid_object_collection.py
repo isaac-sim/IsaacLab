@@ -40,7 +40,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the
     simulation, the physics engine will automatically register the rigid bodies and create a corresponding
-    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
+    rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
 
     Rigid objects in the collection are uniquely identified via the key of the dictionary
     :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in the
@@ -65,7 +65,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             cfg: A configuration instance.
         """
-        super().__init__(cfg)
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
         cfg.validate()
@@ -158,7 +157,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if env_ids is None:
             env_ids = self._ALL_ENV_INDICES
         if object_ids is None:
-            object_ids = self._ALL_OBJ_INDICES
+            object_ids = self._ALL_BODY_INDICES
         # reset external wrench
         self._instantaneous_wrench_composer.reset(env_ids)
         self._permanent_wrench_composer.reset(env_ids)
@@ -177,24 +176,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self._instantaneous_wrench_composer.add_forces_and_torques(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_OBJ_INDICES_WP,
+                    body_ids=self._ALL_BODY_INDICES_WP,
                     env_ids=self._ALL_ENV_INDICES_WP,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
-                self.root_physx_view.apply_forces_and_torques_at_position(
+                self.root_view.apply_forces_and_torques_at_position(
                     force_data=self.reshape_data_to_view(self._instantaneous_wrench_composer.composed_force_as_torch),
                     torque_data=self.reshape_data_to_view(self._instantaneous_wrench_composer.composed_torque_as_torch),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
+                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES),
                     is_global=False,
                 )
             else:
                 # Apply permanent wrench to the simulation
-                self.root_physx_view.apply_forces_and_torques_at_position(
+                self.root_view.apply_forces_and_torques_at_position(
                     force_data=self.reshape_data_to_view(self._permanent_wrench_composer.composed_force_as_torch),
                     torque_data=self.reshape_data_to_view(self._permanent_wrench_composer.composed_torque_as_torch),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
+                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES),
                     is_global=False,
                 )
         self._instantaneous_wrench_composer.reset()
@@ -328,7 +327,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         # -- body_ids
         if body_ids is None:
-            body_ids = self._ALL_OBJ_INDICES
+            body_ids = self._ALL_BODY_INDICES
 
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
@@ -381,7 +380,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         # -- body_ids
         if body_ids is None:
-            body_ids = self._ALL_OBJ_INDICES
+            body_ids = self._ALL_BODY_INDICES
 
         # set into internal buffers
         self.data.body_com_pose_w[env_ids[:, None], body_ids] = body_poses.clone()
@@ -444,7 +443,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         # -- body_ids
         if body_ids is None:
-            body_ids = self._ALL_OBJ_INDICES
+            body_ids = self._ALL_BODY_INDICES
 
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
@@ -485,7 +484,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         # -- body_ids
         if body_ids is None:
-            body_ids = self._ALL_OBJ_INDICES
+            body_ids = self._ALL_BODY_INDICES
 
         # set into internal buffers
         self.data.body_link_vel_w[env_ids[:, None], body_ids] = body_velocities.clone()
@@ -620,7 +619,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         # -- body_ids
         if body_ids is None:
-            body_ids = self._ALL_OBJ_INDICES_WP
+            body_ids = self._ALL_BODY_INDICES_WP
         elif isinstance(body_ids, slice):
             body_ids = wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
@@ -645,27 +644,27 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the data coming from the :attr:`root_physx_view` to
-        (num_instances, num_objects, data_dim).
+        """Reshapes and arranges the data coming from the :attr:`root_view` to
+        (num_instances, num_bodies, data_dim).
 
         Args:
-            data: The data coming from the :attr:`root_physx_view`. Shape is (num_instances * num_objects, data_dim).
+            data: The data coming from the :attr:`root_view`. Shape is (num_instances * num_bodies, data_dim).
 
         Returns:
-            The reshaped data. Shape is (num_instances, num_objects, data_dim).
+            The reshaped data. Shape is (num_instances, num_bodies, data_dim).
         """
-        return torch.einsum("ijk -> jik", data.reshape(self.num_objects, self.num_instances, -1))
+        return torch.einsum("ijk -> jik", data.reshape(self.num_bodies, self.num_instances, -1))
 
     def reshape_data_to_view(self, data: torch.Tensor) -> torch.Tensor:
-        """Reshapes and arranges the data to the be consistent with data from the :attr:`root_physx_view`.
+        """Reshapes and arranges the data to the be consistent with data from the :attr:`root_view`.
 
         Args:
-            data: The data to be reshaped. Shape is (num_instances, num_objects, data_dim).
+            data: The data to be reshaped. Shape is (num_instances, num_bodies, data_dim).
 
         Returns:
-            The reshaped data. Shape is (num_instances * num_objects, data_dim).
+            The reshaped data. Shape is (num_instances * num_bodies, data_dim).
         """
-        return torch.einsum("ijk -> jik", data).reshape(self.num_objects * self.num_instances, *data.shape[2:])
+        return torch.einsum("ijk -> jik", data).reshape(self.num_bodies * self.num_instances, *data.shape[2:])
 
     """
     Internal helper.
@@ -677,7 +676,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         root_prim_path_exprs = []
-        for name, rigid_body_cfg in self.cfg.rigid_object_cfg.items():
+        for name, rigid_body_cfg in self.cfg.rigid_objects.items():
             # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
             template_prim = sim_utils.find_first_matching_prim(rigid_body_cfg.prim_path)
             if template_prim is None:
@@ -725,10 +724,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self._body_names_list.append(name)
 
         # -- object view
-        self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_exprs)
+        self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_exprs)
 
         # check if the rigid body was created
-        if self._root_physx_view._backend is None:
+        if self._root_view._backend is None:
             raise RuntimeError("Failed to create rigid body collection. Please check PhysX logs.")
 
         # log information about the rigid body
@@ -737,7 +736,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         logger.info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectCollectionData(self.root_physx_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(self.root_view, self.num_bodies, self.device)
 
         # create buffers
         self._create_buffers()
@@ -796,7 +795,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def _env_body_ids_to_view_ids(
         self, env_ids: torch.Tensor, body_ids: torch.Tensor | slice | torch.Tensor
     ) -> torch.Tensor:
-        """Converts environment and body indices to indices consistent with data from :attr:`root_physx_view`.
+        """Converts environment and body indices to indices consistent with data from :attr:`root_view`.
 
         Args:
             env_ids: Environment indices.
@@ -848,7 +847,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def num_objects(self) -> int:
         """Deprecated property. Please use :attr:`num_bodies` instead."""
         logger.warning(
-            "The `num_objects` property will be deprecated in a future release. Please use `num_bodies` instead."
+            "The `num_bodies` property will be deprecated in a future release. Please use `num_bodies` instead."
         )
         return self.num_bodies
 
@@ -984,3 +983,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             " `write_body_link_velocity_to_sim` instead."
         )
         self.write_body_link_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+
+    def find_objects(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[torch.Tensor, list[str], list[int]]:
+        """Deprecated method. Please use :meth:`find_bodies` instead."""
+        logger.warning(
+            "The `find_objects` method will be deprecated in a future release. Please use"
+            " `find_bodies` instead."
+        )
+        return self.find_bodies(name_keys, preserve_order)

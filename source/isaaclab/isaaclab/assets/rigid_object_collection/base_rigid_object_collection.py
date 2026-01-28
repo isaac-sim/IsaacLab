@@ -53,7 +53,7 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             cfg: A configuration instance.
         """
-        super().__init__(cfg)
+        pass
 
     """
     Properties

@@ -26,7 +26,8 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab_physx.assets import Articulation
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
@@ -290,8 +291,8 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 12)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
@@ -347,8 +348,8 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 9)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
@@ -411,8 +412,8 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 1)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
@@ -474,8 +475,8 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 24)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
@@ -1860,7 +1861,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         assert articulation.data.body_incoming_joint_wrench_b.shape == (num_articulations, articulation.num_bodies, 6)
 
     # calculate expected static
-    mass = articulation.data.default_mass
+    mass = articulation.data.body_mass.to("cpu")
     pos_w = articulation.data.body_pos_w
     quat_w = articulation.data.body_quat_w
 
@@ -2050,8 +2051,8 @@ def test_spatial_tendons(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 3)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
     assert articulation.num_spatial_tendons == 1
 
     articulation.set_spatial_tendon_stiffness(torch.tensor([10.0]))

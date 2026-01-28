@@ -62,8 +62,8 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_root_pose(self) -> torch.Tensor:
-        """Default root pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, 7).
+    def default_body_pose(self) -> torch.Tensor:
+        """Default body pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, num_bodies, 7).
 
         The position and quaternion are of the rigid body's actor frame.
         """
@@ -71,8 +71,8 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_root_vel(self) -> torch.Tensor:
-        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 6).
+    def default_body_vel(self) -> torch.Tensor:
+        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 6).
 
         The linear and angular velocities are of the rigid body's center of mass frame.
         """
@@ -80,8 +80,8 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_root_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
+    def default_body_state(self) -> torch.Tensor:
+        """Default body state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 13).
 
         The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
         of the center of mass frame.
@@ -95,7 +95,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_pose_w(self) -> torch.Tensor:
-        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
+        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -105,7 +105,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_vel_w(self) -> torch.Tensor:
-        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 1, 6).
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_bodies, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
@@ -115,7 +115,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_pose_w(self) -> torch.Tensor:
-        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -126,7 +126,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_com_vel_w(self) -> torch.Tensor:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 6).
+        Shape is (num_instances, num_bodies, 6).
 
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
@@ -137,7 +137,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_state_w(self) -> torch.Tensor:
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, 1, 13).
+        Shape is (num_instances, num_bodies, 13).
 
         The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
         velocities are of the rigid bodies' center of mass frame.
@@ -148,7 +148,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_link_state_w(self) -> torch.Tensor:
         """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 13).
+        Shape is (num_instances, num_bodies, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -171,7 +171,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_com_acc_w(self) -> torch.Tensor:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
-        Shape is (num_instances, 1, 6).
+        Shape is (num_instances, num_bodies, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
@@ -181,7 +181,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_com_pose_b(self) -> torch.Tensor:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
-        Shape is (num_instances, 1, 7).
+        Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
@@ -191,13 +191,13 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_mass(self) -> torch.Tensor:
-        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
+        """Mass of all bodies in the simulation world frame. Shape is (num_instances, num_bodies)."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def body_inertia(self) -> torch.Tensor:
-        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
+        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, num_bodies, 9)."""
         raise NotImplementedError()
 
     ##
@@ -207,13 +207,13 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def projected_gravity_b(self) -> torch.Tensor:
-        """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
+        """Projection of the gravity direction on base frame. Shape is (num_instances, num_bodies, 3)."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def heading_w(self) -> torch.Tensor:
-        """Yaw heading of the base frame (in radians). Shape is (num_instances,).
+        """Yaw heading of the base frame (in radians). Shape is (num_instances, num_bodies).
 
         Note:
             This quantity is computed by assuming that the forward-direction of the base
@@ -224,7 +224,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_lin_vel_b(self) -> torch.Tensor:
-        """Root link linear velocity in base frame. Shape is (num_instances, 3).
+        """Root link linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
@@ -234,7 +234,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_ang_vel_b(self) -> torch.Tensor:
-        """Root link angular velocity in base world frame. Shape is (num_instances, 3).
+        """Root link angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
@@ -244,7 +244,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_lin_vel_b(self) -> torch.Tensor:
-        """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
+        """Root center of mass linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
@@ -254,7 +254,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_ang_vel_b(self) -> torch.Tensor:
-        """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
+        """Root center of mass angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
@@ -268,7 +268,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_pos_w(self) -> torch.Tensor:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
@@ -277,7 +277,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_quat_w(self) -> torch.Tensor:
-        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
@@ -286,7 +286,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_lin_vel_w(self) -> torch.Tensor:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
         """
@@ -295,7 +295,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_link_ang_vel_w(self) -> torch.Tensor:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
         """
@@ -304,7 +304,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_pos_w(self) -> torch.Tensor:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the rigid bodies' actor frame.
         """
@@ -315,14 +315,14 @@ class BaseRigidObjectCollectionData(ABC):
     def body_com_quat_w(self) -> torch.Tensor:
         """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
 
-        Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
+        Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def body_com_lin_vel_w(self) -> torch.Tensor:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
@@ -331,7 +331,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_ang_vel_w(self) -> torch.Tensor:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
@@ -340,7 +340,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
@@ -349,7 +349,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
@@ -359,7 +359,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_com_pos_b(self) -> torch.Tensor:
         """Center of mass position of all of the bodies in their respective link frames.
-        Shape is (num_instances, 1, 3).
+        Shape is (num_instances, num_bodies, 3).
 
         This quantity is the center of mass location relative to its body'slink frame.
         """
@@ -369,7 +369,7 @@ class BaseRigidObjectCollectionData(ABC):
     @abstractmethod
     def body_com_quat_b(self) -> torch.Tensor:
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
-        respective link frames. Shape is (num_instances, 1, 4).
+        respective link frames. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """

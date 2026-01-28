@@ -571,6 +571,10 @@ class randomize_actuator_gains(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+
+        self.default_joint_stiffness = self.asset.data.joint_stiffness.clone()
+        self.default_joint_damping = self.asset.data.joint_damping.clone()
+        
         # check for valid operation
         if cfg.params["operation"] == "scale":
             if "stiffness_distribution_params" in cfg.params:
@@ -631,7 +635,7 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.asset.data.default_joint_stiffness[env_ids][
+                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][
                     :, global_indices
                 ].clone()
                 randomize(stiffness, stiffness_distribution_params)
@@ -643,7 +647,7 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize damping
             if damping_distribution_params is not None:
                 damping = actuator.damping[env_ids].clone()
-                damping[:, actuator_indices] = self.asset.data.default_joint_damping[env_ids][:, global_indices].clone()
+                damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
                 randomize(damping, damping_distribution_params)
                 actuator.damping[env_ids] = damping
                 if isinstance(actuator, ImplicitActuator):
@@ -684,6 +688,13 @@ class randomize_joint_parameters(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+
+        self.default_joint_friction_coeff = self.asset.data.joint_friction_coeff.clone()
+        self.default_dynamic_joint_friction_coeff = self.asset.data.joint_dynamic_friction_coeff.clone()
+        self.default_viscous_joint_friction_coeff = self.asset.data.joint_viscous_friction_coeff.clone()
+        self.default_joint_armature = self.asset.data.joint_armature.clone()
+        self.default_joint_pos_limits = self.asset.data.joint_pos_limits.clone()
+
         # check for valid operation
         if cfg.params["operation"] == "scale":
             if "friction_distribution_params" in cfg.params:
@@ -727,7 +738,7 @@ class randomize_joint_parameters(ManagerTermBase):
         # joint friction coefficient
         if friction_distribution_params is not None:
             friction_coeff = _randomize_prop_by_op(
-                self.asset.data.default_joint_friction_coeff.clone(),
+                self.default_joint_friction_coeff.clone(),
                 friction_distribution_params,
                 env_ids,
                 joint_ids,
@@ -745,7 +756,7 @@ class randomize_joint_parameters(ManagerTermBase):
             if get_isaac_sim_version().major >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
-                    self.asset.data.default_joint_dynamic_friction_coeff.clone(),
+                    self.default_dynamic_joint_friction_coeff.clone(),
                     friction_distribution_params,
                     env_ids,
                     joint_ids,
@@ -753,7 +764,7 @@ class randomize_joint_parameters(ManagerTermBase):
                     distribution=distribution,
                 )
                 viscous_friction_coeff = _randomize_prop_by_op(
-                    self.asset.data.default_joint_viscous_friction_coeff.clone(),
+                    self.default_viscous_joint_friction_coeff.clone(),
                     friction_distribution_params,
                     env_ids,
                     joint_ids,
@@ -801,7 +812,7 @@ class randomize_joint_parameters(ManagerTermBase):
 
         # joint position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            joint_pos_limits = self.asset.data.default_joint_pos_limits.clone()
+            joint_pos_limits = self.default_joint_pos_limits.clone()
             # -- randomize the lower limits
             if lower_limit_distribution_params is not None:
                 joint_pos_limits[..., 0] = _randomize_prop_by_op(

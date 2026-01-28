@@ -78,6 +78,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self.num_instances, self.num_bodies, 1
         )
 
+        self._create_buffers()
+
     @property
     def is_primed(self) -> bool:
         """Whether the rigid object collection data is fully instantiated and ready to use."""
@@ -125,7 +127,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         The position and quaternion are of the rigid body's actor frame.
         """
-        return self._default_root_pose
+        return self._default_body_pose
 
     @default_body_pose.setter
     def default_body_pose(self, value: torch.Tensor) -> None:
@@ -172,7 +174,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         of the center of mass frame.
         """
         logger.warning("Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_body_pose and default_body_vel properties instead.")
-        return torch.cat([self.default_body_pose, self.default_body_vel], dim=1)
+        return torch.cat([self.default_body_pose, self.default_body_vel], dim=-1)
 
     @default_body_state.setter
     def default_body_state(self, value: torch.Tensor) -> None:
@@ -340,12 +342,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     @property
     def body_mass(self) -> torch.Tensor:
         """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
-        return self._body_mass
+        return self._reshape_view_to_data(self._body_mass)
 
     @property
     def body_inertia(self) -> torch.Tensor:
         """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
-        return self._body_inertia
+        return self._reshape_view_to_data(self._body_inertia)
 
     """
     Derived Properties.
@@ -531,6 +533,33 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     """
     Properties for backwards compatibility.
     """
+
+    @property
+    def default_object_pose(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_pose` instead."""
+        logger.warning(
+            "The `default_object_pose` property will be deprecated in a future release. Please use"
+            " `default_body_pose` instead."
+        )
+        return self.default_body_pose
+
+    @property
+    def default_object_vel(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_vel` instead."""
+        logger.warning(
+            "The `default_object_vel` property will be deprecated in a future release. Please use"
+            " `default_body_vel` instead."
+        )
+        return self.default_body_vel
+    
+    @property
+    def default_object_state(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_state` instead."""
+        logger.warning(
+            "The `default_object_state` property will be deprecated in a future release. Please use"
+            " `default_body_state` instead."
+        )
+        return self.default_body_state
 
     @property
     def object_link_pose_w(self):

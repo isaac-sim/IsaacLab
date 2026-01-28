@@ -40,7 +40,7 @@ class RigidObject(BaseRigidObject):
     For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid body. On playing the
     simulation, the physics engine will automatically register the rigid body and create a corresponding
-    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
+    rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
 
     .. note::
 
@@ -696,3 +696,11 @@ class RigidObject(BaseRigidObject):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._root_view = None
+
+    @property
+    def root_physx_view(self) -> physx.RigidBodyView:
+        """Deprecated property. Please use :attr:`root_view` instead."""
+        logger.warning(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        )
+        return self.root_view
