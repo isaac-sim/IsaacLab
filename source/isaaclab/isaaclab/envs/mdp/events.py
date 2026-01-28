@@ -30,7 +30,7 @@ from pxr import Gf, Sdf, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
-from isaaclab.assets import Articulation, RigidObject
+from isaaclab.assets import Articulation, RigidObject, BaseArticulation, BaseRigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
@@ -197,7 +197,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (RigidObject, Articulation)):
+        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -337,6 +337,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
                     " physics errors."
                 )
 
+        self.default_mass = self.asset.data.default_mass
+        self.default_inertia = self.asset.data.default_inertia
+
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -366,7 +369,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
         # default values and not the previously randomized values
-        masses[env_ids[:, None], body_ids] = self.asset.data.default_mass[env_ids[:, None], body_ids].clone()
+        masses[env_ids[:, None], body_ids] = self.default_mass[env_ids[:, None], body_ids].clone()
 
         # sample from the given range
         # note: we modify the masses in-place for all environments
@@ -382,18 +385,18 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # recompute inertia tensors if needed
         if recompute_inertia:
             # compute the ratios of the new masses to the initial masses
-            ratios = masses[env_ids[:, None], body_ids] / self.asset.data.default_mass[env_ids[:, None], body_ids]
+            ratios = masses[env_ids[:, None], body_ids] / self.default_mass[env_ids[:, None], body_ids]
             # scale the inertia tensors by the the ratios
             # since mass randomization is done on default values, we can use the default inertia tensors
             inertias = self.asset.root_view.get_inertias()
             if isinstance(self.asset, Articulation):
                 # inertia has shape: (num_envs, num_bodies, 9) for articulation
                 inertias[env_ids[:, None], body_ids] = (
-                    self.asset.data.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
+                    self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
                 )
             else:
                 # inertia has shape: (num_envs, 9) for rigid object
-                inertias[env_ids] = self.asset.data.default_inertia[env_ids] * ratios
+                inertias[env_ids] = self.default_inertia[env_ids] * ratios
             # set the inertia tensors into the physics simulation
             self.asset.root_view.set_inertias(inertias, env_ids)
 
