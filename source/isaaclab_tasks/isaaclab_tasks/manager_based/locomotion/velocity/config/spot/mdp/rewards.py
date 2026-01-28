@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,9 @@ specify the reward function and its parameters.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
@@ -86,9 +87,10 @@ def base_linear_velocity_reward(
 class GaitReward(ManagerTermBase):
     """Gait enforcing reward term for quadrupeds.
 
-    This reward penalizes contact timing differences between selected foot pairs defined in :attr:`synced_feet_pair_names`
-    to bias the policy towards a desired gait, i.e trotting, bounding, or pacing. Note that this reward is only for
-    quadrupedal gaits with two pairs of synchronized feet.
+    This reward penalizes contact timing differences between selected foot pairs defined in
+    :attr:`synced_feet_pair_names` to bias the policy towards a desired gait, i.e trotting,
+    bounding, or pacing. Note that this reward is only for quadrupedal gaits with two pairs
+    of synchronized feet.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):

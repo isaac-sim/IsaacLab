@@ -25,14 +25,13 @@ Installing dependencies
    In case you used UV to create your virtual environment, please replace ``pip`` with ``uv pip``
    in the following commands.
 
-
 -  Install the Isaac Lab packages along with Isaac Sim:
 
    .. code-block:: none
 
-      pip install isaaclab[isaacsim,all]==2.3.1 --extra-index-url https://pypi.nvidia.com
+      pip install isaaclab[isaacsim,all]==2.3.0 --extra-index-url https://pypi.nvidia.com
 
--  Install a CUDA-enabled PyTorch build that matches your system architecture:
+-  Install a CUDA-enabled PyTorch 2.9.0 build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform

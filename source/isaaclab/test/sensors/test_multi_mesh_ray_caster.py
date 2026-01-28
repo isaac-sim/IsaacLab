@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,10 +12,9 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True)
 
 import numpy as np
+import pytest
 import torch
 import trimesh
-
-import pytest
 import warp as wp
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation

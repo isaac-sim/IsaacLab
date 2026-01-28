@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -76,7 +76,7 @@ class CartpoleEarlyStopper(Stopper):
         out_of_bounds = result.get("Episode/Episode_Termination/cart_out_of_bounds")
 
         # Mark the trial for stopping if conditions are met
-        if 20 <= iter and out_of_bounds is not None and out_of_bounds > 0.85:
+        if iter >= 20 and out_of_bounds is not None and out_of_bounds > 0.85:
             self._bad_trials.add(trial_id)
 
         return trial_id in self._bad_trials

@@ -1,10 +1,11 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import numpy as np
 import random
+
+import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils
@@ -140,7 +141,6 @@ class SceneFixture(SceneAsset, HasOccupancyMap):
         self.occupancy_map_resolution = occupancy_map_resolution
 
     def get_occupancy_map(self):
-
         local_occupancy_map = OccupancyMap.from_occupancy_boundary(
             boundary=self.occupancy_map_boundary, resolution=self.occupancy_map_resolution
         )

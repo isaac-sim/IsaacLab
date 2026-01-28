@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,11 +34,11 @@ for RL-Games :class:`Runner` class:
 # needed to import for allowing type-hinting:gym.spaces.Box | None
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
 import gymnasium
 import torch
-from collections.abc import Callable
-
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 

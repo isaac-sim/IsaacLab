@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,9 +16,9 @@ import os
 
 # Import the function to test
 import tempfile
-import torch
 
 import pytest
+import torch
 
 from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path

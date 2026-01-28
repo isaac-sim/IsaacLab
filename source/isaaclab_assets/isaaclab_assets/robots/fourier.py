@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,8 @@
 The following configuration parameters are available:
 
 * :obj:`GR1T2_CFG`: The GR1T2 humanoid.
-* :obj:`GR1T2_HIGH_PD_CFG`: The GR1T2 humanoid configured with high PD gains on upper body joints for pick-place manipulation tasks.
+* :obj:`GR1T2_HIGH_PD_CFG`: The GR1T2 humanoid configured with high PD gains on upper
+  body joints for pick-place manipulation tasks.
 
 Reference: https://www.fftai.com/products-gr1
 """

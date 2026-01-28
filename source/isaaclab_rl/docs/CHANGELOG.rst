@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.4.7 (2025-12-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :mod:`isaaclab_rl.utils.pretrained_checkpoint` sub-module to handle various pre-trained checkpoint tasks.
+  This module was previously located in the :mod:`isaaclab.utils` module.
+
+
 0.4.6 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~
 

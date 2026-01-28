@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-We modified parts of the environment—such as the target’s position and orientation, as well as certain object properties—to better suit the smaller robot.
+We modified parts of the environment, such as the target's position and orientation,
+as well as certain object properties, to better suit the smaller robot.
 """
 
 from dataclasses import MISSING

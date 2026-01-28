@@ -355,6 +355,10 @@ of ``1/deg`` in the Isaac Sim UI but ``1/rad`` in Isaac Gym Preview Release.
      - 100.0 (rad)
 
 
+For more details on performing thorough simulation comparisons between Isaac Gym and Isaac Lab,
+please refer to the :ref:`migrating-from-isaacgymenvs-comparing-simulation` section.
+
+
 Cloner
 ------
 
@@ -922,6 +926,15 @@ To launch inferencing in Isaac Lab, use the command:
 .. code-block:: bash
 
    python scripts/reinforcement_learning/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+Additional Resources
+~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 1
+
+   comparing_simulation_isaacgym
 
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
