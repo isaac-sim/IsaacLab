@@ -80,14 +80,14 @@ simulation_app = app_launcher.app
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-
-# Import our TactileSensor
-from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
+
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 
 from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
@@ -268,9 +268,13 @@ def save_viz_helper(
                 tactile_shear_force[1, :, :].detach().cpu().numpy(),
             )
             combined_image = np.vstack([tactile_image, tactile_image_1])
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (combined_image * 255).astype(np.uint8))
+            cv2.imwrite(
+                os.path.join(tactile_force_field_dir, f"{count:04d}.png"), (combined_image * 255).astype(np.uint8)
+            )
         else:
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (tactile_image * 255).astype(np.uint8))
+            cv2.imwrite(
+                os.path.join(tactile_force_field_dir, f"{count:04d}.png"), (tactile_image * 255).astype(np.uint8)
+            )
 
     if tactile_data.tactile_rgb_image is not None:
         tactile_rgb_data = tactile_data.tactile_rgb_image.cpu().numpy()
@@ -284,7 +288,7 @@ def save_viz_helper(
                 if tactile_rgb_tiled.max() <= 1.0
                 else tactile_rgb_tiled.astype(np.uint8)
             )
-        cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count}.png"), tactile_rgb_tiled)
+        cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count:04d}.png"), tactile_rgb_tiled)
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -395,6 +399,10 @@ def main():
         scene_cfg.tactile_sensor.contact_object_prim_path_expr = None
         # this flag is to visualize the tactile sensor points
         scene_cfg.tactile_sensor.debug_vis = True
+    else:
+        raise ValueError(
+            f"Invalid contact object type: '{args_cli.contact_object_type}'. Must be 'none', 'cube', or 'nut'."
+        )
 
     scene = InteractiveScene(scene_cfg)
 

@@ -32,8 +32,6 @@ interpretation of the prim paths for different sensor types:
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Imu                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
 +---------------------+---------------------------+---------------------------------------------------------------+
-| Visuo-Tactile Sensor| /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
-+---------------------+---------------------------+---------------------------------------------------------------+
 
 """
 

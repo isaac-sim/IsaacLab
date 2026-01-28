@@ -26,11 +26,12 @@ import omni.replicator.core as rep
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import TiledCameraCfg
-from isaaclab.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 
 # Sample sensor poses
 

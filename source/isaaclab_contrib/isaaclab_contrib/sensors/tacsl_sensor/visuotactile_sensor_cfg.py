@@ -62,12 +62,9 @@ class GelSightRenderCfg:
             )
     """
 
-    base_data_path: str | None = f"{ISAACLAB_NUCLEUS_DIR}/TacSL"
-    """Base path to the directory containing sensor calibration data.
-
-    If ``None``, defaults to Isaac Lab Nucleus directory at
-    ``{ISAACLAB_NUCLEUS_DIR}/TacSL``. Download the data from Nucleus if not present locally.
-    If a custom path is provided, uses the data directly from that location without downloading.
+    base_data_path: str = f"{ISAACLAB_NUCLEUS_DIR}/TacSL"
+    """Base path to the directory containing sensor calibration data. Defaults to
+    Isaac Lab Nucleus directory at ``{ISAACLAB_NUCLEUS_DIR}/TacSL``.
     """
 
     sensor_data_dir_name: str = MISSING
