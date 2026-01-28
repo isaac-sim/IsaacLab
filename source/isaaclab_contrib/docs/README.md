@@ -235,16 +235,16 @@ The TacSL tactile sensor system includes:
 
 #### Configuration Options
 
-- **Elastomer Properties**: 
+- **Elastomer Properties**:
   - Configurable tactile array size (rows × columns of taxels)
   - Adjustable tactile margin for sensor boundaries
   - Compliant contact parameters (stiffness, damping)
-  
+
 - **Physics Parameters**:
   - Normal contact stiffness: Controls elastomer compression response
   - Tangential stiffness: Models lateral resistance to sliding
   - Friction coefficient: Defines surface friction properties
-  
+
 - **Visualization & Debug**:
   - Trimesh visualization of tactile contact points
   - SDF closest point visualization
@@ -267,26 +267,26 @@ tactile_sensor_cfg = VisuoTactileSensorCfg(
     prim_path="{ENV_REGEX_NS}/Robot/elastomer/tactile_sensor",
     history_length=0,
     debug_vis=False,
-    
+
     # Sensor rendering configuration
     render_cfg=GELSIGHT_R15_CFG,  # Use GelSight R15 sensor parameters
-    
+
     # Enable RGB and/or force field sensing
     enable_camera_tactile=True,    # RGB tactile images
     enable_force_field=True,        # Force field data
-    
+
     # Elastomer configuration
     tactile_array_size=(20, 25),   # 20×25 taxel array
     tactile_margin=0.003,           # 3mm sensor margin
-    
+
     # Contact object configuration
     contact_object_prim_path_expr="{ENV_REGEX_NS}/contact_object",
-    
+
     # Force field physics parameters
     normal_contact_stiffness=1.0,   # Normal stiffness (N/mm)
     friction_coefficient=2.0,        # Surface friction
     tangential_stiffness=0.1,        # Tangential stiffness
-    
+
     # Camera configuration (must match render_cfg dimensions)
     camera_cfg=TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
@@ -307,12 +307,12 @@ robot_cfg = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileWithCompliantContactCfg(
         usd_path="path/to/gelsight_finger.usd",
-        
+
         # Compliant contact parameters for elastomer
         compliant_contact_stiffness=100.0,    # Elastomer stiffness
         compliant_contact_damping=10.0,       # Elastomer damping
         physics_material_prim_path="elastomer",  # Prim with compliant contact
-        
+
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
@@ -351,7 +351,7 @@ if tactile_data.tactile_rgb_image is not None:
 if tactile_data.tactile_normal_force is not None:
     normal_forces = tactile_data.tactile_normal_force  # Shape: (num_envs * rows * cols,)
     shear_forces = tactile_data.tactile_shear_force    # Shape: (num_envs * rows * cols, 2)
-    
+
     # Reshape to tactile array dimensions
     num_envs = scene.num_envs
     rows, cols = scene["tactile_sensor"].cfg.tactile_array_size
@@ -370,7 +370,7 @@ The TacSL sensor supports two complementary sensing modalities:
    - Renders realistic tactile images showing contact patterns and deformation
    - Employs the Taxim rendering model for physically-based appearance
    - Outputs RGB images that mimic real GelSight/DIGIT sensors
-   
+
 2. **Force Field Sensing** (`enable_force_field=True`):
    - Computes forces at each taxel (tactile element) in the array
    - Provides normal forces (compression) and shear forces (tangential)
