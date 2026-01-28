@@ -40,7 +40,6 @@ parser.add_argument(
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
-parser.add_argument("--offline", action="store_true", default=False, help="Enable offline mode (use offline_assets)")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -95,7 +94,6 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
     multi_agent_to_single_agent,
 )
-from isaaclab.utils import patch_config_for_offline_mode, setup_offline_mode
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
@@ -112,11 +110,6 @@ logger = logging.getLogger(__name__)
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with stable-baselines agent."""
-    # Handle config to use offline_assets
-    if args_cli.offline:
-        setup_offline_mode()
-        patch_config_for_offline_mode(env_cfg)
-
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)

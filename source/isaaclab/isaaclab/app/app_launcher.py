@@ -115,6 +115,7 @@ class AppLauncher:
         self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: WebRTC public, 2: WebRTC private
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+        self._offline: bool  # 0: Disabled, 1: Enabled
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -137,6 +138,10 @@ class AppLauncher:
         self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
+
+        # Set up offline mode if enabled
+        if self._offline:
+            self._setup_offline_mode()
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -173,6 +178,11 @@ class AppLauncher:
             return self._app
         else:
             raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
+
+    @property
+    def offline(self) -> bool:
+        """Whether offline asset resolution is enabled."""
+        return self._offline
 
     """
     Operations.
@@ -369,6 +379,16 @@ class AppLauncher:
                 " exceeded, then the animation is not recorded."
             ),
         )
+        arg_group.add_argument(
+            "--offline",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["offline"][1],
+            help=(
+                "Enable offline asset resolution. When enabled, asset paths from Nucleus/S3 "
+                "servers are automatically redirected to local storage (offline_assets/). "
+                "Can also be enabled via the OFFLINE environment variable."
+            ),
+        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -389,6 +409,7 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
+        "offline": ([bool], False),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -492,6 +513,9 @@ class AppLauncher:
 
         # Handle device and distributed settings
         self._resolve_device_settings(launcher_args)
+
+        # Handle offline mode settings
+        self._resolve_offline_settings(launcher_args)
 
         # Handle experience file settings
         self._resolve_experience_file(launcher_args)
@@ -704,6 +728,30 @@ class AppLauncher:
 
         print(f"[INFO][AppLauncher]: Using device: {device}")
 
+    def _resolve_offline_settings(self, launcher_args: dict):
+        """Resolve offline mode related settings.
+
+        This method checks both the --offline CLI argument and the OFFLINE
+        environment variable. CLI argument takes precedence.
+        """
+        # Check environment variable
+        offline_env = os.environ.get("OFFLINE", "0").lower() in ("1", "true", "yes")
+
+        # Check CLI argument (pop it so it doesn't get passed to SimulationApp)
+        offline_arg = launcher_args.pop("offline", False)
+
+        # CLI argument takes precedence over environment variable
+        self._offline = offline_arg or offline_env
+
+        if self._offline:
+            print("[INFO][AppLauncher]: Offline mode ENABLED")
+            if offline_arg and offline_env:
+                print("[INFO][AppLauncher]: Both --offline flag and OFFLINE env var are set")
+            elif offline_arg:
+                print("[INFO][AppLauncher]: Enabled via --offline flag")
+            else:
+                print("[INFO][AppLauncher]: Enabled via OFFLINE environment variable")
+
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
         # Check if input keywords contain an 'experience' file setting
@@ -762,6 +810,21 @@ class AppLauncher:
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
         print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
+
+    def _setup_offline_mode(self):
+        """Configure offline asset resolution.
+
+        This method is called after the SimulationApp is created to ensure
+        all necessary modules are available.
+        """
+        try:
+            from isaaclab.utils import setup_offline_mode
+
+            setup_offline_mode()
+            print("[INFO][AppLauncher]: Offline asset resolution configured")
+        except ImportError as e:
+            print(f"[WARN][AppLauncher]: Could not enable offline mode: {e}")
+            print("[WARN][AppLauncher]: Please ensure isaaclab.utils.asset_resolver is available")
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
