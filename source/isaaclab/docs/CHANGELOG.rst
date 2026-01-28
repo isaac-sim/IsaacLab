@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.54.1 (2026-01-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added comprehensive collision behavior test suite in ``test/physics/test_collision_behavior.py``.
+  Tests cover primitive colliders (sphere, box, capsule, cylinder, cone), mesh colliders, and SDF colliders.
+  Includes tests for horizontal collisions, ground collisions, box stacking stability, restitution behavior,
+  momentum conservation, and articulated hand per-finger collision isolation using the Allegro hand.
+
+
 0.54.0 (2026-01-13)
 ~~~~~~~~~~~~~~~~~~~
 
