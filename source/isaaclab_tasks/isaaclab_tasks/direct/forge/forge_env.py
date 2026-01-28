@@ -92,7 +92,7 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
 
         # Update and smooth force values.
-        self.force_sensor_world = self._robot.root_physx_view.get_link_incoming_joint_force()[
+        self.force_sensor_world = self._robot.root_view.get_link_incoming_joint_force()[
             :, self.force_sensor_body_idx
         ]
 

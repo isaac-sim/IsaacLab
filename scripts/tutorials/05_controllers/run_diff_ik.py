@@ -159,7 +159,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
         else:
             # obtain quantities from simulation
-            jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
+            jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
             ee_pose_w = robot.data.body_pose_w[:, robot_entity_cfg.body_ids[0]]
             root_pose_w = robot.data.root_pose_w
             joint_pos = robot.data.joint_pos[:, robot_entity_cfg.joint_ids]

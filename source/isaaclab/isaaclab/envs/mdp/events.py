@@ -208,12 +208,12 @@ class randomize_rigid_body_material(ManagerTermBase):
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
         if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
             self.num_shapes_per_body = []
-            for link_path in self.asset.root_physx_view.link_paths[0]:
+            for link_path in self.asset.root_view.link_paths[0]:
                 link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
-            expected_shapes = self.asset.root_physx_view.max_shapes
+            expected_shapes = self.asset.root_view.max_shapes
             if num_shapes != expected_shapes:
                 raise ValueError(
                     "Randomization term 'randomize_rigid_body_material' failed to parse the number of shapes per body."
@@ -259,12 +259,12 @@ class randomize_rigid_body_material(ManagerTermBase):
             env_ids = env_ids.cpu()
 
         # randomly assign material IDs to the geometries
-        total_num_shapes = self.asset.root_physx_view.max_shapes
+        total_num_shapes = self.asset.root_view.max_shapes
         bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device="cpu")
         material_samples = self.material_buckets[bucket_ids]
 
         # retrieve material buffer from the physics simulation
-        materials = self.asset.root_physx_view.get_material_properties()
+        materials = self.asset.root_view.get_material_properties()
 
         # update material buffer with new samples
         if self.num_shapes_per_body is not None:
@@ -281,7 +281,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             materials[env_ids] = material_samples[:]
 
         # apply to simulation
-        self.asset.root_physx_view.set_material_properties(materials, env_ids)
+        self.asset.root_view.set_material_properties(materials, env_ids)
 
 
 class randomize_rigid_body_mass(ManagerTermBase):
@@ -361,7 +361,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device="cpu")
 
         # get the current masses of the bodies (num_assets, num_bodies)
-        masses = self.asset.root_physx_view.get_masses()
+        masses = self.asset.root_view.get_masses()
 
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -377,7 +377,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = torch.clamp(masses, min=min_mass)  # ensure masses are positive
 
         # set the mass into the physics simulation
-        self.asset.root_physx_view.set_masses(masses, env_ids)
+        self.asset.root_view.set_masses(masses, env_ids)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -385,7 +385,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             ratios = masses[env_ids[:, None], body_ids] / self.asset.data.default_mass[env_ids[:, None], body_ids]
             # scale the inertia tensors by the the ratios
             # since mass randomization is done on default values, we can use the default inertia tensors
-            inertias = self.asset.root_physx_view.get_inertias()
+            inertias = self.asset.root_view.get_inertias()
             if isinstance(self.asset, Articulation):
                 # inertia has shape: (num_envs, num_bodies, 9) for articulation
                 inertias[env_ids[:, None], body_ids] = (
@@ -395,7 +395,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 # inertia has shape: (num_envs, 9) for rigid object
                 inertias[env_ids] = self.asset.data.default_inertia[env_ids] * ratios
             # set the inertia tensors into the physics simulation
-            self.asset.root_physx_view.set_inertias(inertias, env_ids)
+            self.asset.root_view.set_inertias(inertias, env_ids)
 
 
 def randomize_rigid_body_com(
@@ -430,13 +430,13 @@ def randomize_rigid_body_com(
     rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device="cpu").unsqueeze(1)
 
     # get the current com of the bodies (num_assets, num_bodies)
-    coms = asset.root_physx_view.get_coms().clone()
+    coms = asset.root_view.get_coms().clone()
 
     # Randomize the com in range
     coms[env_ids[:, None], body_ids, :3] += rand_samples
 
     # Set the new coms
-    asset.root_physx_view.set_coms(coms, env_ids)
+    asset.root_view.set_coms(coms, env_ids)
 
 
 def randomize_rigid_body_collider_offsets(
@@ -472,7 +472,7 @@ def randomize_rigid_body_collider_offsets(
     # sample collider properties from the given ranges and set into the physics simulation
     # -- rest offsets
     if rest_offset_distribution_params is not None:
-        rest_offset = asset.root_physx_view.get_rest_offsets().clone()
+        rest_offset = asset.root_view.get_rest_offsets().clone()
         rest_offset = _randomize_prop_by_op(
             rest_offset,
             rest_offset_distribution_params,
@@ -481,10 +481,10 @@ def randomize_rigid_body_collider_offsets(
             operation="abs",
             distribution=distribution,
         )
-        asset.root_physx_view.set_rest_offsets(rest_offset, env_ids.cpu())
+        asset.root_view.set_rest_offsets(rest_offset, env_ids.cpu())
     # -- contact offsets
     if contact_offset_distribution_params is not None:
-        contact_offset = asset.root_physx_view.get_contact_offsets().clone()
+        contact_offset = asset.root_view.get_contact_offsets().clone()
         contact_offset = _randomize_prop_by_op(
             contact_offset,
             contact_offset_distribution_params,
@@ -493,7 +493,7 @@ def randomize_rigid_body_collider_offsets(
             operation="abs",
             distribution=distribution,
         )
-        asset.root_physx_view.set_contact_offsets(contact_offset, env_ids.cpu())
+        asset.root_view.set_contact_offsets(contact_offset, env_ids.cpu())
 
 
 def randomize_physics_scene_gravity(
