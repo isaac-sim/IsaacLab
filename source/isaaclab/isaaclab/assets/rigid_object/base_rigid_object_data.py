@@ -61,28 +61,28 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def default_root_pose(self) -> torch.Tensor:
-        """Default root pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, 7).
+        """Default root pose ``[pos, quat]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame.
+        The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, 7).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def default_root_vel(self) -> torch.Tensor:
-        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 6).
+        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame.
 
-        The linear and angular velocities are of the rigid body's center of mass frame.
+        The linear and angular velocities are of the rigid body's center of mass frame. Shape is (num_instances, 6).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def default_root_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-        of the center of mass frame.
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, 13).
         """
         raise NotImplementedError()
 

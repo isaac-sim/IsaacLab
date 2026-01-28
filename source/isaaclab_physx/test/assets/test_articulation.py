@@ -21,12 +21,12 @@ import ctypes
 
 import pytest
 import torch
+from isaaclab_physx.assets import Articulation
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab_physx.assets import Articulation
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg

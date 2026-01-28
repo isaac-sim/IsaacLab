@@ -17,9 +17,9 @@ from pxr import PhysxSchema, UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 
-from isaaclab.assets.asset_base import AssetBase
 from .deformable_object_data import DeformableObjectData
 
 if TYPE_CHECKING:

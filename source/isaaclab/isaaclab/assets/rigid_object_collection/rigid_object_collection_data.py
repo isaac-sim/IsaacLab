@@ -12,7 +12,9 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_rigid_object_collection_data import BaseRigidObjectCollectionData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData as PhysXRigidObjectCollectionData
+    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import (
+        RigidObjectCollectionData as PhysXRigidObjectCollectionData,
+    )
 
 
 class RigidObjectCollectionData(FactoryBase):

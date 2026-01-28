@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import weakref
 import logging
+import weakref
 
 import torch
 
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
+from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.sim.utils.stage import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
-from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     @is_primed.setter
     def is_primed(self, value: bool) -> None:
         """Set whether the rigid object collection data is fully instantiated and ready to use.
-        
+
         .. note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -123,19 +123,19 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def default_body_pose(self) -> torch.Tensor:
-        """Default body pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, num_bodies, 7).
+        """Default body pose ``[pos, quat]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame.
+        The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, num_bodies, 7).
         """
         return self._default_body_pose
 
     @default_body_pose.setter
     def default_body_pose(self, value: torch.Tensor) -> None:
         """Set the default body pose.
-        
+
         Args:
             value: The default body pose. Shape is (num_instances, num_bodies, 7).
-        
+
         Raises:
             ValueError: If the rigid object collection data is already primed.
         """
@@ -143,22 +143,22 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             raise ValueError("The rigid object collection data is already primed.")
         self._default_body_pose = value
 
-
     @property
     def default_body_vel(self) -> torch.Tensor:
-        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 6).
+        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is
 
-        The linear and angular velocities are of the rigid body's center of mass frame.
+        The linear and angular velocities are of the rigid body's center of mass frame. Shape is
+        (num_instances, num_bodies, 6).
         """
         return self._default_body_vel
 
     @default_body_vel.setter
     def default_body_vel(self, value: torch.Tensor) -> None:
         """Set the default body velocity.
-        
+
         Args:
             value: The default body velocity. Shape is (num_instances, num_bodies, 6).
-        
+
         Raises:
             ValueError: If the rigid object collection data is already primed.
         """
@@ -168,30 +168,35 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def default_body_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 13).
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-        of the center of mass frame.
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
         """
-        logger.warning("Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_body_pose and default_body_vel properties instead.")
+        logger.warning(
+            "Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_body_pose and default_body_vel properties instead."
+        )
         return torch.cat([self.default_body_pose, self.default_body_vel], dim=-1)
 
     @default_body_state.setter
     def default_body_state(self, value: torch.Tensor) -> None:
         """Set the default body state.
-        
+
         Args:
             value: The default body state. Shape is (num_instances, num_bodies, 13).
 
         Raises:
             ValueError: If the rigid object collection data is already primed.
         """
-        logger.warning("Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_root_pose and default_root_vel properties instead.")
+        logger.warning(
+            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_root_pose and default_root_vel properties instead."
+        )
         if self._is_primed:
             raise ValueError("The rigid object collection data is already primed.")
         self._default_body_pose = value[:, :, :7]
         self._default_body_vel = value[:, :, 7:]
-
 
     """
     Body state properties.
@@ -530,6 +535,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Body properties
         self._body_mass = self._root_view.get_masses().to(self.device).clone()
         self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+
     """
     Properties for backwards compatibility.
     """
@@ -551,7 +557,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             " `default_body_vel` instead."
         )
         return self.default_body_vel
-    
+
     @property
     def default_object_state(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_body_state` instead."""
@@ -601,8 +607,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_state_w(self):
         """Deprecated property. Please use :attr:`body_state_w` instead."""
         logger.warning(
-            "The `object_state_w` property will be deprecated in a future release. Please use"
-            " `body_state_w` instead."
+            "The `object_state_w` property will be deprecated in a future release. Please use `body_state_w` instead."
         )
         return self.body_state_w
 
@@ -799,8 +804,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         logger.warning(
-            "The `object_pos_w` property will be deprecated in a future release. Please use"
-            " `body_link_pos_w` instead."
+            "The `object_pos_w` property will be deprecated in a future release. Please use `body_link_pos_w` instead."
         )
         return self.body_link_pos_w
 
@@ -817,8 +821,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         logger.warning(
-            "The `object_vel_w` property will be deprecated in a future release. Please use"
-            " `body_com_vel_w` instead."
+            "The `object_vel_w` property will be deprecated in a future release. Please use `body_com_vel_w` instead."
         )
         return self.body_com_vel_w
 
@@ -862,8 +865,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         logger.warning(
-            "The `object_acc_w` property will be deprecated in a future release. Please use"
-            " `body_com_acc_w` instead."
+            "The `object_acc_w` property will be deprecated in a future release. Please use `body_com_acc_w` instead."
         )
         return self.body_com_acc_w
 
@@ -889,8 +891,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def com_pos_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         logger.warning(
-            "The `com_pos_b` property will be deprecated in a future release. Please use"
-            " `body_com_pos_b` instead."
+            "The `com_pos_b` property will be deprecated in a future release. Please use `body_com_pos_b` instead."
         )
         return self.body_com_pos_b
 
@@ -898,8 +899,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def com_quat_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         logger.warning(
-            "The `com_quat_b` property will be deprecated in a future release. Please use"
-            " `body_com_quat_b` instead."
+            "The `com_quat_b` property will be deprecated in a future release. Please use `body_com_quat_b` instead."
         )
         return self.body_com_quat_b
 

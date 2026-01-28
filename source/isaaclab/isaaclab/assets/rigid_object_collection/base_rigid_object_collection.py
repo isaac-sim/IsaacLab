@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-import torch
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -172,7 +173,8 @@ class BaseRigidObjectCollection(AssetBase):
         """Set the bodies state over selected environment indices into the simulation.
 
         The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame. Shape is (len(env_ids), len(body_ids), 13).
+        and angular velocity. All the quantities are in the simulation frame. Shape is
+            (len(env_ids), len(body_ids), 13).
 
         Args:
             body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).
@@ -306,7 +308,8 @@ class BaseRigidObjectCollection(AssetBase):
         ..note:: This sets the velocity of the body's center of mass rather than the body's frame.
 
         Args:
-            body_velocities: Body center of mass velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
+            body_velocities: Body center of mass velocities in simulation frame. Shape is
+                (len(env_ids), len(body_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -363,7 +366,8 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
         raise NotImplementedError()
 
@@ -429,7 +433,8 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+                Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,

@@ -166,10 +166,8 @@ class DeformableObjectData:
         """
         if self._sim_element_deform_gradient_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._sim_element_deform_gradient_w.data = (
-                self._root_view.get_sim_element_deformation_gradients().view(
-                    self._root_view.count, -1, 3, 3
-                )
+            self._sim_element_deform_gradient_w.data = self._root_view.get_sim_element_deformation_gradients().view(
+                self._root_view.count, -1, 3, 3
             )
             self._sim_element_deform_gradient_w.timestamp = self._sim_timestamp
         return self._sim_element_deform_gradient_w.data
@@ -181,8 +179,8 @@ class DeformableObjectData:
         """
         if self._collision_element_deform_gradient_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._collision_element_deform_gradient_w.data = (
-                self._root_view.get_element_deformation_gradients().view(self._root_view.count, -1, 3, 3)
+            self._collision_element_deform_gradient_w.data = self._root_view.get_element_deformation_gradients().view(
+                self._root_view.count, -1, 3, 3
             )
             self._collision_element_deform_gradient_w.timestamp = self._sim_timestamp
         return self._collision_element_deform_gradient_w.data

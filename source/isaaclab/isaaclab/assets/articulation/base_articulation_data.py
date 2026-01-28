@@ -63,28 +63,29 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def default_root_pose(self) -> torch.Tensor:
-        """Default root pose ``[pos, quat]`` in the local environment frame. Shape is (num_instances, 7).
+        """Default root pose ``[pos, quat]`` in the local environment frame.
 
-        The position and quaternion are of the articulation root's actor frame.
+        The position and quaternion are of the articulation root's actor frame. Shape is (num_instances, 7).
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def default_root_vel(self) -> torch.Tensor:
-        """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 6).
+        """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         The linear and angular velocities are of the articulation root's center of mass frame.
+        Shape is (num_instances, 6).
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def default_root_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
 
         The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-        velocities are of its center of mass frame.
+        velocities are of its center of mass frame. Shape is (num_instances, 13).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
@@ -414,11 +415,11 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_com_state_w(self) -> torch.Tensor:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia.
+        orientation of the principle inertia. Shape is (num_instances, 13).
         """
         raise NotImplementedError
 
@@ -544,8 +545,11 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
         world of an articulation.
 
-        For more information on joint wrenches, please check the`PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force>`__
-        and the underlying `PhysX Tensor API <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force>`__ .
+        For more information on joint wrenches, please check the `PhysX documentation`_ and the
+        underlying `PhysX Tensor API`_.
+
+        .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
+        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
         """
         raise NotImplementedError
 

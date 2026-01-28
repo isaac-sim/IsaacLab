@@ -21,12 +21,12 @@ import ctypes
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
 import carb
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
 
 

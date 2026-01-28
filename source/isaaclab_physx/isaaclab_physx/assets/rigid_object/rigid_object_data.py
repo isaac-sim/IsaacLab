@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import weakref
 import logging
+import weakref
 
 import torch
 
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.utils.math as math_utils
+from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.sim.utils.stage import get_current_stage_id
 from isaaclab.utils.buffers import TimestampedBuffer
-from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class RigidObjectData(BaseRigidObjectData):
     @is_primed.setter
     def is_primed(self, value: bool) -> None:
         """Set whether the rigid object data is fully instantiated and ready to use.
-        
+
         .. note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -126,17 +126,16 @@ class RigidObjectData(BaseRigidObjectData):
     @default_root_pose.setter
     def default_root_pose(self, value: torch.Tensor) -> None:
         """Set the default root pose.
-        
+
         Args:
             value: The default root pose. Shape is (num_instances, 7).
-        
+
         Raises:
             ValueError: If the rigid object data is already primed.
         """
         if self._is_primed:
             raise ValueError("The rigid object data is already primed.")
         self._default_root_pose = value
-
 
     @property
     def default_root_vel(self) -> torch.Tensor:
@@ -149,10 +148,10 @@ class RigidObjectData(BaseRigidObjectData):
     @default_root_vel.setter
     def default_root_vel(self, value: torch.Tensor) -> None:
         """Set the default root velocity.
-        
+
         Args:
             value: The default root velocity. Shape is (num_instances, 6).
-        
+
         Raises:
             ValueError: If the rigid object data is already primed.
         """
@@ -162,25 +161,31 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def default_root_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-        of the center of mass frame.
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, 13).
         """
-        logger.warning("Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_root_pose and default_root_vel properties instead.")
+        logger.warning(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_root_pose and default_root_vel properties instead."
+        )
         return torch.cat([self.default_root_pose, self.default_root_vel], dim=1)
 
     @default_root_state.setter
     def default_root_state(self, value: torch.Tensor) -> None:
         """Set the default root state.
-        
+
         Args:
             value: The default root state. Shape is (num_instances, 13).
 
         Raises:
             ValueError: If the rigid object data is already primed.
         """
-        logger.warning("Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_root_pose and default_root_vel properties instead.")
+        logger.warning(
+            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_root_pose and default_root_vel properties instead."
+        )
         if self._is_primed:
             raise ValueError("The rigid object data is already primed.")
         self._default_root_pose = value[:, :7]

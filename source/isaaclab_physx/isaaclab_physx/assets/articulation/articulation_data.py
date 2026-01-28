@@ -11,8 +11,8 @@ import torch
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 
-from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 import isaaclab.utils.math as math_utils
+from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer
 
 # import logger
@@ -78,7 +78,7 @@ class ArticulationData(BaseArticulationData):
     @is_primed.setter
     def is_primed(self, value: bool) -> None:
         """Set whether the articulation data is fully instantiated and ready to use.
-        
+
         .. note:: Once this quantity is set to True, it cannot be changed.
 
         Args:
@@ -90,7 +90,6 @@ class ArticulationData(BaseArticulationData):
         if self._is_primed:
             raise ValueError("The articulation data is already primed.")
         self._is_primed = True
-
 
     def update(self, dt: float) -> None:
         """Updates the data for the articulation.
@@ -126,16 +125,16 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def default_root_pose(self) -> torch.Tensor:
-        """Default root pose ``[pos, quat]`` in the local environment frame. Shape is (num_instances, 7).
+        """Default root pose ``[pos, quat]`` in the local environment frame.
 
-        The position and quaternion are of the articulation root's actor frame.
+        The position and quaternion are of the articulation root's actor frame. Shape is (num_instances, 7).
         """
         return self._default_root_pose
 
     @default_root_pose.setter
     def default_root_pose(self, value: torch.Tensor) -> None:
         """Set the default root pose.
-        
+
         Args:
             value: The default root pose. Shape is (num_instances, 7).
 
@@ -148,16 +147,17 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def default_root_vel(self) -> torch.Tensor:
-        """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 6).
+        """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         The linear and angular velocities are of the articulation root's center of mass frame.
+        Shape is (num_instances, 6).
         """
         return self._default_root_vel
 
     @default_root_vel.setter
     def default_root_vel(self, value: torch.Tensor) -> None:
         """Set the default root velocity.
-        
+
         Args:
             value: The default root velocity. Shape is (num_instances, 6).
 
@@ -170,27 +170,34 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def default_root_state(self) -> torch.Tensor:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
+
 
         The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-        velocities are of its center of mass frame.
+        velocities are of its center of mass frame. Shape is (num_instances, 13).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
-        logger.warning("Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_root_pose and default_root_vel properties instead.")
+        logger.warning(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_root_pose and default_root_vel properties instead."
+        )
         return torch.cat([self._default_root_pose, self._default_root_vel], dim=1)
 
     @default_root_state.setter
     def default_root_state(self, value: torch.Tensor) -> None:
         """Set the default root state.
-        
+
         Args:
             value: The default root state. Shape is (num_instances, 13).
 
         Raises:
             ValueError: If the articulation data is already primed.
         """
-        logger.warning("Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. Please use the default_root_pose and default_root_vel properties instead.")
+        logger.warning(
+            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
+            Please use the default_root_pose and default_root_vel properties instead."
+        )
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
         self._default_root_pose = value[:, :7]
@@ -207,7 +214,7 @@ class ArticulationData(BaseArticulationData):
     @default_joint_pos.setter
     def default_joint_pos(self, value: torch.Tensor) -> None:
         """Set the default joint positions.
-        
+
         Args:
             value: The default joint positions. Shape is (num_instances, num_joints).
 
@@ -229,7 +236,7 @@ class ArticulationData(BaseArticulationData):
     @default_joint_vel.setter
     def default_joint_vel(self, value: torch.Tensor) -> None:
         """Set the default joint velocities.
-        
+
         Args:
             value: The default joint velocities. Shape is (num_instances, num_joints).
 
@@ -552,11 +559,11 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def root_com_state_w(self) -> torch.Tensor:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia.
+        orientation of the principle inertia. Shape is (num_instances, 13).
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._root_com_state_w.data = torch.cat((self.root_com_pose_w, self.root_com_vel_w), dim=-1)
@@ -1056,11 +1063,11 @@ class ArticulationData(BaseArticulationData):
         self._joint_damping = self._root_view.get_dof_dampings().to(self.device).clone()
         self._joint_armature = self._root_view.get_dof_armatures().to(self.device).clone()
         friction_props = self._root_view.get_dof_friction_properties()
-        self._joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone() 
+        self._joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone()
         self._joint_dynamic_friction_coeff = friction_props[:, :, 1].to(self.device).clone()
         self._joint_viscous_friction_coeff = friction_props[:, :, 2].to(self.device).clone()
         self._joint_pos_limits = self._root_view.get_dof_limits().to(self.device).clone()
-        self._joint_vel_limits = self._root_view.get_dof_max_velocities().to(self.device).clone() 
+        self._joint_vel_limits = self._root_view.get_dof_max_velocities().to(self.device).clone()
         self._joint_effort_limits = self._root_view.get_dof_max_forces().to(self.device).clone()
         # -- Joint properties (custom)
         self._soft_joint_pos_limits = torch.zeros((self._root_view.count, num_dofs, 2), device=self.device)
@@ -1070,7 +1077,9 @@ class ArticulationData(BaseArticulationData):
         if num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = self._root_view.get_fixed_tendon_stiffnesses().to(self.device).clone()
             self._fixed_tendon_damping = self._root_view.get_fixed_tendon_dampings().to(self.device).clone()
-            self._fixed_tendon_limit_stiffness =  self._root_view.get_fixed_tendon_limit_stiffnesses().to(self.device).clone()
+            self._fixed_tendon_limit_stiffness = (
+                self._root_view.get_fixed_tendon_limit_stiffnesses().to(self.device).clone()
+            )
             self._fixed_tendon_rest_length = self._root_view.get_fixed_tendon_rest_lengths().to(self.device).clone()
             self._fixed_tendon_offset = self._root_view.get_fixed_tendon_offsets().to(self.device).clone()
             self._fixed_tendon_pos_limits = self._root_view.get_fixed_tendon_limits().to(self.device).clone()
@@ -1085,7 +1094,9 @@ class ArticulationData(BaseArticulationData):
         if num_spatial_tendons > 0:
             self._spatial_tendon_stiffness = self._root_view.get_spatial_tendon_stiffnesses().to(self.device).clone()
             self._spatial_tendon_damping = self._root_view.get_spatial_tendon_dampings().to(self.device).clone()
-            self._spatial_tendon_limit_stiffness = self._root_view.get_spatial_tendon_limit_stiffnesses().to(self.device).clone()
+            self._spatial_tendon_limit_stiffness = (
+                self._root_view.get_spatial_tendon_limit_stiffnesses().to(self.device).clone()
+            )
             self._spatial_tendon_offset = self._root_view.get_spatial_tendon_offsets().to(self.device).clone()
         else:
             self._spatial_tendon_stiffness = None
@@ -1378,16 +1389,18 @@ class ArticulationData(BaseArticulationData):
     def default_joint_dynamic_friction_coeff(self) -> torch.Tensor:
         """Removed: Default joint dynamic friction coefficient is no longer stored."""
         raise RuntimeError(
-            "The property 'default_joint_dynamic_friction_coeff' has been removed. Default values are no longer stored. "
-            "Please use 'joint_dynamic_friction_coeff' to get the current dynamic friction coefficient values from the simulation."
+            "The property 'default_joint_dynamic_friction_coeff' has been removed. Default values are no longer "
+            "stored. Please use 'joint_dynamic_friction_coeff' to get the current dynamic friction coefficient values"
+            " from the simulation."
         )
 
     @property
     def default_joint_viscous_friction_coeff(self) -> torch.Tensor:
         """Removed: Default joint viscous friction coefficient is no longer stored."""
         raise RuntimeError(
-            "The property 'default_joint_viscous_friction_coeff' has been removed. Default values are no longer stored. "
-            "Please use 'joint_viscous_friction_coeff' to get the current viscous friction coefficient values from the simulation."
+            "The property 'default_joint_viscous_friction_coeff' has been removed. Default values are no longer "
+            "stored. Please use 'joint_viscous_friction_coeff' to get the current viscous friction coefficient values"
+            " from the simulation."
         )
 
     @property
@@ -1418,8 +1431,9 @@ class ArticulationData(BaseArticulationData):
     def default_fixed_tendon_limit_stiffness(self) -> torch.Tensor:
         """Removed: Default fixed tendon limit stiffness is no longer stored."""
         raise RuntimeError(
-            "The property 'default_fixed_tendon_limit_stiffness' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_limit_stiffness' to get the current limit stiffness values from the simulation."
+            "The property 'default_fixed_tendon_limit_stiffness' has been removed. Default values are no longer "
+            "stored. Please use 'fixed_tendon_limit_stiffness' to get the current limit stiffness values from the "
+            "simulation."
         )
 
     @property
@@ -1466,8 +1480,9 @@ class ArticulationData(BaseArticulationData):
     def default_spatial_tendon_limit_stiffness(self) -> torch.Tensor:
         """Removed: Default spatial tendon limit stiffness is no longer stored."""
         raise RuntimeError(
-            "The property 'default_spatial_tendon_limit_stiffness' has been removed. Default values are no longer stored. "
-            "Please use 'spatial_tendon_limit_stiffness' to get the current limit stiffness values from the simulation."
+            "The property 'default_spatial_tendon_limit_stiffness' has been removed. Default values are no longer "
+            "stored. Please use 'spatial_tendon_limit_stiffness' to get the current limit stiffness values from the "
+            "simulation."
         )
 
     @property

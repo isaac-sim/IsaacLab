@@ -63,28 +63,30 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def default_body_pose(self) -> torch.Tensor:
-        """Default body pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, num_bodies, 7).
+        """Default body pose ``[pos, quat]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame.
+        The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, num_bodies, 7).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def default_body_vel(self) -> torch.Tensor:
-        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 6).
+        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is
 
-        The linear and angular velocities are of the rigid body's center of mass frame.
+
+        The linear and angular velocities are of the rigid body's center of mass frame. Shape is
+        (num_instances, num_bodies, 6).
         """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def default_body_state(self) -> torch.Tensor:
-        """Default body state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, num_bodies, 13).
+        """Default body state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
 
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-        of the center of mass frame.
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
         """
         raise NotImplementedError()
 

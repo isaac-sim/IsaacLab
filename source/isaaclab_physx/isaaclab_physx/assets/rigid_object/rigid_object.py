@@ -19,8 +19,8 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from .rigid_object_data import RigidObjectData
 
@@ -187,9 +187,7 @@ class RigidObject(BaseRigidObject):
     Operations - Finders.
     """
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -410,7 +408,6 @@ class RigidObject(BaseRigidObject):
         # write transformed velocity in CoM frame to sim
         self.write_root_com_velocity_to_sim(root_com_velocity, env_ids=env_ids)
 
-
     """
     Operations - Setters.
     """
@@ -454,7 +451,8 @@ class RigidObject(BaseRigidObject):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
         # resolve indices
         physx_env_ids = env_ids
@@ -544,7 +542,8 @@ class RigidObject(BaseRigidObject):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+                Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
@@ -673,14 +672,8 @@ class RigidObject(BaseRigidObject):
         # default state
         # -- root state
         # note: we cast to tuple to avoid torch/numpy type mismatch.
-        default_root_pose = (
-            tuple(self.cfg.init_state.pos)
-            + tuple(self.cfg.init_state.rot)
-        )
-        default_root_vel = (
-            tuple(self.cfg.init_state.lin_vel)
-            + tuple(self.cfg.init_state.ang_vel)
-        )
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
+        default_root_vel = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
         default_root_pose = torch.tensor(default_root_pose, dtype=torch.float, device=self.device)
         default_root_vel = torch.tensor(default_root_vel, dtype=torch.float, device=self.device)
         self._data.default_root_pose = default_root_pose.repeat(self.num_instances, 1)

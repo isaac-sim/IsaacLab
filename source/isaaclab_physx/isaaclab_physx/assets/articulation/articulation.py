@@ -24,11 +24,11 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
 
 class Articulation(BaseArticulation):
     """An articulation asset class.
@@ -263,9 +264,7 @@ class Articulation(BaseArticulation):
     Operations - Finders.
     """
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -950,7 +949,8 @@ class Articulation(BaseArticulation):
         Args:
             joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the dynamic friction coefficient for. Defaults to None (all joints).
-            env_ids: The environment indices to set the dynamic friction coefficient for. Defaults to None (all environments).
+            env_ids: The environment indices to set the dynamic friction coefficient for. Defaults to None
+                (all environments).
         """
         if get_isaac_sim_version().major < 5:
             logger.warning("Setting joint dynamic friction coefficients are not supported in Isaac Sim < 5.0")
@@ -983,7 +983,8 @@ class Articulation(BaseArticulation):
         Args:
             joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the viscous friction coefficient for. Defaults to None (all joints).
-            env_ids: The environment indices to set the viscous friction coefficient for. Defaults to None (all environments).
+            env_ids: The environment indices to set the viscous friction coefficient for. Defaults to None
+                (all environments).
         """
         if get_isaac_sim_version().major < 5:
             logger.warning("Setting joint viscous friction coefficients are not supported in Isaac Sim < 5.0")
@@ -1136,9 +1137,9 @@ class Articulation(BaseArticulation):
             right before the simulation step.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3).
-            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3). Defaults to None.
+            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
@@ -1490,11 +1491,13 @@ class Articulation(BaseArticulation):
         """Set spatial tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim`
+        function.
 
 
         Args:
-            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons).
+            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons).
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
@@ -1911,7 +1914,6 @@ class Articulation(BaseArticulation):
             if hasattr(actuator, "gear_ratio"):
                 self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
 
-
     """
     Internal helpers -- Debugging.
     """
@@ -1959,7 +1961,8 @@ class Articulation(BaseArticulation):
     def _log_articulation_info(self):
         """Log information about the articulation.
 
-        .. note:: We purposefully read the values from the simulator to ensure that the values are configured as expected.
+        .. note:: We purposefully read the values from the simulator to ensure that the values are configured as
+            expected.
         """
 
         # define custom formatters for large numbers and limit ranges

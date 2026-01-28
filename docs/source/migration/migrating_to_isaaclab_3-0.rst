@@ -250,4 +250,3 @@ Here's a complete example showing how to update your code:
    collection = scene["object_collection"]
    poses = collection.data.body_pose_w
    collection.write_body_state_to_sim(state, env_ids=env_ids, body_ids=object_ids)
-

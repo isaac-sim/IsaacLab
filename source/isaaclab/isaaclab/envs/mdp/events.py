@@ -20,6 +20,7 @@ import re
 from typing import TYPE_CHECKING, Literal
 
 import torch
+from isaaclab_physx.assets import DeformableObject
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -30,7 +31,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, RigidObject
-from isaaclab_physx.assets import DeformableObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
@@ -574,7 +574,7 @@ class randomize_actuator_gains(ManagerTermBase):
 
         self.default_joint_stiffness = self.asset.data.joint_stiffness.clone()
         self.default_joint_damping = self.asset.data.joint_damping.clone()
-        
+
         # check for valid operation
         if cfg.params["operation"] == "scale":
             if "stiffness_distribution_params" in cfg.params:
@@ -635,9 +635,7 @@ class randomize_actuator_gains(ManagerTermBase):
             # Randomize stiffness
             if stiffness_distribution_params is not None:
                 stiffness = actuator.stiffness[env_ids].clone()
-                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][
-                    :, global_indices
-                ].clone()
+                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
                 randomize(stiffness, stiffness_distribution_params)
                 actuator.stiffness[env_ids] = stiffness
                 if isinstance(actuator, ImplicitActuator):

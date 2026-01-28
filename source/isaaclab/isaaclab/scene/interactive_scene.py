@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
 import carb
 from isaacsim.core.cloner import GridCloner
@@ -23,9 +24,6 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
-
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg, VisuoTactileSensorCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id

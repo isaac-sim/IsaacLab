@@ -22,9 +22,9 @@ from typing import Literal
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.assets import RigidObject
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.assets import RigidObject
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials

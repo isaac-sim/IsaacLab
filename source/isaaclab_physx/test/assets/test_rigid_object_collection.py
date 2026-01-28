@@ -20,10 +20,10 @@ import ctypes
 
 import pytest
 import torch
+from isaaclab_physx.assets import RigidObjectCollection
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.assets import RigidObjectCollection
-from isaaclab.assets import RigidObjectCollectionCfg, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -668,9 +668,7 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 
     # Add friction to cube
     indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
-    object_collection.root_view.set_material_properties(
-        object_collection.reshape_data_to_view(materials), indices
-    )
+    object_collection.root_view.set_material_properties(object_collection.reshape_data_to_view(materials), indices)
 
     # Perform simulation
     sim.step()

@@ -8,12 +8,11 @@
 
 from __future__ import annotations
 
-import torch
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import warp as wp
+import torch
 
 from ..asset_base import AssetBase
 
@@ -224,9 +223,7 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -418,7 +415,8 @@ class BaseArticulation(AssetBase):
         ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -435,7 +433,8 @@ class BaseArticulation(AssetBase):
         ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -452,7 +451,8 @@ class BaseArticulation(AssetBase):
         ..note:: This sets the velocity of the root's frame rather than the roots center of mass.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -634,12 +634,12 @@ class BaseArticulation(AssetBase):
         to resist the joint motion.
 
         Args:
-            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)) or
+                (num_instances, num_joints).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
         raise NotImplementedError()
-
 
     """
     Operations - Setters.
@@ -673,7 +673,8 @@ class BaseArticulation(AssetBase):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
         raise NotImplementedError()
 
@@ -737,9 +738,12 @@ class BaseArticulation(AssetBase):
             right before the simulation step.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3).
-            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3) or (num_instances, num_bodies, 3). Defaults to None.
+            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or
+                (num_instances, num_bodies, 3).
+            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or
+                (num_instances, num_bodies, 3).
+            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3) or
+                (num_instances, num_bodies, 3). Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
@@ -818,10 +822,12 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim`
+        function.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
@@ -840,7 +846,8 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
@@ -856,10 +863,12 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim`
+        function.
 
         Args:
-            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
@@ -878,7 +887,8 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
          Args:
-             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons).
              fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
              env_ids: The environment indices to set the limit for. Defaults to None (all environments).
         """
@@ -894,10 +904,12 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon rest length efforts into internal buffers.
 
         This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim`
+        function.
 
         Args:
-            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+            (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the rest length for. Defaults to None (all environments).
         """
@@ -916,7 +928,8 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
         Args:
-            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons).
+            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
@@ -946,10 +959,12 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon stiffness into internal buffers.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon stiffness, call the :meth:`write_spatial_tendon_properties_to_sim`
+        function.
 
         Args:
-            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons).
+            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons).
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
@@ -965,11 +980,13 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim`
+        function.
 
 
         Args:
-            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons).
+            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons).
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
         """
@@ -985,11 +1002,14 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim`
+        function.
 
         Args:
-            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons).
-            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons).
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None
+                (all spatial tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
         """
         raise NotImplementedError()
@@ -1004,10 +1024,12 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon offset, call the :meth:`write_spatial_tendon_properties_to_sim`
+        function.
 
         Args:
-            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons).
+            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons).
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
         """
@@ -1022,7 +1044,8 @@ class BaseArticulation(AssetBase):
         """Write spatial tendon properties into the simulation.
 
         Args:
-            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None (all spatial tendons).
+            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None
+                (all spatial tendons).
             env_ids: The environment indices to set the properties for. Defaults to None (all environments).
         """
         raise NotImplementedError()

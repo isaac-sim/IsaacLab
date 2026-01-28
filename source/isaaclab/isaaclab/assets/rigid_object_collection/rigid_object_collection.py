@@ -14,7 +14,9 @@ from .base_rigid_object_collection_data import BaseRigidObjectCollectionData
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets.rigid_object_collection import RigidObjectCollection as PhysXRigidObjectCollection
-    from isaaclab_physx.assets.rigid_object_collection import RigidObjectCollectionData as PhysXRigidObjectCollectionData
+    from isaaclab_physx.assets.rigid_object_collection import (
+        RigidObjectCollectionData as PhysXRigidObjectCollectionData,
+    )
 
 
 class RigidObjectCollection(FactoryBase, BaseRigidObjectCollection):

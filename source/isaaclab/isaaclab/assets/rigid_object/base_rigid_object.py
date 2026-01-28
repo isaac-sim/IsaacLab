@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-import torch
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -142,9 +143,7 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -275,7 +274,8 @@ class BaseRigidObject(AssetBase):
         ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -292,7 +292,8 @@ class BaseRigidObject(AssetBase):
         ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -309,7 +310,8 @@ class BaseRigidObject(AssetBase):
         ..note:: This sets the velocity of the root's frame rather than the roots center of mass.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -346,7 +348,8 @@ class BaseRigidObject(AssetBase):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
         raise NotImplementedError()
 
@@ -412,7 +415,8 @@ class BaseRigidObject(AssetBase):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+                Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,

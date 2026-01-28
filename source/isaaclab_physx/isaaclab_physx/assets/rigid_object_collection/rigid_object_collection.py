@@ -20,8 +20,8 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from .rigid_object_collection_data import RigidObjectCollectionData
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
 
 class RigidObjectCollection(BaseRigidObjectCollection):
     """A rigid object collection class.
@@ -241,7 +242,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set the bodies state over selected environment indices into the simulation.
 
         The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame. Shape is (len(env_ids), len(body_ids), 13).
+        and angular velocity. All the quantities are in the simulation frame. Shape is
+        (len(env_ids), len(body_ids), 13).
 
         Args:
             body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).
@@ -433,7 +435,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         ..note:: This sets the velocity of the body's center of mass rather than the body's frame.
 
         Args:
-            body_velocities: Body center of mass velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
+            body_velocities: Body center of mass velocities in simulation frame. Shape is
+                (len(env_ids), len(body_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -533,7 +536,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
 
     def set_inertias(
@@ -595,7 +599,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+                Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
@@ -624,7 +629,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
             )
-        elif not isinstance(object_ids, torch.Tensor):
+        elif not isinstance(body_ids, torch.Tensor):
             body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
         else:
             body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
@@ -766,14 +771,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         default_body_poses = []
         default_body_vels = []
         for rigid_object_cfg in self.cfg.rigid_objects.values():
-            default_body_pose = (
-                tuple(rigid_object_cfg.init_state.pos)
-                + tuple(rigid_object_cfg.init_state.rot)
-            )
-            default_body_vel = (
-                tuple(rigid_object_cfg.init_state.lin_vel)
-                + tuple(rigid_object_cfg.init_state.ang_vel)
-            )
+            default_body_pose = tuple(rigid_object_cfg.init_state.pos) + tuple(rigid_object_cfg.init_state.rot)
+            default_body_vel = tuple(rigid_object_cfg.init_state.lin_vel) + tuple(rigid_object_cfg.init_state.ang_vel)
             default_body_pose = (
                 torch.tensor(default_body_pose, dtype=torch.float, device=self.device)
                 .repeat(self.num_instances, 1)
@@ -989,7 +988,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     ) -> tuple[torch.Tensor, list[str], list[int]]:
         """Deprecated method. Please use :meth:`find_bodies` instead."""
         logger.warning(
-            "The `find_objects` method will be deprecated in a future release. Please use"
-            " `find_bodies` instead."
+            "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead."
         )
         return self.find_bodies(name_keys, preserve_order)
