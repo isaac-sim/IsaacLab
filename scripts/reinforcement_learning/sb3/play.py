@@ -45,7 +45,6 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 parser.add_argument("--offline", action="store_true", default=False, help="Enable offline mode (use offline_assets)")
-
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
