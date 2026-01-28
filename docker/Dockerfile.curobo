@@ -126,6 +126,14 @@ RUN touch /bin/nvidia-smi && \
 # rather than skipping because it detects the pre-bundled version.
 RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
 
+# HACK: Reinstall pip properly after removing prebundled packages
+# The removal of torch* corrupts pip's vendor packages (_structures.py is deleted).
+# We must completely remove pip first, then do a clean install.
+RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
+    wget -q https://bootstrap.pypa.io/get-pip.py && \
+    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
+    rm get-pip.py
+
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
