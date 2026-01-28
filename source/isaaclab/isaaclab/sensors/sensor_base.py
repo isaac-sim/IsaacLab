@@ -207,7 +207,8 @@ class SensorBase(ABC):
         """Resets the sensor internals.
 
         Args:
-            env_ids: The sensor ids to reset. Defaults to None.
+            env_ids: The sensor ids to reset. Defaults to None (all instances).
+            env_mask: The sensor mask to reset. Defaults to None (all instances).
         """
         # Resolve sensor ids
         if env_ids is None:

@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
+import logging
 import numpy as np
 import re
 
 import warp as wp
-from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.examples import create_collision_pipeline
+from newton import Axis, BroadPhaseMode, CollisionPipelineUnified, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
@@ -18,6 +18,8 @@ from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverN
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
+
+logger = logging.getLogger(__name__)
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -52,7 +54,7 @@ class NewtonManager:
     _contacts: Contacts = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
-    _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
+    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _report_contacts: bool = False
     _graph = None
     _newton_stage_path = None
@@ -79,7 +81,7 @@ class NewtonManager:
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
         NewtonManager._collision_pipeline = None
-        NewtonManager._newton_contact_sensor = None
+        NewtonManager._newton_contact_sensors = {}
         NewtonManager._report_contacts = False
         NewtonManager._graph = None
         NewtonManager._newton_stage_path = None
@@ -137,7 +139,10 @@ class NewtonManager:
         NewtonManager._control = NewtonManager._model.control()
         NewtonManager.forward_kinematics()
         if NewtonManager._needs_collision_pipeline:
-            NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
+            # NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
+            NewtonManager._collision_pipeline = CollisionPipelineUnified.from_model(
+                NewtonManager._model, broad_phase_mode=BroadPhaseMode.SAP
+            )
             NewtonManager._contacts = NewtonManager._model.collide(
                 NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
             )
@@ -196,16 +201,23 @@ class NewtonManager:
                 )
             else:
                 NewtonManager._needs_collision_pipeline = True
-
-        # Ensure we are using a CUDA enabled device
-        assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
+            if NewtonManager._needs_collision_pipeline and NewtonManager._collision_pipeline is None:
+                NewtonManager._collision_pipeline = CollisionPipelineUnified.from_model(
+                    NewtonManager._model, broad_phase_mode=BroadPhaseMode.SAP
+                )
+                NewtonManager._contacts = NewtonManager._model.collide(
+                    NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+                )
 
         # Capture the graph if CUDA is enabled
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:", enable=True, format="ms"):
-            if NewtonManager._cfg.use_cuda_graph:
+            if NewtonManager._cfg.use_cuda_graph and NewtonManager._device.startswith("cuda"):
                 with wp.ScopedCapture() as capture:
                     NewtonManager.simulate()
                 NewtonManager._graph = capture.graph
+            elif NewtonManager._cfg.use_cuda_graph and not NewtonManager._device.startswith("cuda"):
+                logger.warning("CUDA graphs requested but device is CPU. Disabling CUDA graphs.")
+                NewtonManager._cfg.use_cuda_graph = False
 
     @classmethod
     def simulate(cls) -> None:
@@ -264,7 +276,8 @@ class NewtonManager:
 
         if NewtonManager._report_contacts:
             populate_contacts(NewtonManager._contacts, NewtonManager._solver)
-            NewtonManager._newton_contact_sensor.eval(NewtonManager._contacts)
+            for sensor in NewtonManager._newton_contact_sensors.values():
+                sensor.eval(NewtonManager._contacts)
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -421,7 +434,11 @@ class NewtonManager:
                         f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
                     )
 
-        NewtonManager._newton_contact_sensor = NewtonContactSensor(
+        # Create unique key for this sensor
+        sensor_key = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
+
+        # Create and store the sensor
+        newton_sensor = NewtonContactSensor(
             NewtonManager._model,
             sensing_obj_bodies=body_names_expr,
             sensing_obj_shapes=shape_names_expr,
@@ -432,4 +449,7 @@ class NewtonManager:
             prune_noncolliding=prune_noncolliding,
             verbose=verbose,
         )
+        NewtonManager._newton_contact_sensors[sensor_key] = newton_sensor
         NewtonManager._report_contacts = True
+
+        return sensor_key

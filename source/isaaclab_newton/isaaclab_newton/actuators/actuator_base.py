@@ -209,7 +209,6 @@ class ActuatorBase(ABC):
         # parse the parameter
         if cfg_value is not None:
             if isinstance(cfg_value, (float, int)):
-                print(f"Parsing joint parameter: {cfg_value} for joints {self.joint_names}")
                 if isinstance(cfg_value, IntEnum):
                     cfg_value = int(cfg_value.value)
                 if original_value.dtype is wp.float32:
@@ -220,6 +219,7 @@ class ActuatorBase(ABC):
                 wp.launch(
                     update_array2D_with_value_indexed,
                     dim=(self._num_envs, len(self._joint_indices)),
+                    device=self._device,
                     inputs=[
                         cfg_value,
                         original_value,
@@ -234,6 +234,7 @@ class ActuatorBase(ABC):
                 wp.launch(
                     update_array2D_with_array1D_indexed,
                     dim=(self._num_envs, len(indices_global)),
+                    device=self._device,
                     inputs=[
                         wp.array(values, dtype=wp.float32, device=self._device),
                         original_value,
@@ -270,4 +271,5 @@ class ActuatorBase(ABC):
                 self._env_mask,
                 self.joint_mask,
             ],
+            device=self._device,
         )
