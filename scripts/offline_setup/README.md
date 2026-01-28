@@ -4,7 +4,7 @@
 ## 🎯 Overview
 #### The offline training system enables you to train Isaac Lab environments without internet connectivity by using locally downloaded assets. This system:
 - ✅ Works with any robot - No hardcoded paths needed
-- ✅ Single flag - Just add `--offline` to your training, tutorial, and demos commands
+- ✅ Single flag - Just add `--offline` to your training, tutorial, and demo commands
 - ✅ Automatic fallback - Uses Nucleus if local asset is missing
 - ✅ Maintains structure - Mirrors Nucleus directory organization locally
 
