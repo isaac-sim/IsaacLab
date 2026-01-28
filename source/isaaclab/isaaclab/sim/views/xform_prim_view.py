@@ -137,7 +137,7 @@ class XformPrimView:
                     )
 
         # Determine if Fabric is supported on the device
-        self._use_fabric = carb.settings.get_settings().get_bool("/physics/fabricEnabled")
+        self._use_fabric = carb.settings.get_settings().get("/physics/fabricEnabled")
         logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination
