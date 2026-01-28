@@ -28,7 +28,7 @@ class BaseRigidObjectCollection(AssetBase):
     For each rigid body in the collection, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid bodies. On playing the
     simulation, the physics engine will automatically register the rigid bodies and create a corresponding
-    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
+    rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
 
     Rigid objects in the collection are uniquely identified via the key of the dictionary
     :attr:`~isaaclab.assets.RigidObjectCollectionCfg.rigid_objects` in the

@@ -94,3 +94,15 @@ It includes the following modules:
    :toctree: lab_tasks
 
    utils
+
+isaaclab_physx extension
+------------------------
+
+The following modules are available in the ``isaaclab_physx`` extension:
+
+.. currentmodule:: isaaclab_physx
+
+.. autosummary::
+   :toctree: lab_physx
+
+   assets

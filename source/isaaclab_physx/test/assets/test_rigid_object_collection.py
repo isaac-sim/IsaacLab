@@ -490,12 +490,12 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     # random z spin velocity
     spin_twist = torch.zeros(6, device=device)
@@ -584,12 +584,12 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     rand_state = torch.zeros_like(cube_object.data.object_link_state_w)
     rand_state[..., :7] = cube_object.data.default_object_state[..., :7]
@@ -668,7 +668,7 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 
     # Add friction to cube
     indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
-    object_collection.root_physx_view.set_material_properties(
+    object_collection.root_view.set_material_properties(
         object_collection.reshape_data_to_view(materials), indices
     )
 
@@ -677,7 +677,7 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
     object_collection.update(sim.cfg.dt)
 
     # Get material properties
-    materials_to_check = object_collection.root_physx_view.get_material_properties()
+    materials_to_check = object_collection.root_view.get_material_properties()
 
     # Check if material properties are set correctly
     torch.testing.assert_close(object_collection.reshape_view_to_data(materials_to_check), materials)
@@ -743,12 +743,12 @@ def test_write_object_state_functions_data_consistency(
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     rand_state = torch.rand_like(cube_object.data.object_link_state_w)
     rand_state[..., :3] += cube_object.data.object_link_pos_w

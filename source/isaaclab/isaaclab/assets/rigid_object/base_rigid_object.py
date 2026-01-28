@@ -28,7 +28,7 @@ class BaseRigidObject(AssetBase):
     For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid body. On playing the
     simulation, the physics engine will automatically register the rigid body and create a corresponding
-    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
+    rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
 
     .. note::
 
