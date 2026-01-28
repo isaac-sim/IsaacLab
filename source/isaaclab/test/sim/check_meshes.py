@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -35,12 +35,11 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import random
+
+import numpy as np
 import torch
 import tqdm
-
-import isaacsim.core.utils.prims as prim_utils
 
 import isaaclab.sim as sim_utils
 
@@ -76,7 +75,7 @@ def design_scene():
     # create new xform prims for all objects to be spawned under
     origins = define_origins(num_origins=4, spacing=5.5)
     for idx, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
 
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(

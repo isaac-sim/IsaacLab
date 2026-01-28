@@ -1,19 +1,19 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import hashlib
 import logging
+
 import numpy as np
 import torch
 import trimesh
 from trimesh.sample import sample_surface
 
-import isaacsim.core.utils.prims as prim_utils
 from pxr import UsdGeom
 
-from isaaclab.sim.utils import get_all_matching_child_prims
+import isaaclab.sim.utils as sim_utils
 
 # ---- module-scope caches ----
 _PRIM_SAMPLE_CACHE: dict[tuple[str, int], np.ndarray] = {}  # (prim_hash, num_points) -> (N,3) in root frame
@@ -40,19 +40,21 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     """
     points = torch.zeros((num_envs, num_points, 3), dtype=torch.float32, device=device)
     xform_cache = UsdGeom.XformCache()
+    # Obtain stage handle
+    stage = sim_utils.get_current_stage()
 
     for i in range(num_envs):
         # Resolve prim path
         obj_path = prim_path.replace(".*", str(i))
 
         # Gather prims
-        prims = get_all_matching_child_prims(
+        prims = sim_utils.get_all_matching_child_prims(
             obj_path, predicate=lambda p: p.GetTypeName() in ("Mesh", "Cube", "Sphere", "Cylinder", "Capsule", "Cone")
         )
         if not prims:
             raise KeyError(f"No valid prims under {obj_path}")
 
-        object_prim = prim_utils.get_prim_at_path(obj_path)
+        object_prim = stage.GetPrimAtPath(obj_path)
         world_root = xform_cache.GetLocalToWorldTransform(object_prim)
 
         # hash each child prim by its rel transform + geometry

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,8 +30,9 @@ For more information, please check the `documentation`_.
 import argparse
 import os
 import shutil
-import toml
 from subprocess import PIPE, STDOUT, Popen
+
+import toml
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
@@ -125,15 +126,17 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                         run_and_print(["rosdep", "init"])
                         run_and_print(["rosdep", "update", f"--rosdistro={ros_distro}"])
                     # install rosdep packages
-                    run_and_print([
-                        "rosdep",
-                        "install",
-                        "--from-paths",
-                        f"{ws_path}/src",
-                        "--ignore-src",
-                        "-y",
-                        f"--rosdistro={ros_distro}",
-                    ])
+                    run_and_print(
+                        [
+                            "rosdep",
+                            "install",
+                            "--from-paths",
+                            f"{ws_path}/src",
+                            "--ignore-src",
+                            "-y",
+                            f"--rosdistro={ros_distro}",
+                        ]
+                    )
                 else:
                     print(f"[INFO] No rosdep packages specified for the extension at: {path}")
         else:

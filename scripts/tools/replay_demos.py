@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,12 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
+    "--validate_success_rate",
+    action="store_true",
+    default=False,
+    help="Validate the replay success rate using the task environment termination criteria",
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -46,7 +52,8 @@ args_cli = parser.parse_args()
 # args_cli.headless = True
 
 if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
+    # Import pinocchio before AppLauncher to force the use of the version
+    # installed by IsaacLab and not the one installed by Isaac Sim.
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
 
@@ -57,16 +64,17 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import os
+
+import gymnasium as gym
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -143,6 +151,18 @@ def main():
 
     env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
 
+    # extract success checking function to invoke in the main loop
+    success_term = None
+    if args_cli.validate_success_rate:
+        if hasattr(env_cfg.terminations, "success"):
+            success_term = env_cfg.terminations.success
+            env_cfg.terminations.success = None
+        else:
+            print(
+                "No success termination term was found in the environment."
+                " Will not be able to mark recorded demos as successful."
+            )
+
     # Disable all recorders and terminations
     env_cfg.recorders = {}
     env_cfg.terminations = {}
@@ -175,11 +195,20 @@ def main():
     # simulate environment -- run everything in inference mode
     episode_names = list(dataset_file_handler.get_episode_names())
     replayed_episode_count = 0
+    recorded_episode_count = 0
+
+    # Track current episode indices for each environment
+    current_episode_indices = [None] * num_envs
+
+    # Track failed demo IDs
+    failed_demo_ids = []
+
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while simulation_app.is_running() and not simulation_app.is_exiting():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True
+            episode_ended = [False] * num_envs
             while has_next_action:
                 # initialize actions with idle action so those without next action will not move
                 actions = idle_action
@@ -187,16 +216,43 @@ def main():
                 for env_id in range(num_envs):
                     env_next_action = env_episode_data_map[env_id].get_next_action()
                     if env_next_action is None:
+                        # check if the episode is successful after the whole episode_data is
+                        if (
+                            (success_term is not None)
+                            and (current_episode_indices[env_id]) is not None
+                            and (not episode_ended[env_id])
+                        ):
+                            if bool(success_term.func(env, **success_term.params)[env_id]):
+                                recorded_episode_count += 1
+                                plural_trailing_s = "s" if recorded_episode_count > 1 else ""
+
+                                print(
+                                    f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
+                                    f" of {replayed_episode_count} demos."
+                                )
+                            else:
+                                # if not successful, add to failed demo IDs list
+                                if (
+                                    current_episode_indices[env_id] is not None
+                                    and current_episode_indices[env_id] not in failed_demo_ids
+                                ):
+                                    failed_demo_ids.append(current_episode_indices[env_id])
+
+                            episode_ended[env_id] = True
+
                         next_episode_index = None
                         while episode_indices_to_replay:
                             next_episode_index = episode_indices_to_replay.pop(0)
+
                             if next_episode_index < episode_count:
+                                episode_ended[env_id] = False
                                 break
                             next_episode_index = None
 
                         if next_episode_index is not None:
                             replayed_episode_count += 1
-                            print(f"{replayed_episode_count :4}: Loading #{next_episode_index} episode to env_{env_id}")
+                            current_episode_indices[env_id] = next_episode_index
+                            print(f"{replayed_episode_count:4}: Loading #{next_episode_index} episode to env_{env_id}")
                             episode_data = dataset_file_handler.load_episode(
                                 episode_names[next_episode_index], env.device
                             )
@@ -224,7 +280,7 @@ def main():
                     state_from_dataset = env_episode_data_map[0].get_next_state()
                     if state_from_dataset is not None:
                         print(
-                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1 :4}",
+                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1:4}",
                             end="",
                         )
                         current_runtime_state = env.scene.get_state(is_relative=True)
@@ -238,6 +294,16 @@ def main():
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")
+
+    # Print success statistics only if validation was enabled
+    if success_term is not None:
+        print(f"Successfully replayed: {recorded_episode_count}/{replayed_episode_count}")
+
+        # Print failed demo IDs if any
+        if failed_demo_ids:
+            print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
+            print(f"  {sorted(failed_demo_ids)}")
+
     env.close()
 
 

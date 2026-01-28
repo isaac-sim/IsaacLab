@@ -1,14 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
+
+import torch
 
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLEnv
+
+
+def optional_method(func):
+    """Decorator to mark a method as optional."""
+    func.__is_optional__ = True
+    return func
 
 
 class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
@@ -156,3 +163,21 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         and used in utils/env_utils.py.
         """
         return dict(env_name=self.spec.id, type=2, env_kwargs=dict())
+
+    @optional_method
+    def get_navigation_state(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        """
+        Optional method. Only required when using navigation controller locomanipulation data generation.
+
+        Gets the navigation state of the robot. Required when use of the navigation controller is
+        enabled. The navigation state includes a boolean flag "is_navigating" to indicate when the
+        robot is under control by the navigation controller, and a boolean flag "navigation_goal_reached"
+        to indicate when the navigation goal has been reached.
+
+        Args:
+            env_ids: The environment index to get the navigation state for. If None, all envs are considered.
+
+        Returns:
+            A dictionary that of navigation state flags (False or True).
+        """
+        raise NotImplementedError

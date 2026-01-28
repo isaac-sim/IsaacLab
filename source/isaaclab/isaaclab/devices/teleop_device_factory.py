@@ -1,9 +1,10 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Factory to create teleoperation devices from configuration."""
+
 import inspect
 import logging
 from collections.abc import Callable
@@ -83,5 +84,5 @@ def create_teleop_device(
     for key, callback in callbacks.items():
         device.add_callback(key, callback)
 
-    logger.info(f"Created teleoperation device: {device_name}")
+    logging.info(f"Created teleoperation device: {device_name}")
     return device

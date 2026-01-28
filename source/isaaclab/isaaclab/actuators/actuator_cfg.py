@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,8 +21,7 @@ def __getattr__(name):
     if new_module is not None:
         warnings.warn(
             f"The module actuator_cfg.py is deprecated. Please import {name} directly from the isaaclab.actuators"
-            " package, "
-            + f"or from its new module {new_module.__name__}.",
+            f" package, or from its new module {new_module.__name__}.",
             DeprecationWarning,
             stacklevel=2,
         )

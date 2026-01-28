@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,11 +34,11 @@ for RL-Games :class:`Runner` class:
 # needed to import for allowing type-hinting:gym.spaces.Box | None
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
 import gymnasium
 import torch
-from collections.abc import Callable
-
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
@@ -319,6 +319,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
             - ``"obs"``: either a concatenated tensor (``concate_obs_group=True``) or a Dict of group tensors.
             - ``"states"`` (optional): same structure as above when state groups are configured; omitted otherwise.
         """
+        # move observations to RL device if different from sim device
+        if self._rl_device != self._sim_device:
+            obs_dict = {key: obs.to(device=self._rl_device) for key, obs in obs_dict.items()}
+
         # clip the observations
         for key, obs in obs_dict.items():
             obs_dict[key] = torch.clamp(obs, -self._clip_obs, self._clip_obs)

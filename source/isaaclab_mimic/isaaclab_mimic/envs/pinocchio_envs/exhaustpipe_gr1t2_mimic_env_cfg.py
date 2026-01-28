@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -13,6 +13,7 @@ from isaaclab_tasks.manager_based.manipulation.pick_place.exhaustpipe_gr1t2_pink
 
 @configclass
 class ExhaustPipeGR1T2MimicEnvCfg(ExhaustPipeGR1T2PinkIKEnvCfg, MimicEnvCfg):
+    """Configuration for GR1T2 Exhaust Pipe Mimic environment."""
 
     def __post_init__(self):
         # Calling post init of parents

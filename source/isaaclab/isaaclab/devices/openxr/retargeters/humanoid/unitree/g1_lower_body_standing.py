@@ -1,12 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from dataclasses import dataclass
+
+import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 
@@ -16,10 +17,15 @@ class G1LowerBodyStandingRetargeter(RetargeterBase):
 
     def __init__(self, cfg: G1LowerBodyStandingRetargeterCfg):
         """Initialize the retargeter."""
+        super().__init__(cfg)
         self.cfg = cfg
 
     def retarget(self, data: dict) -> torch.Tensor:
         return torch.tensor([0.0, 0.0, 0.0, self.cfg.hip_height], device=self.cfg.sim_device)
+
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
+        # This retargeter does not consume any device data
+        return []
 
 
 @dataclass

@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 import weakref
+
+import torch
 
 import omni.physics.tensors.impl.api as physx
 
@@ -218,8 +219,8 @@ class DeformableObjectData:
 
     @property
     def root_pos_w(self) -> torch.Tensor:
-        """Root position from nodal positions of the simulation mesh for the deformable bodies in simulation world frame.
-        Shape is (num_instances, 3).
+        """Root position from nodal positions of the simulation mesh for the deformable bodies in simulation
+        world frame. Shape is (num_instances, 3).
 
         This quantity is computed as the mean of the nodal positions.
         """

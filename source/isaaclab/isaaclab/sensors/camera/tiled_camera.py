@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,17 +7,17 @@ from __future__ import annotations
 
 import json
 import math
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import carb
+import numpy as np
+import torch
 import warp as wp
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.version import get_version
+
+import carb
 from pxr import UsdGeom
 
+from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
@@ -81,15 +81,8 @@ class TiledCamera(Camera):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            RuntimeError: If Isaac Sim version < 4.2
             ValueError: If the provided data types are not supported by the camera.
         """
-        isaac_sim_version = float(".".join(get_version()[2:4]))
-        if isaac_sim_version < 4.2:
-            raise RuntimeError(
-                f"TiledCamera is only available from Isaac Sim 4.2.0. Current version is {isaac_sim_version}. Please"
-                " update to Isaac Sim 4.2.0"
-            )
         super().__init__(cfg)
 
     def __del__(self):
@@ -158,8 +151,7 @@ class TiledCamera(Camera):
         # Initialize parent class
         SensorBase._initialize_impl(self)
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -173,20 +165,19 @@ class TiledCamera(Camera):
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._view.prim_paths:
+        cam_prim_paths = []
+        for cam_prim in self._view.prims:
             # Get camera prim
-            cam_prim = self.stage.GetPrimAtPath(cam_prim_path)
+            cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+            cam_prim_paths.append(cam_prim_path)
 
         # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
-        )
+        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
         self._render_product_paths = [rp.path]
 
         # Define the annotators based on requested data types
@@ -271,6 +262,11 @@ class TiledCamera(Camera):
             if data_type == "motion_vectors":
                 tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
 
+            # For normals, we only require the first three channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
+            if data_type == "normals":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(self._view.count, self.cfg.height, self.cfg.width),
@@ -292,9 +288,9 @@ class TiledCamera(Camera):
             #       larger than the clipping range in the output. We apply an additional clipping to ensure values
             #       are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                self._data.output[data_type][
-                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
-                ] = torch.inf
+                self._data.output[data_type][self._data.output[data_type] > self.cfg.spawn.clipping_range[1]] = (
+                    torch.inf
+                )
             # apply defined clipping behavior
             if (
                 data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"

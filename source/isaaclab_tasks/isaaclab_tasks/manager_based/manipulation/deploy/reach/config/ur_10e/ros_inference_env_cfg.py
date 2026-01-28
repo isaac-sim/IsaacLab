@@ -1,4 +1,4 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,7 +30,7 @@ class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
         ]
         self.policy_action_space = "joint"
         self.action_space = 6
-        self.state_space = 0
+        self.state_space = 19
         self.observation_space = 19
 
         # Set joint_action_scale from the existing arm_action.scale

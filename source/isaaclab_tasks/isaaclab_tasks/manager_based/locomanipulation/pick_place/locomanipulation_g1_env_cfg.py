@@ -1,10 +1,7 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-
-from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -12,9 +9,16 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import G1LowerBodyStandingRetargeterCfg
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_motion_controller_locomotion import (
+    G1LowerBodyStandingMotionControllerRetargeterCfg,
+)
+from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
+    G1TriHandUpperBodyMotionControllerRetargeterCfg,
+)
 from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
     G1TriHandUpperBodyRetargeterCfg,
 )
+from isaaclab.devices.openxr.xr_cfg import XrAnchorRotationMode
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -31,6 +35,8 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.agile_loco
     AgileTeacherPolicyObservationsCfg,
 )
 from isaaclab_tasks.manager_based.manipulation.pick_place import mdp as manip_mdp
+
+from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
@@ -202,10 +208,15 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 2
 
         # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"
+        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
+
+        self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
+        self.xr.fixed_anchor_height = True
+        # Ensure XR anchor rotation follows the robot pelvis (yaw only), with smoothing for comfort
+        self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -219,6 +230,20 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                             hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
                         ),
                         G1LowerBodyStandingRetargeterCfg(
+                            sim_device=self.sim.device,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+                "motion_controllers": OpenXRDeviceCfg(
+                    retargeters=[
+                        G1TriHandUpperBodyMotionControllerRetargeterCfg(
+                            enable_visualization=True,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                        G1LowerBodyStandingMotionControllerRetargeterCfg(
                             sim_device=self.sim.device,
                         ),
                     ],

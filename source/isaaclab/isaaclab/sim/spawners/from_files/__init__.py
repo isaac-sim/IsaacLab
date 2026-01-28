@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,5 +13,11 @@ Currently, the following spawners are supported:
 
 """
 
-from .from_files import spawn_from_urdf, spawn_from_usd, spawn_ground_plane
-from .from_files_cfg import GroundPlaneCfg, UrdfFileCfg, UsdFileCfg
+from .from_files import (
+    spawn_from_mjcf,
+    spawn_from_urdf,
+    spawn_from_usd,
+    spawn_from_usd_with_compliant_contact_material,
+    spawn_ground_plane,
+)
+from .from_files_cfg import GroundPlaneCfg, MjcfFileCfg, UrdfFileCfg, UsdFileCfg, UsdFileWithCompliantContactCfg
