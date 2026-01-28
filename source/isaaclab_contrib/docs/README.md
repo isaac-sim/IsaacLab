@@ -215,7 +215,7 @@ The extension includes comprehensive unit tests for all contributed components:
 # Test multirotor components
 python -m pytest source/isaaclab_contrib/test/assets/test_multirotor.py
 python -m pytest source/isaaclab_contrib/test/actuators/test_thruster.py
-
+python -m pytest source/isaaclab_contrib/test/assets/test_drone_geometric_controllers.py
 # Run all contrib tests
 python -m pytest source/isaaclab_contrib/test/
 ```

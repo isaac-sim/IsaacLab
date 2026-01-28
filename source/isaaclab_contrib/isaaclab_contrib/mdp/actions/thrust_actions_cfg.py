@@ -8,6 +8,8 @@ from dataclasses import MISSING
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
+from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
+
 from . import thrust_actions
 
 
@@ -166,3 +168,37 @@ class ThrustActionCfg(ActionTermCfg):
 
     If ``False``, the manually specified :attr:`offset` value is used.
     """
+
+
+@configclass
+class NavigationActionCfg(ThrustActionCfg):
+    """Configuration for the navigation action term.
+
+    This action term constrains the controller action to be within the field of view (FOV)
+    of the camera sensor. Specifically:
+
+    - **y-component**: Always 0, as the camera FOV constraint restricts lateral movement
+    - **x and z components**: Derived from the action max_magnitude and max_inclination_angle,
+      ensuring the desired acceleration/velocity/position vector remains aligned with the camera's
+      viewing direction
+
+    This constraint ensures that navigation commands respect the sensor's field of view
+    limitations, preventing commands that would be out of the camera's visual range.
+
+    See :class:`NavigationAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = thrust_actions.NavigationAction
+
+    controller_cfg: LeeVelControllerCfg | LeePosControllerCfg | LeeAccControllerCfg = MISSING
+    """The configuration for the Lee velocity controller."""
+
+    max_magnitude: float = MISSING
+    """Maximum magnitude for position [m], velocity [m/s], or acceleration [m/s²] commands."""
+
+    max_yaw_command: float = MISSING
+    """Maximum yaw command. Yaw rate [rad/s] for velocity and acceleration lee geometric controller and relative
+    yaw change [rad] for position lee geometric controller."""
+
+    max_inclination_angle: float = MISSING
+    """Maximum inclination angle [rad] for position, velocity and acceleration lee geometric controller."""

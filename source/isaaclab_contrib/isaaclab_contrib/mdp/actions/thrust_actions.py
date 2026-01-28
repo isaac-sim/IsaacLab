@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
+from isaaclab_contrib.controllers.lee_acceleration_control import LeeAccController
+from isaaclab_contrib.controllers.lee_position_control import LeePosController
+from isaaclab_contrib.controllers.lee_velocity_control import LeeVelController
+
 
 class ThrustAction(ActionTerm):
     """Thrust action term that applies the processed actions as thrust commands.
@@ -244,3 +248,183 @@ class ThrustAction(ActionTerm):
         """
         # Set thrust targets using thruster IDs
         self._asset.set_thrust_target(self.processed_actions, thruster_ids=self._thruster_ids)
+
+
+class NavigationAction(ThrustAction):
+    """Navigation action term that converts high-level navigation commands to thrust commands
+    using a geometric tracking controller.
+
+    This action term extends `ThrustAction` by adding a controller layer that computes wrench
+    (force and torque) commands from navigation setpoints, then allocates those wrenches to
+    individual thruster commands using the multirotor's allocation matrix.
+
+    The controller type is automatically determined based on the `controller_cfg` type:
+        - LeeVelControllerCfg: Velocity tracking controller
+        - LeePosControllerCfg: Position tracking controller
+        - LeeAccControllerCfg: Acceleration tracking controller
+
+    The control pipeline:
+        1. Process raw actions (scale, offset, clip) using parent `ThrustAction`
+        2. Transform processed actions into setpoints constrained within camera FOV
+        3. Compute 6-DOF wrench command using the selected Lee controller
+        4. Solve thrust allocation: thrust_cmd = pinv(allocation_matrix) @ wrench_cmd
+        5. Apply thrust commands to thrusters
+
+    Attributes:
+        cfg: Configuration for the navigation action term, including controller config.
+        _lc: Lee controller instance (LeeVelController, LeePosController, or LeeAccController).
+
+    Action Space:
+        The action dimension is always 3D: (forward_magnitude, pitch_angle, yaw_rate)
+
+        Actions are clipped in range [-1, 1] and are transformed to controller commands:
+        - Forward position/velocity/acceleration:
+            [0, max_magnitude] via (action[0] + 1) * cos(pitch) * max_magnitude / 2
+        - Lateral position/velocity/acceleration:
+            Always 0.0 (constrained to camera FOV)
+        - Vertical position/velocity/acceleration:
+            [0, max_magnitude] via (action[0] + 1) * sin(pitch) * max_magnitude / 2
+        - Yaw command: [-max_yaw_command, max_yaw_command] via action[2] * max_yaw_command (yaw command is yawrate
+          [rad/s] for velocity and acceleration control and relative yaw change [rad] for position control)
+
+        Where:
+        - pitch angle is computed as: action[1] * max_inclination_angle
+
+    Parameters (from cfg):
+        max_magnitude: Maximum translational magnitude for position/velocity/acceleration commands.
+        max_yaw_command: Maximum yaw command in rad/s for velocity and acceleration
+                         control and relative yaw change [rad] for position control.
+        max_inclination_angle: Maximum pitch angle in rad.
+
+    Notes:
+        - The controller's internal states (e.g., integral terms) are reset when `reset()` is called.
+        - Lateral term is constrained to 0.0 to keep commands within camera FOV.
+        - The x and z components are derived from magnitude and inclination angle.
+        - Requires the multirotor asset to have a valid `allocation_matrix` attribute.
+
+    Example:
+        ```python
+        cfg = NavigationActionCfg(
+            controller_cfg=LeeVelControllerCfg(...),
+            asset_name="robot",
+            max_magnitude=2.0,
+            max_yaw_command=1.047,
+            max_inclination_angle=0.785,  # pi/4
+        )
+        nav_action = NavigationAction(cfg, env)
+        ```
+    """
+
+    cfg: thrust_actions_cfg.NavigationActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: thrust_actions_cfg.NavigationActionCfg, env: ManagerBasedEnv) -> None:
+        # Initialize parent class (this handles all the thruster setup)
+        super().__init__(cfg, env)
+
+        # Initialize controller based on controller_cfg type
+        from isaaclab_contrib.controllers import LeeAccControllerCfg, LeePosControllerCfg, LeeVelControllerCfg
+
+        if isinstance(self.cfg.controller_cfg, LeeVelControllerCfg):
+            self._lc = LeeVelController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
+        elif isinstance(self.cfg.controller_cfg, LeePosControllerCfg):
+            self._lc = LeePosController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
+            logger.warning(
+                "Navigation task tuned for velocity control."
+                "Consider using velocity controller for better performance or retune reward function"
+            )
+        elif isinstance(self.cfg.controller_cfg, LeeAccControllerCfg):
+            self._lc = LeeAccController(
+                cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
+            )
+            logger.warning(
+                "Navigation task tuned for velocity control."
+                "Consider using velocity controller for better performance or retune reward function"
+            )
+        else:
+            raise ValueError(
+                f"Unsupported controller_cfg type: {type(self.cfg.controller_cfg)}. "
+                f"Supported types are LeeVelControllerCfg, LeePosControllerCfg, LeeAccControllerCfg."
+            )
+
+        # Add buffer to store velocity commands for observations)
+        self._commands = torch.zeros(self.num_envs, 4, device=self.device)
+        self._prev_commands = torch.zeros(self.num_envs, 4, device=self.device)
+
+    @property
+    def action_dim(self) -> int:
+        return 3
+
+    @property
+    def prev_commands(self) -> torch.Tensor:
+        return self._prev_commands
+
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term."""
+        # Get parent IO descriptor
+        descriptor = super().IO_descriptor
+        # Override action type for navigation
+        descriptor.action_type = "NavigationAction"
+        return descriptor
+
+    def process_actions(self, actions: torch.Tensor):
+        """Process actions by applying scaling, offset, and clipping."""
+        # Call parent to handle basic processing
+        super().process_actions(actions)
+
+        self._has_actions_updated = False
+
+    def apply_actions(self):
+        """Apply the processed actions as velocity commands."""
+        # process the actions to be in the correct range
+        clamped_action = torch.clamp(self.processed_actions, min=-1.0, max=1.0)
+        processed_actions = torch.zeros(self.num_envs, 4, device=self.device)
+
+        clamped_action[:, 0] += 1.0  # only allow positive thrust commands [0, 2]
+        processed_actions[:, 0] = (
+            clamped_action[:, 0]
+            * torch.cos(self.cfg.max_inclination_angle * clamped_action[:, 1])
+            * self.cfg.max_magnitude
+            / 2.0
+        )
+        processed_actions[:, 1] = 0.0  # set lateral thrust command to 0
+        processed_actions[:, 2] = (
+            clamped_action[:, 0]
+            * torch.sin(self.cfg.max_inclination_angle * clamped_action[:, 1])
+            * self.cfg.max_magnitude
+            / 2.0
+        )
+        processed_actions[:, 3] = clamped_action[:, 2] * self.cfg.max_yaw_command
+
+        # Store velocity commands for observations
+        if not self._has_actions_updated:
+            self._prev_commands[:] = self._commands
+            self._commands[:] = processed_actions
+            self._has_actions_updated = True
+
+        # Compute wrench command using controller
+        wrench_command = self._lc.compute(processed_actions)
+
+        # Convert wrench to thrust commands using allocation matrix
+        thrust_commands = (torch.pinverse(self._asset.allocation_matrix) @ wrench_command.T).T
+
+        # Apply thrust commands using thruster IDs
+        self._asset.set_thrust_target(thrust_commands, thruster_ids=self._thruster_ids)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        # Call parent reset
+        super().reset(env_ids)
+        # Reset controller internal states
+        self._lc.reset_idx(env_ids)
+
+        if env_ids is not None:
+            self._commands[env_ids] = 0.0
+            self._prev_commands[env_ids] = 0.0
+        else:
+            self._commands[:] = 0.0
+            self._prev_commands[:] = 0.0
