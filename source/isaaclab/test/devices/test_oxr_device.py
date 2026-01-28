@@ -188,8 +188,8 @@ def test_xr_anchor(empty_env, mock_xrcore):
     np.testing.assert_almost_equal(orientation.tolist(), [[0, 1, 0, 0]])
 
     # Check that xr anchor mode and custom anchor are set correctly
-    assert carb.settings.get_settings().get("/persistent/xr/profile/ar/anchorMode") == "custom anchor"
-    assert carb.settings.get_settings().get("/xrstage/profile/ar/customAnchor") == "/World/XRAnchor"
+    assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
+    assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
 
     device.reset()
 
@@ -210,8 +210,8 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     np.testing.assert_almost_equal(orientation.tolist(), [[1, 0, 0, 0]])
 
     # Check that xr anchor mode and custom anchor are set correctly
-    assert carb.settings.get_settings().get("/persistent/xr/profile/ar/anchorMode") == "custom anchor"
-    assert carb.settings.get_settings().get("/xrstage/profile/ar/customAnchor") == "/World/XRAnchor"
+    assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
+    assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
 
     device.reset()
 
@@ -233,8 +233,8 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     np.testing.assert_almost_equal(orientation.tolist(), [[1, 0, 0, 0]])
 
     # Check that xr anchor mode and custom anchor are set correctly
-    assert carb.settings.get_settings().get("/persistent/xr/profile/ar/anchorMode") == "custom anchor"
-    assert carb.settings.get_settings().get("/xrstage/profile/ar/customAnchor") == "/World/XRAnchor"
+    assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
+    assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
 
     device_1.reset()
     device_2.reset()
