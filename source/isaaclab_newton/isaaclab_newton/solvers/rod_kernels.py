@@ -1031,3 +1031,219 @@ def normalize_quaternions_kernel(
     if q_len > 1e-8:
         orientations[idx] = wp.quatf(q[0] / q_len, q[1] / q_len, q[2] / q_len, q[3] / q_len)
 
+
+# ============================================================================
+# PERFORMANCE OPTIMIZATION: Fused Constraint Kernel
+# ============================================================================
+# Combines stretch and bend/twist constraints into a single GPU kernel launch,
+# reducing kernel launch overhead and improving memory locality.
+
+
+@wp.kernel
+def solve_stretch_bend_fused_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    inv_masses: wp.array(dtype=wp.float32),
+    inv_inertias_diag: wp.array(dtype=wp.vec3f),
+    segment_lengths: wp.array(dtype=wp.float32),
+    stretch_compliance: wp.array(dtype=wp.float32),
+    bend_twist_compliance: wp.array(dtype=wp.vec3f),
+    rest_darboux: wp.array(dtype=wp.vec3f),
+    lambda_stretch: wp.array(dtype=wp.float32),
+    lambda_bend_twist: wp.array(dtype=wp.vec3f),
+    parent_indices: wp.array(dtype=wp.int32),
+    fixed: wp.array(dtype=wp.bool),
+    num_segments: int,
+    dt: float,
+):
+    """Fused kernel for solving both stretch and bend/twist constraints.
+    
+    PERFORMANCE BENEFITS:
+    - Single kernel launch instead of two separate launches
+    - Better memory locality (positions/orientations read once)
+    - Reduced GPU synchronization overhead
+    
+    This kernel applies both constraint types in sequence for each segment pair,
+    which is valid because the constraints act on different degrees of freedom
+    (position vs orientation).
+    """
+    idx = wp.tid()
+    
+    # Constraint index maps to segment pairs (0,1), (1,2), etc.
+    segment_idx = idx + 1
+    if segment_idx >= num_segments:
+        return
+    
+    parent_idx = parent_indices[segment_idx]
+    if parent_idx < 0:
+        return
+    
+    # Skip if both are fixed
+    if fixed[parent_idx] and fixed[segment_idx]:
+        return
+    
+    # =========================================================================
+    # PART 1: Stretch Constraint
+    # Constraint: C = |x_j - x_i| - L = 0
+    # =========================================================================
+    
+    # Get positions (read once, use for both constraints)
+    x1 = positions[parent_idx]
+    x2 = positions[segment_idx]
+    
+    # Target length
+    L = segment_lengths[parent_idx]
+    
+    # Current separation
+    diff = x2 - x1
+    dist = wp.length(diff)
+    
+    if dist > 1e-8:
+        # Constraint value
+        C_stretch = dist - L
+        
+        # Constraint gradient
+        n = diff / dist
+        
+        # Inverse masses
+        w1 = inv_masses[parent_idx]
+        w2 = inv_masses[segment_idx]
+        w_sum = w1 + w2
+        
+        if fixed[parent_idx]:
+            w_sum = w2
+        if fixed[segment_idx]:
+            w_sum = w1
+        
+        # XPBD with compliance
+        alpha = stretch_compliance[idx]
+        alpha_tilde = alpha / (dt * dt)
+        
+        old_lambda = lambda_stretch[idx]
+        denom = w_sum + alpha_tilde
+        
+        if denom > 1e-12:
+            delta_lambda = (-C_stretch - alpha_tilde * old_lambda) / denom
+            
+            # Update multiplier
+            lambda_stretch[idx] = old_lambda + delta_lambda
+            
+            # Position corrections
+            if not fixed[parent_idx]:
+                positions[parent_idx] = x1 - w1 * delta_lambda * n
+            if not fixed[segment_idx]:
+                positions[segment_idx] = x2 + w2 * delta_lambda * n
+    
+    # =========================================================================
+    # PART 2: Bend/Twist Constraint
+    # Constraint: C = Ω - Ω_rest = 0 (Darboux vector matching)
+    # =========================================================================
+    
+    # Get orientations (read once, reuse corrected positions if available)
+    q1 = orientations[parent_idx]
+    q2 = orientations[segment_idx]
+    
+    # Average segment length for constraint
+    L1 = segment_lengths[parent_idx]
+    L2 = segment_lengths[segment_idx]
+    L_avg = 0.5 * (L1 + L2)
+    
+    # Compute current Darboux vector
+    Omega = compute_darboux_vector(q1, q2, L_avg)
+    Omega_rest = rest_darboux[idx]
+    
+    # Constraint error
+    C_bend = wp.vec3f(
+        Omega[0] - Omega_rest[0],
+        Omega[1] - Omega_rest[1],
+        Omega[2] - Omega_rest[2]
+    )
+    
+    # Inverse inertias
+    I1_inv = inv_inertias_diag[parent_idx]
+    I2_inv = inv_inertias_diag[segment_idx]
+    
+    w1_rot = wp.vec3f(I1_inv[0], I1_inv[1], I1_inv[2])
+    w2_rot = wp.vec3f(I2_inv[0], I2_inv[1], I2_inv[2])
+    
+    if fixed[parent_idx]:
+        w1_rot = wp.vec3f(0.0, 0.0, 0.0)
+    if fixed[segment_idx]:
+        w2_rot = wp.vec3f(0.0, 0.0, 0.0)
+    
+    # Jacobian scale (from Darboux computation)
+    J_scale = 2.0 / L_avg
+    
+    # Combined inverse weight
+    w_sum_rot = wp.vec3f(
+        J_scale * J_scale * (w1_rot[0] + w2_rot[0]),
+        J_scale * J_scale * (w1_rot[1] + w2_rot[1]),
+        J_scale * J_scale * (w1_rot[2] + w2_rot[2])
+    )
+    
+    # XPBD compliance
+    alpha_bend = bend_twist_compliance[idx]
+    alpha_tilde_bend = wp.vec3f(
+        alpha_bend[0] / (dt * dt),
+        alpha_bend[1] / (dt * dt),
+        alpha_bend[2] / (dt * dt)
+    )
+    
+    old_lambda_bend = lambda_bend_twist[idx]
+    
+    # Solve each component independently (diagonal approximation)
+    delta_lambda_bend = wp.vec3f(0.0, 0.0, 0.0)
+    for c in range(3):
+        denom = w_sum_rot[c] + alpha_tilde_bend[c]
+        if denom > 1e-12:
+            delta_lambda_bend[c] = (-C_bend[c] - alpha_tilde_bend[c] * old_lambda_bend[c]) / denom
+    
+    # Update multiplier
+    lambda_bend_twist[idx] = wp.vec3f(
+        old_lambda_bend[0] + delta_lambda_bend[0],
+        old_lambda_bend[1] + delta_lambda_bend[1],
+        old_lambda_bend[2] + delta_lambda_bend[2]
+    )
+    
+    # Orientation corrections
+    omega_corr = wp.vec3f(
+        J_scale * delta_lambda_bend[0],
+        J_scale * delta_lambda_bend[1],
+        J_scale * delta_lambda_bend[2]
+    )
+    
+    # Apply to parent (negative direction)
+    if not fixed[parent_idx]:
+        corr1 = wp.vec3f(
+            w1_rot[0] * omega_corr[0],
+            w1_rot[1] * omega_corr[1],
+            w1_rot[2] * omega_corr[2]
+        )
+        corr1_world = quat_rotate_vec(q1, corr1)
+        dq1 = omega_to_quat_delta(-corr1_world, 1.0)
+        q1_new = quat_mul(dq1, q1)
+        q1_len = wp.sqrt(q1_new[0]*q1_new[0] + q1_new[1]*q1_new[1] + 
+                         q1_new[2]*q1_new[2] + q1_new[3]*q1_new[3])
+        if q1_len > 1e-8:
+            orientations[parent_idx] = wp.quatf(
+                q1_new[0]/q1_len, q1_new[1]/q1_len, 
+                q1_new[2]/q1_len, q1_new[3]/q1_len
+            )
+    
+    # Apply to child (positive direction)
+    if not fixed[segment_idx]:
+        corr2 = wp.vec3f(
+            w2_rot[0] * omega_corr[0],
+            w2_rot[1] * omega_corr[1],
+            w2_rot[2] * omega_corr[2]
+        )
+        corr2_world = quat_rotate_vec(q2, corr2)
+        dq2 = omega_to_quat_delta(corr2_world, 1.0)
+        q2_new = quat_mul(dq2, q2)
+        q2_len = wp.sqrt(q2_new[0]*q2_new[0] + q2_new[1]*q2_new[1] + 
+                         q2_new[2]*q2_new[2] + q2_new[3]*q2_new[3])
+        if q2_len > 1e-8:
+            orientations[segment_idx] = wp.quatf(
+                q2_new[0]/q2_len, q2_new[1]/q2_len, 
+                q2_new[2]/q2_len, q2_new[3]/q2_len
+            )

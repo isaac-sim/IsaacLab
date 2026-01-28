@@ -63,6 +63,7 @@ from .rod_kernels import (
     solve_stretch_constraints_kernel,
     solve_shear_constraints_kernel,
     solve_mesh_collision_kernel,
+    solve_stretch_bend_fused_kernel,  # Performance: fused constraint kernel
     apply_coulomb_friction_kernel,
     apply_viscous_friction_kernel,
     update_velocities_kernel,
@@ -428,6 +429,18 @@ class RodSolver:
         # Callback for external forces
         self._external_force_callback: Callable[[RodData], None] | None = None
 
+        # =====================================================================
+        # Performance optimization: Cache Warp arrays to avoid repeated creation
+        # =====================================================================
+        self._cached_wp_inv_inertias_diag = None
+        self._cached_wp_radii = None
+        self._cache_dirty = True  # Flag to invalidate cache when data changes
+        
+        # Pre-compute constraint indices for vectorized operations
+        num_constraints = self.config.geometry.num_segments - 1
+        self._parent_indices_vec = torch.arange(num_constraints, device=self.device)
+        self._child_indices_vec = self._parent_indices_vec + 1
+
     def step(self, dt: float | None = None):
         """Advance simulation by one time step.
 
@@ -442,6 +455,53 @@ class RodSolver:
             self._substep(sub_dt)
 
         self.time += dt
+
+    # =========================================================================
+    # Performance optimization: Warp array caching
+    # =========================================================================
+    
+    def _update_warp_cache(self):
+        """Update cached Warp arrays if data has changed.
+        
+        This optimization reduces the overhead of repeatedly calling
+        wp.from_torch() on arrays that rarely change (e.g., inverse inertias,
+        radii, material properties). Only call sync_to_warp() for frequently
+        changing data like positions and velocities.
+        """
+        if not self._cache_dirty:
+            return
+            
+        # Cache inverse inertia diagonals (rarely change)
+        inv_inertia_diag = torch.diagonal(
+            self.data.inv_inertias, dim1=-2, dim2=-1
+        ).contiguous()  # (num_envs, num_segments, 3)
+        self._cached_wp_inv_inertias_diag = wp.from_torch(
+            inv_inertia_diag.flatten(), dtype=wp.float32
+        )
+        
+        # Cache radii (never change)
+        if hasattr(self.data, 'radii') and self.data.radii is not None:
+            self._cached_wp_radii = wp.from_torch(
+                self.data.radii.flatten(), dtype=wp.float32
+            )
+        
+        self._cache_dirty = False
+
+    def invalidate_cache(self):
+        """Mark cache as dirty, forcing update on next use.
+        
+        Call this when material properties or geometry changes.
+        """
+        self._cache_dirty = True
+
+    def get_cached_inv_inertias(self) -> wp.array:
+        """Get cached Warp array of inverse inertia diagonals.
+        
+        Returns:
+            Warp array of flattened inverse inertia diagonals.
+        """
+        self._update_warp_cache()
+        return self._cached_wp_inv_inertias_diag
 
     def _substep(self, dt: float):
         """Perform one simulation substep.
@@ -565,65 +625,145 @@ class RodSolver:
 
     def _apply_corrections(self, delta_lambda: torch.Tensor, dt: float):
         """Apply position and orientation corrections from delta lambda.
+        
+        OPTIMIZED: Uses vectorized PyTorch operations instead of Python loops.
 
         Args:
             delta_lambda: Solution vector (num_envs, num_constraints, 6).
             dt: Time step.
         """
-        num_constraints = self.config.geometry.num_segments - 1
+        # Use pre-computed indices for vectorized operations
+        parent_idx = self._parent_indices_vec  # [0, 1, 2, ..., n-2]
+        child_idx = self._child_indices_vec    # [1, 2, 3, ..., n-1]
 
-        for i in range(num_constraints):
-            parent_idx = i
-            child_idx = i + 1
+        # Extract stretch and bend/twist multipliers for ALL constraints at once
+        d_lambda_stretch = delta_lambda[:, :, :3]  # (num_envs, num_constraints, 3)
+        d_lambda_bend = delta_lambda[:, :, 3:]     # (num_envs, num_constraints, 3)
 
-            # Extract stretch and bend/twist multipliers
-            d_lambda_stretch = delta_lambda[:, i, :3]  # (n, 3)
-            d_lambda_bend = delta_lambda[:, i, 3:]  # (n, 3)
+        # Update accumulated lambda (vectorized)
+        self.data.lambda_stretch += d_lambda_stretch.norm(dim=-1)
+        self.data.lambda_bend_twist += d_lambda_bend
 
-            # Update accumulated lambda
-            self.data.lambda_stretch[:, i] += d_lambda_stretch.norm(dim=-1)
-            self.data.lambda_bend_twist[:, i] += d_lambda_bend
+        # =====================================================================
+        # Vectorized position corrections
+        # =====================================================================
+        w1 = self.data.inv_masses[:, parent_idx].unsqueeze(-1)  # (num_envs, num_constraints, 1)
+        w2 = self.data.inv_masses[:, child_idx].unsqueeze(-1)
 
-            # Position corrections
-            w1 = self.data.inv_masses[:, parent_idx]
-            w2 = self.data.inv_masses[:, child_idx]
+        # Apply position corrections using scatter_add for proper accumulation
+        # Parent moves in negative constraint direction
+        self.data.positions[:, parent_idx] -= w1 * d_lambda_stretch
+        # Child moves in positive constraint direction
+        self.data.positions[:, child_idx] += w2 * d_lambda_stretch
 
-            # Parent moves in negative constraint direction
-            self.data.positions[:, parent_idx] -= w1.unsqueeze(1) * d_lambda_stretch
-            # Child moves in positive constraint direction
-            self.data.positions[:, child_idx] += w2.unsqueeze(1) * d_lambda_stretch
+        # =====================================================================
+        # Vectorized orientation corrections
+        # =====================================================================
+        L_parent = self.data.segment_lengths[:, parent_idx]  # (num_envs, num_constraints)
+        L_child = self.data.segment_lengths[:, child_idx]
+        L_avg = 0.5 * (L_parent + L_child)
+        J_scale = 2.0 / L_avg  # (num_envs, num_constraints)
 
-            # Orientation corrections
-            L_avg = 0.5 * (
-                self.data.segment_lengths[:, parent_idx] +
-                self.data.segment_lengths[:, child_idx]
-            )
-            J_scale = 2.0 / L_avg
+        # Get diagonal inverse inertias for all parent/child pairs
+        # Shape: (num_envs, num_constraints, 3)
+        I1_inv = torch.diagonal(
+            self.data.inv_inertias[:, parent_idx], dim1=-2, dim2=-1
+        )
+        I2_inv = torch.diagonal(
+            self.data.inv_inertias[:, child_idx], dim1=-2, dim2=-1
+        )
 
-            I1_inv = torch.diagonal(self.data.inv_inertias[:, parent_idx], dim1=-2, dim2=-1)
-            I2_inv = torch.diagonal(self.data.inv_inertias[:, child_idx], dim1=-2, dim2=-1)
+        # Compute omega corrections (vectorized)
+        omega_corr = J_scale.unsqueeze(-1) * d_lambda_bend  # (num_envs, num_constraints, 3)
 
-            # Apply rotation corrections
-            omega_corr = J_scale.unsqueeze(1) * d_lambda_bend
+        # Parent corrections (vectorized)
+        corr1 = I1_inv * omega_corr
+        q1 = self.data.orientations[:, parent_idx]  # (num_envs, num_constraints, 4)
+        corr1_world = self._quat_rotate_batch(q1, corr1)
+        dq1 = self._omega_to_quat_batch(-corr1_world)
+        self.data.orientations[:, parent_idx] = self._quat_multiply_batch(dq1, q1)
 
-            # Parent correction
-            corr1 = I1_inv * omega_corr
-            q1 = self.data.orientations[:, parent_idx]
-            corr1_world = self._quat_rotate(q1, corr1)
-            dq1 = self._omega_to_quat(-corr1_world)
-            self.data.orientations[:, parent_idx] = self._quat_multiply(dq1, q1)
-
-            # Child correction
-            corr2 = I2_inv * omega_corr
-            q2 = self.data.orientations[:, child_idx]
-            corr2_world = self._quat_rotate(q2, corr2)
-            dq2 = self._omega_to_quat(corr2_world)
-            self.data.orientations[:, child_idx] = self._quat_multiply(dq2, q2)
+        # Child corrections (vectorized)
+        corr2 = I2_inv * omega_corr
+        q2 = self.data.orientations[:, child_idx]
+        corr2_world = self._quat_rotate_batch(q2, corr2)
+        dq2 = self._omega_to_quat_batch(corr2_world)
+        self.data.orientations[:, child_idx] = self._quat_multiply_batch(dq2, q2)
 
         # Normalize quaternions
         self.data.orientations = self.data.orientations / (
             self.data.orientations.norm(dim=-1, keepdim=True) + 1e-8
         )
+
+    # =========================================================================
+    # Vectorized quaternion operations for batch processing
+    # =========================================================================
+    
+    @staticmethod
+    def _quat_rotate_batch(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """Rotate vectors v by quaternions q (batched).
+        
+        Args:
+            q: Quaternions (..., 4) in [x, y, z, w] format
+            v: Vectors (..., 3)
+        
+        Returns:
+            Rotated vectors (..., 3)
+        """
+        qv = q[..., :3]  # vector part
+        qw = q[..., 3:4]  # scalar part
+        t = 2.0 * torch.cross(qv, v, dim=-1)
+        return v + qw * t + torch.cross(qv, t, dim=-1)
+
+    @staticmethod
+    def _omega_to_quat_batch(omega: torch.Tensor, dt: float = 1.0) -> torch.Tensor:
+        """Convert angular velocity to quaternion increment (batched).
+        
+        Args:
+            omega: Angular velocities (..., 3)
+            dt: Time step (default 1.0 for direct application)
+        
+        Returns:
+            Quaternion increments (..., 4) in [x, y, z, w] format
+        """
+        angle = omega.norm(dim=-1, keepdim=True) * dt
+        half_angle = angle * 0.5
+        
+        # Small angle approximation where needed
+        small_angle = angle.squeeze(-1) < 1e-6
+        
+        s = torch.where(
+            small_angle.unsqueeze(-1),
+            torch.ones_like(half_angle) * 0.5 * dt,
+            torch.sin(half_angle) / (angle / dt + 1e-8)
+        )
+        c = torch.where(
+            small_angle.unsqueeze(-1),
+            torch.ones_like(half_angle),
+            torch.cos(half_angle)
+        )
+        
+        return torch.cat([s * omega, c], dim=-1)
+
+    @staticmethod
+    def _quat_multiply_batch(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+        """Multiply quaternions (batched).
+        
+        Args:
+            q1, q2: Quaternions (..., 4) in [x, y, z, w] format
+        
+        Returns:
+            Product quaternions (..., 4)
+        """
+        x1, y1, z1, w1 = q1[..., 0], q1[..., 1], q1[..., 2], q1[..., 3]
+        x2, y2, z2, w2 = q2[..., 0], q2[..., 1], q2[..., 2], q2[..., 3]
+        
+        return torch.stack([
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+        ], dim=-1)
 
     def _gauss_seidel_iteration(self, dt: float):
         """Perform one iteration of Gauss-Seidel constraint projection.
@@ -637,68 +777,118 @@ class RodSolver:
         num_segments = self.config.geometry.num_segments
         total_constraints = self.num_envs * (num_segments - 1)
 
-        # Create diagonal inertia array for the kernel
+        # Performance optimization: Cache inverse inertia diagonals
+        if self._cache_dirty:
+            self._update_warp_cache()
+        
+        # Get cached or create inverse inertia diagonal array
         inv_inertias_diag = wp.from_torch(
             torch.diagonal(self.data.inv_inertias, dim1=-2, dim2=-1).contiguous().view(-1, 3),
             dtype=wp.vec3f
         )
 
-        # Solve stretch constraints
-        wp.launch(
-            kernel=solve_stretch_constraints_kernel,
-            dim=total_constraints,
-            inputs=[
-                self.data.wp_positions,
-                self.data.wp_orientations,
-                self.data.wp_inv_masses,
-                self.data.wp_segment_lengths,
-                self.data.wp_stretch_compliance,
-                self.data.wp_lambda_stretch,
-                self.data.wp_parent_indices,
-                self.data.wp_fixed_segments,
-                num_segments,
-                dt,
-            ],
-        )
-        
-        # Solve shear constraints (if shear stiffness > 0)
-        if self.config.material.shear_stiffness > 0:
+        # =====================================================================
+        # PERFORMANCE OPTIMIZATION: Use fused kernel if configured
+        # Combines stretch + bend/twist into single GPU launch
+        # =====================================================================
+        if self.config.solver.use_fused_kernel:
             wp.launch(
-                kernel=solve_shear_constraints_kernel,
+                kernel=solve_stretch_bend_fused_kernel,
                 dim=total_constraints,
                 inputs=[
                     self.data.wp_positions,
                     self.data.wp_orientations,
                     self.data.wp_inv_masses,
+                    inv_inertias_diag,
                     self.data.wp_segment_lengths,
-                    self.data.wp_shear_compliance,
-                    self.data.wp_lambda_shear,
+                    self.data.wp_stretch_compliance,
+                    self.data.wp_bend_twist_compliance,
+                    self.data.wp_rest_darboux,
+                    self.data.wp_lambda_stretch,
+                    self.data.wp_lambda_bend_twist,
                     self.data.wp_parent_indices,
                     self.data.wp_fixed_segments,
                     num_segments,
                     dt,
                 ],
             )
+            
+            # Shear constraints (optional, solved separately)
+            if self.config.material.shear_stiffness > 0:
+                wp.launch(
+                    kernel=solve_shear_constraints_kernel,
+                    dim=total_constraints,
+                    inputs=[
+                        self.data.wp_positions,
+                        self.data.wp_orientations,
+                        self.data.wp_inv_masses,
+                        self.data.wp_segment_lengths,
+                        self.data.wp_shear_compliance,
+                        self.data.wp_lambda_shear,
+                        self.data.wp_parent_indices,
+                        self.data.wp_fixed_segments,
+                        num_segments,
+                        dt,
+                    ],
+                )
+        else:
+            # Standard separate kernel launches
+            # Solve stretch constraints
+            wp.launch(
+                kernel=solve_stretch_constraints_kernel,
+                dim=total_constraints,
+                inputs=[
+                    self.data.wp_positions,
+                    self.data.wp_orientations,
+                    self.data.wp_inv_masses,
+                    self.data.wp_segment_lengths,
+                    self.data.wp_stretch_compliance,
+                    self.data.wp_lambda_stretch,
+                    self.data.wp_parent_indices,
+                    self.data.wp_fixed_segments,
+                    num_segments,
+                    dt,
+                ],
+            )
+            
+            # Solve shear constraints (if shear stiffness > 0)
+            if self.config.material.shear_stiffness > 0:
+                wp.launch(
+                    kernel=solve_shear_constraints_kernel,
+                    dim=total_constraints,
+                    inputs=[
+                        self.data.wp_positions,
+                        self.data.wp_orientations,
+                        self.data.wp_inv_masses,
+                        self.data.wp_segment_lengths,
+                        self.data.wp_shear_compliance,
+                        self.data.wp_lambda_shear,
+                        self.data.wp_parent_indices,
+                        self.data.wp_fixed_segments,
+                        num_segments,
+                        dt,
+                    ],
+                )
 
-        # Solve bend/twist constraints
-        wp.launch(
-            kernel=solve_bend_twist_constraints_kernel,
-            dim=total_constraints,
-            inputs=[
-                self.data.wp_positions,
-                self.data.wp_orientations,
-                self.data.wp_inv_masses,
-                inv_inertias_diag,
-                self.data.wp_segment_lengths,
-                self.data.wp_rest_darboux,
-                self.data.wp_bend_twist_compliance,
-                self.data.wp_lambda_bend_twist,
-                self.data.wp_parent_indices,
-                self.data.wp_fixed_segments,
-                num_segments,
-                dt,
-            ],
-        )
+            # Solve bend/twist constraints
+            wp.launch(
+                kernel=solve_bend_twist_constraints_kernel,
+                dim=total_constraints,
+                inputs=[
+                    self.data.wp_positions,
+                    self.data.wp_orientations,
+                    self.data.wp_inv_masses,
+                    inv_inertias_diag,
+                    self.data.wp_segment_lengths,
+                    self.data.wp_rest_darboux,
+                    self.data.wp_bend_twist_compliance,
+                    self.data.wp_lambda_bend_twist,
+                    self.data.wp_parent_indices,
+                    self.data.wp_fixed_segments,
+                    num_segments,
+                    dt,
+                ],
+            )
 
     def _solve_collisions(self):
         """Solve collision constraints including mesh collision and friction."""

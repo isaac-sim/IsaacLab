@@ -140,11 +140,15 @@ class CollisionMeshConfig:
         use_bvh: Use BVH acceleration for collision queries.
         collision_radius: Additional collision radius for particles.
         restitution: Coefficient of restitution for bouncing.
+        contact_stiffness: Stiffness for contact response (higher = stiffer contacts).
+        contact_damping: Damping coefficient for contact velocity correction.
     """
     mesh_path: str | None = None
     use_bvh: bool = True
     collision_radius: float = 0.001
     restitution: float = 0.0
+    contact_stiffness: float = 1e4  # N/m - stiff contacts by default
+    contact_damping: float = 100.0  # N·s/m - moderate damping
 
 
 @dataclass
@@ -157,6 +161,7 @@ class RodSolverConfig:
         newton_iterations: Maximum number of Newton iterations per substep.
         newton_tolerance: Convergence tolerance for Newton iterations.
         use_direct_solver: Use direct solver (True) or Gauss-Seidel (False).
+        use_fused_kernel: Use fused stretch+bend kernel for better performance.
         gravity: Gravity vector [m/s²].
         enable_collisions: Enable collision detection and response.
         collision_margin: Collision detection margin [m].
@@ -169,6 +174,7 @@ class RodSolverConfig:
     newton_iterations: int = 4
     newton_tolerance: float = 1e-6
     use_direct_solver: bool = True
+    use_fused_kernel: bool = False  # Performance optimization: combines stretch + bend kernels
     gravity: tuple[float, float, float] = (0.0, -9.81, 0.0)
     enable_collisions: bool = False
     collision_margin: float = 0.001

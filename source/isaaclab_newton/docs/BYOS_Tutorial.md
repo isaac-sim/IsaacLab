@@ -4,26 +4,32 @@
 
 This tutorial explains how to implement your own physics solver in Isaac Lab using the Newton-style architecture. We'll use the existing Rod Solver (for catheters/guidewires) as a reference implementation.
 
+**Reference Paper:** The rod solver implements [Deul et al. 2018 "Direct Position-Based Solver for Stiff Rods"](https://animation.rwth-aachen.de/publication/0557/) from Computer Graphics Forum.
+
 ## Architecture Overview
 
 ```
 isaaclab_newton/
 ├── solvers/
-│   ├── __init__.py          # Module exports
-│   ├── rod_data.py          # Data structures & configuration
-│   ├── rod_kernels.py       # Warp GPU kernels
-│   └── rod_solver.py        # Main solver class
+│   ├── __init__.py          # Module exports 
+│   ├── rod_data.py          # Data structures & configuration 
+│   ├── rod_kernels.py       # Warp GPU kernels 
+│   └── rod_solver.py        # Main solver class 
 └── examples/
     └── your_example.py      # Usage example
 ```
+
 
 ## Step 1: Define Configuration Classes
 
 Create dataclasses for your solver's configuration. These define the parameters users can adjust.
 
+**Actual rod_data.py pattern:**
+
 ```python
 # my_solver_data.py
 from dataclasses import dataclass, field
+from typing import Literal
 import torch
 import warp as wp
 
@@ -31,40 +37,91 @@ wp.init()
 
 @dataclass
 class MySolverMaterialConfig:
-    """Material properties for your physics object."""
+    """Material properties for your physics object.
     
-    # Physical properties
-    young_modulus: float = 1e9      # [Pa]
-    density: float = 1000.0          # [kg/m³]
-    damping: float = 0.01            # Velocity damping
+    Based on the Cosserat rod model, using physically meaningful
+    parameters plus normalized stiffness multipliers for fine control.
+    """
     
-    # Normalized stiffness multipliers (0.0 to 1.0)
-    stiffness_param1: float = 1.0
-    stiffness_param2: float = 0.5
+    # Physical properties (SI units)
+    young_modulus: float = 1e9      # [Pa] - Bending stiffness
+    shear_modulus: float | None = None  # [Pa] - Computed if None
+    poisson_ratio: float = 0.3
+    density: float = 7800.0         # [kg/m³] - Steel density
+    damping: float = 0.01           # Velocity damping coefficient
+    
+    # Normalized stiffness multipliers (0.0 to 1.0, like Newton Viewer)
+    stretch_stiffness: float = 1.0   # 1.0 = fully inextensible
+    shear_stiffness: float = 1.0     # 1.0 = no shear deformation
+    bend_stiffness: float = 0.1      # Lower = more flexible (catheter-like)
+    twist_stiffness: float = 0.4     # Moderate torsional resistance
     
     def __post_init__(self):
-        """Validate or compute derived properties."""
-        assert 0.0 <= self.stiffness_param1 <= 1.0
+        """Compute derived properties."""
+        if self.shear_modulus is None:
+            # G = E / (2 * (1 + ν))
+            self.shear_modulus = self.young_modulus / (2.0 * (1.0 + self.poisson_ratio))
+
+
+@dataclass
+class MySolverTipConfig:
+    """Tip shaping configuration (for catheter J-tips, angled tips)."""
+    num_tip_segments: int = 20
+    rest_bend_omega1: float = 0.0  # Curvature in XZ plane [rad/m]
+    rest_bend_omega2: float = 0.0  # Curvature in YZ plane [rad/m]
+    rest_twist: float = 0.0        # Axial twist [rad/m]
 
 
 @dataclass
 class MySolverGeometryConfig:
     """Geometry configuration."""
     
-    num_elements: int = 100
-    total_length: float = 1.0
-    radius: float = 0.01
+    num_segments: int = 10          # Renamed from num_elements
+    segment_length: float | None = None  # Computed if None
+    rest_length: float = 1.0
+    radius: float | list[float] = 0.01  # Per-segment radius supported
+    cross_section: Literal["circle", "rectangle"] = "circle"
+    tip: MySolverTipConfig = field(default_factory=MySolverTipConfig)
+
+    def __post_init__(self):
+        """Compute segment length if not provided."""
+        if self.segment_length is None:
+            self.segment_length = self.rest_length / self.num_segments
+
+
+@dataclass
+class FrictionConfig:
+    """Friction model configuration."""
+    method: Literal["none", "coulomb", "viscous", "static_dynamic"] = "none"
+    static_coefficient: float = 0.5
+    dynamic_coefficient: float = 0.3
+    viscous_coefficient: float = 0.1
+    stiction_velocity: float = 0.01
+
+
+@dataclass
+class CollisionMeshConfig:
+    """Collision mesh configuration (for vessel geometry)."""
+    mesh_path: str | None = None
+    use_bvh: bool = True            # BVH acceleration for collision queries
+    collision_radius: float = 0.001
+    restitution: float = 0.0
 
 
 @dataclass  
 class MySolverConfig:
     """Solver algorithm configuration."""
     
-    dt: float = 1/60                 # Timestep
-    num_substeps: int = 4            # Substeps per frame
-    num_iterations: int = 6          # Solver iterations
-    gravity: tuple = (0, 0, -9.81)   # Gravity vector
-    device: str = "cuda"
+    dt: float = 1.0 / 60.0
+    num_substeps: int = 1           # Reduced from 4 (direct solver is stable)
+    newton_iterations: int = 4      # Renamed from num_iterations
+    newton_tolerance: float = 1e-6
+    use_direct_solver: bool = True  # O(n) direct solver vs O(n²) Gauss-Seidel
+    gravity: tuple[float, float, float] = (0.0, -9.81, 0.0)
+    enable_collisions: bool = False
+    collision_margin: float = 0.001
+    friction: FrictionConfig = field(default_factory=FrictionConfig)
+    collision_mesh: CollisionMeshConfig = field(default_factory=CollisionMeshConfig)
 
 
 @dataclass
@@ -76,6 +133,12 @@ class MyFullConfig:
     solver: MySolverConfig = field(default_factory=MySolverConfig)
     device: str = "cuda"
 ```
+
+**Key patterns from actual implementation:**
+- `__post_init__()` for computed derived properties
+- `Literal` types for constrained string options
+- Nested configs for related features (friction, collision mesh, tip)
+- `| None` type hints for optional parameters
 
 ## Step 2: Create the Data Structure
 
@@ -217,383 +280,659 @@ class MySolverData:
 
 Warp kernels run on the GPU for parallel computation.
 
+**Actual rod_kernels.py pattern (1034 lines):**
+
 ```python
 # my_solver_kernels.py
 import warp as wp
 
-# ===========================================
-# Helper Functions (must be @wp.func)
-# ===========================================
+# ============================================================================
+# Quaternion Helper Functions (from actual implementation)
+# ============================================================================
 
 @wp.func
-def safe_normalize(v: wp.vec3f) -> wp.vec3f:
-    """Safely normalize a vector."""
-    length = wp.length(v)
-    if length > 1e-8:
-        return v / length
-    return wp.vec3f(0.0, 0.0, 0.0)
+def quat_mul(q1: wp.quatf, q2: wp.quatf) -> wp.quatf:
+    """Multiply two quaternions."""
+    return q1 * q2
+
+
+@wp.func
+def quat_conjugate(q: wp.quatf) -> wp.quatf:
+    """Compute quaternion conjugate."""
+    return wp.quat(-q[0], -q[1], -q[2], q[3])
 
 
 @wp.func
 def quat_rotate_vec(q: wp.quatf, v: wp.vec3f) -> wp.vec3f:
-    """Rotate vector by quaternion."""
+    """Rotate vector v by quaternion q."""
     return wp.quat_rotate(q, v)
 
 
-# ===========================================
-# Simulation Kernels (must be @wp.kernel)
-# ===========================================
+@wp.func
+def quat_to_omega(q: wp.quatf, q_prev: wp.quatf, dt: float) -> wp.vec3f:
+    """Compute angular velocity from quaternion change.
+    ω = 2 * Im(q * q_prev^(-1)) / dt
+    """
+    dq = quat_mul(q, quat_conjugate(q_prev))
+    return wp.vec3f(2.0 * dq[0] / dt, 2.0 * dq[1] / dt, 2.0 * dq[2] / dt)
+
+
+@wp.func
+def omega_to_quat_delta(omega: wp.vec3f, dt: float) -> wp.quatf:
+    """Convert angular velocity to quaternion increment.
+    Δq = [sin(|ω|*dt/2) * ω/|ω|, cos(|ω|*dt/2)]
+    """
+    angle = wp.length(omega) * dt
+    if angle < 1e-8:
+        # Small angle approximation
+        return wp.quatf(omega[0] * dt * 0.5, omega[1] * dt * 0.5, omega[2] * dt * 0.5, 1.0)
+    
+    half_angle = angle * 0.5
+    s = wp.sin(half_angle) / (angle / dt)
+    return wp.quatf(s * omega[0], s * omega[1], s * omega[2], wp.cos(half_angle))
+
+
+# ============================================================================
+# Cosserat Rod Model Functions (Key physics)
+# ============================================================================
+
+@wp.func
+def compute_darboux_vector(q1: wp.quatf, q2: wp.quatf, segment_length: float) -> wp.vec3f:
+    """Compute the Darboux vector (curvature + twist) between two segments.
+    
+    The Darboux vector Ω represents the angular rate of change of the
+    material frame along the rod: Ω = 2 * Im(q1^(-1) * q2) / L
+    
+    Returns: Darboux vector [bend_x, bend_y, twist_z] in local frame.
+    """
+    q_rel = quat_mul(quat_conjugate(q1), q2)
+    inv_L = 1.0 / segment_length
+    return wp.vec3f(2.0 * q_rel[0] * inv_L, 2.0 * q_rel[1] * inv_L, 2.0 * q_rel[2] * inv_L)
+
+
+# ============================================================================
+# XPBD Integration Kernels
+# ============================================================================
 
 @wp.kernel
 def predict_positions_kernel(
     positions: wp.array(dtype=wp.vec3f),
     velocities: wp.array(dtype=wp.vec3f),
-    predicted_positions: wp.array(dtype=wp.vec3f),
-    inv_masses: wp.array(dtype=wp.float32),
+    prev_positions: wp.array(dtype=wp.vec3f),  # Store for velocity update
+    masses: wp.array(dtype=wp.float32),        # Use mass, not inv_mass
+    fixed: wp.array(dtype=wp.bool),            # Boolean fixed flag
     gravity: wp.vec3f,
-    dt: wp.float32,
-    num_elements: wp.int32,
+    dt: float,
+    damping: float,
 ):
-    """Predict positions using semi-implicit Euler.
-    
-    This is the first step of Position-Based Dynamics:
-    1. Apply external forces (gravity)
-    2. Integrate velocities to get predicted positions
+    """Predict positions using explicit Euler.
+    x̃ = x + dt * v + dt² * f_ext / m
     """
-    tid = wp.tid()  # Thread ID
+    idx = wp.tid()
     
-    # Bounds check
-    if tid >= num_elements:
+    if fixed[idx]:
         return
     
-    # Get current state
-    pos = positions[tid]
-    vel = velocities[tid]
-    inv_mass = inv_masses[tid]
+    # Store previous position (needed for velocity update)
+    prev_positions[idx] = positions[idx]
     
-    # Skip fixed elements
-    if inv_mass < 1e-8:
-        predicted_positions[tid] = pos
-        return
-    
-    # Apply gravity
-    vel = vel + gravity * dt
-    
-    # Predict new position
-    predicted_positions[tid] = pos + vel * dt
+    m = masses[idx]
+    if m > 1e-10:
+        # Apply damping to velocity BEFORE integration
+        v = velocities[idx] * (1.0 - damping)
+        positions[idx] = positions[idx] + dt * v + dt * dt * gravity
 
 
 @wp.kernel
-def solve_distance_constraint_kernel(
-    positions: wp.array(dtype=wp.vec3f),
-    inv_masses: wp.array(dtype=wp.float32),
-    rest_lengths: wp.array(dtype=wp.float32),
-    stiffness: wp.float32,
-    num_constraints: wp.int32,
+def predict_orientations_kernel(
+    orientations: wp.array(dtype=wp.quatf),
+    angular_velocities: wp.array(dtype=wp.vec3f),
+    prev_orientations: wp.array(dtype=wp.quatf),
+    fixed: wp.array(dtype=wp.bool),
+    dt: float,
+    damping: float,
 ):
-    """Solve distance constraints between adjacent elements.
-    
-    This is a Position-Based Dynamics constraint:
-    C(x1, x2) = |x2 - x1| - L₀ = 0
+    """Predict orientations using quaternion integration.
+    q̃ = q + dt/2 * [ω, 0] * q
     """
-    tid = wp.tid()
+    idx = wp.tid()
     
-    if tid >= num_constraints:
+    if fixed[idx]:
         return
     
-    # Indices of connected elements
-    i = tid
-    j = tid + 1
+    prev_orientations[idx] = orientations[idx]
     
-    # Get positions and masses
-    p1 = positions[i]
-    p2 = positions[j]
-    w1 = inv_masses[i]
-    w2 = inv_masses[j]
+    # Apply damping
+    omega = angular_velocities[idx] * (1.0 - damping)
     
-    # Compute constraint
+    # Integrate orientation
+    dq = omega_to_quat_delta(omega, dt)
+    q_new = quat_mul(dq, orientations[idx])
+    
+    # Normalize quaternion (CRITICAL for stability)
+    q_len = wp.sqrt(q_new[0]*q_new[0] + q_new[1]*q_new[1] + q_new[2]*q_new[2] + q_new[3]*q_new[3])
+    if q_len > 1e-8:
+        orientations[idx] = wp.quatf(q_new[0]/q_len, q_new[1]/q_len, q_new[2]/q_len, q_new[3]/q_len)
+
+
+# ============================================================================
+# XPBD Constraint Kernels (with Lagrange multiplier tracking)
+# ============================================================================
+
+@wp.kernel
+def solve_stretch_constraints_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    inv_masses: wp.array(dtype=wp.float32),
+    segment_lengths: wp.array(dtype=wp.float32),
+    compliance: wp.array(dtype=wp.float32),      # α = 1/stiffness
+    lambda_stretch: wp.array(dtype=wp.float32),  # Accumulated λ for XPBD
+    parent_indices: wp.array(dtype=wp.int32),
+    fixed: wp.array(dtype=wp.bool),
+    num_segments: int,
+    dt: float,
+):
+    """Solve zero-stretch constraints (inextensibility).
+    
+    XPBD formulation: (α + ∂C^T M^(-1) ∂C) Δλ = -C - α*λ
+    """
+    idx = wp.tid()
+    segment_idx = idx + 1
+    if segment_idx >= num_segments:
+        return
+    
+    parent_idx = parent_indices[segment_idx]
+    if parent_idx < 0:
+        return
+    
+    w1 = inv_masses[parent_idx]
+    w2 = inv_masses[segment_idx]
+    
+    if w1 < 1e-10 and w2 < 1e-10:
+        return  # Both fixed
+    
+    # Compute attachment points (end of parent, start of child)
+    x1 = positions[parent_idx]
+    x2 = positions[segment_idx]
+    q1 = orientations[parent_idx]
+    q2 = orientations[segment_idx]
+    
+    L1 = segment_lengths[parent_idx]
+    L2 = segment_lengths[segment_idx]
+    
+    local_end = wp.vec3f(L1 * 0.5, 0.0, 0.0)
+    local_start = wp.vec3f(-L2 * 0.5, 0.0, 0.0)
+    
+    p1 = x1 + quat_rotate_vec(q1, local_end)
+    p2 = x2 + quat_rotate_vec(q2, local_start)
+    
     diff = p2 - p1
     dist = wp.length(diff)
-    rest_length = rest_lengths[tid]
     
-    # Constraint value (should be 0 when satisfied)
-    C = dist - rest_length
-    
-    # Skip if no correction needed or both fixed
-    w_sum = w1 + w2
-    if wp.abs(C) < 1e-8 or w_sum < 1e-8:
+    if dist < 1e-8:
         return
     
-    # Compute correction
-    direction = safe_normalize(diff)
-    delta = stiffness * C / w_sum
+    n = diff / dist
     
-    # Apply corrections (position update)
-    positions[i] = p1 + w1 * delta * direction
-    positions[j] = p2 - w2 * delta * direction
+    # XPBD: Δλ = (-C - α*λ) / (w1 + w2 + α/dt²)
+    alpha = compliance[idx]
+    w_sum = w1 + w2 + alpha / (dt * dt)
+    
+    if w_sum < 1e-10:
+        return
+    
+    C = dist
+    delta_lambda = (-C - alpha * lambda_stretch[idx]) / w_sum
+    lambda_stretch[idx] = lambda_stretch[idx] + delta_lambda
+    
+    p_corr = delta_lambda * n
+    
+    if not fixed[parent_idx]:
+        positions[parent_idx] = positions[parent_idx] - w1 * p_corr
+    if not fixed[segment_idx]:
+        positions[segment_idx] = positions[segment_idx] + w2 * p_corr
 
 
 @wp.kernel
 def update_velocities_kernel(
     positions: wp.array(dtype=wp.vec3f),
-    old_positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    prev_positions: wp.array(dtype=wp.vec3f),
+    prev_orientations: wp.array(dtype=wp.quatf),
     velocities: wp.array(dtype=wp.vec3f),
-    damping: wp.float32,
-    dt: wp.float32,
-    num_elements: wp.int32,
+    angular_velocities: wp.array(dtype=wp.vec3f),
+    fixed: wp.array(dtype=wp.bool),
+    dt: float,
 ):
-    """Update velocities from position changes.
-    
-    v = (x_new - x_old) / dt
+    """Update velocities from position/orientation changes.
+    v = (x - x_prev) / dt
+    ω = 2 * Im(q * q_prev^(-1)) / dt
     """
-    tid = wp.tid()
+    idx = wp.tid()
     
-    if tid >= num_elements:
+    if fixed[idx]:
+        velocities[idx] = wp.vec3f(0.0, 0.0, 0.0)
+        angular_velocities[idx] = wp.vec3f(0.0, 0.0, 0.0)
         return
     
-    # Compute velocity from position change
-    new_vel = (positions[tid] - old_positions[tid]) / dt
-    
-    # Apply damping
-    new_vel = new_vel * (1.0 - damping)
-    
-    velocities[tid] = new_vel
+    inv_dt = 1.0 / dt
+    velocities[idx] = (positions[idx] - prev_positions[idx]) * inv_dt
+    angular_velocities[idx] = quat_to_omega(orientations[idx], prev_orientations[idx], dt)
 
 
 @wp.kernel
-def apply_ground_collision_kernel(
-    positions: wp.array(dtype=wp.vec3f),
-    velocities: wp.array(dtype=wp.vec3f),
-    ground_height: wp.float32,
-    restitution: wp.float32,
-    num_elements: wp.int32,
+def normalize_quaternions_kernel(orientations: wp.array(dtype=wp.quatf)):
+    """Normalize quaternions to prevent drift."""
+    idx = wp.tid()
+    q = orientations[idx]
+    q_len = wp.sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3])
+    if q_len > 1e-8:
+        orientations[idx] = wp.quatf(q[0]/q_len, q[1]/q_len, q[2]/q_len, q[3]/q_len)
+
+
+@wp.kernel
+def reset_lambda_kernel(
+    lambda_stretch: wp.array(dtype=wp.float32),
+    lambda_bend_twist: wp.array(dtype=wp.vec3f),
 ):
-    """Simple ground plane collision."""
-    tid = wp.tid()
-    
-    if tid >= num_elements:
-        return
-    
-    pos = positions[tid]
-    
-    if pos[2] < ground_height:
-        # Project onto ground
-        positions[tid] = wp.vec3f(pos[0], pos[1], ground_height)
-        
-        # Reflect velocity with restitution
-        vel = velocities[tid]
-        if vel[2] < 0.0:
-            velocities[tid] = wp.vec3f(vel[0], vel[1], -vel[2] * restitution)
+    """Reset Lagrange multipliers at start of each substep."""
+    idx = wp.tid()
+    lambda_stretch[idx] = 0.0
+    lambda_bend_twist[idx] = wp.vec3f(0.0, 0.0, 0.0)
 ```
+
+**Key patterns from actual implementation:**
+- XPBD uses accumulated Lagrange multipliers (`lambda_stretch`, `lambda_bend_twist`)
+- Compliance `α = 1/stiffness` enables time-step independent behavior
+- `prev_positions` and `prev_orientations` stored for velocity computation
+- Quaternion normalization is a separate kernel (called after all constraints)
+- `parent_indices` array enables tree structures (not just linear chains)
 
 ## Step 4: Create the Main Solver Class
 
 The solver orchestrates the simulation loop.
 
+**Actual rod_solver.py pattern (933 lines):**
+
 ```python
 # my_solver.py
+from __future__ import annotations
+from typing import Callable
 import torch
 import warp as wp
 
 from .my_solver_data import MyFullConfig, MySolverData
 from .my_solver_kernels import (
     predict_positions_kernel,
-    solve_distance_constraint_kernel,
+    predict_orientations_kernel,
+    solve_stretch_constraints_kernel,
+    solve_bend_twist_constraints_kernel,
+    solve_shear_constraints_kernel,
+    solve_ground_collision_kernel,
+    solve_mesh_collision_kernel,
+    apply_coulomb_friction_kernel,
     update_velocities_kernel,
-    apply_ground_collision_kernel,
+    normalize_quaternions_kernel,
+    reset_lambda_kernel,
 )
 
 
-class MySolver:
-    """Main solver class.
+class DirectTreeSolver:
+    """Linear-time direct solver for tree-structured constraints.
     
-    This implements the Position-Based Dynamics algorithm:
-    1. Predict positions from velocities
-    2. Solve constraints iteratively
-    3. Update velocities from position changes
+    Implements Section 4 of Deul et al. 2018.
+    For linear chain: tridiagonal system solved with Thomas algorithm.
     """
     
-    def __init__(self, config: MyFullConfig, num_envs: int = 1):
+    def __init__(self, num_segments: int, num_envs: int, device: str = "cuda"):
+        self.num_segments = num_segments
+        self.num_envs = num_envs
+        self.num_constraints = num_segments - 1
+        self._allocate_temp_arrays(device)
+    
+    def _allocate_temp_arrays(self, device: str):
+        """Allocate arrays for direct solve."""
+        n = self.num_envs
+        c = self.num_constraints
+        
+        # Block system matrices
+        self.diag_blocks = torch.zeros((n, c, 6, 6), device=device)
+        self.off_diag_blocks = torch.zeros((n, c - 1, 6, 6), device=device)
+        self.rhs = torch.zeros((n, c, 6), device=device)
+        self.delta_lambda = torch.zeros((n, c, 6), device=device)
+    
+    def solve(self, data, dt: float) -> torch.Tensor:
+        """Solve constraint system using direct method."""
+        self._build_system(data, dt)
+        self._solve_tridiagonal()
+        return self.delta_lambda
+
+
+class MySolver:
+    """Direct Position-Based Solver for Stiff Rods.
+    
+    Implements XPBD with direct solver for improved convergence.
+    Based on Deul et al. 2018 "Direct Position-Based Solver for Stiff Rods".
+    
+    Simulation loop:
+    1. Predict positions/orientations (explicit Euler)
+    2. Reset Lagrange multipliers
+    3. Newton iterations (direct solver or Gauss-Seidel)
+    4. Handle collisions
+    5. Update velocities
+    """
+    
+    def __init__(
+        self, 
+        config: MyFullConfig | None = None, 
+        num_envs: int = 1,
+        device: str | None = None,
+    ):
         """Initialize solver.
         
         Args:
-            config: Complete solver configuration.
+            config: Solver configuration. If None, uses defaults.
             num_envs: Number of parallel environments.
+            device: Computation device. If None, uses config.device.
         """
-        self.config = config
+        self.config = config or MyFullConfig()
+        self.device = device or self.config.device
         self.num_envs = num_envs
         
         # Create data structure
-        self.data = MySolverData(config, num_envs)
+        self.data = MySolverData(self.config, num_envs, self.device)
         
-        # Allocate temporary arrays
-        self._allocate_temp_arrays()
+        # Initialize direct solver (optional)
+        if self.config.solver.use_direct_solver:
+            self.direct_solver = DirectTreeSolver(
+                self.config.geometry.num_segments, num_envs, self.device
+            )
+        else:
+            self.direct_solver = None
         
-        # Precompute constants
-        self._setup_constants()
-    
-    def _allocate_temp_arrays(self):
-        """Allocate temporary arrays for solver."""
-        n = self.config.geometry.num_elements
-        
-        # Old positions for velocity update
-        self.old_positions = torch.zeros_like(self.data.positions)
-        
-        # Predicted positions
-        self.predicted_positions = torch.zeros_like(self.data.positions)
-        
-        # Rest lengths between elements
-        seg_length = self.config.geometry.total_length / n
-        self.rest_lengths = torch.full(
-            (self.num_envs, n - 1), 
-            seg_length,
-            dtype=torch.float32,
-            device=self.config.device
-        )
-        
-        # Create Warp arrays
-        self.wp_old_positions = wp.from_torch(
-            self.old_positions.view(-1, 3), dtype=wp.vec3f
-        )
-        self.wp_predicted = wp.from_torch(
-            self.predicted_positions.view(-1, 3), dtype=wp.vec3f
-        )
-        self.wp_rest_lengths = wp.from_torch(
-            self.rest_lengths.view(-1), dtype=wp.float32
-        )
-    
-    def _setup_constants(self):
-        """Precompute solver constants."""
+        # Pre-compute constants
         self.gravity = wp.vec3f(*self.config.solver.gravity)
-        self.dt_substep = self.config.solver.dt / self.config.solver.num_substeps
-        self.stiffness = self.config.material.stiffness_param1
-        self.damping = self.config.material.damping
+        self.time = 0.0
+        
+        # External force callback (for RL, teleoperation, etc.)
+        self._external_force_callback: Callable[[MySolverData], None] | None = None
     
-    def step(self, dt: float = None):
+    def step(self, dt: float | None = None):
         """Advance simulation by one frame.
         
         Args:
             dt: Timestep. If None, uses config.solver.dt.
         """
-        if dt is None:
-            dt = self.config.solver.dt
+        dt = dt or self.config.solver.dt
+        num_substeps = self.config.solver.num_substeps
+        sub_dt = dt / num_substeps
         
-        dt_substep = dt / self.config.solver.num_substeps
-        n = self.config.geometry.num_elements
+        for _ in range(num_substeps):
+            self._substep(sub_dt)
         
-        for _ in range(self.config.solver.num_substeps):
-            self._substep(dt_substep)
+        self.time += dt
     
     def _substep(self, dt: float):
-        """Perform one substep of the simulation."""
-        n = self.config.geometry.num_elements
+        """Perform one simulation substep."""
+        # Apply external forces if callback set
+        if self._external_force_callback is not None:
+            self._external_force_callback(self.data)
         
-        # 1. Save old positions
-        self.old_positions.copy_(self.data.positions)
+        # Sync PyTorch → Warp
+        self.data.sync_to_warp()
         
-        # 2. Predict positions (apply gravity, integrate velocities)
+        num_segments = self.config.geometry.num_segments
+        total_segments = self.num_envs * num_segments
+        num_constraints = num_segments - 1
+        total_constraints = self.num_envs * num_constraints
+        
+        # Step 1: Predict positions and orientations
         wp.launch(
             kernel=predict_positions_kernel,
-            dim=n * self.num_envs,
+            dim=total_segments,
             inputs=[
                 self.data.wp_positions,
                 self.data.wp_velocities,
-                self.wp_predicted,
-                wp.from_torch(self.data.inv_masses.view(-1), dtype=wp.float32),
+                self.data.wp_prev_positions,
+                self.data.wp_masses,
+                self.data.wp_fixed_segments,
                 self.gravity,
                 dt,
-                n,
+                self.config.material.damping,
             ],
         )
         
-        # Copy predicted to positions
-        self.data.positions.copy_(self.predicted_positions)
+        wp.launch(
+            kernel=predict_orientations_kernel,
+            dim=total_segments,
+            inputs=[
+                self.data.wp_orientations,
+                self.data.wp_angular_velocities,
+                self.data.wp_prev_orientations,
+                self.data.wp_fixed_segments,
+                dt,
+                self.config.material.damping,
+            ],
+        )
         
-        # 3. Solve constraints iteratively
-        for _ in range(self.config.solver.num_iterations):
-            self._solve_constraints(dt)
+        # Step 2: Reset Lagrange multipliers
+        wp.launch(
+            kernel=reset_lambda_kernel,
+            dim=total_constraints,
+            inputs=[
+                self.data.wp_lambda_stretch,
+                self.data.wp_lambda_bend_twist,
+            ],
+        )
         
-        # 4. Handle collisions
-        self._handle_collisions()
+        # Step 3: Newton iterations
+        newton_iters = self.config.solver.newton_iterations
         
-        # 5. Update velocities from position changes
+        if self.config.solver.use_direct_solver and self.direct_solver:
+            for _ in range(newton_iters):
+                self._direct_solve_iteration(dt)
+        else:
+            for _ in range(newton_iters):
+                self._gauss_seidel_iteration(dt)
+        
+        # Step 4: Handle collisions
+        if self.config.solver.enable_collisions:
+            self._solve_collisions()
+        
+        # Normalize quaternions (prevent drift)
+        wp.launch(
+            kernel=normalize_quaternions_kernel,
+            dim=total_segments,
+            inputs=[self.data.wp_orientations],
+        )
+        
+        # Step 5: Update velocities
         wp.launch(
             kernel=update_velocities_kernel,
-            dim=n * self.num_envs,
+            dim=total_segments,
             inputs=[
                 self.data.wp_positions,
-                self.wp_old_positions,
+                self.data.wp_orientations,
+                self.data.wp_prev_positions,
+                self.data.wp_prev_orientations,
                 self.data.wp_velocities,
-                self.damping,
+                self.data.wp_angular_velocities,
+                self.data.wp_fixed_segments,
                 dt,
-                n,
             ],
         )
-    
-    def _solve_constraints(self, dt: float):
-        """Solve all constraints once."""
-        n = self.config.geometry.num_elements
-        num_constraints = n - 1
         
-        # Distance constraints (keep elements at rest length)
+        # Sync Warp → PyTorch
+        self.data.sync_from_warp()
+    
+    def _gauss_seidel_iteration(self, dt: float):
+        """Gauss-Seidel constraint projection (one iteration)."""
+        num_segments = self.config.geometry.num_segments
+        total_constraints = self.num_envs * (num_segments - 1)
+        
+        # Stretch constraints (inextensibility)
         wp.launch(
-            kernel=solve_distance_constraint_kernel,
-            dim=num_constraints * self.num_envs,
+            kernel=solve_stretch_constraints_kernel,
+            dim=total_constraints,
             inputs=[
                 self.data.wp_positions,
-                wp.from_torch(self.data.inv_masses.view(-1), dtype=wp.float32),
-                self.wp_rest_lengths,
-                self.stiffness,
-                num_constraints,
+                self.data.wp_orientations,
+                self.data.wp_inv_masses,
+                self.data.wp_segment_lengths,
+                self.data.wp_stretch_compliance,
+                self.data.wp_lambda_stretch,
+                self.data.wp_parent_indices,
+                self.data.wp_fixed_segments,
+                num_segments,
+                dt,
+            ],
+        )
+        
+        # Shear constraints (optional)
+        if self.config.material.shear_stiffness > 0:
+            wp.launch(
+                kernel=solve_shear_constraints_kernel,
+                dim=total_constraints,
+                inputs=[...],  # Similar pattern
+            )
+        
+        # Bend/twist constraints (Cosserat model)
+        wp.launch(
+            kernel=solve_bend_twist_constraints_kernel,
+            dim=total_constraints,
+            inputs=[
+                self.data.wp_positions,
+                self.data.wp_orientations,
+                self.data.wp_inv_masses,
+                self.data.wp_inv_inertias_diag,
+                self.data.wp_segment_lengths,
+                self.data.wp_rest_darboux,
+                self.data.wp_bend_twist_compliance,
+                self.data.wp_lambda_bend_twist,
+                self.data.wp_parent_indices,
+                self.data.wp_fixed_segments,
+                num_segments,
+                dt,
             ],
         )
     
-    def _handle_collisions(self):
-        """Handle collision detection and response."""
-        n = self.config.geometry.num_elements
+    def _direct_solve_iteration(self, dt: float):
+        """Direct solve iteration (Newton method)."""
+        self.data.sync_from_warp()
+        delta_lambda = self.direct_solver.solve(self.data, dt)
+        self._apply_corrections(delta_lambda, dt)
+        self.data.sync_to_warp()
+    
+    def _solve_collisions(self):
+        """Collision detection and response."""
+        num_segments = self.config.geometry.num_segments
+        total_segments = self.num_envs * num_segments
         
         # Ground collision
         wp.launch(
-            kernel=apply_ground_collision_kernel,
-            dim=n * self.num_envs,
+            kernel=solve_ground_collision_kernel,
+            dim=total_segments,
             inputs=[
                 self.data.wp_positions,
-                self.data.wp_velocities,
-                0.0,   # ground height
-                0.5,   # restitution
-                n,
+                self.data.wp_orientations,
+                self.data.wp_segment_lengths,
+                self.data.wp_radii,
+                self.data.wp_fixed_segments,
+                0.0,  # ground height
+                self.config.solver.collision_mesh.restitution,
             ],
         )
+        
+        # Mesh collision (BVH-accelerated)
+        if self.data.collision_bvh is not None:
+            wp.launch(
+                kernel=solve_mesh_collision_kernel,
+                dim=total_segments,
+                inputs=[
+                    self.data.wp_positions,
+                    self.data.wp_velocities,
+                    self.data.wp_radii,
+                    self.data.wp_fixed_segments,
+                    self.data.collision_bvh.id,
+                    self._contact_normals,
+                    self._contact_depths,
+                    self.config.solver.collision_mesh.restitution,
+                    self.config.solver.collision_mesh.collision_radius,
+                ],
+            )
+            
+            # Apply friction
+            if self.config.solver.friction.method == "coulomb":
+                wp.launch(
+                    kernel=apply_coulomb_friction_kernel,
+                    dim=total_segments,
+                    inputs=[...],
+                )
     
-    def reset(self):
-        """Reset simulation to initial state."""
-        self.data._initialize_geometry()
-        self.data.velocities.zero_()
-        self.data.angular_velocities.zero_()
+    def set_external_force_callback(self, callback: Callable[[MySolverData], None]):
+        """Set callback for applying external forces (RL, teleoperation)."""
+        self._external_force_callback = callback
+    
+    def reset(self, env_indices: torch.Tensor | None = None):
+        """Reset simulation state."""
+        self.data.reset(env_indices)
+        self.time = 0.0
 ```
+
+**Key patterns from actual implementation:**
+- `DirectTreeSolver` for O(n) constraint solving
+- External force callback for RL integration
+- Sync points at substep boundaries only
+- Optional constraint kernels based on stiffness settings
+- BVH mesh collision with friction models
 
 ## Step 5: Export from __init__.py
 
+**Actual solvers/__init__.py (46 lines):**
+
 ```python
 # solvers/__init__.py
+"""
+Solvers module for position-based dynamics simulations.
+
+Features:
+- XPBD (Extended Position-Based Dynamics) framework
+- Cosserat rod model for bending and twisting
+- Separate stiffness controls (stretch, shear, bend, twist)
+- Tip shaping for catheter/guidewire simulation
+- BVH-accelerated mesh collision
+- Friction models (Coulomb, viscous, static/dynamic)
+"""
+
 from .my_solver_data import (
     MyFullConfig,
     MySolverData,
     MySolverMaterialConfig,
     MySolverGeometryConfig,
     MySolverConfig,
+    MySolverTipConfig,
+    FrictionConfig,
+    CollisionMeshConfig,
 )
 from .my_solver import MySolver
 
 __all__ = [
+    # Main classes
     "MySolver",
-    "MyFullConfig",
     "MySolverData",
+    
+    # Configuration classes
+    "MyFullConfig",
     "MySolverMaterialConfig",
-    "MySolverGeometryConfig", 
+    "MySolverGeometryConfig",
     "MySolverConfig",
+    "MySolverTipConfig",
+    "FrictionConfig",
+    "CollisionMeshConfig",
 ]
 ```
+
+**Key pattern:** Export ALL config classes so users can customize every aspect.
 
 ## Step 6: Create an Example
 
@@ -658,74 +997,467 @@ if __name__ == "__main__":
 
 ## Key Concepts Summary
 
-### 1. Configuration Pattern
+### 1. Configuration Pattern (from actual implementation)
 - Use `@dataclass` for clean, typed configuration
-- Separate concerns: material, geometry, solver settings
+- Separate concerns: material, geometry, solver, tip, friction, collision
 - Use `field(default_factory=...)` for mutable defaults
+- Use `__post_init__()` for computed properties
+- Use `Literal` types for constrained string options
 
 ### 2. Data Structure Pattern
 - Store both PyTorch tensors AND Warp arrays
-- PyTorch for easy manipulation, Warp for GPU kernels
-- Use `wp.from_torch()` to create Warp views of PyTorch data
-- Always call `sync_to_warp()` after PyTorch modifications
+- PyTorch for easy manipulation, ML integration, CPU access
+- Warp for GPU kernels (zero-copy via `wp.from_torch()`)
+- Store `prev_positions` for velocity computation
+- Store `lambda_*` arrays for XPBD accumulated multipliers
+- Sync at substep boundaries: `sync_to_warp()` at start, `sync_from_warp()` at end
 
 ### 3. Kernel Pattern
-- `@wp.func` for helper functions (can be called from kernels)
+- `@wp.func` for helper functions (inlined at compile time)
 - `@wp.kernel` for GPU kernels (launched with `wp.launch`)
-- Use `wp.tid()` to get thread ID
-- Always bounds-check with element count
+- Use `wp.tid()` to get global thread ID
+- Use `fixed[idx]` check instead of `if inv_mass < epsilon`
+- Normalize quaternions explicitly (numerical drift)
 
-### 4. Solver Pattern (Position-Based Dynamics)
+### 4. Solver Pattern (XPBD from Deul et al. 2018)
 ```
 for each frame:
     for each substep:
-        1. save_old_positions()
-        2. predict_positions()      # Apply forces, integrate
-        3. for iterations:
-              solve_constraints()   # Project to satisfy constraints
-        4. handle_collisions()      # Collision detection/response
-        5. update_velocities()      # v = (x_new - x_old) / dt
+        1. apply_external_forces()   # Callback for RL/teleoperation
+        2. sync_to_warp()
+        3. predict_positions()       # x̃ = x + dt*v + dt²*g
+        4. predict_orientations()    # q̃ = q + dt/2 * [ω,0] * q
+        5. reset_lambda()            # λ = 0 for new substep
+        6. for newton_iterations:    # 4 iterations typical
+              solve_stretch()        # Inextensibility
+              solve_shear()          # Optional (if stiffness > 0)
+              solve_bend_twist()     # Cosserat bending/twisting
+        7. handle_collisions()       # Ground, mesh (BVH), friction
+        8. normalize_quaternions()   # Prevent numerical drift
+        9. update_velocities()       # v = (x - x_prev) / dt
+        10. sync_from_warp()
 ```
 
-### 5. Constraint Formulation
-- Constraint: `C(x) = 0` when satisfied
-- Gradient: `∇C` points in direction of constraint violation
-- Correction: `Δx = -λ * ∇C` where `λ = C / |∇C|²`
-- Stiffness: Scale `λ` to control constraint strength
+### 5. XPBD Constraint Formulation
+```
+Standard PBD:    Δx = -λ * ∇C    where λ = C / |∇C|²
+XPBD (better):   Δλ = (-C - α*λ) / (w₁ + w₂ + α/dt²)
+                 α = compliance = 1/stiffness
+                 Δx = w * Δλ * ∇C
+```
+
+Benefits of XPBD:
+- Time-step independent behavior (α scaled by dt²)
+- Better convergence (Newton-like with accumulated λ)
+- Separate stiffness from iteration count
+
+### 6. Direct Solver (O(n) for linear chains)
+```
+For tree-structured constraints:
+1. Build block-tridiagonal system: A * Δλ = b
+2. Solve with Thomas algorithm (forward elimination + back substitution)
+3. Apply corrections: Δx = W * J^T * Δλ
+
+Result: O(n) complexity vs O(n²) for dense systems
+```
 
 ## Advanced Topics
 
-### Adding Custom Constraints
-1. Define constraint function `C(x)`
-2. Compute gradient `∇C`
-3. Apply position correction `Δx = -w * λ * ∇C`
-4. Handle mass-weighted corrections
+### Adding Custom Constraints (XPBD Pattern)
 
-### Mesh Collision
-1. Build BVH (Bounding Volume Hierarchy)
-2. Query nearby triangles per particle
-3. Project particles outside mesh
-4. Apply friction response
+```python
+# XPBD constraint pattern from actual implementation:
+# 1. Compute constraint value C (should be 0 when satisfied)
+# 2. Compute compliance α = 1 / stiffness
+# 3. Compute XPBD update: Δλ = (-C - α*λ) / (w1 + w2 + α/dt²)
+# 4. Update accumulated λ
+# 5. Apply position correction: Δx = w * Δλ * ∇C
+
+@wp.kernel
+def solve_my_constraint_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    inv_masses: wp.array(dtype=wp.float32),
+    compliance: wp.array(dtype=wp.float32),
+    lambda_accum: wp.array(dtype=wp.float32),  # Accumulated multiplier
+    dt: float,
+):
+    idx = wp.tid()
+    
+    # 1. Compute constraint value
+    C = compute_my_constraint(positions, idx)
+    
+    # 2. Get compliance
+    alpha = compliance[idx]
+    
+    # 3. XPBD delta lambda
+    w_sum = get_effective_mass(inv_masses, idx) + alpha / (dt * dt)
+    delta_lambda = (-C - alpha * lambda_accum[idx]) / w_sum
+    
+    # 4. Update accumulated lambda
+    lambda_accum[idx] = lambda_accum[idx] + delta_lambda
+    
+    # 5. Apply correction
+    apply_correction(positions, delta_lambda, idx)
+```
+
+### Mesh Collision with BVH (Actual Pattern)
+
+```python
+# From rod_data.py: CollisionMeshConfig
+@dataclass
+class CollisionMeshConfig:
+    mesh_path: str | None = None
+    use_bvh: bool = True           # BVH acceleration
+    collision_radius: float = 0.001
+    restitution: float = 0.0
+
+# From rod_solver.py: Loading collision mesh
+def load_collision_mesh(self, mesh_vertices, mesh_indices):
+    """Load mesh for BVH-accelerated collision."""
+    self.data.collision_bvh = wp.Mesh(
+        points=wp.array(mesh_vertices, dtype=wp.vec3f),
+        indices=wp.array(mesh_indices.flatten(), dtype=wp.int32),
+    )
+
+# From rod_kernels.py: Mesh collision query
+@wp.kernel
+def solve_mesh_collision_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    velocities: wp.array(dtype=wp.vec3f),
+    radii: wp.array(dtype=wp.float32),
+    fixed: wp.array(dtype=wp.bool),
+    mesh: wp.uint64,  # BVH mesh ID
+    contact_normals: wp.array(dtype=wp.vec3f),
+    contact_depths: wp.array(dtype=wp.float32),
+    restitution: float,
+    collision_radius: float,
+):
+    idx = wp.tid()
+    if fixed[idx]:
+        return
+    
+    pos = positions[idx]
+    radius = radii[idx] + collision_radius
+    
+    # Query closest point on mesh (O(log n) with BVH)
+    face_idx = int(0)
+    face_u = float(0.0)
+    face_v = float(0.0)
+    sign = float(0.0)
+    
+    result = wp.mesh_query_point(mesh, pos, radius * 2.0, sign, face_idx, face_u, face_v)
+    
+    if result:
+        closest = wp.mesh_eval_position(mesh, face_idx, face_u, face_v)
+        normal = wp.normalize(pos - closest)
+        depth = radius - wp.length(pos - closest)
+        
+        if depth > 0.0:
+            # Push out of mesh
+            positions[idx] = pos + normal * depth
+            contact_normals[idx] = normal
+            contact_depths[idx] = depth
+```
 
 ### Parallel Environments
-- All arrays have shape `[num_envs, num_elements, ...]`
-- Kernels process all environments in parallel
-- Use `env_idx = tid // num_elements` to get environment
+
+```python
+# Array shape convention: [num_envs, num_segments, dimensions]
+positions = torch.zeros((num_envs, num_segments, 3), device="cuda")
+
+# Kernel processes all environments in parallel
+@wp.kernel
+def my_kernel(..., num_segments: int):
+    tid = wp.tid()  # Global thread ID across all envs
+    
+    # Compute env and segment indices
+    env_idx = tid // num_segments
+    segment_idx = tid % num_segments
+    
+    # Access element
+    pos = positions[tid]  # Flattened view works because contiguous
+```
+
+### Direct Solver vs Gauss-Seidel
+
+The rod solver supports two modes:
+
+| Mode | Complexity | Convergence | Use Case |
+|------|-----------|-------------|----------|
+| **Direct Solver** | O(n) per iteration | Fast (Newton) | Stiff rods, few iterations needed |
+| **Gauss-Seidel** | O(n) per iteration | Slow (linear) | Soft rods, more iterations |
+
+```python
+# From rod_solver.py
+@dataclass
+class RodSolverConfig:
+    use_direct_solver: bool = True   # O(n) direct solver
+    newton_iterations: int = 4       # Fewer iterations needed
+
+# Direct solver exploits tree structure of constraints
+# For a linear chain: tridiagonal system solved with Thomas algorithm
+```
+
+---
+
+## Optimization Recommendations
+
+Based on analysis of the actual rod solver (2677 lines total). These optimizations have been **implemented**:
+
+### 1. ✅ Reduce `wp.from_torch()` Calls (IMPLEMENTED)
+
+**Problem:** `_gauss_seidel_iteration()` calls `wp.from_torch()` repeatedly.
+
+**Solution (now in rod_solver.py):**
+
+```python
+def __init__(self, config, num_envs):
+    ...
+    # Performance optimization: Cache Warp arrays to avoid repeated creation
+    self._cached_wp_inv_inertias_diag = None
+    self._cached_wp_radii = None
+    self._cache_dirty = True  # Flag to invalidate cache when data changes
+    
+    # Pre-compute constraint indices for vectorized operations
+    num_constraints = self.config.geometry.num_segments - 1
+    self._parent_indices_vec = torch.arange(num_constraints, device=self.device)
+    self._child_indices_vec = self._parent_indices_vec + 1
+
+def _update_warp_cache(self):
+    """Update cached Warp arrays if data has changed."""
+    if not self._cache_dirty:
+        return
+        
+    inv_inertia_diag = torch.diagonal(
+        self.data.inv_inertias, dim1=-2, dim2=-1
+    ).contiguous()
+    self._cached_wp_inv_inertias_diag = wp.from_torch(
+        inv_inertia_diag.flatten(), dtype=wp.float32
+    )
+    self._cache_dirty = False
+
+def invalidate_cache(self):
+    """Mark cache as dirty, forcing update on next use."""
+    self._cache_dirty = True
+```
+
+### 2. Reduce Synchronization
+
+**Problem:** `sync_to_warp()` and `sync_from_warp()` called frequently:
+
+```python
+# Current pattern
+def _substep(self, dt):
+    self.data.sync_to_warp()    # Sync 1
+    # ... kernels ...
+    self.data.sync_from_warp()  # Sync 2
+
+def _direct_solve_iteration(self, dt):
+    self.data.sync_from_warp()  # Sync 3
+    # ... PyTorch ops ...
+    self.data.sync_to_warp()    # Sync 4
+```
+
+**Optimization:** Batch syncs at substep boundaries only:
+
+```python
+def _substep(self, dt):
+    # One sync at start
+    self.data.sync_to_warp()
+    
+    # All kernels
+    self._predict()
+    for _ in range(self.config.solver.newton_iterations):
+        self._solve_constraints(dt)
+    self._update_velocities(dt)
+    
+    # One sync at end
+    self.data.sync_from_warp()
+```
+
+### 3. ✅ Vectorize Python Loops (IMPLEMENTED)
+
+**Problem:** `_apply_corrections()` used Python loop.
+
+**Solution (now in rod_solver.py):**
+
+```python
+def _apply_corrections(self, delta_lambda: torch.Tensor, dt: float):
+    """Apply position and orientation corrections from delta lambda.
+    
+    OPTIMIZED: Uses vectorized PyTorch operations instead of Python loops.
+    """
+    # Use pre-computed indices for vectorized operations
+    parent_idx = self._parent_indices_vec  # [0, 1, 2, ..., n-2]
+    child_idx = self._child_indices_vec    # [1, 2, 3, ..., n-1]
+
+    # Extract stretch and bend/twist for ALL constraints at once
+    d_lambda_stretch = delta_lambda[:, :, :3]  # (num_envs, num_constraints, 3)
+    d_lambda_bend = delta_lambda[:, :, 3:]     # (num_envs, num_constraints, 3)
+
+    # Vectorized position corrections
+    w1 = self.data.inv_masses[:, parent_idx].unsqueeze(-1)
+    w2 = self.data.inv_masses[:, child_idx].unsqueeze(-1)
+
+    self.data.positions[:, parent_idx] -= w1 * d_lambda_stretch
+    self.data.positions[:, child_idx] += w2 * d_lambda_stretch
+
+    # Vectorized orientation corrections using batched quaternion ops
+    corr1_world = self._quat_rotate_batch(q1, corr1)
+    dq1 = self._omega_to_quat_batch(-corr1_world)
+    self.data.orientations[:, parent_idx] = self._quat_multiply_batch(dq1, q1)
+```
+
+**Batched quaternion operations added:**
+
+```python
+@staticmethod
+def _quat_rotate_batch(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    """Rotate vectors v by quaternions q (batched)."""
+    qv = q[..., :3]
+    qw = q[..., 3:4]
+    t = 2.0 * torch.cross(qv, v, dim=-1)
+    return v + qw * t + torch.cross(qv, t, dim=-1)
+
+@staticmethod
+def _quat_multiply_batch(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """Multiply quaternions (batched)."""
+    # ... vectorized implementation
+```
+
+### 4. ✅ Contact Stiffness Parameters (IMPLEMENTED)
+
+**Added to CollisionMeshConfig (rod_data.py):**
+
+```python
+@dataclass
+class CollisionMeshConfig:
+    """Configuration for collision mesh (e.g., vessel geometry)."""
+    mesh_path: str | None = None
+    use_bvh: bool = True
+    collision_radius: float = 0.001
+    restitution: float = 0.0
+    contact_stiffness: float = 1e4   # N/m - stiff contacts by default
+    contact_damping: float = 100.0   # N·s/m - moderate damping
+```
+
+**Benefits:**
+- Configurable contact response stiffness
+- Separate damping for velocity correction
+- Prevents jittering in stiff contact scenarios
+
+### 4b. Optional Constraint Kernels (pattern)
+
+**Good pattern from rod_solver.py:** Shear constraints are optional:
+
+```python
+if self.config.material.shear_stiffness > 0:
+    wp.launch(solve_shear_constraints_kernel, ...)
+```
+
+**Apply to other constraints:** Skip kernels when stiffness is 0
+
+### 5. ✅ Fuse Constraint Kernels (IMPLEMENTED)
+
+**Problem:** Separate kernels for stretch and bend/twist constraints cause:
+- Two GPU kernel launches per iteration
+- Memory read/write of positions and orientations twice
+- Synchronization overhead between launches
+
+**Solution (now in rod_kernels.py):**
+
+```python
+@wp.kernel
+def solve_stretch_bend_fused_kernel(
+    positions: wp.array(dtype=wp.vec3f),
+    orientations: wp.array(dtype=wp.quatf),
+    inv_masses: wp.array(dtype=wp.float32),
+    inv_inertias_diag: wp.array(dtype=wp.vec3f),
+    segment_lengths: wp.array(dtype=wp.float32),
+    stretch_compliance: wp.array(dtype=wp.float32),
+    bend_twist_compliance: wp.array(dtype=wp.vec3f),
+    rest_darboux: wp.array(dtype=wp.vec3f),
+    lambda_stretch: wp.array(dtype=wp.float32),
+    lambda_bend_twist: wp.array(dtype=wp.vec3f),
+    parent_indices: wp.array(dtype=wp.int32),
+    fixed: wp.array(dtype=wp.bool),
+    num_segments: int,
+    dt: float,
+):
+    """Fused kernel for solving both stretch and bend/twist constraints.
+    
+    PERFORMANCE BENEFITS:
+    - Single kernel launch instead of two
+    - Better memory locality (positions/orientations read once)
+    - Reduced GPU synchronization overhead
+    """
+    idx = wp.tid()
+    # ... PART 1: Stretch constraint ...
+    # ... PART 2: Bend/twist constraint ...
+```
+
+**Enable in config:**
+
+```python
+from isaaclab_newton.solvers import RodConfig, RodSolverConfig
+
+config = RodConfig(
+    solver=RodSolverConfig(
+        use_fused_kernel=True,  # Enable fused constraint kernel
+    )
+)
+```
+
+---
+
+## Performance Summary
+
+| Optimization | Status | Impact |
+|--------------|--------|--------|
+| Warp array caching | ✅ Implemented | Reduced `wp.from_torch()` overhead |
+| Vectorized corrections | ✅ Implemented | Eliminated Python loop in `_apply_corrections()` |
+| Fused constraint kernel | ✅ Implemented | Single kernel for stretch+bend (optional) |
+| Contact stiffness params | ✅ Implemented | Configurable contact response |
+| Batched quaternion ops | ✅ Implemented | Vectorized rotation operations |
+
+---
 
 ## Reference: Rod Solver Files
 
-| File | Purpose |
-|------|---------|
-| `rod_data.py` | Configuration + data structures |
-| `rod_kernels.py` | Warp GPU kernels |
-| `rod_solver.py` | Main solver class |
-| `__init__.py` | Module exports |
+| File | Lines | Purpose |
+|------|-------|---------|
+| `rod_data.py` | 715 | 8 config classes + `RodData` state |
+| `rod_kernels.py` | 1249 | 16+ GPU kernels (XPBD + collision + fused) |
+| `rod_solver.py` | 1122 | `RodSolver` + `DirectTreeSolver` + optimizations |
+| `__init__.py` | 45 | Public exports |
+
+### Kernel Inventory (rod_kernels.py)
+
+| Kernel | Lines | Purpose |
+|--------|-------|---------|
+| `predict_positions_kernel` | 20 | Position integration |
+| `predict_orientations_kernel` | 20 | Quaternion integration |
+| `solve_stretch_constraints_kernel` | 75 | Inextensibility |
+| `solve_bend_twist_constraints_kernel` | 115 | Cosserat bending/twisting |
+| `solve_shear_constraints_kernel` | 80 | Timoshenko shear |
+| `solve_ground_collision_kernel` | 30 | Ground plane collision |
+| `solve_mesh_collision_kernel` | 60 | BVH mesh collision |
+| `apply_coulomb_friction_kernel` | 50 | Coulomb friction |
+| `apply_viscous_friction_kernel` | 30 | Viscous friction |
+| `update_velocities_kernel` | 20 | Velocity from positions |
+| `normalize_quaternions_kernel` | 10 | Quaternion normalization |
+| `reset_lambda_kernel` | 10 | Reset Lagrange multipliers |
+| `compute_total_energy_kernel` | 40 | Energy computation |
+
+---
 
 ## Next Steps
 
-1. Start with a simple particle system
-2. Add distance constraints
-3. Add your custom physics (bending, twisting, etc.)
-4. Add collision detection
-5. Integrate with Isaac Sim visualization
+1. **Start simple:** Particle system with distance constraints
+2. **Add XPBD:** Use compliance and accumulated λ
+3. **Add rotations:** Quaternion integration + bending constraints
+4. **Add collision:** Ground plane → BVH mesh
+5. **Add friction:** Coulomb or viscous
+6. **Optimize:** Cache Warp arrays, reduce syncs, vectorize
+7. **Integrate:** Connect to Isaac Sim visualization
 
