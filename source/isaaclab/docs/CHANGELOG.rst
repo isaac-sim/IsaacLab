@@ -13,6 +13,7 @@ Changelog
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
+^^^^^
 
 * Teleop: update carb settings to be compatible with Isaac Sim 6.0/Kit XR 110.0
 
