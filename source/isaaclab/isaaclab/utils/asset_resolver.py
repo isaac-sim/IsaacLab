@@ -46,9 +46,9 @@ class OfflineAssetResolver:
 
     _instance: Optional["OfflineAssetResolver"] = None
     _enabled: bool = False
-    _offline_assets_dir: Optional[str] = None
-    _isaac_nucleus_dir: Optional[str] = None
-    _isaaclab_nucleus_dir: Optional[str] = None
+    _offline_assets_dir: str | None = None
+    _isaac_nucleus_dir: str | None = None
+    _isaaclab_nucleus_dir: str | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -130,7 +130,7 @@ class OfflineAssetResolver:
 
         return asset_path
 
-    def _extract_relative_path(self, asset_path: str) -> Optional[str]:
+    def _extract_relative_path(self, asset_path: str) -> str | None:
         """
         Extract relative path from various Nucleus URL formats.
 
