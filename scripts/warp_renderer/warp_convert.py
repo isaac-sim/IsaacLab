@@ -304,6 +304,3 @@ class WarpRenderer:
                     camera_transforms[world_id].append(self.__resolve_camera_transform(camera_prim))
 
         return wp.array(camera_transforms, dtype=wp.transformf)
-
-
-# c && python ./scripts/warp_renderer/example.py --headless --steps 200 --enable_cameras --kit_args "--enable omni.warp.core-1.11.0-rc.1+lx64" --num_envs 4

@@ -35,3 +35,21 @@ python ./scripts/warp_renderer/example.py --headless --steps 200 --num_envs 4 --
 The included Warp version with IsaacLab is too old for the Newton Warp Renderer, therefore we need to specify a newer version with the `--kit_args` parameter.
 
 You can add `--save_images` to save the rendered images.
+
+
+### How to use the Renderer
+
+If you look at `example.py` you'll see these lines:
+```python
+renderer = WarpRenderer(scene, 400, 400)
+
+# ...
+
+def run_simulator(...):
+    # ...
+    renderer.update()
+    renderer.render()
+    if save_images:
+        renderer.save_image(f"warp_renderer/rgb.{step:04d}.png")
+```
+Once the renderer is created, the `update()` method will write all transforms from the IsaacLab Fabric USD Stage to the Newton Warp Renderer buffers, which are then rendered by the `render()` method.
