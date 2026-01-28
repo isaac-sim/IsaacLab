@@ -14,48 +14,45 @@ from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
 
 #########################
-# Policy configurations #
+# Model configurations #
 #########################
 
 
 @configclass
-class RslRlPpoActorCriticCfg:
-    """Configuration for the PPO actor-critic networks."""
+class RslRlMLPModelCfg:
+    """Configuration for the MLP model."""
 
-    class_name: str = "ActorCritic"
-    """The policy class name. Default is ActorCritic."""
+    class_name: str = "MLPModel"
+    """The model class name. Default is MLPModel."""
+
+    hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the MLP network."""
+
+    activation: str = MISSING
+    """The activation function for the MLP network."""
+
+    obs_normalization: bool = False
+    """Whether to normalize the observation for the model. Default is False."""
+
+    stochastic: bool = MISSING
+    """Whether the model output is stochastic. Default is False."""
 
     init_noise_std: float = MISSING
-    """The initial noise standard deviation for the policy."""
+    """The initial noise standard deviation for the model."""
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
+    """The type of noise standard deviation for the model. Default is scalar."""
 
     state_dependent_std: bool = False
     """Whether to use state-dependent standard deviation for the policy. Default is False."""
 
-    actor_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the actor network."""
-
-    critic_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the critic network."""
-
-    actor_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the actor network."""
-
-    critic_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the critic network."""
-
-    activation: str = MISSING
-    """The activation function for the actor and critic networks."""
-
 
 @configclass
-class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
-    """Configuration for the PPO actor-critic networks with recurrent layers."""
+class RslRlRNNModelCfg(RslRlMLPModelCfg):
+    """Configuration for RNN model."""
 
-    class_name: str = "ActorCriticRecurrent"
-    """The policy class name. Default is ActorCriticRecurrent."""
+    class_name: str = "RNNModel"
+    """The model class name. Default is RNNModel."""
 
     rnn_type: str = MISSING
     """The type of RNN to use. Either "lstm" or "gru"."""
@@ -65,6 +62,48 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
     rnn_num_layers: int = MISSING
     """The number of RNN layers."""
+
+
+class RslRlCNNModelCfg(RslRlMLPModelCfg):
+    """Configuration for CNN model."""
+
+    class_name: str = "CNNModel"
+    """The model class name. Default is CNNModel."""
+
+    @configclass
+    class CNNCfg:
+        output_channels: tuple[int] | list[int] = MISSING
+        """The number of output channels for each convolutional layer for the CNN."""
+
+        kernel_size: int | tuple[int] | list[int] = MISSING
+        """The kernel size for the CNN."""
+
+        stride: int | tuple[int] | list[int] = 1
+        """The stride for the CNN."""
+
+        dilation: int | tuple[int] | list[int] = 1
+        """The dilation for the CNN."""
+
+        padding: Literal["none", "zeros", "reflect", "replicate", "circular"] = "none"
+        """The padding for the CNN."""
+
+        norm: Literal["none", "batch", "layer"] | tuple[str] | list[str] = "none"
+        """The normalization for the CNN."""
+
+        activation: str = MISSING
+        """The activation function for the CNN."""
+
+        max_pool: bool | tuple[bool] | list[bool] = False
+        """Whether to use max pooling for the CNN."""
+
+        global_pool: Literal["none", "max", "avg"] = "none"
+        """The global pooling for the CNN."""
+
+        flatten: bool = True
+        """Whether to flatten the output of the CNN."""
+
+    cnn_cfg: CNNCfg = MISSING
+    """The configuration for the CNN(s)."""
 
 
 ############################
@@ -105,6 +144,9 @@ class RslRlPpoAlgorithmCfg:
 
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
+
+    optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
+    """The optimizer to use."""
 
     value_loss_coef: float = MISSING
     """The coefficient for the value loss."""
@@ -153,7 +195,7 @@ class RslRlBaseRunnerCfg:
     empirical_normalization: bool | None = None
     """This parameter is deprecated and will be removed in the future.
 
-    Use `actor_obs_normalization` and `critic_obs_normalization` instead.
+    Use `obs_normalization` of the model instead.
     """
 
     obs_groups: dict[str, list[str]] = MISSING
@@ -168,11 +210,11 @@ class RslRlBaseRunnerCfg:
     .. code-block:: python
 
         obs_groups = {
-            "policy": ["policy", "images"],
+            "actor": ["policy", "images"],
             "critic": ["policy", "privileged"],
         }
 
-    This way, the policy will receive the "policy" and "images" observations, and the critic will
+    This way, the actor will receive the "policy" and "images" observations, and the critic will
     receive the "policy" and "privileged" observations.
 
     For more details, please check ``vec_env.py`` in the rsl_rl library.
@@ -234,8 +276,11 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     class_name: str = "OnPolicyRunner"
     """The runner class name. Default is OnPolicyRunner."""
 
-    policy: RslRlPpoActorCriticCfg = MISSING
-    """The policy configuration."""
+    actor: RslRlMLPModelCfg = MISSING
+    """The actor configuration."""
+
+    critic: RslRlMLPModelCfg = MISSING
+    """The critic configuration."""
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""

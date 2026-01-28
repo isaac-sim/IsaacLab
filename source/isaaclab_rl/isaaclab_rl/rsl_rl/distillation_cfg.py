@@ -10,61 +10,7 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
-from .rl_cfg import RslRlBaseRunnerCfg
-
-#########################
-# Policy configurations #
-#########################
-
-
-@configclass
-class RslRlDistillationStudentTeacherCfg:
-    """Configuration for the distillation student-teacher networks."""
-
-    class_name: str = "StudentTeacher"
-    """The policy class name. Default is StudentTeacher."""
-
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the student policy."""
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
-
-    student_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the student network."""
-
-    teacher_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the teacher network."""
-
-    student_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the student network."""
-
-    teacher_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the teacher network."""
-
-    activation: str = MISSING
-    """The activation function for the student and teacher networks."""
-
-
-@configclass
-class RslRlDistillationStudentTeacherRecurrentCfg(RslRlDistillationStudentTeacherCfg):
-    """Configuration for the distillation student-teacher recurrent networks."""
-
-    class_name: str = "StudentTeacherRecurrent"
-    """The policy class name. Default is StudentTeacherRecurrent."""
-
-    rnn_type: str = MISSING
-    """The type of the RNN network. Either "lstm" or "gru"."""
-
-    rnn_hidden_dim: int = MISSING
-    """The hidden dimension of the RNN network."""
-
-    rnn_num_layers: int = MISSING
-    """The number of layers of the RNN network."""
-
-    teacher_recurrent: bool = MISSING
-    """Whether the teacher network is recurrent too."""
-
+from .rl_cfg import RslRlBaseRunnerCfg, RslRlMLPModelCfg
 
 ############################
 # Algorithm configurations #
@@ -109,8 +55,11 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
     class_name: str = "DistillationRunner"
     """The runner class name. Default is DistillationRunner."""
 
-    policy: RslRlDistillationStudentTeacherCfg = MISSING
-    """The policy configuration."""
+    student: RslRlMLPModelCfg = MISSING
+    """The student configuration."""
+
+    teacher: RslRlMLPModelCfg = MISSING
+    """The teacher configuration."""
 
     algorithm: RslRlDistillationAlgorithmCfg = MISSING
     """The algorithm configuration."""

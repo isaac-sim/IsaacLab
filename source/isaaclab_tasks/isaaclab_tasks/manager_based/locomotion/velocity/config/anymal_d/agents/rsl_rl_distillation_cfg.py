@@ -8,7 +8,8 @@ from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import (
     RslRlDistillationAlgorithmCfg,
     RslRlDistillationRunnerCfg,
-    RslRlDistillationStudentTeacherCfg,
+    RslRlMLPModelCfg,
+    RslRlRNNModelCfg,
 )
 
 
@@ -18,18 +19,47 @@ class AnymalDFlatDistillationRunnerCfg(RslRlDistillationRunnerCfg):
     max_iterations = 300
     save_interval = 50
     experiment_name = "anymal_d_flat"
-    obs_groups = {"policy": ["policy"], "teacher": ["policy"]}
-    policy = RslRlDistillationStudentTeacherCfg(
-        init_noise_std=0.1,
-        noise_std_type="scalar",
-        student_obs_normalization=False,
-        teacher_obs_normalization=False,
-        student_hidden_dims=[128, 128, 128],
-        teacher_hidden_dims=[128, 128, 128],
+    obs_groups = {"student": ["policy"], "teacher": ["policy"]}
+    student = RslRlMLPModelCfg(
+        hidden_dims=[128, 128, 128],
         activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=0.1,
+    )
+    teacher = RslRlMLPModelCfg(
+        hidden_dims=[128, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=0.0,
     )
     algorithm = RslRlDistillationAlgorithmCfg(
         num_learning_epochs=2,
         learning_rate=1.0e-3,
         gradient_length=15,
+    )
+
+
+@configclass
+class AnymalDFlatDistillationRunnerRecurrentCfg(AnymalDFlatDistillationRunnerCfg):
+    student = RslRlRNNModelCfg(
+        hidden_dims=[128, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=0.1,
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
+    )
+    teacher = RslRlRNNModelCfg(
+        hidden_dims=[128, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        stochastic=True,
+        init_noise_std=0.0,
+        rnn_type="lstm",
+        rnn_hidden_dim=256,
+        rnn_num_layers=1,
     )
