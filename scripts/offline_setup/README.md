@@ -4,14 +4,14 @@
 ## 🎯 Overview
 #### The offline training system enables you to train Isaac Lab environments without internet connectivity by using locally downloaded assets. This system:
 - ✅ Works with any robot - No hardcoded paths needed
-- ✅ Single flag - Just add --offline to your training command
+- ✅ Single flag - Just add `--offline` to your training, tutorial, and demos commands
 - ✅ Automatic fallback - Uses Nucleus if local asset is missing
 - ✅ Maintains structure - Mirrors Nucleus directory organization locally
 
 ## 📦 Requirements
 - Isaac Lab installed and working
 - Isaac Sim 5.0 or later
-- 2-20 GB free disk space (depending on assets downloaded)
+- 2-30 GB free disk space (depending on assets downloaded)
 - Internet connection for initial asset download
 
 ## 🚀 Quick Start
@@ -30,8 +30,15 @@
 #### Supported for: `rl_games`, `rsl_rl`, `sb3`, `skrl`, and `sim2transfer`
 ```
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
-    --num_envs 128 \
+    --task Isaac-Velocity-Rough-Unitree-Go2-v0 \
+    --num_envs 64 \
+    --max_iterations 10 \
+    --offline
+    
+./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py \
+    --task Isaac-Velocity-Flat-H1-v0 \
+    --num_envs 64 \
+    --max_iterations 10 \
     --offline
 
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
