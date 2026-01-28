@@ -8,7 +8,7 @@ name: Build and Test
 on:
   pull_request:
     branches:
-      - devel
+      - develop
       - main
       - 'release/**'
       - feature/isaacsim-6-0

@@ -1,13 +1,24 @@
 Changelog
 ---------
 
+1.0.0 (2026-01-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added albedo annotator for faster diffuse albedo rendering. This path will be the most performant when GUI is not required and only albedo and/or depth annotations are requested.
+
+Changed
+^^^^^^^
+
 * Updated Isaac Lab to be compatible with Isaac Sim 6.0.0.
 * Updated the required Python version to 3.12 for Isaac Lab installation.
 * Updated the required PyTorch version to 2.9.0+cu128 and torchvision to 0.24.0 for Isaac Lab installation.
 * Updated numpy to 2.3.1 following version in Kit 109.0.
 * Updated dex-retargeting to 0.5.0 with numpy 2.0+ dependency.
-* Added albedo annotator for faster diffuse albedo rendering. This path will be the most performant when GUI is not required and only albedo and/or depth annotations are requested.
 * Removed explicit URDF importer extension version dependency in :class:`~isaaclab.sim.converters.urdf_converter.UrdfConverter` and related code.
+
 
 0.54.0 (2026-01-13)
 ~~~~~~~~~~~~~~~~~~~
