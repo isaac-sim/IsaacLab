@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-
 from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 
 

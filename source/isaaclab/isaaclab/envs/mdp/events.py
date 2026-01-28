@@ -30,7 +30,7 @@ from pxr import Gf, Sdf, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
-from isaaclab.assets import Articulation, RigidObject, BaseArticulation, BaseRigidObject
+from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
@@ -339,7 +339,6 @@ class randomize_rigid_body_mass(ManagerTermBase):
 
         self.default_mass = None
         self.default_inertia = None
-        
 
     def __call__(
         self,
@@ -438,7 +437,9 @@ def randomize_rigid_body_com(
     # sample random CoM values
     range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
     ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device).unsqueeze(1)
+    rand_samples = math_utils.sample_uniform(
+        ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device
+    ).unsqueeze(1)
 
     # get the current com of the bodies (num_assets, num_bodies)
     coms = asset.data.body_com_pose_b.clone()
