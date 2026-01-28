@@ -15,7 +15,7 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils

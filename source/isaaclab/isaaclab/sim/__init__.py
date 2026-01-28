@@ -30,7 +30,10 @@ from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
-from .simulation_manager import SimulationManager, IsaacEvents  # noqa: F401, F403
+# Simulation manager: base class and Omniverse implementation
+from .simulation_manager import SimulationManagerBase  # noqa: F401
+from .physx_simulation_manager import PhysxSimulationManager  # noqa: F401
+from .simulation_events import SimulationEvent  # noqa: F401
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
 from .views import *  # noqa: F401, F403
@@ -47,11 +50,5 @@ try:
     # Disable all default callbacks from Isaac Sim's manager to prevent double-dispatch
     # These callbacks were already set up when the extension loaded, so we need to disable them
     _OriginalSimManager.enable_all_default_callbacks(False)
-
-    # Replace the class in both the module and impl module
-    _isaacsim_sim_manager.SimulationManager = SimulationManager
-    _isaacsim_sim_manager.IsaacEvents = IsaacEvents
-    _isaacsim_sim_manager_impl.SimulationManager = SimulationManager
-    _isaacsim_sim_manager_impl.IsaacEvents = IsaacEvents
 except ImportError:
     pass  # Isaac Sim extension not loaded yet, will be patched when available

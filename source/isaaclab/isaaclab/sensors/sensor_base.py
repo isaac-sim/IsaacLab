@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
-from isaaclab.sim import IsaacEvents, SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
+from isaaclab.sim.simulation_events import SimulationEvent as IsaacEvents
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.stage import get_current_stage

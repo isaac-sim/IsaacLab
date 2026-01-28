@@ -18,7 +18,7 @@ import pytest
 import weakref
 
 import omni.timeline
-from isaaclab.sim import IsaacEvents, SimulationManager
+from isaaclab.sim import PhysxSimulationManager as SimulationManager, SimulationEvent as IsaacEvents
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext

@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils

@@ -11,7 +11,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils

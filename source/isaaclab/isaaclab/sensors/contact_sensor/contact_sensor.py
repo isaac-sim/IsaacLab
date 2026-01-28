@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils

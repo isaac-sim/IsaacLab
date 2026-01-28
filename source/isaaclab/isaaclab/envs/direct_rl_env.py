@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 
 import omni.kit.app
 import omni.physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene

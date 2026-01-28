@@ -28,7 +28,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim.physx_simulation_manager import PhysxSimulationManager as SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
