@@ -24,7 +24,7 @@ import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
@@ -50,7 +50,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
         sensor_type: Type of sensor configuration. Options: "minimum_config", "tactile_cam", "nut_rgb_ff".
 
     Returns:
-        VisuoTactileSensorCfg: The sensor configuration for the specified type.
+        The sensor configuration for the specified type.
 
     Raises:
         ValueError: If the sensor_type is not supported.
@@ -134,9 +134,8 @@ def setup(sensor_type: str = "cube"):
 
     # gelsightr15 filter
     usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
-    # robot
-    from isaaclab.assets import ArticulationCfg
 
+    # robot
     robot_cfg = ArticulationCfg(
         prim_path="/World/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
