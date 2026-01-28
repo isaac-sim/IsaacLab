@@ -130,7 +130,7 @@ class OfflineAssetResolver:
 
         return asset_path
 
-    def _extract_relative_path(self, asset_path: str) -> str | None:
+    def _extract_relative_path(self, asset_path: str) -> Optional[str]:
         """
         Extract relative path from various Nucleus URL formats.
 
