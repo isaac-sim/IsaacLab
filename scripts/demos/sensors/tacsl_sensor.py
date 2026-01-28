@@ -224,10 +224,13 @@ def mkdir_helper(dir_path: str) -> tuple[str, str]:
     """
     tactile_img_folder = dir_path
     os.makedirs(tactile_img_folder, exist_ok=True)
+    # create a subdirectory for the force field data
     tactile_force_field_dir = os.path.join(tactile_img_folder, "tactile_force_field")
     os.makedirs(tactile_force_field_dir, exist_ok=True)
+    # create a subdirectory for the RGB image data
     tactile_rgb_image_dir = os.path.join(tactile_img_folder, "tactile_rgb_image")
     os.makedirs(tactile_rgb_image_dir, exist_ok=True)
+
     return tactile_force_field_dir, tactile_rgb_image_dir
 
 
@@ -303,6 +306,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     if args_cli.save_viz:
         # Create output directories for tactile data
+        print(f"[INFO]: Saving tactile data to: {args_cli.save_viz_dir}...")
         dir_path_list = mkdir_helper(args_cli.save_viz_dir)
 
     # Create constant downward force
@@ -341,7 +345,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 even_mask = env_indices % 2 == 0
                 torque_tensor[odd_mask, 0, 2] = 10  # rotation for odd environments
                 torque_tensor[even_mask, 0, 2] = -10  # rotation for even environments
-                scene["contact_object"].set_external_force_and_torque(force_tensor, torque_tensor)
+                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques(
+                    force_tensor, torque_tensor
+                )
 
         # Step simulation
         scene.write_data_to_sim()
@@ -384,7 +390,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Set main camera
-    sim.set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[0.5, 0.6, 1.0], target=[-0.1, 0.1, 0.5])
 
     # Create scene based on contact object type
     if args_cli.contact_object_type == "cube":
