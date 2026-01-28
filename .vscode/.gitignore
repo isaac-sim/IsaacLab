@@ -8,6 +8,3 @@
 # Ignore all other files
 .python.env
 *.json
-
-# Offline assets
-offline_assets/*
