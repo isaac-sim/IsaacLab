@@ -16,7 +16,7 @@ on:
   push:
     branches:
       - main
-      - devel
+      - develop
       - 'release/**'
       - 'feature/isaacsim-6-0'
     paths:
