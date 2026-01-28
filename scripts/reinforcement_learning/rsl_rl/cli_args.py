@@ -39,6 +39,7 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
     arg_group.add_argument("--offline", action="store_true", default=False, help="Enable offline mode (use offline_assets)")
 
+
 def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlBaseRunnerCfg:
     """Parse configuration for RSL-RL agent based on inputs.
 
