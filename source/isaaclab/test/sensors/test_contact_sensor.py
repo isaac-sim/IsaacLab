@@ -17,286 +17,36 @@ teleporting objects into interpenetrating states.
 
 # pyright: reportPrivateUsage=none
 
-from enum import Enum, auto
-
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
-from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
-##
-# Newton Configuration
-##
+# Import hand configurations for articulated contact sensor tests
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
+# Import shared physics test utilities
+from physics.physics_test_utils import (
+    COLLISION_PIPELINES,
+    MESH_SHAPES,
+    PRIMITIVE_SHAPES,
+    STABLE_SHAPES,
+    ShapeType,
+    create_shape_cfg,
+    get_shape_extent,
+    get_shape_height,
+    is_mesh_shape,
+    make_sim_cfg,
+    perform_sim_step,
+    shape_type_to_str,
+)
 
-def make_sim_cfg(
-    use_mujoco_contacts: bool = False, device: str = "cuda:0", gravity: tuple = (0.0, 0.0, -9.81)
-) -> SimulationCfg:
-    """Create simulation configuration with specified collision pipeline.
-
-    Args:
-        use_mujoco_contacts: If True, use MuJoCo contact pipeline. If False, use Newton contact pipeline.
-        device: Device to run simulation on ("cuda:0" or "cpu").
-        gravity: Gravity vector (x, y, z).
-
-    Returns:
-        SimulationCfg configured for the specified collision pipeline.
-    """
-    solver_cfg = MJWarpSolverCfg(
-        njmax=100,
-        nconmax=100,
-        ls_iterations=20,
-        cone="elliptic",
-        impratio=100,
-        ls_parallel=True,
-        integrator="implicit",
-        use_mujoco_contacts=use_mujoco_contacts,
-    )
-
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=False,  # Disable for tests to allow CPU
-    )
-
-    return SimulationCfg(
-        dt=1.0 / 120.0,
-        device=device,
-        gravity=gravity,
-        create_stage_in_memory=False,
-        newton_cfg=newton_cfg,
-    )
-
-
-# Collision pipeline parameter values for pytest
-COLLISION_PIPELINES = [
-    pytest.param(False, id="newton_contacts"),
-    pytest.param(True, id="mujoco_contacts"),
-]
-
-
-##
-# Shape Types
-##
-
-
-class ShapeType(Enum):
-    """Enumeration of all collision shape types for testing.
-
-    Includes both analytical primitives and mesh-based representations.
-    """
-
-    # Analytical primitives (faster, exact geometry)
-    SPHERE = auto()
-    BOX = auto()
-    CAPSULE = auto()
-    CYLINDER = auto()
-    CONE = auto()
-    # Mesh-based colliders (triangle mesh representations)
-    MESH_SPHERE = auto()
-    MESH_BOX = auto()
-    MESH_CAPSULE = auto()
-    MESH_CYLINDER = auto()
-    MESH_CONE = auto()
-
-
-# Convenience lists for parameterization
-PRIMITIVE_SHAPES = [ShapeType.SPHERE, ShapeType.BOX, ShapeType.CAPSULE, ShapeType.CYLINDER, ShapeType.CONE]
-MESH_SHAPES = [ShapeType.MESH_SPHERE, ShapeType.MESH_BOX, ShapeType.MESH_CAPSULE, ShapeType.MESH_CYLINDER, ShapeType.MESH_CONE]
-ALL_SHAPES = PRIMITIVE_SHAPES + MESH_SHAPES
-# Stable shapes for ground contact tests (exclude CONE which can tip over)
-STABLE_SHAPES = [ShapeType.SPHERE, ShapeType.BOX, ShapeType.CAPSULE, ShapeType.CYLINDER,
-                 ShapeType.MESH_SPHERE, ShapeType.MESH_BOX, ShapeType.MESH_CAPSULE, ShapeType.MESH_CYLINDER]
-
-
-def shape_type_to_str(shape_type: ShapeType) -> str:
-    """Convert ShapeType enum to string for test naming."""
-    return shape_type.name.lower()
-
-
-def is_mesh_shape(shape_type: ShapeType) -> bool:
-    """Check if shape type is a mesh-based collider."""
-    return shape_type in MESH_SHAPES
-
-
-##
-# Shape Configuration Factory
-##
-
-
-def create_shape_cfg(
-    shape_type: ShapeType,
-    prim_path: str,
-    pos: tuple = (0, 0, 1.0),
-    disable_gravity: bool = True,
-    activate_contact_sensors: bool = True,
-) -> RigidObjectCfg:
-    """Create RigidObjectCfg for a shape type.
-
-    Args:
-        shape_type: The type of collision shape to create
-        prim_path: USD prim path for the object
-        pos: Initial position (x, y, z)
-        disable_gravity: Whether to disable gravity for the object
-        activate_contact_sensors: Whether to enable contact reporting
-
-    Returns:
-        RigidObjectCfg configured for the specified shape
-    """
-    rigid_props = sim_utils.RigidBodyPropertiesCfg(
-        disable_gravity=disable_gravity,
-        linear_damping=0.0,
-        angular_damping=0.0,
-    )
-    collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
-    mass_props = sim_utils.MassPropertiesCfg(mass=1.0)
-
-    spawner_map = {
-        # Analytical primitives
-        ShapeType.SPHERE: lambda: sim_utils.SphereCfg(
-            radius=0.25,
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.4, 0.8)),
-        ),
-        ShapeType.BOX: lambda: sim_utils.CuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.4, 0.8, 0.4)),
-        ),
-        ShapeType.CAPSULE: lambda: sim_utils.CapsuleCfg(
-            radius=0.15,
-            height=0.3,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.4, 0.4)),
-        ),
-        ShapeType.CYLINDER: lambda: sim_utils.CylinderCfg(
-            radius=0.2,
-            height=0.4,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.8, 0.4)),
-        ),
-        ShapeType.CONE: lambda: sim_utils.ConeCfg(
-            radius=0.25,
-            height=0.5,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.4, 0.8)),
-        ),
-        # Mesh-based colliders (darker colors to distinguish)
-        ShapeType.MESH_SPHERE: lambda: sim_utils.MeshSphereCfg(
-            radius=0.25,
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.6)),
-        ),
-        ShapeType.MESH_BOX: lambda: sim_utils.MeshCuboidCfg(
-            size=(0.5, 0.5, 0.5),
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.6, 0.2)),
-        ),
-        ShapeType.MESH_CAPSULE: lambda: sim_utils.MeshCapsuleCfg(
-            radius=0.15,
-            height=0.3,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.2, 0.2)),
-        ),
-        ShapeType.MESH_CYLINDER: lambda: sim_utils.MeshCylinderCfg(
-            radius=0.2,
-            height=0.4,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.6, 0.2)),
-        ),
-        ShapeType.MESH_CONE: lambda: sim_utils.MeshConeCfg(
-            radius=0.25,
-            height=0.5,
-            axis="Z",
-            rigid_props=rigid_props,
-            collision_props=collision_props,
-            mass_props=mass_props,
-            activate_contact_sensors=activate_contact_sensors,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.2, 0.6)),
-        ),
-    }
-
-    return RigidObjectCfg(
-        prim_path=prim_path,
-        spawn=spawner_map[shape_type](),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=pos),
-    )
-
-
-def get_shape_extent(shape_type: ShapeType) -> float:
-    """Get the XY extent (radius/half-size) of a shape for positioning."""
-    extents = {
-        ShapeType.SPHERE: 0.25,
-        ShapeType.BOX: 0.25,
-        ShapeType.CAPSULE: 0.15,
-        ShapeType.CYLINDER: 0.20,
-        ShapeType.CONE: 0.25,
-        ShapeType.MESH_SPHERE: 0.25,
-        ShapeType.MESH_BOX: 0.25,
-        ShapeType.MESH_CAPSULE: 0.15,
-        ShapeType.MESH_CYLINDER: 0.20,
-        ShapeType.MESH_CONE: 0.25,
-    }
-    return extents[shape_type]
-
-
-def get_shape_height(shape_type: ShapeType) -> float:
-    """Get the height of a shape for stacking calculations."""
-    heights = {
-        ShapeType.SPHERE: 0.5,
-        ShapeType.BOX: 0.5,
-        ShapeType.CAPSULE: 0.6,  # height + 2*radius
-        ShapeType.CYLINDER: 0.4,
-        ShapeType.CONE: 0.5,
-        ShapeType.MESH_SPHERE: 0.5,
-        ShapeType.MESH_BOX: 0.5,
-        ShapeType.MESH_CAPSULE: 0.6,
-        ShapeType.MESH_CYLINDER: 0.4,
-        ShapeType.MESH_CONE: 0.5,
-    }
-    return heights[shape_type]
 
 
 ##
@@ -325,16 +75,6 @@ class ContactSensorTestSceneCfg(InteractiveSceneCfg):
 SIM_DT = 1.0 / 120.0
 
 
-##
-# Helper Functions
-##
-
-
-def _perform_sim_step(sim, scene, SIM_DT: float):
-    """Perform a single simulation step and update scene."""
-    scene.write_data_to_sim()
-    sim.step(render=False)
-    scene.update(dt=SIM_DT)
 
 
 ##
@@ -433,7 +173,7 @@ def test_contact_lifecycle(
 
         # Phase 1: Initial check - no contact while high in air
         for _ in range(5):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
         forces = torch.norm(contact_sensor.data.net_forces_w, dim=-1)
         for env_idx in range(num_envs):
@@ -444,7 +184,7 @@ def test_contact_lifecycle(
 
         # Phase 2: Let objects fall and track when each lands
         for tick in range(5, total_fall_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
             forces = torch.norm(contact_sensor.data.net_forces_w, dim=-1)
             for env_idx in range(num_envs):
@@ -497,7 +237,7 @@ def test_contact_lifecycle(
 
         no_contact_detected = [False] * num_envs
         for step in range(lift_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
             if step > 10:
                 forces = torch.norm(contact_sensor.data.net_forces_w, dim=-1)
@@ -623,7 +363,7 @@ def test_horizontal_collision_detects_contact(
 
         # Run simulation and check for contact
         for tick in range(collision_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
             forces_a = torch.norm(sensor_a.data.net_forces_w, dim=-1)
             forces_b = torch.norm(sensor_b.data.net_forces_w, dim=-1)
@@ -754,7 +494,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
 
         # Let objects settle
         for _ in range(settle_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
         # Get force data
         forces_a = sensor_a.data.net_forces_w
@@ -870,7 +610,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
         contact_detected = [False] * num_envs
 
         for _ in range(total_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
             net_forces = contact_sensor.data.net_forces_w
             force_magnitudes = torch.norm(net_forces, dim=-1)
@@ -997,7 +737,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
 
         # Let objects settle
         for _ in range(settle_steps):
-            _perform_sim_step(sim, scene, SIM_DT)
+            perform_sim_step(sim, scene, SIM_DT)
 
         # Get force data
         force_matrix = contact_sensor.data.force_matrix_w
@@ -1026,6 +766,232 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
                 f"Env {env_idx}: force_matrix (filtered, B only) should be less than net_forces (all contacts). "
                 f"Matrix: {matrix_force:.2f} N, Net: {net_force:.2f} N"
             )
+
+
+##
+# Priority 4: Articulated System Tests
+##
+
+
+# Finger tip positions relative to hand root in default orientation
+# These values were calibrated using scripts/demos/finger_collision_debug.py
+# Format: (x, y, z) offset from hand root position
+ALLEGRO_FINGERTIP_OFFSETS = {
+    "index": (-0.052, -0.252, 0.052),
+    "middle": (-0.001, -0.252, 0.052),
+    "ring": (0.054, -0.252, 0.052),
+    "thumb": (-0.168, -0.039, 0.080),
+}
+
+# Link names for each finger (for contact sensor prim_path)
+# Using link_3 (last link with collision shapes) for each finger
+ALLEGRO_FINGER_LINKS = {
+    "index": "index_link_3",  # Index finger tip link
+    "middle": "middle_link_3",  # Middle finger tip link
+    "ring": "ring_link_3",  # Ring finger tip link
+    "thumb": "thumb_link_3",  # Thumb finger tip link
+}
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
+@pytest.mark.parametrize("target_finger", ["index", "middle", "ring", "thumb"])
+@pytest.mark.parametrize("drop_shape", [ShapeType.SPHERE, ShapeType.MESH_SPHERE, ShapeType.BOX, ShapeType.MESH_BOX])
+@pytest.mark.xfail(reason="Newton contact sensor isolation bug: Contact forces leak to adjacent fingers in articulated systems")
+def test_finger_contact_sensor_isolation(
+    device: str, use_mujoco_contacts: bool, target_finger: str, drop_shape: ShapeType
+):
+    """Test contact sensor on Allegro hand fingers detects localized contacts.
+
+    This test verifies that dropping an object on one finger produces contact forces
+    only on that finger, proving proper contact isolation in articulated systems.
+
+    Setup:
+    1. Spawns Allegro hand with contact sensors on all four finger tips
+    2. Drops a small object (sphere or box) onto a specific fingertip
+    3. Tracks peak contact forces on all fingers
+
+    Verifies:
+    - Contact forces detected on target finger
+    - Target finger has highest peak contact force (proves isolation)
+    - Tests both primitive and mesh colliders
+
+    Note: Uses zero global gravity with initial object velocity, similar to
+    test_finger_collision_isolation in test_collision_behavior.py
+    """
+    import warp as wp
+
+    drop_steps = 480  # 2 seconds for drop and settle
+
+    # Hand position
+    hand_pos = (0.0, 0.0, 0.5)
+
+    # Zero gravity - object will be given initial downward velocity
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, 0.0))
+
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        # Create scene configuration with hand and contact sensors
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
+
+        # Add hand to scene
+        scene_cfg.hand = ALLEGRO_HAND_CFG.copy()
+        scene_cfg.hand.prim_path = "{ENV_REGEX_NS}/Hand"
+        scene_cfg.hand.init_state.pos = hand_pos
+
+        # Add contact sensors for all finger tips
+        scene_cfg.contact_sensor_index = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS['index']}",
+            update_period=0.0,
+            history_length=1,
+        )
+        scene_cfg.contact_sensor_middle = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS['middle']}",
+            update_period=0.0,
+            history_length=1,
+        )
+        scene_cfg.contact_sensor_ring = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS['ring']}",
+            update_period=0.0,
+            history_length=1,
+        )
+        scene_cfg.contact_sensor_thumb = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Hand/{ALLEGRO_FINGER_LINKS['thumb']}",
+            update_period=0.0,
+            history_length=1,
+        )
+
+        # Create ground plane
+        ground_cfg = sim_utils.GroundPlaneCfg()
+        ground_cfg.func("/World/ground", ground_cfg)
+
+        # Get fingertip offset for target finger
+        fingertip_offset = ALLEGRO_FINGERTIP_OFFSETS[target_finger]
+
+        # Position drop object above target fingertip
+        drop_height = 0.10  # 10cm above fingertip
+        drop_pos = (
+            hand_pos[0] + fingertip_offset[0],
+            hand_pos[1] + fingertip_offset[1],
+            hand_pos[2] + fingertip_offset[2] + drop_height,
+        )
+
+        # Common properties for drop object
+        drop_rigid_props = sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+        )
+        drop_collision_props = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
+        drop_mass_props = sim_utils.MassPropertiesCfg(mass=0.2)
+        drop_visual = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
+
+        # Create shape spawn config based on drop_shape parameter
+        if drop_shape == ShapeType.SPHERE:
+            drop_spawn = sim_utils.SphereCfg(
+                radius=0.035,
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            )
+        elif drop_shape == ShapeType.MESH_SPHERE:
+            drop_spawn = sim_utils.MeshSphereCfg(
+                radius=0.035,
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            )
+        elif drop_shape == ShapeType.BOX:
+            drop_spawn = sim_utils.CuboidCfg(
+                size=(0.05, 0.05, 0.05),
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            )
+        elif drop_shape == ShapeType.MESH_BOX:
+            drop_spawn = sim_utils.MeshCuboidCfg(
+                size=(0.05, 0.05, 0.05),
+                rigid_props=drop_rigid_props,
+                collision_props=drop_collision_props,
+                mass_props=drop_mass_props,
+                visual_material=drop_visual,
+                activate_contact_sensors=True,
+            )
+        else:
+            raise ValueError(f"Unsupported drop shape: {drop_shape}")
+
+        # Add drop object to scene
+        scene_cfg.drop_object = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/DropObject",
+            spawn=drop_spawn,
+            init_state=RigidObjectCfg.InitialStateCfg(pos=drop_pos),
+        )
+
+        # Create scene
+        scene = InteractiveScene(scene_cfg)
+
+        # Reset simulation
+        sim.reset()
+        scene.reset()
+
+        # Get references to scene objects
+        hand: Articulation = scene["hand"]
+        drop_object: RigidObject = scene["drop_object"]
+        finger_sensors = {
+            "index": scene["contact_sensor_index"],
+            "middle": scene["contact_sensor_middle"],
+            "ring": scene["contact_sensor_ring"],
+            "thumb": scene["contact_sensor_thumb"],
+        }
+
+        # Let hand settle
+        settle_steps = 30
+        for _ in range(settle_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+
+        # Reset drop object position after settling
+        drop_object.reset()
+
+        # Give object initial downward velocity
+        # v = sqrt(2*g*h) ≈ 1.4 m/s for 10cm drop
+        initial_velocity = torch.tensor([[0.0, 0.0, -1.5, 0.0, 0.0, 0.0]], device=device)
+        drop_object.write_root_velocity_to_sim(initial_velocity)
+
+        # Track peak contact force per finger
+        peak_forces = {finger: 0.0 for finger in ["index", "middle", "ring", "thumb"]}
+
+        # Run simulation and track contact forces
+        for step in range(drop_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+
+            # Track peak forces for each finger
+            for finger_name, sensor in finger_sensors.items():
+                if sensor.data.net_forces_w is not None:
+                    force_magnitude = torch.norm(sensor.data.net_forces_w[0]).item()
+                    peak_forces[finger_name] = max(peak_forces[finger_name], force_magnitude)
+
+        # Verify target finger experienced significant contact force
+        target_peak = peak_forces[target_finger]
+        assert target_peak > 0.5, (
+            f"Target finger '{target_finger}' should detect contact force from impact. "
+            f"Peak force: {target_peak:.4f} N (expected > 0.5 N)"
+        )
+
+        # Verify target finger had the HIGHEST peak force
+        # This proves contact was isolated to the target finger
+        for finger_name in ["index", "middle", "ring", "thumb"]:
+            if finger_name != target_finger:
+                assert target_peak >= peak_forces[finger_name], (
+                    f"Target finger '{target_finger}' (peak={target_peak:.4f}N) should have "
+                    f"highest peak force, but '{finger_name}' had peak={peak_forces[finger_name]:.4f}N"
+                )
 
 
 ##
