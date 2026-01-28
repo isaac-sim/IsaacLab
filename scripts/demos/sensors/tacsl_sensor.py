@@ -345,9 +345,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 even_mask = env_indices % 2 == 0
                 torque_tensor[odd_mask, 0, 2] = 10  # rotation for odd environments
                 torque_tensor[even_mask, 0, 2] = -10  # rotation for even environments
-                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques(
-                    force_tensor, torque_tensor
-                )
+                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques(force_tensor, torque_tensor)
 
         # Step simulation
         scene.write_data_to_sim()
