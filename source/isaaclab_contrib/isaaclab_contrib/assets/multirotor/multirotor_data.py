@@ -5,7 +5,7 @@
 
 import torch
 
-from isaaclab.assets.articulation.articulation_data import ArticulationData
+from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 
 
 class MultirotorData(ArticulationData):

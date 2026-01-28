@@ -13,7 +13,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.assets import RigidObject
+from isaaclab.assets import BaseRigidObject
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 
@@ -55,7 +55,7 @@ class MockRigidObject:
     """Mock RigidObject that provides the minimal interface required by WrenchComposer.
 
     This mock enables testing WrenchComposer in isolation without requiring a full simulation setup.
-    It passes isinstance checks by registering as a virtual subclass of RigidObject.
+    It passes isinstance checks by registering as a virtual subclass of BaseRigidObject.
     """
 
     def __init__(
@@ -126,9 +126,9 @@ def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndar
     return q
 
 
-# Register MockRigidObject as a virtual subclass of RigidObject
-# This allows isinstance(mock, RigidObject) to return True
-RigidObject.register(MockRigidObject)
+# Register MockRigidObject as a virtual subclass of BaseRigidObject
+# This allows isinstance(mock, BaseRigidObject) to return True
+BaseRigidObject.register(MockRigidObject)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
