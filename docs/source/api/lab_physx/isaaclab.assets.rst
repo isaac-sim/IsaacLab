@@ -7,17 +7,12 @@
 
   .. autosummary::
 
-    AssetBase
-    AssetBaseCfg
     RigidObject
     RigidObjectData
-    RigidObjectCfg
     RigidObjectCollection
     RigidObjectCollectionData
-    RigidObjectCollectionCfg
     Articulation
     ArticulationData
-    ArticulationCfg
     DeformableObject
     DeformableObjectData
     DeformableObjectCfg

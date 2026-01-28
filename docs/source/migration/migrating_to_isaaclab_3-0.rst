@@ -19,24 +19,22 @@ New ``isaaclab_physx`` Extension
 A new extension ``isaaclab_physx`` has been introduced to contain PhysX-specific implementations
 of asset classes. The following classes have been moved to this new extension:
 
-+--------------------------------------------------+--------------------------------------------------+
-| Isaac Lab 2.x                                    | Isaac Lab 3.0                                    |
-+==================================================+==================================================+
-| ``from isaaclab.assets import DeformableObject`` | ``from isaaclab_physx.assets import             |
-|                                                  | DeformableObject``                               |
-+--------------------------------------------------+--------------------------------------------------+
-| ``from isaaclab.assets import DeformableObjectCfg``| ``from isaaclab_physx.assets import            |
-|                                                  | DeformableObjectCfg``                            |
-+--------------------------------------------------+--------------------------------------------------+
-| ``from isaaclab.assets import DeformableObjectData``| ``from isaaclab_physx.assets import           |
-|                                                  | DeformableObjectData``                           |
-+--------------------------------------------------+--------------------------------------------------+
-| ``from isaaclab.assets import SurfaceGripper``   | ``from isaaclab_physx.assets import             |
-|                                                  | SurfaceGripper``                                 |
-+--------------------------------------------------+--------------------------------------------------+
-| ``from isaaclab.assets import SurfaceGripperCfg``| ``from isaaclab_physx.assets import             |
-|                                                  | SurfaceGripperCfg``                              |
-+--------------------------------------------------+--------------------------------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``from isaaclab.assets import DeformableObject``
+     - ``from isaaclab_physx.assets import DeformableObject``
+   * - ``from isaaclab.assets import DeformableObjectCfg``
+     - ``from isaaclab_physx.assets import DeformableObjectCfg``
+   * - ``from isaaclab.assets import DeformableObjectData``
+     - ``from isaaclab_physx.assets import DeformableObjectData``
+   * - ``from isaaclab.assets import SurfaceGripper``
+     - ``from isaaclab_physx.assets import SurfaceGripper``
+   * - ``from isaaclab.assets import SurfaceGripperCfg``
+     - ``from isaaclab_physx.assets import SurfaceGripperCfg``
 
 .. note::
 
