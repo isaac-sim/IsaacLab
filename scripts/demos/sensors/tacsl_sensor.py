@@ -7,7 +7,7 @@
 Example script demonstrating the TacSL tactile sensor implementation in IsaacLab.
 
 This script shows how to use the TactileSensor for both camera-based and force field
-tactile sensing with the gelsight finger setup.
+tactile sensing with the GelSight finger setup.
 
 .. code-block:: bash
 
