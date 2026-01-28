@@ -77,7 +77,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg(dt=0.005))
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
