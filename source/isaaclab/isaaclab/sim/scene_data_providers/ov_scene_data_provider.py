@@ -112,28 +112,15 @@ class OVSceneDataProvider:
             return
 
     def _build_newton_model_from_usd(self) -> None:
-        # TODO(mtrepte): add support for fabric cloning
         try:
             from newton import ModelBuilder
-            from isaaclab.sim.utils import find_matching_prim_paths
-
-            num_envs = self._get_num_envs()
-
-            # import ipdb; ipdb.set_trace()
-            env_prim_paths = find_matching_prim_paths("/World/envs/env_.*", stage=self._stage)
-            print(
-                "[SceneDataProvider] Stage env prims before add_usd: "+
-                f"num_envs_setting={num_envs}, env_prims={len(env_prim_paths)}"
-            )
 
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage)
-
             self._newton_model = builder.finalize(device=self._device)
-            self._metadata["num_envs"] = num_envs
-            self._newton_model.num_envs = self._metadata.get("num_envs", 0)
             self._newton_state = self._newton_model.state()
             self._rigid_body_paths = list(self._newton_model.body_key)
+            
             self._xform_views.clear()
             self._body_key_index_map = {path: i for i, path in enumerate(self._rigid_body_paths)}
             self._view_body_index_map = {}
@@ -343,7 +330,8 @@ class OVSceneDataProvider:
             for name, getter in pose_sources:
                 positions, orientations = getter()
                 if positions is not None and orientations is not None:
-                    if positions.reshape(-1, 3).shape[0] == expected_count:
+                    count = positions.reshape(-1, 3).shape[0]
+                    if count == expected_count:
                         source_view = name
                         break
             if positions is None or orientations is None:
@@ -370,9 +358,9 @@ class OVSceneDataProvider:
                 return
 
             if positions_wp.shape[0] != expected_count:
-                logger.debug(
-                    "[SceneDataProvider] Body count mismatch for Newton sync "
-                    f"(poses={positions_wp.shape[0]}, state={expected_count}, source={source_view})."
+                logger.warning(
+                    f"[SceneDataProvider] Body count mismatch for Newton sync: "
+                    f"poses={positions_wp.shape[0]}, state={expected_count}, source={source_view}"
                 )
                 return
 
