@@ -46,29 +46,20 @@ import numpy as np
 import torch
 
 import omni.replicator.core as rep
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim
 from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim.utils.prims as prim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 def main():
     """Spawn a bunch of balls and randomly change their textures."""
 
     # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
-        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(SimulationCfg())
     # Set main camera
     set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
