@@ -11,11 +11,10 @@ from dataclasses import MISSING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
+from isaaclab.sensors import SensorBaseCfg, TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from ..camera.tiled_camera_cfg import TiledCameraCfg
-from ..sensor_base_cfg import SensorBaseCfg
 from .visuotactile_sensor import VisuoTactileSensor
 
 ##
@@ -46,6 +45,8 @@ class GelSightRenderCfg:
 
     Example:
         Using predefined sensor configuration::
+
+            from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
             from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
@@ -115,8 +116,12 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     """Configuration for GelSight sensor rendering.
 
     This defines the rendering parameters for converting depth maps to realistic tactile images.
-    Defaults to GelSight R1.5 parameters. Use predefined configs like GELSIGHT_R15_CFG or
-    GELSIGHT_MINI_CFG from isaaclab_assets.sensors for standard sensor models.
+
+    For simplicity, you can use the predefined configs for standard sensor models:
+
+    - :attr:`isaaclab_assets.sensors.GELSIGHT_R15_CFG`
+    - :attr:`isaaclab_assets.sensors.GELSIGHT_MINI_CFG`
+
     """
 
     enable_camera_tactile: bool = True
