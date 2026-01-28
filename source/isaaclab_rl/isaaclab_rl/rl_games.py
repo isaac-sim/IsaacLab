@@ -38,7 +38,7 @@ import gym.spaces  # needed for rl-games incompatibility: https://github.com/Den
 import gymnasium
 import torch
 
-from isaaclab_experimental.envs import DirectRLEnvWarp
+from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
@@ -80,7 +80,13 @@ class RlGamesVecEnvWrapper(IVecEnv):
         https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, rl_device: str, clip_obs: float, clip_actions: float):
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp,
+        rl_device: str,
+        clip_obs: float,
+        clip_actions: float,
+    ):
         """Initializes the wrapper instance.
 
         Args:
@@ -98,9 +104,11 @@ class RlGamesVecEnvWrapper(IVecEnv):
             not isinstance(env.unwrapped, ManagerBasedRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnv)
             and not isinstance(env.unwrapped, DirectRLEnvWarp)
+            and not isinstance(env.unwrapped, ManagerBasedRLEnvWarp)
         ):
             raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
+                " ManagerBasedRLEnvWarp. Environment type:"
                 f" {type(env)}"
             )
         # initialize the wrapper
@@ -176,7 +184,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv | DirectRLEnv | DirectRLEnvWarp | ManagerBasedRLEnvWarp:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.

@@ -7,10 +7,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+
+@wp.func
+def wrap_to_pi(angle: float) -> float:
+    """Wrap input angle (in radians) to the range [-pi, pi)."""
+    two_pi = 2.0 * wp.pi
+    return angle - two_pi * wp.floor((angle + wp.pi) / two_pi)
 
 
 def resolve_asset_cfg(cfg: dict, env: ManagerBasedEnv) -> SceneEntityCfg:
