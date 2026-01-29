@@ -35,6 +35,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 class EventCfgLongSuction:
     """Configuration for events."""
 
+    # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         mode="reset",
