@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
+
+from isaaclab.sim import SimulationContext
 
 with suppress(ImportError):
     # isaacsim.gui is not available when running in headless mode.
