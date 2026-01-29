@@ -5,7 +5,7 @@
 Install IsaacLab following this [guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html)
 
 ```bash
-git clone git@github.com:isaac-sim/IsaacLab.git
+git clone git@github.com:daniela-hase/IsaacLab.git
 cd IsaacLab
 
 uv venv --python 3.11 --seed
