@@ -873,6 +873,135 @@ def test_sensor_print(setup_sim_camera):
     print(sensor)
 
 
+def test_camera_update_pose_with_moving_xform(setup_sim_camera):
+    """Test camera pose updates when attached to a robot base.
+
+    The camera is placed under the robot's base link with an offset, and we verify that when the
+    robot base moves, the camera's world pose is correctly updated when update_latest_camera_pose=True.
+    """
+    from isaaclab.assets import Articulation
+    from isaaclab.utils.math import quat_apply
+
+    from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
+
+    # Use the fixture to get sim context
+    sim, _, dt = setup_sim_camera
+
+    # Create articulation using existing ANYmal-C configuration
+    robot_cfg = ANYMAL_C_CFG.copy()
+    robot_cfg.prim_path = "/World/Robot"
+    robot = Articulation(robot_cfg)
+
+    # Create camera configuration with offset under the robot base
+    camera_offset = (0.5, 0.0, 0.2)  # Camera offset from robot base
+    camera_cfg = CameraCfg(
+        height=HEIGHT,
+        width=WIDTH,
+        prim_path="/World/Robot/base/Camera",
+        update_period=0,
+        update_latest_camera_pose=True,  # Key parameter to test
+        data_types=["rgb"],
+        offset=CameraCfg.OffsetCfg(
+            pos=camera_offset,
+            convention="world",
+        ),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+    )
+
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Load stage and play sim
+    sim_utils.update_stage()
+    sim.reset()
+
+    # Initialize articulation and camera (required for proper physics sync)
+    robot.reset()
+    camera.reset()
+
+    # Step simulation once to let physics settle
+    sim.step()
+    robot.update(dt)
+    camera.update(dt)
+
+    # Get initial positions
+    initial_camera_pos = camera.data.pos_w[0].clone()
+    initial_base_pos = robot.data.root_pos_w[0].clone()  # FIX: Use robot base, not camera
+    initial_base_quat = robot.data.root_quat_w[0].clone()
+
+    # Calculate expected initial camera position: base pos + rotated offset
+    # FIX: Offset is in local frame, must rotate by parent orientation
+    offset_tensor = torch.tensor(camera_offset, device=sim.device, dtype=torch.float32)
+    rotated_offset = quat_apply(initial_base_quat.unsqueeze(0), offset_tensor.unsqueeze(0)).squeeze(0)
+    expected_initial_camera_pos = initial_base_pos + rotated_offset
+
+    # Print initial debug information
+    print(f"\nInitial base: {initial_base_pos}")
+    print(f"Initial base quat: {initial_base_quat}")
+    print(f"Initial camera: {initial_camera_pos}")
+    print(f"Expected initial camera: {expected_initial_camera_pos}")
+    print(f"Initial camera error: {initial_camera_pos - expected_initial_camera_pos}")
+
+    # Verify initial camera position
+    # Note: ~1-2% tolerance needed due to Fabric/physics sync timing
+    torch.testing.assert_close(initial_camera_pos, expected_initial_camera_pos, rtol=0.02, atol=0.02)
+
+    # Simulate more steps and verify camera tracks robot at EACH time step
+    # This ensures tracking works consistently, not just by luck at one moment
+    num_steps = 20
+    errors = []
+
+    print(f"\n=== Tracking over {num_steps} simulation steps ===")
+    for step in range(num_steps):
+        sim.step()
+        robot.update(dt)
+        camera.update(dt)
+
+        # Get current positions
+        current_camera_pos = camera.data.pos_w[0].clone()
+        current_base_pos = robot.data.root_pos_w[0].clone()
+        current_base_quat = robot.data.root_quat_w[0].clone()
+
+        # Calculate expected camera position
+        rotated_offset = quat_apply(current_base_quat.unsqueeze(0), offset_tensor.unsqueeze(0)).squeeze(0)
+        expected_camera_pos = current_base_pos + rotated_offset
+
+        # Compute error
+        error = (current_camera_pos - expected_camera_pos).abs()
+        errors.append(error)
+
+        # Print every 5 steps
+        if step % 5 == 0:
+            print(
+                f"Step {step}: robot_xyz=[{current_base_pos[0]:.4f}, {current_base_pos[1]:.4f}, "
+                f"{current_base_pos[2]:.4f}], camera_xyz=[{current_camera_pos[0]:.4f}, "
+                f"{current_camera_pos[1]:.4f}, {current_camera_pos[2]:.4f}], error=[{error[0]:.4f}, "
+                f"{error[1]:.4f}, {error[2]:.4f}]"
+            )
+
+    # Stack errors and compute statistics
+    errors_tensor = torch.stack(errors)  # Shape: (num_steps, 3)
+    max_error = errors_tensor.max(dim=0).values
+    mean_error = errors_tensor.mean(dim=0)
+
+    print(f"\n=== Error statistics over {num_steps} steps ===")
+    print(f"Max error (x, y, z): {max_error}")
+    print(f"Mean error (x, y, z): {mean_error}")
+    print(f"Total base movement: {current_base_pos - initial_base_pos}")
+
+    # Verify that the maximum error across ALL time steps is within tolerance
+    # This is a much stronger assertion than checking just one time step
+    assert max_error.max() < 0.02, f"Max tracking error {max_error.max():.4f} exceeds 0.02 tolerance"
+
+    # Also verify the mean error is very small (should be ~0.01 or less)
+    assert mean_error.max() < 0.015, f"Mean tracking error {mean_error.max():.4f} exceeds 0.015 tolerance"
+
+
 def _populate_scene():
     """Add prims to the scene."""
     # Ground-plane
