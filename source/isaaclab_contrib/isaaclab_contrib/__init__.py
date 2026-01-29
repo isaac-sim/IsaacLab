@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Package containing multirotor (drone) support for Isaac Lab."""
+"""Package for externally contributed components for Isaac Lab.
+
+This package provides externally contributed components for Isaac Lab, such as multirotors.
+These components are not part of the core Isaac Lab framework yet, but are planned to be added
+in the future. They are contributed by the community to extend the capabilities of Isaac Lab.
+"""
 
 import os
 import toml

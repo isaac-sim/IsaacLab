@@ -22,10 +22,11 @@ Tactile sensors require specific configuration parameters to define their behavi
 
 .. code-block:: python
 
-    from isaaclab.sensors.tacsl_sensor import VisuoTactileSensorCfg
     from isaaclab.sensors import TiledCameraCfg
     from isaaclab_assets.sensors import GELSIGHT_R15_CFG
     import isaaclab.sim as sim_utils
+
+    from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
     # Tactile sensor configuration
     tactile_sensor = VisuoTactileSensorCfg(
