@@ -9,7 +9,7 @@ on:
   push:
     branches:
       - main
-      - devel
+      - develop
       - release/**
 
 # Concurrency control to prevent parallel runs

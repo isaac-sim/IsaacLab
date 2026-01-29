@@ -31,7 +31,7 @@ INSTALL_REQUIRES = [
     "trimesh",
     "pyglet>=2.1.6",
     # image processing
-    "transformers",
+    "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang>=1.11.0.dev20251205",
     # newton visualizers / backend dependencies
