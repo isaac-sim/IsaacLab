@@ -31,7 +31,7 @@ INSTALL_REQUIRES = [
     "trimesh",
     "pyglet<2",
     # image processing
-    "transformers",
+    "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
