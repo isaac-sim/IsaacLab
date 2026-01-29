@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -9,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import Any
 
@@ -17,13 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class OVSceneDataProvider:
-    """Scene data provider for Omni PhysX physics backend.
-    
-    Native (cheap): USD stage, PhysX transforms/velocities
-    Adapted (expensive): Newton Model/State (built from USD, synced each step)
-    
-    Performance: Only builds Newton data if Newton/Rerun visualizers are active.
-    """
+    """Scene data provider for Omni PhysX backend."""
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
@@ -50,7 +42,7 @@ class OVSceneDataProvider:
                     self._has_rerun_visualizer = True
                 elif viz_type == "omniverse":
                     self._has_ov_visualizer = True
-        
+
         self._metadata = {
             "physics_backend": "omni",
             "num_envs": self._get_num_envs(),
@@ -65,7 +57,6 @@ class OVSceneDataProvider:
         self._set_body_q_kernel = None
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
 
-        # Only build Newton model if Newton/Rerun visualizers need it
         if self._has_newton_visualizer or self._has_rerun_visualizer:
             self._build_newton_model_from_usd()
             self._setup_rigid_body_view()
@@ -74,7 +65,6 @@ class OVSceneDataProvider:
             logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
     def _get_num_envs(self) -> int:
-        # TODO(mtrepte): is there a better way to get num_envs?
         try:
             import carb
 
@@ -120,7 +110,7 @@ class OVSceneDataProvider:
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
             self._rigid_body_paths = list(self._newton_model.body_key)
-            
+
             self._xform_views.clear()
             self._body_key_index_map = {path: i for i, path in enumerate(self._rigid_body_paths)}
             self._view_body_index_map = {}
@@ -173,7 +163,6 @@ class OVSceneDataProvider:
             self._articulation_view = None
 
     def _get_view_world_poses(self, view):
-        # TODO(mtrepte): this can be revisited & simplifiedafter the function naming gets unified
         if view is None:
             return None, None
 
@@ -235,7 +224,6 @@ class OVSceneDataProvider:
         if view is None:
             return None, None
 
-        # Preferred: combined velocities
         method = getattr(view, "get_velocities", None)
         if method is not None:
             try:
@@ -247,7 +235,6 @@ class OVSceneDataProvider:
             except Exception:
                 pass
 
-        # Fallback: split linear/angular
         get_linear = getattr(view, "get_linear_velocities", None)
         get_angular = getattr(view, "get_angular_velocities", None)
         if get_linear is not None and get_angular is not None:
@@ -257,7 +244,6 @@ class OVSceneDataProvider:
                 return None, None
 
         return None, None
-
 
     def _get_xform_world_poses(self):
         if not self._rigid_body_paths:
@@ -371,9 +357,6 @@ class OVSceneDataProvider:
                 device=self._device,
             )
 
-            # Future extensions:
-            # - Populate velocities into self._newton_state.body_qd
-            # - Cache mesh/material data for Rerun/renderer integrations
         except Exception as exc:
             logger.debug(f"[SceneDataProvider] Failed to sync Omni transforms to Newton state: {exc}")
 

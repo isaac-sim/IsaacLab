@@ -62,16 +62,16 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         material_prim = UsdShade.Material.Define(stage, prim_path)
         if not material_prim:
             raise ValueError(f"Failed to create preview surface shader at path: '{prim_path}'.")
-        
+
         shader_prim = CreateShaderPrimFromSdrCommand(
             parent_path=prim_path,
             identifier="UsdPreviewSurface",
             stage_or_context=stage,
         ).do()
-        
+
         if not shader_prim:
             raise ValueError(f"Failed to create shader prim at path: '{prim_path}'.")
-        
+
         # The command returns a Shader object directly, not a path
         if shader_prim:
             surface_out = shader_prim.GetOutput("surface")

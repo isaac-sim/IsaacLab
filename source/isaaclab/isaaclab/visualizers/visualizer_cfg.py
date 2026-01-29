@@ -38,7 +38,7 @@ class VisualizerCfg:
         """Get the visualizer type identifier."""
         return self.visualizer_type
 
-    def create_visualizer(self) -> "Visualizer":
+    def create_visualizer(self) -> Visualizer:
         """Create visualizer instance from this config using factory pattern."""
         from . import get_visualizer_class
 

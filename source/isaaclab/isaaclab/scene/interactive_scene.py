@@ -121,9 +121,6 @@ class InteractiveScene:
         # store inputs
         self.cfg = cfg
 
-        # TODO(mtrepte): rm after fix
-        self.cfg.clone_in_fabric = False
-        
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
@@ -174,6 +171,7 @@ class InteractiveScene:
                     ),  # this won't do anything because we are not replicating physics
                     clone_in_fabric=self.cfg.clone_in_fabric,
                 )
+                self._ensure_usd_env_clones(copy_from_source=True)
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         else:
             # otherwise, environment origins will be initialized during cloning at the end of environment creation
@@ -257,6 +255,7 @@ class InteractiveScene:
                 ),  # this automatically filters collisions between environments
                 clone_in_fabric=self.cfg.clone_in_fabric,
             )
+            self._ensure_usd_env_clones(copy_from_source=copy_from_source)
 
         # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
         # to filter collisions if replicate_physics is not enabled
@@ -273,6 +272,36 @@ class InteractiveScene:
         # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+
+    def _ensure_usd_env_clones(self, copy_from_source: bool) -> None:
+        """Ensure USD env prims exist when cloning in fabric."""
+        if not self.cfg.clone_in_fabric:
+            return
+        if get_isaac_sim_version().major < 5:
+            return
+        if not self._should_ensure_usd_env_clones():
+            return
+
+        self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=False,
+            copy_from_source=copy_from_source,
+            enable_env_ids=False,
+            clone_in_fabric=False,
+        )
+
+    def _should_ensure_usd_env_clones(self) -> bool:
+        """Check if USD clones are required for current backend/visualizers."""
+        sim_cfg = getattr(self.sim, "cfg", None)
+        if sim_cfg is None:
+            return True
+        if sim_cfg.physics_backend != "omni":
+            return True
+
+        visualizer_types = self.sim.resolve_visualizer_types()
+
+        return bool(visualizer_types) and any(viz_type != "omniverse" for viz_type in visualizer_types)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.

@@ -10,12 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .rerun_visualizer_cfg import RerunVisualizerCfg
-from .visualizer import Visualizer
-
 import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
+
+from .rerun_visualizer_cfg import RerunVisualizerCfg
+from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 

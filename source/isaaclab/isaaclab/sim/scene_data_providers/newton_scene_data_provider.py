@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class NewtonSceneDataProvider:
     """Scene data provider for Newton Warp physics backend.
-    
+
     Native (cheap): Newton Model/State from NewtonManager
     Adapted (future): USD stage (would need Newton→USD sync for OV visualizer)
     """
@@ -50,6 +49,7 @@ class NewtonSceneDataProvider:
         """NATIVE: Newton Model from NewtonManager."""
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
+
             return NewtonManager._model
         except Exception:
             return None
@@ -58,13 +58,14 @@ class NewtonSceneDataProvider:
         """NATIVE: Newton State from NewtonManager."""
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
+
             return NewtonManager._state_0
         except Exception:
             return None
 
     def get_usd_stage(self) -> None:
         """UNAVAILABLE: Newton backend doesn't provide USD (future: Newton→USD sync)."""
-        return None
+        return
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
@@ -76,6 +77,7 @@ class NewtonSceneDataProvider:
     def get_velocities(self) -> dict[str, Any] | None:
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
+
             if NewtonManager._state_0 is None:
                 return None
             return {"body_qd": NewtonManager._state_0.body_qd}
@@ -85,6 +87,7 @@ class NewtonSceneDataProvider:
     def get_contacts(self) -> dict[str, Any] | None:
         try:
             from isaaclab.sim._impl.newton_manager import NewtonManager
+
             if NewtonManager._contacts is None:
                 return None
             return {"contacts": NewtonManager._contacts}

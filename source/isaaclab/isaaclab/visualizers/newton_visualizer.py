@@ -8,14 +8,17 @@
 from __future__ import annotations
 
 import contextlib
-import numpy as np
+import logging
 from typing import Any
 
+import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
+
+logger = logging.getLogger(__name__)
 
 
 class NewtonViewerGL(ViewerGL):
@@ -264,7 +267,7 @@ class NewtonVisualizer(Visualizer):
         self._step_counter += 1
 
         self._state = self._scene_data_provider.get_newton_state()
-        
+
         contacts = None
         if self._viewer.show_contacts:
             contacts_data = self._scene_data_provider.get_contacts()

@@ -817,10 +817,7 @@ class AppLauncher:
             if self._headless:
                 self._headless = False
                 launcher_args["headless"] = False
-                print(
-                    "[INFO][AppLauncher]: Omniverse visualizer requested. "
-                    "Forcing headless=False for GUI."
-                )
+                print("[INFO][AppLauncher]: Omniverse visualizer requested. Forcing headless=False for GUI.")
         else:
             if not self._headless and self._livestream not in {1, 2}:
                 self._headless = True
