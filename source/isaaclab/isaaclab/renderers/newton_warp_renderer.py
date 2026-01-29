@@ -3,9 +3,9 @@ from isaaclab.scene import InteractiveScene
 import isaaclab.sim as isaaclab_sim
 
 from dataclasses import dataclass, field
-from warp_raytrace import RenderContext, RenderShapeType
 from pxr import Usd, UsdGeom
 
+from newton.sensors import SensorTiledCamera
 import numpy as np
 import warp as wp
 import usdrt
@@ -49,11 +49,11 @@ def update_transforms(fabric_matrices: wp.fabricarray(dtype=wp.mat44d), mapping:
         transforms[tid] = wp.transformf(position, wp.normalize(wp.quat_from_matrix(orientation)))
 
 
-class WarpRenderer:
+class NewtonWarpRenderer:
     @dataclass
     class PrimData:
         is_shared: bool = False
-        shape_type: RenderShapeType = RenderShapeType.NONE
+        shape_type: SensorTiledCamera.RenderShapeType = SensorTiledCamera.RenderShapeType.NONE
         master_prim: Usd.Prim | None = None
         prims: list[tuple[int, Usd.Prim]] = field(default_factory=lambda: [])
 
@@ -66,8 +66,8 @@ class WarpRenderer:
     def __init__(self, scene: InteractiveScene, width: int, height: int):
         self.num_worlds = 0
         self.num_cameras = 1
-        self.camera_data: dict[str, WarpRenderer.CameraData] = {}
-        self.prim_data: dict[str, WarpRenderer.PrimData] = {}
+        self.camera_data: dict[str, NewtonWarpRenderer.CameraData] = {}
+        self.prim_data: dict[str, NewtonWarpRenderer.PrimData] = {}
         self.__collect_prims(isaaclab_sim.get_current_stage())
 
         shape_transforms = []
@@ -84,7 +84,7 @@ class WarpRenderer:
         for prim_path, prim_data in self.prim_data.items():
             if prim_data.is_shared:
                 mesh_index = -1
-                if prim_data.shape_type == RenderShapeType.MESH:
+                if prim_data.shape_type == SensorTiledCamera.RenderShapeType.MESH:
                     mesh_index = len(self.__warp_meshes)
                     self.__warp_meshes.append(self.__build_mesh(prim_data.master_prim))
 
@@ -95,7 +95,7 @@ class WarpRenderer:
                     shape_mesh_indices.append(mesh_index)
                     shape_world_indices.append(world_id)
 
-        self.render_context = RenderContext(width, height, self.num_worlds, self.num_cameras)
+        self.render_context = SensorTiledCamera.RenderContext(width, height, self.num_worlds, self.num_cameras)
         self.render_context.num_shapes_total = len(shape_transforms)
         self.render_context.num_shapes_enabled = self.render_context.num_shapes_total
         self.render_context.mesh_ids = wp.array([mesh.id for mesh in self.__warp_meshes], dtype=wp.uint64)
@@ -179,30 +179,30 @@ class WarpRenderer:
             if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
                 continue
 
-            shape_type = RenderShapeType.NONE
+            shape_type = SensorTiledCamera.RenderShapeType.NONE
             
             if prim.IsA(UsdGeom.Mesh):
-                shape_type = RenderShapeType.MESH
+                shape_type = SensorTiledCamera.RenderShapeType.MESH
             elif prim.IsA(UsdGeom.Sphere):
-                shape_type = RenderShapeType.SPHERE
+                shape_type = SensorTiledCamera.RenderShapeType.SPHERE
             elif prim.IsA(UsdGeom.Capsule):
-                shape_type = RenderShapeType.CAPSULE
+                shape_type = SensorTiledCamera.RenderShapeType.CAPSULE
             elif prim.IsA(UsdGeom.Cube):
-                shape_type = RenderShapeType.BOX
+                shape_type = SensorTiledCamera.RenderShapeType.BOX
             elif prim.IsA(UsdGeom.Cylinder):
-                shape_type = RenderShapeType.CYLINDER
+                shape_type = SensorTiledCamera.RenderShapeType.CYLINDER
             elif prim.IsA(UsdGeom.Cone):
-                shape_type = RenderShapeType.CONE
+                shape_type = SensorTiledCamera.RenderShapeType.CONE
             elif prim.IsA(UsdGeom.Plane):
-                shape_type = RenderShapeType.PLANE
+                shape_type = SensorTiledCamera.RenderShapeType.PLANE
             elif prim.IsA(UsdGeom.Camera):
                 if not prim_path in self.camera_data:
-                    self.camera_data[prim_path] = WarpRenderer.CameraData(world_id > -1, prim)
+                    self.camera_data[prim_path] = NewtonWarpRenderer.CameraData(world_id > -1, prim)
                 self.camera_data[prim_path].prims.append((world_id, prim))
 
-            if shape_type != RenderShapeType.NONE:
+            if shape_type != SensorTiledCamera.RenderShapeType.NONE:
                 if not prim_path in self.prim_data:
-                    self.prim_data[prim_path] = WarpRenderer.PrimData(world_id > -1, shape_type, prim)
+                    self.prim_data[prim_path] = NewtonWarpRenderer.PrimData(world_id > -1, shape_type, prim)
                 self.prim_data[prim_path].prims.append((world_id, prim))
 
             if child_prims := prim.GetFilteredChildren(Usd.TraverseInstanceProxies()):
@@ -249,18 +249,18 @@ class WarpRenderer:
         # orientation = t.squeeze(0).cpu().numpy()
         # return wp.transformf(position, wp.quatf(orientation))
 
-    def __resolve_shape_size(self, shape_type: RenderShapeType, prim: Usd.Prim) -> wp.vec3f:
-        if shape_type == RenderShapeType.SPHERE:
+    def __resolve_shape_size(self, shape_type: SensorTiledCamera.RenderShapeType, prim: Usd.Prim) -> wp.vec3f:
+        if shape_type == SensorTiledCamera.RenderShapeType.SPHERE:
             return self.__resolve_shape_size_sphere(prim)
-        if shape_type == RenderShapeType.CAPSULE:
+        if shape_type == SensorTiledCamera.RenderShapeType.CAPSULE:
             return self.__resolve_shape_size_capsule(prim)
-        if shape_type == RenderShapeType.BOX:
+        if shape_type == SensorTiledCamera.RenderShapeType.BOX:
             return self.__resolve_shape_size_box(prim)
-        if shape_type == RenderShapeType.CYLINDER:
+        if shape_type == SensorTiledCamera.RenderShapeType.CYLINDER:
             return self.__resolve_shape_size_cylinder(prim)
-        if shape_type == RenderShapeType.CONE:
+        if shape_type == SensorTiledCamera.RenderShapeType.CONE:
             return self.__resolve_shape_size_cone(prim)
-        if shape_type == RenderShapeType.PLANE:
+        if shape_type == SensorTiledCamera.RenderShapeType.PLANE:
             return self.__resolve_shape_size_plane(prim)
         return self.__resolve_scale(prim)
 

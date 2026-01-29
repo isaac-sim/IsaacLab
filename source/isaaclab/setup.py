@@ -45,6 +45,7 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.1",
     "flaky",
     "packaging",
+    "newton @ git+https://github.com/newton-physics/newton.git@fdf2b752dfb9148843b17089da2e929f9db48789",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
