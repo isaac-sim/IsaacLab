@@ -388,18 +388,14 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
 def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
-        Returns:
-    <<<<<<< HEAD
-            bool: True if loading, False otherwise
-    =======
-            True if loading, False otherwise
-    >>>>>>> 324b53f3c16ec554e0aeeb341ee964bcff238727
+    Returns:
+        True if loading, False otherwise
 
-        Example:
-            >>> import isaaclab.sim as sim_utils
-            >>>
-            >>> sim_utils.is_stage_loading()
-            False
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> sim_utils.is_stage_loading()
+        False
     """
     context = omni.usd.get_context()
     if context is None:
