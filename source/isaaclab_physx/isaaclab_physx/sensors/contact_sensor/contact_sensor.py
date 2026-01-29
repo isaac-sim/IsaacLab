@@ -137,7 +137,7 @@ class ContactSensor(BaseContactSensor):
         .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._contact_physx_view
+        return self._contact_view
 
     """
     Operations
@@ -202,7 +202,7 @@ class ContactSensor(BaseContactSensor):
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
-        self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
+        self._contact_view = self._physics_sim_view.create_rigid_contact_view(
             body_names_glob,
             filter_patterns=filter_prim_paths_glob,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
@@ -232,7 +232,7 @@ class ContactSensor(BaseContactSensor):
                 )
 
         # prepare data buffers
-        num_filter_shapes = self.contact_physx_view.filter_count if len(self.cfg.filter_prim_paths_expr) != 0 else 0
+        num_filter_shapes = self.contact_view.filter_count if len(self.cfg.filter_prim_paths_expr) != 0 else 0
         self._data.create_buffers(
             num_envs=self._num_envs,
             num_bodies=self._num_bodies,
@@ -254,7 +254,7 @@ class ContactSensor(BaseContactSensor):
         # obtain the contact forces
         # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
         #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
+        net_forces_w = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
         self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
         # update contact force history
         if self.cfg.history_length > 0:
@@ -264,9 +264,9 @@ class ContactSensor(BaseContactSensor):
         # obtain the contact force matrix
         if len(self.cfg.filter_prim_paths_expr) != 0:
             # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-            num_filters = self.contact_physx_view.filter_count
+            num_filters = self.contact_view.filter_count
             # acquire and shape the force matrix
-            force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
+            force_matrix_w = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
             if self.cfg.history_length > 0:
@@ -282,7 +282,7 @@ class ContactSensor(BaseContactSensor):
         # obtain contact points
         if self.cfg.track_contact_points:
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
-                self.contact_physx_view.get_contact_data(dt=self._sim_physics_dt)
+                self.contact_view.get_contact_data(dt=self._sim_physics_dt)
             )
             self._data.contact_pos_w[env_ids] = self._unpack_contact_buffer_data(
                 buffer_contact_points, buffer_count, buffer_start_indices
@@ -290,7 +290,7 @@ class ContactSensor(BaseContactSensor):
 
         # obtain friction forces
         if self.cfg.track_friction_forces:
-            friction_forces, _, buffer_count, buffer_start_indices = self.contact_physx_view.get_friction_data(
+            friction_forces, _, buffer_count, buffer_start_indices = self.contact_view.get_friction_data(
                 dt=self._sim_physics_dt
             )
             self._data.friction_forces_w[env_ids] = self._unpack_contact_buffer_data(
@@ -341,7 +341,7 @@ class ContactSensor(BaseContactSensor):
         This function vectorizes the following nested loop:
 
         for i in range(self._num_bodies * self._num_envs):
-            for j in range(self.contact_physx_view.filter_count):
+            for j in range(self.contact_view.filter_count):
                 start_index_ij = buffer_start_indices[i, j]
                 count_ij = buffer_count[i, j]
                 self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
@@ -376,7 +376,7 @@ class ContactSensor(BaseContactSensor):
             agg[counts == 0] = default
 
         return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
-            self._num_envs, self._num_bodies, self.contact_physx_view.filter_count, 3
+            self._num_envs, self._num_bodies, self.contact_view.filter_count, 3
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -420,4 +420,4 @@ class ContactSensor(BaseContactSensor):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._body_physx_view = None
-        self._contact_physx_view = None
+        self._contact_view = None

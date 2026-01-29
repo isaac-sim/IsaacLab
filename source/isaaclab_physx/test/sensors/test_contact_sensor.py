@@ -291,8 +291,8 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         contact_sensor_2 = scene["contact_sensor_2"]
 
         # Check that contact processing is enabled
-        assert contact_sensor.contact_physx_view.filter_count == 1
-        assert contact_sensor_2.contact_physx_view.filter_count == 1
+        assert contact_sensor.contact_view.filter_count == 1
+        assert contact_sensor_2.contact_view.filter_count == 1
 
         # Play the simulation
         scene.reset()
@@ -357,8 +357,8 @@ def test_no_contact_reporting(setup_simulation):
         contact_sensor_2: ContactSensor = scene["contact_sensor_2"]
 
         # Check buffers have the right size
-        assert contact_sensor.contact_physx_view.filter_count == 1
-        assert contact_sensor_2.contact_physx_view.filter_count == 1
+        assert contact_sensor.contact_view.filter_count == 1
+        assert contact_sensor_2.contact_view.filter_count == 1
 
         # Reset the contact sensors
         scene.reset()
@@ -486,7 +486,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         _perform_sim_step(sim, scene, sim_dt)
 
         # check that forces are being reported match expected friction forces
-        expected_friction, _, _, _ = scene["contact_sensor"].contact_physx_view.get_friction_data(dt=sim_dt)
+        expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=sim_dt)
         reported_friction = scene["contact_sensor"].data.friction_forces_w[0, 0, :]
 
         torch.testing.assert_close(expected_friction.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
@@ -752,11 +752,11 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert torch.any(torch.abs(sensor._data.friction_forces_w) > 1e-5).item()
-        friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_physx_view.get_friction_data(
+        friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_view.get_friction_data(
             dt=sensor._sim_physics_dt
         )
         for i in range(sensor.num_instances * num_bodies):
-            for j in range(sensor.contact_physx_view.filter_count):
+            for j in range(sensor.contact_view.filter_count):
                 start_index_ij = buffer_start_indices[i, j]
                 count_ij = buffer_count[i, j]
                 force = torch.sum(friction_forces[start_index_ij : (start_index_ij + count_ij), :], dim=0)

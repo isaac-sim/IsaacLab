@@ -9,18 +9,39 @@ import torch
 
 from isaaclab.sensors.imu import BaseImuData
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ImuData(BaseImuData):
     """Data container for the PhysX Imu sensor."""
 
     @property
+    def pose_w(self) -> torch.Tensor:
+        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        logger.warning(
+            "The `pose_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor poses in world frame."
+        )
+        return torch.cat((self._pos_w, self._quat_w), dim=-1)
+
+    @property
     def pos_w(self) -> torch.Tensor:
         """Position of the sensor origin in world frame. Shape is (N, 3)."""
+        logger.warning(
+            "The `pos_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor positions in world frame."
+        )
         return self._pos_w
 
     @property
     def quat_w(self) -> torch.Tensor:
         """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame. Shape is (N, 4)."""
+        logger.warning(
+            "The `quat_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor orientations in world frame."
+        )
         return self._quat_w
 
     @property

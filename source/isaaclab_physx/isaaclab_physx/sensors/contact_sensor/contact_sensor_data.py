@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import torch
+import logging
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
+
+logger = logging.getLogger(__name__)
 
 
 class ContactSensorData(BaseContactSensorData):
@@ -16,6 +19,10 @@ class ContactSensorData(BaseContactSensorData):
     @property
     def pose_w(self) -> torch.Tensor | None:
         """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        logger.warning(
+            "The `pose_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor poses in world frame."
+        )
         return torch.cat([self._pos_w, self._quat_w], dim=-1)
 
     @property
@@ -24,6 +31,10 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
+        logger.warning(
+            "The `pos_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor positions in world frame."
+        )
         return self._pos_w
 
     @property
@@ -32,6 +43,10 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
+        logger.warning(
+            "The `quat_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
+            "sensor orientations in world frame."
+        )
         return self._quat_w
 
     @property

@@ -32,6 +32,14 @@ Added
   * ``check_contact_sensor.py``
   * ``check_imu_sensor.py``
 
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``pose_w``, ``pos_w``, and ``quat_w`` properties on
+  :class:`~isaaclab_physx.sensors.ContactSensorData` and :class:`~isaaclab_physx.sensors.ImuData`.
+  These properties will be removed in a future release. Please use a dedicated sensor (e.g.,
+  :class:`~isaaclab.sensors.FrameTransformer`) to measure sensor poses in world frame.
+
 
 0.1.0 (2026-01-28)
 ~~~~~~~~~~~~~~~~~~~

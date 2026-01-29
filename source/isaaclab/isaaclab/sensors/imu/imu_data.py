@@ -5,9 +5,21 @@
 
 """Re-exports the base IMU data class for backwards compatibility."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from isaaclab.utils.backend_utils import FactoryBase
+
 from .base_imu_data import BaseImuData
 
-# Re-export for backwards compatibility
-ImuData = BaseImuData
+if TYPE_CHECKING:
+    from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
 
-__all__ = ["BaseImuData", "ImuData"]
+
+class ImuData(FactoryBase, BaseImuData):
+    """Factory for creating IMU data instances."""
+
+    def __new__(cls, *args, **kwargs) -> BaseImuData | PhysXImuData:
+        """Create a new instance of an IMU data based on the backend."""
+        return super().__new__(cls, *args, **kwargs)

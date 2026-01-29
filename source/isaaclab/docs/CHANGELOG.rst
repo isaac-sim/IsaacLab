@@ -25,6 +25,9 @@ Changed
   :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.FrameTransformer`) to follow the
   multi-backend architecture. The classes now act as factory wrappers that instantiate the
   appropriate backend-specific implementation (PhysX by default).
+* Refactored the sensor data classes (:class:`~isaaclab.sensors.ContactSensorData`,
+  :class:`~isaaclab.sensors.ImuData`, :class:`~isaaclab.sensors.FrameTransformerData`) to use the
+  factory pattern for backend-specific instantiation.
 * Moved PhysX-specific sensor tests to the ``isaaclab_physx`` package:
 
   * ``test_contact_sensor.py`` → ``isaaclab_physx/test/sensors/``

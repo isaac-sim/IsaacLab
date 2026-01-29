@@ -73,6 +73,7 @@ class BaseContactSensorData(ABC):
         """
         raise NotImplementedError
 
+    # Make issues for this in Newton P1/P2s
     @property
     @abstractmethod
     def contact_pos_w(self) -> torch.Tensor | None:
@@ -82,6 +83,7 @@ class BaseContactSensorData(ABC):
         """
         raise NotImplementedError
 
+    # Make issues for this in Newton P1/P2s
     @property
     @abstractmethod
     def friction_forces_w(self) -> torch.Tensor | None:

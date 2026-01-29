@@ -73,6 +73,38 @@ you can import from ``isaaclab_physx.sensors``:
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
 
 
+Sensor Pose Properties Deprecation
+----------------------------------
+
+The ``pose_w``, ``pos_w``, and ``quat_w`` properties on :class:`~isaaclab.sensors.ContactSensorData`
+and :class:`~isaaclab.sensors.ImuData` are deprecated and will be removed in a future release.
+
+If you need to track sensor poses in world frame, please use a dedicated sensor such as
+:class:`~isaaclab.sensors.FrameTransformer` instead.
+
+**Before (deprecated):**
+
+.. code-block:: python
+
+   # Using pose properties directly on sensor data
+   sensor_pos = contact_sensor.data.pos_w
+   sensor_quat = contact_sensor.data.quat_w
+
+**After (recommended):**
+
+.. code-block:: python
+
+   # Use FrameTransformer to track sensor pose
+   frame_transformer = FrameTransformer(FrameTransformerCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/base",
+       target_frames=[
+           FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/sensor_link"),
+       ],
+   ))
+   sensor_pos = frame_transformer.data.target_pos_w
+   sensor_quat = frame_transformer.data.target_quat_w
+
+
 ``root_physx_view`` Deprecation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

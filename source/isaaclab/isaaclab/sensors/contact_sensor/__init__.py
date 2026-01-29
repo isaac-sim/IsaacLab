@@ -10,3 +10,5 @@ from .base_contact_sensor_data import BaseContactSensorData
 from .contact_sensor import ContactSensor
 from .contact_sensor_cfg import ContactSensorCfg
 from .contact_sensor_data import ContactSensorData
+
+__all__ = ["BaseContactSensor", "BaseContactSensorData", "ContactSensor", "ContactSensorCfg", "ContactSensorData"]

@@ -7,3 +7,5 @@
 
 from .contact_sensor import ContactSensor
 from .contact_sensor_data import ContactSensorData
+
+__all__ = ["ContactSensor", "ContactSensorData"]
