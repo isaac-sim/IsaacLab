@@ -20,23 +20,18 @@ New Features
 Core & Simulation
 ~~~~~~~~~~~~~~~~~
 
-* Adds MJCF spawner for importing MJCF-based assets by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1672
 * Adds Raycaster with tracking support for dynamic meshes by @renezurbruegg in https://github.com/isaac-sim/IsaacLab/pull/3298
-* Adds friction force reporting to ContactSensor by @gattra-rai in https://github.com/isaac-sim/IsaacLab/pull/3563
-* Adds automatic transform discovery for IMU sensors to find valid parent bodies by @bmccann-bdai in https://github.com/isaac-sim/IsaacLab/pull/3864
-* Adds support for validating replay success using task termination conditions by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/4170
-* Adds preserve-order flag to JointPositionToLimitsAction by @renezurbruegg in https://github.com/isaac-sim/IsaacLab/pull/3716
 * Adds visual-based tactile sensor with shape sensing example by @JuanaDd in https://github.com/isaac-sim/IsaacLab/pull/3420
 * Adds wrench composers allowing the composition of multiple wrenches on the same bodies by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/3287
 * Adds multirotor/thruster actuator, multirotor asset and manager-based ARL drone task https://github.com/isaac-sim/IsaacLab/pull/3760 by @mihirk284 @grzemal @Zwoelf12
+* Adds automatic transform discovery for IMU sensors to find valid parent bodies by @bmccann-bdai in https://github.com/isaac-sim/IsaacLab/pull/3864
+* Adds friction force reporting to ContactSensor by @gattra-rai in https://github.com/isaac-sim/IsaacLab/pull/3563
+* Adds MJCF spawner for importing MJCF-based assets by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1672
 
 Learning & Environments
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * Adds OpenArm environments by @JinnnK in https://github.com/isaac-sim/IsaacLab/pull/4089
-* Adds early stopping support for Ray-based training by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3276
-* Adds support for custom ProgressReporter implementations in Ray integration by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3269
-* Updates rsl_rl to version 3.1.2 to support state-dependent standard deviation by @ashwinvkNV in https://github.com/isaac-sim/IsaacLab/pull/3867
 
 Mimic & Teleoperation
 ~~~~~~~~~~~~~~~~~~~~~
@@ -52,6 +47,7 @@ Improvements
 Core & Simulation
 ~~~~~~~~~~~~~~~~~
 
+* Adds preserve-order flag to JointPositionToLimitsAction by @renezurbruegg in https://github.com/isaac-sim/IsaacLab/pull/3716
 * Adds parsing of instanced meshes to prim fetching utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3367
 * Adds configurable logdir parameter to environments by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3391
 * Exposes PhysX flag solveArticulationContactLast via PhysxCfg by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3502
@@ -66,15 +62,20 @@ Core & Simulation
 * Randomizes viscous and dynamic joint friction consistent with Isaac Sim 5.0 by @GiulioRomualdi in https://github.com/isaac-sim/IsaacLab/pull/3318
 * Prevents randomization of rigid body mass to zero or negative values by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/4060
 * Improves image plotting normalization and colorization by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4302
+* Adds Fabric backend support to isaaclab.sim.views.XformPrimView by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/4374
 
 Learning & Environments
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+* Enhances PBT usability with small workflow improvements by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3449
 * Supports vectorized environments for pick-and-place demo by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3996
 * Registers direct environments to Gymnasium using string-style imports by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3803
-* Enhances PBT usability with small workflow improvements by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3449
 * Updates Gymnasium dependency to version 1.2.1 by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3696
 * Updates SB3 PPO configuration to reduce excessive training time by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3726
+* Adds support for validating replay success using task termination conditions by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/4170
+* Adds early stopping support for Ray-based training by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3276
+* Adds support for custom ProgressReporter implementations in Ray integration by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3269
+* Updates rsl_rl to version 3.1.2 to support state-dependent standard deviation by @ashwinvkNV in https://github.com/isaac-sim/IsaacLab/pull/3867
 
 Infrastructure
 ~~~~~~~~~~~~~~
@@ -85,6 +86,7 @@ Infrastructure
 * Updates copyright year to 2026 by @ashwinvkNV in https://github.com/isaac-sim/IsaacLab/pull/4311
 * Restricts .gitignore dataset rule to top-level directory only by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/3400
 * Adds uv as an alternative to conda in isaaclab.sh by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3172
+* Fixes transformers dependency for theia issue and failing tests by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4484
 
 Bug Fixes
 ---------
@@ -103,6 +105,12 @@ Core & Simulation
 * Fixes returned normal tensor shape in TiledCamera by @Rabbit-Hu in https://github.com/isaac-sim/IsaacLab/pull/4241
 * Fixes advanced indexing shape mismatch in JointPositionToLimitsAction by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3865
 * Fixes teleoperation crash when using DirectRL environments by @emmanuel-ferdman in https://github.com/isaac-sim/IsaacLab/pull/4364
+* Fixes lidar pattern horizontal resolution bug by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/4452
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Fixes CUDA version parsing for AutoMate environments by @yijieg in https://github.com/isaac-sim/IsaacLab/pull/3795
 
 Infrastructure & Tooling
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -110,8 +118,9 @@ Infrastructure & Tooling
 * Fixes CI behavior to correctly fail fork PRs when general tests fail by @nv-apoddubny in https://github.com/isaac-sim/IsaacLab/pull/3412
 * Fixes docker availability check in isaaclab.sh on systems without Docker by @klakhi in https://github.com/isaac-sim/IsaacLab/pull/4180
 * Forces CRLF line endings for .bat files to avoid Windows execution errors by @jiang131072 in https://github.com/isaac-sim/IsaacLab/pull/3624
-* Fixes CUDA version parsing for AutoMate environments by @yijieg in https://github.com/isaac-sim/IsaacLab/pull/3795
 * Fixes environment test failures and disables unstable tests by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3413
+* Fixes vulnerability in eval usage for Ray resource parsing by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4425
+* Fixes curobo dockerfile for CI runs by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4462
 
 Documentation
 -------------
@@ -124,6 +133,191 @@ Documentation
 * Updates technical report link for Isaac Lab by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4074
 * Adds clarification on missing pip in uv virtual environments by @DBinK in https://github.com/isaac-sim/IsaacLab/pull/4055
 * Adds keyword filtering documentation for list_envs.py by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/3384
+* Adds documentation for Multirotor feature by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4400
+* Adds documentation for PVD and OVD comparison by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4409
+
+Migration Guide
+---------------
+
+External Force and Torque Application - Wrench Composers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+The ``set_external_force_and_torque()`` method on articulations, rigid bodies, and rigid body collections has been deprecated in favor of a new composable wrench system.
+
+Related PR: https://github.com/isaac-sim/IsaacLab/pull/3287
+
+**New Features:**
+- **Permanent Wrench Composer**: Applies forces/torques that persist across simulation steps until explicitly changed
+- **Instantaneous Wrench Composer**: Applies forces/torques for a single simulation step, then automatically resets
+- **Composability**: Multiple forces and torques can now be added together on the same body
+- **Mixed Frame Support**: Seamlessly compose local and global frame wrenches
+
+**Migration Guide:**
+
+**Old API (Deprecated):**
+
+.. code-block:: python
+
+    # Old method - overwrites previous forces
+    asset.set_external_force_and_torque(
+        forces=torch.ones(1, 1, 3),
+        torques=torch.ones(1, 1, 3),
+        body_ids=[0],
+        env_ids=[0],
+        is_global=False,
+    )
+
+**New API:**
+
+.. code-block:: python
+
+    # Set initial permanent forces (replaces previous)
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Compose additional forces on the same body
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+        is_global=True,  # Mix local and global frames
+    )
+
+    # Add torques independently
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        torques=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Apply forces and torques together with custom application points
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        torques=torch.ones(1, 1, 3),
+        positions=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+**Instantaneous Wrenches (New):**
+
+.. code-block:: python
+
+    # Apply forces for a single simulation step only
+    asset.instantaneous_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Multiple instantaneous wrenches compose automatically
+    asset.instantaneous_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 2, 3),  # Add more forces
+        env_ids=[0],
+        body_ids=[0, 1],
+    )
+    # These are automatically reset after write_data_to_sim()
+
+**Key Differences:**
+
+- ``set_forces_and_torques()`` replaces existing wrenches
+- ``add_forces_and_torques()`` composes with existing wrenches
+- Permanent and instantaneous wrenches compose automatically
+- Instantaneous wrenches auto-clear after each simulation step
+
+**Use Cases:**
+- **Drones**: Compose thrust forces with aerodynamic drag and wind disturbances
+- **Boats**: Apply buoyancy forces with wave-induced motions
+
+
+Formatting and Linting - Migration to Ruff
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The project has migrated from multiple tools (``flake8`` for linting, ``black`` for formatting, ``isort`` for import sorting) to a unified toolchain using ``ruff`` for all formatting and linting tasks.
+
+Related PRs: https://github.com/isaac-sim/IsaacLab/pull/4329, https://github.com/isaac-sim/IsaacLab/pull/4377, https://github.com/isaac-sim/IsaacLab/pull/4335, https://github.com/isaac-sim/IsaacLab/pull/4376
+
+
+**Why:**
+
+- Faster performance (10-100x speedup)
+- Unified configuration in ``pyproject.toml``
+- More consistent formatting and linting rules
+- Simplified developer workflow
+
+**Migration Steps:**
+
+1. **Update configuration files:**
+
+   .. code-block:: bash
+
+      # Copy the updated configuration from the main branch
+      # Files to update: pyproject.toml, .pre-commit-config.yaml
+
+2. **Apply new formatting:**
+
+   .. code-block:: bash
+
+      ./isaaclab.sh --format
+
+3. **Resolve merge conflicts:**
+   If you encounter merge conflicts after updating, they likely originate from formatting differences. After copying the new configuration files, rerun the formatting command and commit the changes.
+
+.. note::
+
+   Pre-commit hooks will automatically run ``ruff`` on staged files. Ensure your code is formatted
+   before committing to avoid CI failures.
+
+
+USD Utilities - Unified ``isaaclab.sim.utils`` Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab now provides its own comprehensive USD utility module (``isaaclab.sim.utils``) instead of relying on scattered utilities from Isaac Sim's ``isaacsim.core.utils`` packages.
+
+Related PR: https://github.com/isaac-sim/IsaacLab/pull/4286
+
+**Why:**
+
+- **Better Organization**: All USD operations grouped into logical submodules (stage, prims, queries, transforms, semantics)
+- **Type Hints**: Full type annotations for better IDE support and code safety
+- **Version Compatibility**: Handles differences between Isaac Sim versions automatically
+
+**Old API (Isaac Sim utilities):**
+
+.. code-block:: python
+
+    import isaac.core.utils.stage as stage_utils
+    import isaac.core.utils.prims as prim_utils
+
+    # Stage operations
+    stage_utils.create_new_stage()
+    current_stage = stage_utils.get_current_stage()
+
+    # Prim operations
+    prim_utils.create_prim("/World/Cube", "Cube")
+    prim_utils.delete_prim("/World/OldObject")
+
+**New API (Isaac Lab utilities):**
+
+.. code-block:: python
+
+    import isaaclab.sim as sim_utils
+
+    # Stage operations
+    sim_utils.create_new_stage()
+    current_stage = sim_utils.get_current_stage()
+
+    # Prim operations
+    sim_utils.create_prim("/World/Cube", "Cube", attributes={"size": 1.0})
+    sim_utils.delete_prim("/World/OldObject")
+
+**Legacy Support:**
+
+For backward compatibility, legacy functions are still available in ``isaaclab.sim.utils.legacy``, but it's recommended to migrate to the new APIs or use USD directly.
 
 **Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.2.1...v2.3.2
 
