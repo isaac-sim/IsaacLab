@@ -7,3 +7,8 @@
 
 from .surface_gripper import SurfaceGripper
 from .surface_gripper_cfg import SurfaceGripperCfg
+
+__all__ = [
+    "SurfaceGripper",
+    "SurfaceGripperCfg",
+]

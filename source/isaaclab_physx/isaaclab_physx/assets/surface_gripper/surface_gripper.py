@@ -165,14 +165,16 @@ class SurfaceGripper(AssetBase):
 
         This function is called every simulation step.
         The data fetched from the gripper view is a list of strings containing 3 possible states:
-            - "Open" --> 0
-            - "Closing" --> 1
-            - "Closed" --> 2
+
+        - "Open" --> 0
+        - "Closing" --> 1
+        - "Closed" --> 2
 
         To make this more neural network friendly, we convert the list of strings to a list of floats:
-            - "Open" --> -1.0
-            - "Closing" --> 0.0
-            - "Closed" --> 1.0
+
+        - "Open" --> -1.0
+        - "Closing" --> 0.0
+        - "Closed" --> 1.0
 
         Note:
             We need to do this conversion for every single step of the simulation because the gripper can lose contact

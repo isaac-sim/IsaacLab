@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
+
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg

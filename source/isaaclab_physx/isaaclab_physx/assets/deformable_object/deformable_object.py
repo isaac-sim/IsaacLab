@@ -17,9 +17,9 @@ from pxr import PhysxSchema, UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
 
-from ..asset_base import AssetBase
 from .deformable_object_data import DeformableObjectData
 
 if TYPE_CHECKING:
@@ -78,7 +78,7 @@ class DeformableObject(AssetBase):
 
     @property
     def num_instances(self) -> int:
-        return self.root_physx_view.count
+        return self.root_view.count
 
     @property
     def num_bodies(self) -> int:
@@ -89,13 +89,21 @@ class DeformableObject(AssetBase):
         return 1
 
     @property
-    def root_physx_view(self) -> physx.SoftBodyView:
-        """Deformable body view for the asset (PhysX).
+    def root_view(self) -> physx.SoftBodyView:
+        """Deformable body view for the asset.
 
         Note:
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._root_physx_view
+
+    @property
+    def root_physx_view(self) -> physx.SoftBodyView:
+        """Deprecated property. Please use :attr:`root_view` instead."""
+        logger.warning(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        )
+        return self.root_view
 
     @property
     def material_physx_view(self) -> physx.SoftBodyMaterialView | None:
@@ -112,22 +120,22 @@ class DeformableObject(AssetBase):
     @property
     def max_sim_elements_per_body(self) -> int:
         """The maximum number of simulation mesh elements per deformable body."""
-        return self.root_physx_view.max_sim_elements_per_body
+        return self.root_view.max_sim_elements_per_body
 
     @property
     def max_collision_elements_per_body(self) -> int:
         """The maximum number of collision mesh elements per deformable body."""
-        return self.root_physx_view.max_elements_per_body
+        return self.root_view.max_elements_per_body
 
     @property
     def max_sim_vertices_per_body(self) -> int:
         """The maximum number of simulation mesh vertices per deformable body."""
-        return self.root_physx_view.max_sim_vertices_per_body
+        return self.root_view.max_sim_vertices_per_body
 
     @property
     def max_collision_vertices_per_body(self) -> int:
         """The maximum number of collision mesh vertices per deformable body."""
-        return self.root_physx_view.max_vertices_per_body
+        return self.root_view.max_vertices_per_body
 
     """
     Operations.
@@ -183,7 +191,7 @@ class DeformableObject(AssetBase):
         # set into internal buffers
         self._data.nodal_pos_w[env_ids] = nodal_pos.clone()
         # set into simulation
-        self.root_physx_view.set_sim_nodal_positions(self._data.nodal_pos_w, indices=physx_env_ids)
+        self.root_view.set_sim_nodal_positions(self._data.nodal_pos_w, indices=physx_env_ids)
 
     def write_nodal_velocity_to_sim(self, nodal_vel: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the nodal velocity over selected environment indices into the simulation.
@@ -206,7 +214,7 @@ class DeformableObject(AssetBase):
         # set into internal buffers
         self._data.nodal_vel_w[env_ids] = nodal_vel.clone()
         # set into simulation
-        self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
+        self.root_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
     def write_nodal_kinematic_target_to_sim(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
@@ -231,7 +239,7 @@ class DeformableObject(AssetBase):
         # store into internal buffers
         self._data.nodal_kinematic_target[env_ids] = targets.clone()
         # set into simulation
-        self.root_physx_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target, indices=physx_env_ids)
+        self.root_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target, indices=physx_env_ids)
 
     """
     Operations - Helper.
@@ -358,7 +366,7 @@ class DeformableObject(AssetBase):
             logger.info("No deformable material found. Material properties will be set to default values.")
 
         # container for data access
-        self._data = DeformableObjectData(self.root_physx_view, self.device)
+        self._data = DeformableObjectData(self.root_view, self.device)
 
         # create buffers
         self._create_buffers()
@@ -378,12 +386,12 @@ class DeformableObject(AssetBase):
         # default state
         # we use the initial nodal positions at spawn time as the default state
         # note: these are all in the simulation frame
-        nodal_positions = self.root_physx_view.get_sim_nodal_positions()
+        nodal_positions = self.root_view.get_sim_nodal_positions()
         nodal_velocities = torch.zeros_like(nodal_positions)
         self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=-1)
 
         # kinematic targets
-        self._data.nodal_kinematic_target = self.root_physx_view.get_sim_kinematic_targets()
+        self._data.nodal_kinematic_target = self.root_view.get_sim_kinematic_targets()
         # set all nodes as non-kinematic targets by default
         self._data.nodal_kinematic_target[..., -1] = 1.0
 

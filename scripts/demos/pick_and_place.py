@@ -26,6 +26,7 @@ simulation_app = app_launcher.app
 from collections.abc import Sequence
 
 import torch
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import carb
 import omni
@@ -36,8 +37,6 @@ from isaaclab.assets import (
     ArticulationCfg,
     RigidObject,
     RigidObjectCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers

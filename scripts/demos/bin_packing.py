@@ -188,8 +188,8 @@ def reset_object_collections(
     view_states[view_ids, :7] = torch.concat((positions, orientations), dim=-1)
     view_states[view_ids, 7:] = new_velocities
 
-    rigid_object_collection.root_physx_view.set_transforms(view_states[:, :7], indices=view_ids)
-    rigid_object_collection.root_physx_view.set_velocities(view_states[:, 7:], indices=view_ids)
+    rigid_object_collection.root_view.set_transforms(view_states[:, :7], indices=view_ids)
+    rigid_object_collection.root_view.set_velocities(view_states[:, 7:], indices=view_ids)
 
 
 def build_grocery_defaults(
@@ -301,8 +301,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[groceries_mask.view(-1)], noise=True)
                 # Vary the mass and gravity settings so cached objects stay parked.
                 random_masses = torch.rand(groceries.num_instances * num_objects, device=device) * 0.2 + 0.2
-                groceries.root_physx_view.set_masses(random_masses.cpu(), view_indices.cpu())
-                groceries.root_physx_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
+                groceries.root_view.set_masses(random_masses.cpu(), view_indices.cpu())
+                groceries.root_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
                 scene.reset()
 
         # Write data to sim

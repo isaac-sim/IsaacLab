@@ -82,11 +82,11 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
-        inertias = self._robot.root_physx_view.get_inertias()
+        inertias = self._robot.root_view.get_inertias()
         offset = torch.zeros_like(inertias)
         offset[:, :, [0, 4, 8]] += 0.01
         new_inertias = inertias + offset
-        self._robot.root_physx_view.set_inertias(new_inertias, torch.arange(self.num_envs))
+        self._robot.root_view.set_inertias(new_inertias, torch.arange(self.num_envs))
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -108,11 +108,11 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_friction(self, asset, value):
         """Update material properties for a given asset."""
-        materials = asset.root_physx_view.get_material_properties()
+        materials = asset.root_view.get_material_properties()
         materials[..., 0] = value  # Static friction.
         materials[..., 1] = value  # Dynamic friction.
         env_ids = torch.arange(self.scene.num_envs, device="cpu")
-        asset.root_physx_view.set_material_properties(materials, env_ids)
+        asset.root_view.set_material_properties(materials, env_ids)
 
     def _init_tensors(self):
         """Initialize tensors once."""
@@ -284,12 +284,12 @@ class AssemblyEnv(DirectRLEnv):
         self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w[:, self.fingertip_body_idx]
 
-        jacobians = self._robot.root_physx_view.get_jacobians()
+        jacobians = self._robot.root_view.get_jacobians()
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.root_physx_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
+        self.arm_mass_matrix = self._robot.root_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.clone()
         self.joint_vel = self._robot.data.joint_vel.clone()
 

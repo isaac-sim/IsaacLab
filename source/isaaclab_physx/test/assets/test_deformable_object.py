@@ -21,12 +21,12 @@ import ctypes
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
 import carb
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
 
 
@@ -114,7 +114,7 @@ def test_initialization(sim, num_cubes, material_path):
 
     # Check correct number of cubes
     assert cube_object.num_instances == num_cubes
-    assert cube_object.root_physx_view.count == num_cubes
+    assert cube_object.root_view.count == num_cubes
 
     # Check correct number of materials in the view
     if material_path:
@@ -314,7 +314,7 @@ def test_set_kinematic_targets(sim, num_cubes):
 
     sim.reset()
 
-    nodal_kinematic_targets = cube_object.root_physx_view.get_sim_kinematic_targets().clone()
+    nodal_kinematic_targets = cube_object.root_view.get_sim_kinematic_targets().clone()
 
     for _ in range(5):
         cube_object.write_nodal_state_to_sim(cube_object.data.default_nodal_state_w)

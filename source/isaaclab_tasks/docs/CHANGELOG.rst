@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.11.13 (2026-01-28)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to use the new ``root_view`` property instead of the deprecated
+  ``root_physx_view`` property. This includes the following environments:
+
+  * AutoMate Assembly and Disassembly environments
+  * Factory environments
+  * FORGE environments
+  * Inhand manipulation environments
+  * Quadcopter environments
+  * Shadow Hand environments
+
+
 0.11.12 (2025-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 

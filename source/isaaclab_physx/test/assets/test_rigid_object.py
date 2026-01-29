@@ -22,9 +22,10 @@ from typing import Literal
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.assets import RigidObject
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -118,8 +119,8 @@ def test_initialization(num_cubes, device):
         # Check buffers that exists and have correct shapes
         assert cube_object.data.root_pos_w.shape == (num_cubes, 3)
         assert cube_object.data.root_quat_w.shape == (num_cubes, 4)
-        assert cube_object.data.default_mass.shape == (num_cubes, 1)
-        assert cube_object.data.default_inertia.shape == (num_cubes, 9)
+        assert cube_object.data.body_mass.shape == (num_cubes, 1)
+        assert cube_object.data.body_inertia.shape == (num_cubes, 9)
 
         # Simulate physics
         for _ in range(2):
@@ -295,7 +296,7 @@ def test_external_force_on_single_body(num_cubes, device):
         # Sample a force equal to the weight of the object
         external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
         # Every 2nd cube should have a force applied to it
-        external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
+        external_wrench_b[0::2, :, 2] = 9.81 * cube_object.root_view.get_masses()[0]
 
         # Now we are ready!
         for i in range(5):
@@ -581,7 +582,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         indices = torch.tensor(range(num_cubes), dtype=torch.int)
         # Add friction to cube
-        cube_object.root_physx_view.set_material_properties(materials, indices)
+        cube_object.root_view.set_material_properties(materials, indices)
 
         # Simulate physics
         # perform rendering
@@ -590,7 +591,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         cube_object.update(sim.cfg.dt)
 
         # Get material properties
-        materials_to_check = cube_object.root_physx_view.get_material_properties()
+        materials_to_check = cube_object.root_view.get_material_properties()
 
         # Check if material properties are set correctly
         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
@@ -627,7 +628,7 @@ def test_rigid_body_no_friction(num_cubes, device):
         cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+        cube_object.root_view.set_material_properties(cube_object_materials, indices)
 
         # Set initial velocity
         # Initial velocity in X to get the block moving
@@ -693,14 +694,14 @@ def test_rigid_body_with_static_friction(num_cubes, device):
         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
         # Add friction to cube
-        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+        cube_object.root_view.set_material_properties(cube_object_materials, indices)
 
         # let everything settle
         for _ in range(100):
             sim.step()
             cube_object.update(sim.cfg.dt)
         cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
-        cube_mass = cube_object.root_physx_view.get_masses()
+        cube_mass = cube_object.root_view.get_masses()
         gravity_magnitude = abs(sim.cfg.gravity[2])
         # 2 cases: force applied is below and above mu
         # below mu: block should not move as the force applied is <= mu
@@ -789,7 +790,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
             cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
             # Add restitution to cube
-            cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
+            cube_object.root_view.set_material_properties(cube_object_materials, indices)
 
             curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
 
@@ -833,7 +834,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         sim.reset()
 
         # Get masses before increasing
-        original_masses = cube_object.root_physx_view.get_masses()
+        original_masses = cube_object.root_view.get_masses()
 
         assert original_masses.shape == (num_cubes, 1)
 
@@ -843,9 +844,9 @@ def test_rigid_body_set_mass(num_cubes, device):
         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
         # Add friction to cube
-        cube_object.root_physx_view.set_masses(masses, indices)
+        cube_object.root_view.set_masses(masses, indices)
 
-        torch.testing.assert_close(cube_object.root_physx_view.get_masses(), masses)
+        torch.testing.assert_close(cube_object.root_view.get_masses(), masses)
 
         # Simulate physics
         # perform rendering
@@ -853,7 +854,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         # update object
         cube_object.update(sim.cfg.dt)
 
-        masses_to_check = cube_object.root_physx_view.get_masses()
+        masses_to_check = cube_object.root_view.get_masses()
 
         # Check if mass is set correctly
         torch.testing.assert_close(masses, masses_to_check)
@@ -924,12 +925,12 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         else:
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
-        com = cube_object.root_physx_view.get_coms()
+        com = cube_object.root_view.get_coms()
         com[..., :3] = offset.to("cpu")
-        cube_object.root_physx_view.set_coms(com, env_idx)
+        cube_object.root_view.set_coms(com, env_idx)
 
         # check ceter of mass has been set
-        torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+        torch.testing.assert_close(cube_object.root_view.get_coms(), com)
 
         # random z spin velocity
         spin_twist = torch.zeros(6, device=device)
@@ -1029,12 +1030,12 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         else:
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
-        com = cube_object.root_physx_view.get_coms()
+        com = cube_object.root_view.get_coms()
         com[..., :3] = offset.to("cpu")
-        cube_object.root_physx_view.set_coms(com, env_idx)
+        cube_object.root_view.set_coms(com, env_idx)
 
         # check center of mass has been set
-        torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+        torch.testing.assert_close(cube_object.root_view.get_coms(), com)
 
         rand_state = torch.zeros_like(cube_object.data.root_state_w)
         rand_state[..., :7] = cube_object.data.default_root_state[..., :7]
@@ -1091,12 +1092,12 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         else:
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
-        com = cube_object.root_physx_view.get_coms()
+        com = cube_object.root_view.get_coms()
         com[..., :3] = offset.to("cpu")
-        cube_object.root_physx_view.set_coms(com, env_idx)
+        cube_object.root_view.set_coms(com, env_idx)
 
         # check ceter of mass has been set
-        torch.testing.assert_close(cube_object.root_physx_view.get_coms(), com)
+        torch.testing.assert_close(cube_object.root_view.get_coms(), com)
 
         rand_state = torch.rand_like(cube_object.data.root_state_w)
         # rand_state[..., :7] = cube_object.data.default_root_state[..., :7]

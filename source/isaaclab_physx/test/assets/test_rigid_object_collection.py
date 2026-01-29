@@ -20,9 +20,10 @@ import ctypes
 
 import pytest
 import torch
+from isaaclab_physx.assets import RigidObjectCollection
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
+from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -126,8 +127,8 @@ def test_initialization(sim, num_envs, num_cubes, device):
     # Check buffers that exist and have correct shapes
     assert object_collection.data.object_link_pos_w.shape == (num_envs, num_cubes, 3)
     assert object_collection.data.object_link_quat_w.shape == (num_envs, num_cubes, 4)
-    assert object_collection.data.default_mass.shape == (num_envs, num_cubes, 1)
-    assert object_collection.data.default_inertia.shape == (num_envs, num_cubes, 9)
+    assert object_collection.data.body_mass.shape == (num_envs, num_cubes, 1)
+    assert object_collection.data.body_inertia.shape == (num_envs, num_cubes, 9)
 
     # Simulate physics
     for _ in range(2):
@@ -150,20 +151,20 @@ def test_id_conversion(sim, device):
         torch.tensor([1, 3, 5], device=device, dtype=torch.long),
     ]
 
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES, object_collection._ALL_OBJ_INDICES[None, 2]
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES, object_collection._ALL_BODY_INDICES[None, 2]
     )
     assert (view_ids == expected[0]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES[None, 2]
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_BODY_INDICES[None, 2]
     )
     assert (view_ids == expected[1]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_OBJ_INDICES
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 0], object_collection._ALL_BODY_INDICES
     )
     assert (view_ids == expected[2]).all()
-    view_ids = object_collection._env_obj_ids_to_view_ids(
-        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_OBJ_INDICES
+    view_ids = object_collection._env_body_ids_to_view_ids(
+        object_collection._ALL_ENV_INDICES[None, 1], object_collection._ALL_BODY_INDICES
     )
     assert (view_ids == expected[3]).all()
 
@@ -281,7 +282,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
     # Sample a force equal to the weight of the object
     external_wrench_b = torch.zeros(object_collection.num_instances, len(object_ids), 6, device=sim.device)
     # Every 2nd cube should have a force applied to it
-    external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.default_mass[:, 0::2, 0]
+    external_wrench_b[:, 0::2, 2] = 9.81 * object_collection.data.body_mass[:, 0::2, 0]
 
     for i in range(5):
         # reset object state
@@ -489,12 +490,12 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     # random z spin velocity
     spin_twist = torch.zeros(6, device=device)
@@ -583,12 +584,12 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     rand_state = torch.zeros_like(cube_object.data.object_link_state_w)
     rand_state[..., :7] = cube_object.data.default_object_state[..., :7]
@@ -667,16 +668,14 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 
     # Add friction to cube
     indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
-    object_collection.root_physx_view.set_material_properties(
-        object_collection.reshape_data_to_view(materials), indices
-    )
+    object_collection.root_view.set_material_properties(object_collection.reshape_data_to_view(materials), indices)
 
     # Perform simulation
     sim.step()
     object_collection.update(sim.cfg.dt)
 
     # Get material properties
-    materials_to_check = object_collection.root_physx_view.get_material_properties()
+    materials_to_check = object_collection.root_view.get_material_properties()
 
     # Check if material properties are set correctly
     torch.testing.assert_close(object_collection.reshape_view_to_data(materials_to_check), materials)
@@ -742,12 +741,12 @@ def test_write_object_state_functions_data_consistency(
         else torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_envs, num_cubes, 1)
     )
 
-    com = cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms())
+    com = cube_object.reshape_view_to_data(cube_object.root_view.get_coms())
     com[..., :3] = offset.to("cpu")
-    cube_object.root_physx_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
+    cube_object.root_view.set_coms(cube_object.reshape_data_to_view(com.clone()), view_ids)
 
     # check center of mass has been set
-    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_physx_view.get_coms()), com)
+    torch.testing.assert_close(cube_object.reshape_view_to_data(cube_object.root_view.get_coms()), com)
 
     rand_state = torch.rand_like(cube_object.data.object_link_state_w)
     rand_state[..., :3] += cube_object.data.object_link_pos_w

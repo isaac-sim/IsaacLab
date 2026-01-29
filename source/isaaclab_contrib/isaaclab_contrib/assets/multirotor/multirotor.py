@@ -13,9 +13,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_physx.assets.articulation import Articulation
 
 import isaaclab.utils.string as string_utils
-from isaaclab.assets.articulation import Articulation
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -286,7 +286,7 @@ class Multirotor(Articulation):
         super()._initialize_impl()
 
         # Replace data container with MultirotorData
-        self._data = MultirotorData(self.root_physx_view, self.device)
+        self._data = MultirotorData(self.root_view, self.device)
 
         # Create thruster buffers with correct size (SINGLE PHASE)
         self._create_thruster_buffers()
@@ -508,7 +508,7 @@ class Multirotor(Articulation):
         # Combine individual thrusts into a wrench vector
         self._combine_thrusts()
 
-        self.root_physx_view.apply_forces_and_torques_at_position(
+        self.root_view.apply_forces_and_torques_at_position(
             force_data=self._internal_force_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
             torque_data=self._internal_torque_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
             position_data=None,  # Apply at center of mass

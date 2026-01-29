@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
+
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -33,6 +35,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 class EventCfgLongSuction:
     """Configuration for events."""
 
+    # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         mode="reset",

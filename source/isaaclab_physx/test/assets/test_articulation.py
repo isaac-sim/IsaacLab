@@ -21,12 +21,13 @@ import ctypes
 
 import pytest
 import torch
+from isaaclab_physx.assets import Articulation
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
@@ -237,11 +238,11 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
@@ -290,16 +291,16 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 12)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
@@ -347,16 +348,16 @@ def test_initialization_fixed_base(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 9)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
@@ -411,16 +412,16 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 1)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
@@ -474,14 +475,14 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 24)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
@@ -533,11 +534,11 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
 
     # Simulate physics
@@ -592,11 +593,11 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
 
     # Check some internal physx data for debugging
     # -- joint related
-    assert articulation.root_physx_view.max_dofs == articulation.root_physx_view.shared_metatype.dof_count
+    assert articulation.root_view.max_dofs == articulation.root_view.shared_metatype.dof_count
     # -- link related
-    assert articulation.root_physx_view.max_links == articulation.root_physx_view.shared_metatype.link_count
+    assert articulation.root_view.max_links == articulation.root_view.shared_metatype.link_count
     # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_physx_view.link_paths[0]]
+    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
     assert prim_path_body_names == articulation.body_names
 
     # Simulate physics
@@ -1334,7 +1335,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # read the values set into the simulation
-    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device)
+    physx_vel_limit = articulation.root_view.get_dof_max_velocities().to(device)
     # check data buffer
     torch.testing.assert_close(articulation.data.joint_velocity_limits, physx_vel_limit)
     # check actuator has simulation velocity limit
@@ -1383,7 +1384,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # collect limit init values
-    physx_vel_limit = articulation.root_physx_view.get_dof_max_velocities().to(device)
+    physx_vel_limit = articulation.root_view.get_dof_max_velocities().to(device)
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
     actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
 
@@ -1447,7 +1448,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     sim.reset()
 
     # obtain the physx effort limits
-    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device=device)
+    physx_effort_limit = articulation.root_view.get_dof_max_forces().to(device=device)
 
     # check that the two are equivalent
     torch.testing.assert_close(
@@ -1501,7 +1502,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     usd_default_effort_limit = 80.0
 
     # collect limit init values
-    physx_effort_limit = articulation.root_physx_view.get_dof_max_forces().to(device)
+    physx_effort_limit = articulation.root_view.get_dof_max_forces().to(device)
     actuator_effort_limit = articulation.actuators["joint"].effort_limit
     actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
 
@@ -1659,14 +1660,14 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
 
     # create com offsets
     num_bodies = articulation.num_bodies
-    com = articulation.root_physx_view.get_coms()
+    com = articulation.root_view.get_coms()
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, 1, :3] = new_com.squeeze(-2)
-    articulation.root_physx_view.set_coms(com.cpu(), env_idx.cpu())
+    articulation.root_view.set_coms(com.cpu(), env_idx.cpu())
 
     # check they are set
-    torch.testing.assert_close(articulation.root_physx_view.get_coms(), com.cpu())
+    torch.testing.assert_close(articulation.root_view.get_coms(), com.cpu())
 
     for i in range(50):
         # perform step
@@ -1773,13 +1774,13 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         offset = torch.tensor([0.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
 
     # create com offsets
-    com = articulation.root_physx_view.get_coms()
+    com = articulation.root_view.get_coms()
     new_com = offset
     com[:, 0, :3] = new_com.squeeze(-2)
-    articulation.root_physx_view.set_coms(com, env_idx)
+    articulation.root_view.set_coms(com, env_idx)
 
     # check they are set
-    torch.testing.assert_close(articulation.root_physx_view.get_coms(), com)
+    torch.testing.assert_close(articulation.root_view.get_coms(), com)
 
     rand_state = torch.zeros_like(articulation.data.root_state_w)
     rand_state[..., :7] = articulation.data.default_root_state[..., :7]
@@ -1860,7 +1861,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         assert articulation.data.body_incoming_joint_wrench_b.shape == (num_articulations, articulation.num_bodies, 6)
 
     # calculate expected static
-    mass = articulation.data.default_mass
+    mass = articulation.data.body_mass.to("cpu")
     pos_w = articulation.data.body_pos_w
     quat_w = articulation.data.body_quat_w
 
@@ -2050,8 +2051,8 @@ def test_spatial_tendons(sim, num_articulations, device):
     assert articulation.data.root_pos_w.shape == (num_articulations, 3)
     assert articulation.data.root_quat_w.shape == (num_articulations, 4)
     assert articulation.data.joint_pos.shape == (num_articulations, 3)
-    assert articulation.data.default_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.default_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
+    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
     assert articulation.num_spatial_tendons == 1
 
     articulation.set_spatial_tendon_stiffness(torch.tensor([10.0]))
@@ -2109,14 +2110,14 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         articulation.update(sim.cfg.dt)
 
     if get_isaac_sim_version().major >= 5:
-        friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
+        friction_props_from_sim = articulation.root_view.get_dof_friction_properties()
         joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
         joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
         joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
         assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
         assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
     else:
-        joint_friction_coeff_sim = articulation.root_physx_view.get_dof_friction_properties()
+        joint_friction_coeff_sim = articulation.root_view.get_dof_friction_properties()
 
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
 
@@ -2152,7 +2153,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
             sim.step()
             articulation.update(sim.cfg.dt)
 
-        friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
+        friction_props_from_sim_2 = articulation.root_view.get_dof_friction_properties()
         joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
         friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
         friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]

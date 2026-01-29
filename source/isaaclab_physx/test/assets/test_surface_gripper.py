@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -26,8 +27,6 @@ from isaaclab.assets import (
     ArticulationCfg,
     RigidObject,
     RigidObjectCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
