@@ -12,9 +12,7 @@ import math
 
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-
-from isaaclab.utils.math import axis_angle_from_quat
+from isaaclab.utils import math as torch_utils
 
 
 def compute_dof_torque(
@@ -128,14 +126,14 @@ def get_pose_error(
 
         fingertip_midpoint_quat_norm = torch_utils.quat_mul(
             fingertip_midpoint_quat, torch_utils.quat_conjugate(fingertip_midpoint_quat)
-        )[:, 0]  # scalar component
+        )[:, 3]  # scalar component (W is at index 3 in XYZW format)
         fingertip_midpoint_quat_inv = torch_utils.quat_conjugate(
             fingertip_midpoint_quat
         ) / fingertip_midpoint_quat_norm.unsqueeze(-1)
         quat_error = torch_utils.quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_midpoint_quat_inv)
 
         # Convert to axis-angle error
-        axis_angle_error = axis_angle_from_quat(quat_error)
+        axis_angle_error = torch_utils.axis_angle_from_quat(quat_error)
 
     if rot_error_type == "quat":
         return pos_error, quat_error
