@@ -220,3 +220,35 @@ def task_done_exhaust_pipe(
     done = torch.logical_and(done, blue_exhaust_to_bin_z < max_blue_exhaust_to_bin_z)
 
     return done
+
+
+def object_too_far_from_robot(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    max_distance: float = 1.0,
+) -> torch.Tensor:
+    """Terminate when the object is too far from the robot (failed to pick up).
+
+    This checks the distance between the robot's root position and the object's position.
+    If the distance exceeds max_distance, the task is considered failed.
+
+
+    Args:
+        env: The RL environment instance.
+        robot_cfg: Configuration for the robot entity.
+        object_cfg: Configuration for the object entity.
+        max_distance: Maximum distance between the robot and the object for task completion.
+
+    Returns:
+        Boolean tensor indicating which environments have completed the task.
+    """
+    robot: RigidObject = env.scene[robot_cfg.name]
+    object: RigidObject = env.scene[object_cfg.name]
+
+    robot_pos = robot.data.root_pos_w[:, :3]  # [num_envs, 3]
+    object_pos = object.data.root_pos_w[:, :3]  # [num_envs, 3]
+
+    distance = torch.norm(robot_pos - object_pos, dim=1)
+
+    return distance > max_distance
