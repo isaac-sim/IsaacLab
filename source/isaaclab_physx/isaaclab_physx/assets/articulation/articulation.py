@@ -166,7 +166,7 @@ class Articulation(BaseArticulation):
         return self.root_view.shared_metatype.link_names
 
     @property
-    def root_view(self):
+    def root_view(self) -> physx.ArticulationView:
         """Root view for the asset.
 
         .. note::

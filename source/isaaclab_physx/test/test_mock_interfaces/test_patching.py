@@ -7,14 +7,12 @@
 
 import torch
 
-# Note: we import the mock interfaces directly from within their own package to avoid routing through the
-# isaaclab_physx package. This allows us to test the mock interfaces without requiring Isaac Sim or GPU simulation.
-from mock_interfaces.views import (
+from isaaclab_physx.test.mock_interfaces.views import (
     MockArticulationView,
     MockRigidBodyView,
     MockRigidContactView,
 )
-from mock_interfaces.utils import (
+from isaaclab_physx.test.mock_interfaces.utils import (
     mock_articulation_view,
     mock_rigid_body_view,
     mock_rigid_contact_view,
@@ -34,20 +32,20 @@ class TestPatchRigidBodyView:
         In tests where we import at module level, we need to import inside the
         context to get the patched version.
         """
-        target = "mock_interfaces.views.mock_rigid_body_view.MockRigidBodyView"
+        target = "isaaclab_physx.test.mock_interfaces.views.mock_rigid_body_view.MockRigidBodyView"
         with patch_rigid_body_view(target, count=4):
             # Import inside context to get patched version
-            from mock_interfaces.views import mock_rigid_body_view
+            from isaaclab_physx.test.mock_interfaces.views import mock_rigid_body_view
 
             view = mock_rigid_body_view.MockRigidBodyView()
             assert view.count == 4
 
     def test_patching_preserves_configuration(self):
         """Test that patching preserves configuration."""
-        target = "mock_interfaces.views.mock_rigid_body_view.MockRigidBodyView"
+        target = "isaaclab_physx.test.mock_interfaces.views.mock_rigid_body_view.MockRigidBodyView"
         prim_paths = ["/World/A", "/World/B", "/World/C", "/World/D"]
         with patch_rigid_body_view(target, count=4, prim_paths=prim_paths):
-            from mock_interfaces.views import mock_rigid_body_view
+            from isaaclab_physx.test.mock_interfaces.views import mock_rigid_body_view
 
             view = mock_rigid_body_view.MockRigidBodyView()
             assert view.prim_paths == prim_paths
@@ -58,9 +56,9 @@ class TestPatchArticulationView:
 
     def test_basic_patching(self):
         """Test basic patching functionality."""
-        target = "mock_interfaces.views.mock_articulation_view.MockArticulationView"
+        target = "isaaclab_physx.test.mock_interfaces.views.mock_articulation_view.MockArticulationView"
         with patch_articulation_view(target, count=4, num_dofs=12, num_links=13):
-            from mock_interfaces.views import mock_articulation_view
+            from isaaclab_physx.test.mock_interfaces.views import mock_articulation_view
 
             view = mock_articulation_view.MockArticulationView()
             assert view.count == 4
@@ -69,10 +67,10 @@ class TestPatchArticulationView:
 
     def test_patching_with_names(self):
         """Test patching with custom names."""
-        target = "mock_interfaces.views.mock_articulation_view.MockArticulationView"
+        target = "isaaclab_physx.test.mock_interfaces.views.mock_articulation_view.MockArticulationView"
         dof_names = ["joint_a", "joint_b"]
         with patch_articulation_view(target, num_dofs=2, dof_names=dof_names):
-            from mock_interfaces.views import mock_articulation_view
+            from isaaclab_physx.test.mock_interfaces.views import mock_articulation_view
 
             view = mock_articulation_view.MockArticulationView()
             assert view.shared_metatype.dof_names == dof_names
@@ -83,9 +81,9 @@ class TestPatchRigidContactView:
 
     def test_basic_patching(self):
         """Test basic patching functionality."""
-        target = "mock_interfaces.views.mock_rigid_contact_view.MockRigidContactView"
+        target = "isaaclab_physx.test.mock_interfaces.views.mock_rigid_contact_view.MockRigidContactView"
         with patch_rigid_contact_view(target, count=4, num_bodies=5, filter_count=3):
-            from mock_interfaces.views import mock_rigid_contact_view
+            from isaaclab_physx.test.mock_interfaces.views import mock_rigid_contact_view
 
             view = mock_rigid_contact_view.MockRigidContactView()
             assert view.count == 4

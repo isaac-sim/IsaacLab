@@ -8,10 +8,8 @@
 import pytest
 import torch
 
-# Note: we import the mock interfaces directly from within their own package to avoid routing through the
-# isaaclab_physx package. This allows us to test the mock interfaces without requiring Isaac Sim or GPU simulation.
-from mock_interfaces.views import MockRigidBodyView
-from mock_interfaces.factories import create_mock_rigid_body_view
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+from isaaclab_physx.test.mock_interfaces.factories import create_mock_rigid_body_view
 
 
 class TestMockRigidBodyViewInit:
