@@ -134,18 +134,13 @@ class MyFullConfig:
     device: str = "cuda"
 ```
 
-**Key patterns from actual implementation:**
-- `__post_init__()` for computed derived properties
-- `Literal` types for constrained string options
-- Nested configs for related features (friction, collision mesh, tip)
-- `| None` type hints for optional parameters
 
 ## Step 2: Create the Data Structure
 
 The data class holds all simulation state (positions, velocities, constraints, etc.).
 
 ```python
-# my_solver_data.py (continued)
+
 
 class MySolverData:
     """Holds all simulation state data."""
@@ -280,14 +275,14 @@ class MySolverData:
 
 Warp kernels run on the GPU for parallel computation.
 
-**Actual rod_kernels.py pattern (1034 lines):**
+**Actual rod_kernels.py pattern:**
 
 ```python
 # my_solver_kernels.py
 import warp as wp
 
 # ============================================================================
-# Quaternion Helper Functions (from actual implementation)
+# Quaternion Helper Functions 
 # ============================================================================
 
 @wp.func
@@ -333,7 +328,7 @@ def omega_to_quat_delta(omega: wp.vec3f, dt: float) -> wp.quatf:
 
 
 # ============================================================================
-# Cosserat Rod Model Functions (Key physics)
+# Cosserat Rod Model Functions 
 # ============================================================================
 
 @wp.func
@@ -541,7 +536,7 @@ def reset_lambda_kernel(
     lambda_bend_twist[idx] = wp.vec3f(0.0, 0.0, 0.0)
 ```
 
-**Key patterns from actual implementation:**
+**Key patterns:**
 - XPBD uses accumulated Lagrange multipliers (`lambda_stretch`, `lambda_bend_twist`)
 - Compliance `α = 1/stiffness` enables time-step independent behavior
 - `prev_positions` and `prev_orientations` stored for velocity computation
@@ -552,7 +547,7 @@ def reset_lambda_kernel(
 
 The solver orchestrates the simulation loop.
 
-**Actual rod_solver.py pattern (933 lines):**
+**Actual rod_solver.py pattern :**
 
 ```python
 # my_solver.py
@@ -879,7 +874,7 @@ class MySolver:
         self.time = 0.0
 ```
 
-**Key patterns from actual implementation:**
+**Key patterns :**
 - `DirectTreeSolver` for O(n) constraint solving
 - External force callback for RL integration
 - Sync points at substep boundaries only
@@ -888,7 +883,7 @@ class MySolver:
 
 ## Step 5: Export from __init__.py
 
-**Actual solvers/__init__.py (46 lines):**
+**Actual solvers/__init__.py :**
 
 ```python
 # solvers/__init__.py
@@ -1200,11 +1195,9 @@ class RodSolverConfig:
 
 ---
 
-## Optimization Recommendations
+## Optimization 
 
-Based on analysis of the actual rod solver (2677 lines total). These optimizations have been **implemented**:
-
-### 1. ✅ Reduce `wp.from_torch()` Calls (IMPLEMENTED)
+### 1. ✅ Reduce `wp.from_torch()` Calls
 
 **Problem:** `_gauss_seidel_iteration()` calls `wp.from_torch()` repeatedly.
 
@@ -1275,7 +1268,7 @@ def _substep(self, dt):
     self.data.sync_from_warp()
 ```
 
-### 3. ✅ Vectorize Python Loops (IMPLEMENTED)
+### 3. ✅ Vectorize Python Loops
 
 **Problem:** `_apply_corrections()` used Python loop.
 
@@ -1325,7 +1318,7 @@ def _quat_multiply_batch(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     # ... vectorized implementation
 ```
 
-### 4. ✅ Contact Stiffness Parameters (IMPLEMENTED)
+### 4. ✅ Contact Stiffness Parameters
 
 **Added to CollisionMeshConfig (rod_data.py):**
 
@@ -1357,7 +1350,7 @@ if self.config.material.shear_stiffness > 0:
 
 **Apply to other constraints:** Skip kernels when stiffness is 0
 
-### 5. ✅ Fuse Constraint Kernels (IMPLEMENTED)
+### 5. ✅ Fuse Constraint Kernels
 
 **Problem:** Separate kernels for stretch and bend/twist constraints cause:
 - Two GPU kernel launches per iteration
@@ -1414,11 +1407,11 @@ config = RodConfig(
 
 | Optimization | Status | Impact |
 |--------------|--------|--------|
-| Warp array caching | ✅ Implemented | Reduced `wp.from_torch()` overhead |
-| Vectorized corrections | ✅ Implemented | Eliminated Python loop in `_apply_corrections()` |
-| Fused constraint kernel | ✅ Implemented | Single kernel for stretch+bend (optional) |
-| Contact stiffness params | ✅ Implemented | Configurable contact response |
-| Batched quaternion ops | ✅ Implemented | Vectorized rotation operations |
+| Warp array caching | ✅ | Reduced `wp.from_torch()` overhead |
+| Vectorized corrections | ✅ | Eliminated Python loop in `_apply_corrections()` |
+| Fused constraint kernel | ✅ | Single kernel for stretch+bend (optional) |
+| Contact stiffness params | ✅ | Configurable contact response |
+| Batched quaternion ops | ✅ | Vectorized rotation operations |
 
 ---
 
