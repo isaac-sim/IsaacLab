@@ -45,14 +45,13 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
+import isaacsim.core.utils.prims as prim_utils
 import omni.replicator.core as rep
+from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.objects import DynamicSphere
 from isaacsim.core.prims import RigidPrim
 from isaacsim.core.utils.viewports import set_camera_view
-
-import isaaclab.sim.utils.prims as prim_utils
 
 
 def main():
