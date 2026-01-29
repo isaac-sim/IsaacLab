@@ -116,6 +116,7 @@ class AppLauncher:
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
         self._offline: bool  # 0: Disabled, 1: Enabled
+        self._offline_strict: bool  # True: fail on missing assets, False: fall back to Nucleus
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -183,6 +184,11 @@ class AppLauncher:
     def offline(self) -> bool:
         """Whether offline asset resolution is enabled."""
         return self._offline
+
+    @property
+    def offline_strict(self) -> bool:
+        """Whether offline mode is strict (fails on missing assets) or permissive (falls back to Nucleus)."""
+        return self._offline_strict
 
     """
     Operations.
@@ -384,9 +390,20 @@ class AppLauncher:
             action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["offline"][1],
             help=(
-                "Enable offline asset resolution. When enabled, asset paths from Nucleus/S3 "
+                "Enable offline asset resolution (strict mode). When enabled, asset paths from Nucleus/S3 "
                 "servers are automatically redirected to local storage (offline_assets/). "
+                "Fails immediately if an asset is not found locally. "
                 "Can also be enabled via the OFFLINE environment variable."
+            ),
+        )
+        arg_group.add_argument(
+            "--offline-permissive",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["offline_permissive"][1],
+            help=(
+                "Enable offline asset resolution (permissive mode). Same as --offline but falls back "
+                "to Nucleus if an asset is not found locally (may timeout if truly offline). "
+                "Can also be enabled via the OFFLINE_PERMISSIVE environment variable."
             ),
         )
         # special flag for backwards compatibility
@@ -410,6 +427,7 @@ class AppLauncher:
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
         "offline": ([bool], False),
+        "offline_permissive": ([bool], False),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -731,26 +749,34 @@ class AppLauncher:
     def _resolve_offline_settings(self, launcher_args: dict):
         """Resolve offline mode related settings.
 
-        This method checks both the --offline CLI argument and the OFFLINE
-        environment variable. CLI argument takes precedence.
+        This method checks both the --offline/--offline-permissive CLI arguments
+        and the OFFLINE/OFFLINE_PERMISSIVE environment variables.
+        CLI arguments take precedence.
         """
-        # Check environment variable
+        # Check environment variables
         offline_env = os.environ.get("OFFLINE", "0").lower() in ("1", "true", "yes")
+        offline_permissive_env = os.environ.get("OFFLINE_PERMISSIVE", "0").lower() in ("1", "true", "yes")
 
-        # Check CLI argument (pop it so it doesn't get passed to SimulationApp)
+        # Check CLI arguments (pop them so they don't get passed to SimulationApp)
         offline_arg = launcher_args.pop("offline", False)
+        offline_permissive_arg = launcher_args.pop("offline_permissive", False)
 
-        # CLI argument takes precedence over environment variable
-        self._offline = offline_arg or offline_env
+        # Determine if offline mode is enabled (any flag/env var)
+        self._offline = offline_arg or offline_permissive_arg or offline_env or offline_permissive_env
+
+        # Determine strict mode: strict unless permissive is explicitly requested
+        # --offline or OFFLINE=1 -> strict mode (fail on missing assets)
+        # --offline-permissive or OFFLINE_PERMISSIVE=1 -> permissive mode (fall back to Nucleus)
+        self._offline_strict = not (offline_permissive_arg or offline_permissive_env)
 
         if self._offline:
-            print("[INFO][AppLauncher]: Offline mode ENABLED")
-            if offline_arg and offline_env:
-                print("[INFO][AppLauncher]: Both --offline flag and OFFLINE env var are set")
-            elif offline_arg:
-                print("[INFO][AppLauncher]: Enabled via --offline flag")
+            mode = "STRICT" if self._offline_strict else "PERMISSIVE"
+            print(f"[INFO][AppLauncher]: Offline mode ENABLED ({mode})")
+
+            if self._offline_strict:
+                print("[INFO][AppLauncher]: Missing assets will cause an error (no Nucleus fallback)")
             else:
-                print("[INFO][AppLauncher]: Enabled via OFFLINE environment variable")
+                print("[INFO][AppLauncher]: Missing assets will fall back to Nucleus (may timeout if offline)")
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -820,7 +846,7 @@ class AppLauncher:
         try:
             from isaaclab.utils import setup_offline_mode
 
-            setup_offline_mode()
+            setup_offline_mode(strict=self._offline_strict)
             print("[INFO][AppLauncher]: Offline asset resolution configured")
         except ImportError as e:
             print(f"[WARN][AppLauncher]: Could not enable offline mode: {e}")
