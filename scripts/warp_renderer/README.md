@@ -29,7 +29,9 @@ You can add `--save_images` to save the rendered images.
 
 If you look at `example.py` you'll see these lines:
 ```python
-renderer = NewtonWarpRenderer(scene, 400, 400)
+from isaaclab.renderers import NewtonWarpRenderer
+
+renderer = NewtonWarpRenderer(scene, width, height)
 
 # ...
 
