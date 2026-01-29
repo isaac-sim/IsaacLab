@@ -1400,28 +1400,3 @@ config = RodConfig(
     )
 )
 ```
-
----
-
-## Performance Summary
-
-| Optimization | Status | Impact |
-|--------------|--------|--------|
-| Warp array caching | ✅ | Reduced `wp.from_torch()` overhead |
-| Vectorized corrections | ✅ | Eliminated Python loop in `_apply_corrections()` |
-| Fused constraint kernel | ✅ | Single kernel for stretch+bend (optional) |
-| Contact stiffness params | ✅ | Configurable contact response |
-| Batched quaternion ops | ✅ | Vectorized rotation operations |
-
----
-
-## Next Steps
-
-1. **Start simple:** Particle system with distance constraints
-2. **Add XPBD:** Use compliance and accumulated λ
-3. **Add rotations:** Quaternion integration + bending constraints
-4. **Add collision:** Ground plane → BVH mesh
-5. **Add friction:** Coulomb or viscous
-6. **Optimize:** Cache Warp arrays, reduce syncs, vectorize
-7. **Integrate:** Connect to Isaac Sim visualization
-
