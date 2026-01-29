@@ -23,8 +23,9 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+
+from .visuotactile_render import GelsightRender
+from .visuotactile_sensor_data import VisuoTactileSensorData
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg

@@ -5,7 +5,7 @@
 
 """Predefined configurations for GelSight tactile sensors."""
 
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 
 ##
 # Predefined Configurations

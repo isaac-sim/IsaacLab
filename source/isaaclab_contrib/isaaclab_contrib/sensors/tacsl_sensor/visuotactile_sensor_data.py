@@ -16,9 +16,11 @@ class VisuoTactileSensorData:
     """Data container for the visuo-tactile sensor.
 
     This class contains the tactile sensor data that includes:
+
     - Camera-based tactile sensing (RGB and depth images)
     - Force field tactile sensing (normal and shear forces)
     - Tactile point positions and contact information
+
     """
 
     # Camera-based tactile data
@@ -26,7 +28,7 @@ class VisuoTactileSensorData:
     """Tactile depth images. Shape is (num_instances, height, width, 1)."""
 
     tactile_rgb_image: torch.Tensor | None = None
-    """Tactile RGB images rendered using the Taxim approach (https://arxiv.org/abs/2109.04027).
+    """Tactile RGB images rendered using the Taxim approach from :cite:t:`si2022taxim`.
     Shape is (num_instances, height, width, 3).
     """
 

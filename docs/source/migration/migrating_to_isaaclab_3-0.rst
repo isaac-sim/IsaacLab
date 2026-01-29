@@ -48,7 +48,7 @@ This includes:
 4. **Documentation** - Code examples with quaternions
 
 Also, if you were relying on the :func:`~isaaclab.utils.math.convert_quat` function to convert quaternions, this should
-no longer be needed. (This would happen if you were pulling values fron the views directly.)
+no longer be needed. (This would happen if you were pulling values from the views directly.)
 
 Example: Updating Asset Configuration
 -------------------------------------
@@ -108,7 +108,7 @@ Run the tool to scan your code for potential quaternions:
    python scripts/tools/find_quaternions.py --base develop
 
 .. tip::
-  We recommend always running the tool with a custom base branch *and* a specific path. 
+  We recommend always running the tool with a custom base branch *and* a specific path.
 
 
 The tool will show you:

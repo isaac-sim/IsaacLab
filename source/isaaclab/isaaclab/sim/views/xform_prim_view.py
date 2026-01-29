@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import warp as wp
 
+import carb
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -135,17 +136,19 @@ class XformPrimView:
                     )
 
         # Determine if Fabric is supported on the device
-        self._use_fabric = self._device != "cpu"
+        self._use_fabric = carb.settings.get_settings().get("/physics/fabricEnabled")
         logger.debug(f"Using Fabric for the XFormPrimView over '{self._prim_path}' on device '{self._device}'.")
 
         # Check for unsupported Fabric + CPU combination
         if self._use_fabric and self._device == "cpu":
-            raise ValueError(
-                "Fabric mode with Warp fabricarray operations is not supported on CPU device. "
-                "Warp's CPU backend for fabricarray writes has known reliability issues. "
-                "Fabric itself supports CPU, but our GPU-accelerated Warp kernels require CUDA. "
-                "Please disable Fabric or use device='cuda'."
+            logger.warning(
+                "Fabric mode with Warp fabric-array operations is not supported on CPU devices. "
+                "While Fabric itself can run on both CPU and GPU, our batch Warp kernels for "
+                "fabric-array operations require CUDA and are not reliable on the CPU backend. "
+                "To ensure stability, Fabric is being disabled and execution will fall back "
+                "to standard USD operations on the CPU. This may impact performance."
             )
+            self._use_fabric = False
 
         # Create indices buffer
         # Since we iterate over the indices, we need to use range instead of torch tensor
@@ -637,9 +640,6 @@ class XformPrimView:
         # move to torch tensors
         positions = torch.tensor(np.array(positions), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        # underlying data is in xyzw order, convert to wxyz order
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
-
         return positions, orientations  # type: ignore
 
     def _get_local_poses_usd(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
@@ -666,8 +666,6 @@ class XformPrimView:
 
         translations = torch.tensor(np.array(translations), dtype=torch.float32, device=self._device)
         orientations = torch.tensor(np.array(orientations), dtype=torch.float32, device=self._device)
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
-
         return translations, orientations  # type: ignore
 
     def _get_scales_usd(self, indices: Sequence[int] | None = None) -> torch.Tensor:
