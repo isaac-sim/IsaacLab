@@ -118,7 +118,7 @@ run the following command from the Isaac Lab installation directory:
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
-         .. code-block:: cmd
+         .. code-block:: bat
 
             isaaclab.bat --vscode
 
