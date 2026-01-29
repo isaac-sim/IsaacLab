@@ -437,6 +437,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -650,6 +651,26 @@
 <span class="sd">    * :obj:`1`: TGS (Temporal Gauss-Seidel)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">solve_articulation_contact_last</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Changes the ordering inside the articulation solver. Default is False.</span>
+
+<span class="sd">    PhysX employs a strict ordering for handling constraints in an articulation. The outcome of</span>
+<span class="sd">    each constraint resolution modifies the joint and associated link speeds. However, the default</span>
+<span class="sd">    ordering may not be ideal for gripping scenarios because the solver favours the constraint</span>
+<span class="sd">    types that are resolved last. This is particularly true of stiff constraint systems that are hard</span>
+<span class="sd">    to resolve without resorting to vanishingly small simulation timesteps.</span>
+
+<span class="sd">    With dynamic contact resolution being such an important part of gripping, it may make</span>
+<span class="sd">    more sense to solve dynamic contact towards the end of the solver rather than at the</span>
+<span class="sd">    beginning. This parameter modifies the default ordering to enable this change.</span>
+
+<span class="sd">    For more information, please check `here &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order&gt;`__.</span>
+
+<span class="sd">    .. versionadded:: v2.3</span>
+<span class="sd">        This parameter is only available with Isaac Sim 5.1.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">min_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 1.</span>
 
@@ -779,27 +800,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of soft body contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span>
 
     <span class="n">gpu_max_particle_contacts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">20</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span>
-
-    <span class="n">solve_articulation_contact_last</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Changes the ordering inside the articulation solver. Default is False.</span>
-
-<span class="sd">    PhysX employs a strict ordering for handling constraints in an articulation. The outcome of</span>
-<span class="sd">    each constraint resolution modifies the joint and associated link speeds. However, the default</span>
-<span class="sd">    ordering may not be ideal for gripping scenarios because the solver favours the constraint</span>
-<span class="sd">    types that are resolved last. This is particularly true of stiff constraint systems that are hard</span>
-<span class="sd">    to resolve without resorting to vanishingly small simulation timesteps.</span>
-
-<span class="sd">    With dynamic contact resolution being such an important part of gripping, it may make</span>
-<span class="sd">    more sense to solve dynamic contact towards the end of the solver rather than at the</span>
-<span class="sd">    beginning. This parameter modifies the default ordering to enable this change.</span>
-
-<span class="sd">    For more information, please check `here &lt;https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order&gt;`__.</span>
-
-<span class="sd">    .. versionadded:: v2.3</span>
-<span class="sd">        This parameter is only available with Isaac Sim 5.1.</span>
-
-<span class="sd">    &quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="RenderCfg"><a class="viewcode-back" href="../../../source/api/lab/isaaclab.sim.html#isaaclab.sim.RenderCfg">[docs]</a><span class="nd">@configclass</span>

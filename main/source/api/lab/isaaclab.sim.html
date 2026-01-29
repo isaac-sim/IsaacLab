@@ -440,6 +440,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -718,6 +719,7 @@
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solver_type"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solver_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solve_articulation_contact_last</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.min_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.max_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.max_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.min_velocity_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_velocity_iteration_count</span></code></a></li>
@@ -740,7 +742,6 @@
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_num_partitions"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_num_partitions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_soft_body_contacts</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_particle_contacts</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solve_articulation_contact_last</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg"><code class="docutils literal notranslate"><span class="pre">RenderCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -1440,74 +1441,74 @@ simulation will fail with errors and lead to adverse behaviors. The buffer sizes
 <tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.solver_type" title="isaaclab.sim.PhysxCfg.solver_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solver_type</span></code></a></p></td>
 <td><p>The type of solver to use.Default is 1 (TGS).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.min_position_iteration_count" title="isaaclab.sim.PhysxCfg.min_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_position_iteration_count</span></code></a></p></td>
-<td><p>Minimum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.max_position_iteration_count" title="isaaclab.sim.PhysxCfg.max_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_position_iteration_count</span></code></a></p></td>
-<td><p>Maximum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.min_velocity_iteration_count" title="isaaclab.sim.PhysxCfg.min_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_velocity_iteration_count</span></code></a></p></td>
-<td><p>Minimum number of solver velocity iterations (rigid bodies, cloth, particles etc.).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.max_velocity_iteration_count" title="isaaclab.sim.PhysxCfg.max_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_velocity_iteration_count</span></code></a></p></td>
-<td><p>Maximum number of solver velocity iterations (rigid bodies, cloth, particles etc.).</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_ccd" title="isaaclab.sim.PhysxCfg.enable_ccd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ccd</span></code></a></p></td>
-<td><p>Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_stabilization" title="isaaclab.sim.PhysxCfg.enable_stabilization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_stabilization</span></code></a></p></td>
-<td><p>Enable/disable additional stabilization pass in solver.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration" title="isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_external_forces_every_iteration</span></code></a></p></td>
-<td><p>Enable/disable external forces every position iteration in the TGS solver.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_enhanced_determinism" title="isaaclab.sim.PhysxCfg.enable_enhanced_determinism"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_enhanced_determinism</span></code></a></p></td>
-<td><p>Enable/disable improved determinism at the expense of performance.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.bounce_threshold_velocity" title="isaaclab.sim.PhysxCfg.bounce_threshold_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code></a></p></td>
-<td><p>Relative velocity threshold for contacts to bounce (in m/s).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.friction_offset_threshold" title="isaaclab.sim.PhysxCfg.friction_offset_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_offset_threshold</span></code></a></p></td>
-<td><p>Threshold for contact point to experience friction force (in m).</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.friction_correlation_distance" title="isaaclab.sim.PhysxCfg.friction_correlation_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_correlation_distance</span></code></a></p></td>
-<td><p>Distance threshold for merging contacts into a single friction anchor point (in m).</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_rigid_contact_count" title="isaaclab.sim.PhysxCfg.gpu_max_rigid_contact_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_contact_count</span></code></a></p></td>
-<td><p>Size of rigid contact stream buffer allocated in pinned host memory.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_rigid_patch_count" title="isaaclab.sim.PhysxCfg.gpu_max_rigid_patch_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_patch_count</span></code></a></p></td>
-<td><p>Size of the rigid contact patch stream buffer allocated in pinned host memory.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a></p></td>
-<td><p>Capacity of found and lost buffers allocated in GPU global memory.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_aggregate_pairs_capacity</span></code></a></p></td>
-<td><p>Capacity of found and lost buffers in aggregate system allocated in GPU global memory.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_total_aggregate_pairs_capacity</span></code></a></p></td>
-<td><p>Capacity of total number of aggregate pairs allocated in GPU global memory.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_collision_stack_size" title="isaaclab.sim.PhysxCfg.gpu_collision_stack_size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code></a></p></td>
-<td><p>Size of the collision stack buffer allocated in pinned host memory.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_heap_capacity" title="isaaclab.sim.PhysxCfg.gpu_heap_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_heap_capacity</span></code></a></p></td>
-<td><p>Initial capacity of the GPU and pinned host memory heaps.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_temp_buffer_capacity" title="isaaclab.sim.PhysxCfg.gpu_temp_buffer_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_temp_buffer_capacity</span></code></a></p></td>
-<td><p>Capacity of temp buffer allocated in pinned host memory.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_num_partitions" title="isaaclab.sim.PhysxCfg.gpu_max_num_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_num_partitions</span></code></a></p></td>
-<td><p>Limitation for the partitions in the GPU dynamics pipeline.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts" title="isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_soft_body_contacts</span></code></a></p></td>
-<td><p>Size of soft body contacts stream buffer allocated in pinned host memory.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_particle_contacts" title="isaaclab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_particle_contacts</span></code></a></p></td>
-<td><p>Size of particle contacts stream buffer allocated in pinned host memory.</p></td>
-</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last" title="isaaclab.sim.PhysxCfg.solve_articulation_contact_last"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solve_articulation_contact_last</span></code></a></p></td>
 <td><p>Changes the ordering inside the articulation solver.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.min_position_iteration_count" title="isaaclab.sim.PhysxCfg.min_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_position_iteration_count</span></code></a></p></td>
+<td><p>Minimum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.max_position_iteration_count" title="isaaclab.sim.PhysxCfg.max_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_position_iteration_count</span></code></a></p></td>
+<td><p>Maximum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.min_velocity_iteration_count" title="isaaclab.sim.PhysxCfg.min_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_velocity_iteration_count</span></code></a></p></td>
+<td><p>Minimum number of solver velocity iterations (rigid bodies, cloth, particles etc.).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.max_velocity_iteration_count" title="isaaclab.sim.PhysxCfg.max_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_velocity_iteration_count</span></code></a></p></td>
+<td><p>Maximum number of solver velocity iterations (rigid bodies, cloth, particles etc.).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_ccd" title="isaaclab.sim.PhysxCfg.enable_ccd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ccd</span></code></a></p></td>
+<td><p>Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_stabilization" title="isaaclab.sim.PhysxCfg.enable_stabilization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_stabilization</span></code></a></p></td>
+<td><p>Enable/disable additional stabilization pass in solver.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration" title="isaaclab.sim.PhysxCfg.enable_external_forces_every_iteration"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_external_forces_every_iteration</span></code></a></p></td>
+<td><p>Enable/disable external forces every position iteration in the TGS solver.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.enable_enhanced_determinism" title="isaaclab.sim.PhysxCfg.enable_enhanced_determinism"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_enhanced_determinism</span></code></a></p></td>
+<td><p>Enable/disable improved determinism at the expense of performance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.bounce_threshold_velocity" title="isaaclab.sim.PhysxCfg.bounce_threshold_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code></a></p></td>
+<td><p>Relative velocity threshold for contacts to bounce (in m/s).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.friction_offset_threshold" title="isaaclab.sim.PhysxCfg.friction_offset_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_offset_threshold</span></code></a></p></td>
+<td><p>Threshold for contact point to experience friction force (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.friction_correlation_distance" title="isaaclab.sim.PhysxCfg.friction_correlation_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_correlation_distance</span></code></a></p></td>
+<td><p>Distance threshold for merging contacts into a single friction anchor point (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_rigid_contact_count" title="isaaclab.sim.PhysxCfg.gpu_max_rigid_contact_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_contact_count</span></code></a></p></td>
+<td><p>Size of rigid contact stream buffer allocated in pinned host memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_rigid_patch_count" title="isaaclab.sim.PhysxCfg.gpu_max_rigid_patch_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_patch_count</span></code></a></p></td>
+<td><p>Size of the rigid contact patch stream buffer allocated in pinned host memory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a></p></td>
+<td><p>Capacity of found and lost buffers allocated in GPU global memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_aggregate_pairs_capacity</span></code></a></p></td>
+<td><p>Capacity of found and lost buffers in aggregate system allocated in GPU global memory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity" title="isaaclab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_total_aggregate_pairs_capacity</span></code></a></p></td>
+<td><p>Capacity of total number of aggregate pairs allocated in GPU global memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_collision_stack_size" title="isaaclab.sim.PhysxCfg.gpu_collision_stack_size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code></a></p></td>
+<td><p>Size of the collision stack buffer allocated in pinned host memory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_heap_capacity" title="isaaclab.sim.PhysxCfg.gpu_heap_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_heap_capacity</span></code></a></p></td>
+<td><p>Initial capacity of the GPU and pinned host memory heaps.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_temp_buffer_capacity" title="isaaclab.sim.PhysxCfg.gpu_temp_buffer_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_temp_buffer_capacity</span></code></a></p></td>
+<td><p>Capacity of temp buffer allocated in pinned host memory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_num_partitions" title="isaaclab.sim.PhysxCfg.gpu_max_num_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_num_partitions</span></code></a></p></td>
+<td><p>Limitation for the partitions in the GPU dynamics pipeline.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts" title="isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_soft_body_contacts</span></code></a></p></td>
+<td><p>Size of soft body contacts stream buffer allocated in pinned host memory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab.sim.PhysxCfg.gpu_max_particle_contacts" title="isaaclab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_particle_contacts</span></code></a></p></td>
+<td><p>Size of particle contacts stream buffer allocated in pinned host memory.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1521,6 +1522,24 @@ simulation will fail with errors and lead to adverse behaviors. The buffer sizes
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">0</span></code>: PGS (Projective Gauss-Seidel)</p></li>
 <li><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">1</span></code>: TGS (Temporal Gauss-Seidel)</p></li>
 </ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab.sim.PhysxCfg.solve_articulation_contact_last">
+<span class="sig-name descname"><span class="pre">solve_articulation_contact_last</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last" title="Permalink to this definition">#</a></dt>
+<dd><p>Changes the ordering inside the articulation solver. Default is False.</p>
+<p>PhysX employs a strict ordering for handling constraints in an articulation. The outcome of
+each constraint resolution modifies the joint and associated link speeds. However, the default
+ordering may not be ideal for gripping scenarios because the solver favours the constraint
+types that are resolved last. This is particularly true of stiff constraint systems that are hard
+to resolve without resorting to vanishingly small simulation timesteps.</p>
+<p>With dynamic contact resolution being such an important part of gripping, it may make
+more sense to solve dynamic contact towards the end of the solver rather than at the
+beginning. This parameter modifies the default ordering to enable this change.</p>
+<p>For more information, please check <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order">here</a>.</p>
+<div class="versionadded">
+<p><span class="versionmodified added">New in version v2.3: </span>This parameter is only available with Isaac Sim 5.1.</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1701,24 +1720,6 @@ if more memory is required. Default is 2 ** 26.</p>
 <dt class="sig sig-object py" id="isaaclab.sim.PhysxCfg.gpu_max_particle_contacts">
 <span class="sig-name descname"><span class="pre">gpu_max_particle_contacts</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab.sim.PhysxCfg.gpu_max_particle_contacts" title="Permalink to this definition">#</a></dt>
 <dd><p>Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="isaaclab.sim.PhysxCfg.solve_articulation_contact_last">
-<span class="sig-name descname"><span class="pre">solve_articulation_contact_last</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last" title="Permalink to this definition">#</a></dt>
-<dd><p>Changes the ordering inside the articulation solver. Default is False.</p>
-<p>PhysX employs a strict ordering for handling constraints in an articulation. The outcome of
-each constraint resolution modifies the joint and associated link speeds. However, the default
-ordering may not be ideal for gripping scenarios because the solver favours the constraint
-types that are resolved last. This is particularly true of stiff constraint systems that are hard
-to resolve without resorting to vanishingly small simulation timesteps.</p>
-<p>With dynamic contact resolution being such an important part of gripping, it may make
-more sense to solve dynamic contact towards the end of the solver rather than at the
-beginning. This parameter modifies the default ordering to enable this change.</p>
-<p>For more information, please check <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order">here</a>.</p>
-<div class="versionadded">
-<p><span class="versionmodified added">New in version v2.3: </span>This parameter is only available with Isaac Sim 5.1.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -2066,6 +2067,7 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solver_type"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solver_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solve_articulation_contact_last</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.min_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.max_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.max_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.min_velocity_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_velocity_iteration_count</span></code></a></li>
@@ -2088,7 +2090,6 @@ Defaults to False. This is useful for debugging tests in the GUI.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_num_partitions"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_num_partitions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_soft_body_contacts</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.gpu_max_particle_contacts</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.PhysxCfg.solve_articulation_contact_last"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solve_articulation_contact_last</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab.sim.RenderCfg"><code class="docutils literal notranslate"><span class="pre">RenderCfg</span></code></a><ul class="nav section-nav flex-column">

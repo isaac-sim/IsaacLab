@@ -437,6 +437,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -1317,6 +1318,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="c1"># hide the Simulation Settings window</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/autoPopupSimulationOutputWindow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/visualizationSimulationOutput&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># set fabric enabled flag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">carb_settings</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/fabricEnabled&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">use_fabric</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_apply_render_settings_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: C901</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets rtx settings specified in the RenderCfg.&quot;&quot;&quot;</span>

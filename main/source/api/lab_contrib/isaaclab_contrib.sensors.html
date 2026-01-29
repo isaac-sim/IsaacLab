@@ -1,0 +1,1569 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>isaaclab_contrib.sensors &#8212; Isaac Lab Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/twemoji.css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.4cbf315f70debaebd550c87a6162cf0f.min.css" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js"></script>
+    <script src="../../../_static/twemoji.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.11.14/x64/lib/python3.11/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab_contrib/isaaclab_contrib.sensors';</script>
+    <link rel="icon" href="../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="isaaclab_tasks.utils" href="../lab_tasks/isaaclab_tasks.utils.html" />
+    <link rel="prev" title="isaaclab_contrib.mdp" href="isaaclab_contrib.mdp.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="2.3.0" />
+    <meta name="docbuild:last-update" content="Jan 29, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Isaac Lab Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-links bd-docs-nav">
+    <div class="bd-toc-item navbar-nav">
+      <ul class="nav bd-sidenav">
+        <li class="toctree-l1 has-children" style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+          <div  style ="text-align:center;">
+            <label for="version-select" style="font-weight: bold; display: block;">Version</label>
+          </div>
+          <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
+            <option value="isaaclab_contrib.sensors.html" selected>main</option>
+            <option value="../../../../release/2.1.0/index.html" >release/2.1.0</option>
+            <option value="../../../../release/2.2.0/index.html" >release/2.2.0</option>
+            <option value="../../../../release/2.3.0/index.html" >release/2.3.0</option>
+            <option value="../../../../v2.3.1/index.html" >v2.3.1</option>
+            <option value="../../../../v2.3.0/index.html" >v2.3.0</option>
+            <option value="../../../../v2.2.1/index.html" >v2.2.1</option>
+            <option value="../../../../v2.2.0/index.html" >v2.2.0</option>
+            <option value="../../../../v2.1.1/index.html" >v2.1.1</option>
+            <option value="../../../../v2.1.0/index.html" >v2.1.0</option>
+            <option value="../../../../v2.0.2/index.html" >v2.0.2</option>
+            <option value="../../../../v2.0.1/index.html" >v2.0.1</option>
+            <option value="../../../../v2.0.0/index.html" >v2.0.0</option>
+            <option value="../../../../v1.4.1/index.html" >v1.4.1</option>
+            <option value="../../../../v1.4.0/index.html" >v1.4.0</option>
+            <option value="../../../../v1.3.0/index.html" >v1.3.0</option>
+            <option value="../../../../v1.2.0/index.html" >v1.2.0</option>
+            <option value="../../../../v1.1.0/index.html" >v1.1.0</option>
+            <option value="../../../../v1.0.0/index.html" >v1.0.0</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+</nav>
+</div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Isaac Lab</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/ecosystem.html">Isaac Lab Ecosystem</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Local Installation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim Pip Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Pre-built Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/source_installation.html">Installation using Isaac Sim Source Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/isaaclab_pip_installation.html">Installation using Isaac Lab Pip Packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/asset_caching.html">Asset Caching</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/run_docker_example.html">Running an example with Docker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../deployment/cloudxr_teleoperation_cluster.html">Deploying CloudXR Teleoperation on Kubernetes</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/reference_architecture/index.html">Reference Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/own-project/index.html">Build your Own Project or Task</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/template.html">Create new project or task</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/own-project/project_structure.html">Project Structure</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/walkthrough/index.html">Walkthrough</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/concepts_env_design.html">Environment Design Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/api_env_design.html">Classes and Configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/technical_env_design.html">Environment Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_gt.html">Training the Jetbot: Ground Truth</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/walkthrough/training_jetbot_reward_exploration.html">Exploring the RL problem</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/add_new_robot.html">Adding a New Robot to Isaac Lab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_deformable_object.html">Interacting with a deformable object</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/01_assets/run_surface_gripper.html">Interacting with a surface gripper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/configuring_rl_training.html">Configuring an RL Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/modify_direct_rl_env.html">Modifying an existing Direct RL Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/03_envs/policy_inference_in_usd.html">Policy Inference in USD Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials/05_controllers/run_osc.html">Using an operational space controller</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/multi_asset_spawning.html">Spawning Multiple Assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/estimate_how_many_cameras_can_run.html">Find How Many/What Cameras You Should Train With</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/configure_rendering.html">Configuring Rendering Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_animation.html">Recording Animations of Simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/record_video.html">Recording video clips during training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/curriculums.html">Curriculum Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/cloudxr_teleoperation.html">Setting up CloudXR Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/haply_teleoperation.html">Setting up Haply Teleoperation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/simulation_performance.html">Simulation Performance  and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../how-to/optimize_stage_creation.html">Optimize Stage Creation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/developer-guide/index.html">Developer’s Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/vs_code.html">Setting up Visual Studio Code</a></li>
+
+
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/repo_structure.html">Repository organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/developer-guide/development.html">Extension Development</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/core-concepts/index.html">Core Concepts</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/actuators.html">Actuators</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../overview/core-concepts/sensors/index.html">Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Camera</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/contact_sensor.html">Contact Sensor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/frame_transformer.html">Frame Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/imu.html">Inertial Measurement Unit (IMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/ray_caster.html">Ray Caster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../overview/core-concepts/sensors/visuo_tactile_sensor.html">Visuo-Tactile Sensor</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/core-concepts/motion_generators.html">Motion Generators</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/environments.html">Available Environments</a></li>
+
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/reinforcement-learning/index.html">Reinforcement Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_existing_scripts.html">Reinforcement Learning Scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/rl_frameworks.html">Reinforcement Learning Library Comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/performance_benchmarks.html">Performance Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/reinforcement-learning/training_guide.html">Debugging and Training Guide</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/imitation-learning/index.html">Imitation Learning</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/teleop_imitation.html">Teleoperation and Imitation Learning with Isaac Lab Mimic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/augmented_imitation.html">Augmented Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/imitation-learning/skillgen.html">SkillGen for Automated Demonstration Generation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/showroom.html">Showroom Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/simple_agents.html">Simple Agents</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/population_based_training.html">Population Based Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/core-concepts/sensors/camera.html">Tiled Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/ray.html">Ray Job Dispatch and Tuning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/reproducibility.html">Reproducibility and Determinism</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Experimental Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../experimental-features/bleeding-edge.html">Welcome to the bleeding edge!</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../experimental-features/newton-physics-integration/index.html">Newton Physics Integration</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html">Isaac Lab - Newton Beta 2</a></li>
+
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/training-environments.html">Training Environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/visualization.html">Visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/limitations-and-known-bugs.html">Limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/solver-transitioning.html">Solver Transitioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-sim.html">Sim-to-Sim Policy Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../experimental-features/newton-physics-integration/sim-to-real.html">Sim-to-Real Policy Transfer</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Cloud Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../policy_deployment/index.html">Sim2Real Deployment of Policies Trained in Isaac Lab</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/00_hover/hover_policy.html">Training &amp; Deploying HOVER Policy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/01_io_descriptors/io_descriptors_101.html">IO Descriptors 101</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../policy_deployment/02_gear_assembly/gear_assembly_policy.html">Training a Gear Insertion Policy and ROS Deployment</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/comparing_simulation_isaacgym.html">Comparing Simulations Between Isaac Gym and Isaac Lab</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.app.html">isaaclab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.actuators.html">isaaclab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.assets.html">isaaclab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.controllers.html">isaaclab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.devices.html">isaaclab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.html">isaaclab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.managers.html">isaaclab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.markers.html">isaaclab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.scene.html">isaaclab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.html">isaaclab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.html">isaaclab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.terrains.html">isaaclab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.utils.html">isaaclab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.mdp.html">isaaclab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.envs.ui.html">isaaclab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sensors.patterns.html">isaaclab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.converters.html">isaaclab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.schemas.html">isaaclab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.spawners.html">isaaclab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.views.html">isaaclab.sim.views</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab/isaaclab.sim.utils.html">isaaclab.sim.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_rl/isaaclab_rl.html">isaaclab_rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.datagen.html">isaaclab_mimic.datagen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_mimic/isaaclab_mimic.envs.html">isaaclab_mimic.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">isaaclab_contrib.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../refs/additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/release_notes.html">Release Notes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.isaacsim.omniverse.nvidia.com/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/index.html">NVIDIA PhysX</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/docs/source/api/lab_contrib/isaaclab_contrib.sensors.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/api/lab_contrib/isaaclab_contrib.sensors.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../../_sources/source/api/lab_contrib/isaaclab_contrib.sensors.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>isaaclab_contrib.sensors</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visuo-tactile-sensor">Visuo-Tactile Sensor</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.__init__"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.num_instances"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.data"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.reset"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.get_initial_render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.device"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_depth_image</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_rgb_image</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_points_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_points_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.penetration_depth</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_normal_force</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_shear_force</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.render_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.enable_camera_tactile</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.update_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.history_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.enable_force_field</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tactile_array_size</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tactile_margin</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.contact_object_prim_path_expr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.normal_contact_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.friction_coefficient</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tangential_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.camera_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.visualizer_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.trimesh_vis_tactile_points</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.visualize_sdf_closest_pts</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.base_data_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.sensor_data_dir_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.background_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.background_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.calib_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.calib_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.real_background"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.real_background</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_height"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.image_height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_width"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.image_width</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.num_bins"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.num_bins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.mm_per_pixel</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-isaaclab_contrib.sensors">
+<span id="isaaclab-contrib-sensors"></span><h1>isaaclab_contrib.sensors<a class="headerlink" href="#module-isaaclab_contrib.sensors" title="Permalink to this heading">#</a></h1>
+<p>Sub-package for externally contributed sensors.</p>
+<p>This package provides specialized sensor classes for simulating externally contributed
+sensors in Isaac Lab. These sensors are not part of the core Isaac Lab framework yet,
+but are planned to be added in the future. They are contributed by the community to
+extend the capabilities of Isaac Lab.</p>
+<p>Following the categorization in <a class="reference internal" href="../lab/isaaclab.sensors.html#module-isaaclab.sensors" title="isaaclab.sensors"><code class="xref py py-mod docutils literal notranslate"><span class="pre">isaaclab.sensors</span></code></a> sub-package, the prim paths passed
+to the sensor’s configuration class are interpreted differently based on the sensor type.
+The following table summarizes the interpretation of the prim paths for different sensor types:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Sensor Type</p></th>
+<th class="head"><p>Example Prim Path</p></th>
+<th class="head"><p>Pre-check</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Visuo-Tactile Sensor</p></td>
+<td><p>/World/robot/base</p></td>
+<td><p>Leaf exists and is a physics body (Rigid Body)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor" title="isaaclab_contrib.sensors.VisuoTactileSensor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisuoTactileSensor</span></code></a></p></td>
+<td><p>A tactile sensor for both camera-based and force field tactile sensing.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg</span></code></a></p></td>
+<td><p>Configuration for the visuo-tactile sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData" title="isaaclab_contrib.sensors.VisuoTactileSensorData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VisuoTactileSensorData</span></code></a></p></td>
+<td><p>Data container for the visuo-tactile sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg" title="isaaclab_contrib.sensors.GelSightRenderCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GelSightRenderCfg</span></code></a></p></td>
+<td><p>Configuration for GelSight sensor rendering parameters.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="visuo-tactile-sensor">
+<h2>Visuo-Tactile Sensor<a class="headerlink" href="#visuo-tactile-sensor" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.sensors.</span></span><span class="sig-name descname"><span class="pre">VisuoTactileSensor</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor.html#VisuoTactileSensor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../lab/isaaclab.sensors.html#isaaclab.sensors.SensorBase" title="isaaclab.sensors.sensor_base.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">SensorBase</span></code></a></p>
+<p>A tactile sensor for both camera-based and force field tactile sensing.</p>
+<p>This sensor provides:
+1. Camera-based tactile sensing: depth images from tactile surface
+2. Force field tactile sensing: Penalty-based normal and shear forces using SDF queries</p>
+<p>The sensor can be configured to use either or both sensing modalities.</p>
+<dl>
+<dt><strong>Computation Pipeline:</strong></dt><dd><p>Camera-based sensing computes depth differences from a nominal (no-contact) baseline and
+processes them through the tac-sl GelSight renderer to produce realistic tactile images.</p>
+<p>Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
+then applies penalty-based spring-damper models
+(<span class="math notranslate nohighlight">\(F_n = k_n \cdot \text{depth}\)</span>, <span class="math notranslate nohighlight">\(F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)\)</span>)
+to compute normal and shear forces at discrete tactile points.</p>
+</dd>
+<dt><strong>Example Usage:</strong></dt><dd><p>For a complete working example, see: <code class="docutils literal notranslate"><span class="pre">scripts/demos/sensors/tacsl/tacsl_example.py</span></code></p>
+</dd>
+<dt><strong>Current Limitations:</strong></dt><dd><ul class="simple">
+<li><p>SDF collision meshes must be pre-computed and objects specified before simulation starts</p></li>
+<li><p>Force field computation requires specific rigid body and mesh configurations</p></li>
+<li><p>No support for dynamic addition/removal of interacting objects during runtime</p></li>
+</ul>
+</dd>
+<dt>Configuration Requirements:</dt><dd><p>The following requirements must be satisfied for proper sensor operation:</p>
+<dl class="simple">
+<dt><strong>Camera Tactile Imaging</strong></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">enable_camera_tactile=True</span></code>, a valid <code class="docutils literal notranslate"><span class="pre">camera_cfg</span></code> (TiledCameraCfg) must be
+provided with appropriate camera parameters.</p>
+</dd>
+<dt><strong>Force Field Computation</strong></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">enable_force_field=True</span></code>, the following parameters are required:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">contact_object_prim_path_expr</span></code> - Prim path expression to find the contact object prim</p></li>
+</ul>
+</dd>
+<dt><strong>SDF Computation</strong></dt><dd><p>When force field computation is enabled, penalty-based normal and shear forces are
+computed using Signed Distance Field (SDF) queries. To achieve GPU acceleration:</p>
+<ul class="simple">
+<li><p>Interacting objects should have pre-computed SDF collision meshes</p></li>
+<li><p>An SDFView must be defined during initialization, therefore interacting objects
+should be specified before simulation.</p></li>
+</ul>
+</dd>
+</dl>
+</dd>
+</dl>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.cfg" title="isaaclab_contrib.sensors.VisuoTactileSensor.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
+<td><p>The configuration parameters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.num_instances" title="isaaclab_contrib.sensors.VisuoTactileSensor.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<td><p>Number of instances of the sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.data" title="isaaclab_contrib.sensors.VisuoTactileSensor.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<td><p>Data from the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.device" title="isaaclab_contrib.sensors.VisuoTactileSensor.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<td><p>Memory device for computation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation" title="isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<td><p>Whether the sensor has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized" title="isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.__init__" title="isaaclab_contrib.sensors.VisuoTactileSensor.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(cfg)</p></td>
+<td><p>Initializes the tactile sensor object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.reset" title="isaaclab_contrib.sensors.VisuoTactileSensor.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
+<td><p>Resets the sensor internals.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render" title="isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_initial_render</span></code></a>()</p></td>
+<td><p>Get the initial tactile sensor render for baseline comparison.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis" title="isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
+<td><p>Sets whether to visualize the sensor data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg"><span class="pre">VisuoTactileSensorCfg</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration parameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg"><span class="pre">VisuoTactileSensorCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor.html#VisuoTactileSensor.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Initializes the tactile sensor object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – The configuration parameters.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.num_instances">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_instances</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.num_instances" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of instances of the sensor.</p>
+<p>This is equal to the number of sensors per environment multiplied by the number of environments.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.data">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData" title="isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data.VisuoTactileSensorData"><span class="pre">VisuoTactileSensorData</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.data" title="Permalink to this definition">#</a></dt>
+<dd><p>Data from the sensor.</p>
+<p>This property is only updated when the user tries to access the data. This is done to avoid
+unnecessary computation when the sensor data is not used.</p>
+<p>For updating the sensor when this property is accessed, you can use the following
+code snippet in your sensor implementation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># update sensors if needed</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">_update_outdated_buffers</span><span class="p">()</span>
+<span class="c1"># return the data (where `_data` is the data for the sensor)</span>
+<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://trimesh.org/trimesh.typed.html#trimesh.typed.Sequence" title="(in trimesh)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor.html#VisuoTactileSensor.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Resets the sensor internals.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render">
+<span class="sig-name descname"><span class="pre">get_initial_render</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor.html#VisuoTactileSensor.get_initial_render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the initial tactile sensor render for baseline comparison.</p>
+<p>This method captures the initial state of the tactile sensor when no contact
+is occurring. This baseline is used for computing relative changes during
+tactile interactions.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It is the user’s responsibility to ensure that the sensor is in a “no contact” state
+when this method is called. If the sensor is in contact with an object, the baseline
+will be incorrect, leading to erroneous tactile readings.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Dictionary containing initial render data with sensor output keys</dt><dd><p>and corresponding tensor values. Returns None if camera tactile
+sensing is disabled.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)">dict</a> | None</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><strong>RuntimeError</strong></a> – If camera sensor is not initialized or initial render fails.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.device">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.device" title="Permalink to this definition">#</a></dt>
+<dd><p>Memory device for computation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis">
+<span class="sig-name descname"><span class="pre">set_debug_vis</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">debug_vis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Sets whether to visualize the sensor data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>debug_vis</strong> – Whether to visualize the sensor data.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the debug visualization was successfully set. False if the sensor
+does not support debug visualization.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.sensors.</span></span><span class="sig-name descname"><span class="pre">VisuoTactileSensorData</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_data.html#VisuoTactileSensorData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData" title="Permalink to this definition">#</a></dt>
+<dd><p>Data container for the visuo-tactile sensor.</p>
+<p>This class contains the tactile sensor data that includes:</p>
+<ul class="simple">
+<li><p>Camera-based tactile sensing (RGB and depth images)</p></li>
+<li><p>Force field tactile sensing (normal and shear forces)</p></li>
+<li><p>Tactile point positions and contact information</p></li>
+</ul>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_depth_image</span></code></a></p></td>
+<td><p>Tactile depth images.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_rgb_image</span></code></a></p></td>
+<td><p>Tactile RGB images rendered using the Taxim approach from <span id="id1">Si and Yuan [<a class="reference internal" href="../../refs/bibliography.html#id23" title="Zilin Si and Wenzhen Yuan. Taxim: an example-based simulation model for gelsight tactile sensors. IEEE Robotics and Automation Letters, 7(2):2361–2368, 2022.">SY22</a>]</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_points_pos_w</span></code></a></p></td>
+<td><p>Positions of tactile points in world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_points_quat_w</span></code></a></p></td>
+<td><p>Orientations of tactile points in world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth" title="isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth"><code class="xref py py-obj docutils literal notranslate"><span class="pre">penetration_depth</span></code></a></p></td>
+<td><p>Penetration depth at each tactile point.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_normal_force</span></code></a></p></td>
+<td><p>Normal forces at each tactile point in sensor frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force" title="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_shear_force</span></code></a></p></td>
+<td><p>Shear forces at each tactile point in sensor frame.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image">
+<span class="sig-name descname"><span class="pre">tactile_depth_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Tactile depth images. Shape is (num_instances, height, width, 1).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image">
+<span class="sig-name descname"><span class="pre">tactile_rgb_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Tactile RGB images rendered using the Taxim approach from <span id="id2">Si and Yuan [<a class="reference internal" href="../../refs/bibliography.html#id23" title="Zilin Si and Wenzhen Yuan. Taxim: an example-based simulation model for gelsight tactile sensors. IEEE Robotics and Automation Letters, 7(2):2361–2368, 2022.">SY22</a>]</span>.
+Shape is (num_instances, height, width, 3).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w">
+<span class="sig-name descname"><span class="pre">tactile_points_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Positions of tactile points in world frame. Shape is (num_instances, num_tactile_points, 3).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w">
+<span class="sig-name descname"><span class="pre">tactile_points_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w" title="Permalink to this definition">#</a></dt>
+<dd><p>Orientations of tactile points in world frame. Shape is (num_instances, num_tactile_points, 4).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth">
+<span class="sig-name descname"><span class="pre">penetration_depth</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth" title="Permalink to this definition">#</a></dt>
+<dd><p>Penetration depth at each tactile point. Shape is (num_instances, num_tactile_points).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force">
+<span class="sig-name descname"><span class="pre">tactile_normal_force</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force" title="Permalink to this definition">#</a></dt>
+<dd><p>Normal forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force">
+<span class="sig-name descname"><span class="pre">tactile_shear_force</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.10)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force" title="Permalink to this definition">#</a></dt>
+<dd><p>Shear forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points, 2).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.sensors.</span></span><span class="sig-name descname"><span class="pre">VisuoTactileSensorCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_cfg.html#VisuoTactileSensorCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../lab/isaaclab.sensors.html#isaaclab.sensors.SensorBaseCfg" title="isaaclab.sensors.sensor_base_cfg.SensorBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SensorBaseCfg</span></code></a></p>
+<p>Configuration for the visuo-tactile sensor.</p>
+<p>This sensor provides both camera-based tactile sensing and force field tactile sensing.
+It can capture tactile RGB/depth images and compute penalty-based contact forces.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_cfg</span></code></a></p></td>
+<td><p>Configuration for GelSight sensor rendering.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_camera_tactile</span></code></a></p></td>
+<td><p>Whether to enable camera-based tactile sensing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">prim_path</span></code></a></p></td>
+<td><p>Prim path (or expression) to the sensor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_period</span></code></a></p></td>
+<td><p>Update period of the sensor buffers (in seconds).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">history_length</span></code></a></p></td>
+<td><p>Number of past frames to store in the sensor buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">debug_vis</span></code></a></p></td>
+<td><p>Whether to visualize the sensor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_force_field</span></code></a></p></td>
+<td><p>Whether to enable force field tactile sensing.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_array_size</span></code></a></p></td>
+<td><p>Number of tactile points for force field sensing in (rows, cols) format.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tactile_margin</span></code></a></p></td>
+<td><p>Margin for tactile point generation (in meters).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_object_prim_path_expr</span></code></a></p></td>
+<td><p>Prim path expression to find the contact object for force field computation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normal_contact_stiffness</span></code></a></p></td>
+<td><p>Normal contact stiffness for penalty-based force computation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_coefficient</span></code></a></p></td>
+<td><p>Friction coefficient for shear forces.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">tangential_stiffness</span></code></a></p></td>
+<td><p>Tangential stiffness for shear forces.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">camera_cfg</span></code></a></p></td>
+<td><p>Camera configuration for tactile RGB/depth sensing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualizer_cfg</span></code></a></p></td>
+<td><p>The configuration object for the visualization markers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">trimesh_vis_tactile_points</span></code></a></p></td>
+<td><p>Whether to visualize tactile points for debugging using trimesh.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualize_sdf_closest_pts</span></code></a></p></td>
+<td><p>Whether to visualize SDF closest points for debugging.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg">
+<span class="sig-name descname"><span class="pre">render_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg" title="isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg.GelSightRenderCfg"><span class="pre">GelSightRenderCfg</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration for GelSight sensor rendering.</p>
+<p>This defines the rendering parameters for converting depth maps to realistic tactile images.</p>
+<p>For simplicity, you can use the predefined configs for standard sensor models:</p>
+<ul class="simple">
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab_assets.sensors.GELSIGHT_R15_CFG</span></code></p></li>
+<li><p><code class="xref py py-attr docutils literal notranslate"><span class="pre">isaaclab_assets.sensors.GELSIGHT_MINI_CFG</span></code></p></li>
+</ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile">
+<span class="sig-name descname"><span class="pre">enable_camera_tactile</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to enable camera-based tactile sensing.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path">
+<span class="sig-name descname"><span class="pre">prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Prim path (or expression) to the sensor.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The expression can contain the environment namespace regex <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> which
+will be replaced with the environment namespace.</p>
+<p>Example: <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot/sensor</span></code> will be replaced with <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/Robot/sensor</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period">
+<span class="sig-name descname"><span class="pre">update_period</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period" title="Permalink to this definition">#</a></dt>
+<dd><p>Update period of the sensor buffers (in seconds). Defaults to 0.0 (update every step).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length">
+<span class="sig-name descname"><span class="pre">history_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
+the current data is stored (no history).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis">
+<span class="sig-name descname"><span class="pre">debug_vis</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize the sensor. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field">
+<span class="sig-name descname"><span class="pre">enable_force_field</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to enable force field tactile sensing.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size">
+<span class="sig-name descname"><span class="pre">tactile_array_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of tactile points for force field sensing in (rows, cols) format.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin">
+<span class="sig-name descname"><span class="pre">tactile_margin</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin" title="Permalink to this definition">#</a></dt>
+<dd><p>Margin for tactile point generation (in meters).</p>
+<p>This parameter defines the exclusion margin from the edges of the elastomer mesh when generating
+the tactile point grid. It ensures that force field points are not generated on the very edges
+of the sensor surface where geometry might be unstable or less relevant for contact.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr">
+<span class="sig-name descname"><span class="pre">contact_object_prim_path_expr</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr" title="Permalink to this definition">#</a></dt>
+<dd><p>Prim path expression to find the contact object for force field computation.</p>
+<p>This specifies the object that will make contact with the tactile sensor. The sensor will automatically
+find the SDF collision mesh within this object for optimal force field computation.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The expression can contain the environment namespace regex <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> which
+will be replaced with the environment namespace.</p>
+<p>Example: <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/ContactObject</span></code> will be replaced with <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/ContactObject</span></code>.</p>
+</div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>For force field computation to work properly, the contact object must have an SDF collision mesh.
+The sensor will search for the first SDF mesh within the specified prim hierarchy.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness">
+<span class="sig-name descname"><span class="pre">normal_contact_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Normal contact stiffness for penalty-based force computation.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient">
+<span class="sig-name descname"><span class="pre">friction_coefficient</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient" title="Permalink to this definition">#</a></dt>
+<dd><p>Friction coefficient for shear forces.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness">
+<span class="sig-name descname"><span class="pre">tangential_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Tangential stiffness for shear forces.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg">
+<span class="sig-name descname"><span class="pre">camera_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.sensors.html#isaaclab.sensors.TiledCameraCfg" title="isaaclab.sensors.camera.tiled_camera_cfg.TiledCameraCfg"><span class="pre">TiledCameraCfg</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Camera configuration for tactile RGB/depth sensing.</p>
+<p>If None, camera-based sensing will be disabled even if <a class="reference internal" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile" title="isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile"><code class="xref py py-attr docutils literal notranslate"><span class="pre">enable_camera_tactile</span></code></a> is True.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg">
+<span class="sig-name descname"><span class="pre">visualizer_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/isaaclab.markers.html#isaaclab.markers.VisualizationMarkersCfg" title="isaaclab.markers.visualization_markers.VisualizationMarkersCfg"><span class="pre">VisualizationMarkersCfg</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The configuration object for the visualization markers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This attribute is only used when debug visualization is enabled.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points">
+<span class="sig-name descname"><span class="pre">trimesh_vis_tactile_points</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize tactile points for debugging using trimesh. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts">
+<span class="sig-name descname"><span class="pre">visualize_sdf_closest_pts</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to visualize SDF closest points for debugging. Defaults to False.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">isaaclab_contrib.sensors.</span></span><span class="sig-name descname"><span class="pre">GelSightRenderCfg</span></span><a class="reference internal" href="../../../_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_cfg.html#GelSightRenderCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for GelSight sensor rendering parameters.</p>
+<p>This configuration defines the rendering parameters for example-based tactile image synthesis
+using the Taxim approach.</p>
+<dl>
+<dt>Reference:</dt><dd><p>Si, Z., &amp; Yuan, W. (2022). Taxim: An example-based simulation model for GelSight
+tactile sensors. IEEE Robotics and Automation Letters, 7(2), 2361-2368.
+<a class="reference external" href="https://arxiv.org/abs/2109.04027">https://arxiv.org/abs/2109.04027</a></p>
+</dd>
+<dt>Data Directory Structure:</dt><dd><p>The sensor data should be organized in the following structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>base_data_path/
+└── sensor_data_dir_name/
+    ├── bg.jpg              # Background image (required)
+    ├── polycalib.npz       # Polynomial calibration data (required)
+    └── real_bg.npy         # Real background data (optional)
+</pre></div>
+</div>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Using predefined sensor configuration:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_contrib.sensors.tacsl_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorCfg</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">GELSIGHT_R15_CFG</span>
+
+<span class="n">sensor_cfg</span> <span class="o">=</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">(</span><span class="n">render_cfg</span><span class="o">=</span><span class="n">GELSIGHT_R15_CFG</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Using custom sensor data:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">custom_cfg</span> <span class="o">=</span> <span class="n">GelSightRenderCfg</span><span class="p">(</span>
+    <span class="n">base_data_path</span><span class="o">=</span><span class="s2">&quot;/path/to/my/sensors&quot;</span><span class="p">,</span>
+    <span class="n">sensor_data_dir_name</span><span class="o">=</span><span class="s2">&quot;my_custom_sensor&quot;</span><span class="p">,</span>
+    <span class="n">image_height</span><span class="o">=</span><span class="mi">480</span><span class="p">,</span>
+    <span class="n">image_width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span>
+    <span class="n">mm_per_pixel</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path" title="isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">base_data_path</span></code></a></p></td>
+<td><p>Base path to the directory containing sensor calibration data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name" title="isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sensor_data_dir_name</span></code></a></p></td>
+<td><p>Directory name containing the sensor calibration and background data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.background_path" title="isaaclab_contrib.sensors.GelSightRenderCfg.background_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">background_path</span></code></a></p></td>
+<td><p>Filename of the background image within the data directory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.calib_path" title="isaaclab_contrib.sensors.GelSightRenderCfg.calib_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">calib_path</span></code></a></p></td>
+<td><p>Filename of the polynomial calibration data within the data directory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.real_background" title="isaaclab_contrib.sensors.GelSightRenderCfg.real_background"><code class="xref py py-obj docutils literal notranslate"><span class="pre">real_background</span></code></a></p></td>
+<td><p>Filename of the real background data within the data directory.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_height" title="isaaclab_contrib.sensors.GelSightRenderCfg.image_height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">image_height</span></code></a></p></td>
+<td><p>Height of the tactile image in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_width" title="isaaclab_contrib.sensors.GelSightRenderCfg.image_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">image_width</span></code></a></p></td>
+<td><p>Width of the tactile image in pixels.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.num_bins" title="isaaclab_contrib.sensors.GelSightRenderCfg.num_bins"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bins</span></code></a></p></td>
+<td><p>Number of bins for gradient magnitude and direction quantization.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel" title="isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mm_per_pixel</span></code></a></p></td>
+<td><p>Millimeters per pixel conversion factor for reconstructing 2D tactile image from the height map.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path">
+<span class="sig-name descname"><span class="pre">base_data_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Base path to the directory containing sensor calibration data. Defaults to
+Isaac Lab Nucleus directory at <code class="docutils literal notranslate"><span class="pre">{ISAACLAB_NUCLEUS_DIR}/TacSL</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name">
+<span class="sig-name descname"><span class="pre">sensor_data_dir_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name" title="Permalink to this definition">#</a></dt>
+<dd><p>Directory name containing the sensor calibration and background data.</p>
+<p>This should be a relative path (directory name) inside the <a class="reference internal" href="#isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path" title="isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">base_data_path</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.background_path">
+<span class="sig-name descname"><span class="pre">background_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.background_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Filename of the background image within the data directory.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.calib_path">
+<span class="sig-name descname"><span class="pre">calib_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.calib_path" title="Permalink to this definition">#</a></dt>
+<dd><p>Filename of the polynomial calibration data within the data directory.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.real_background">
+<span class="sig-name descname"><span class="pre">real_background</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.real_background" title="Permalink to this definition">#</a></dt>
+<dd><p>Filename of the real background data within the data directory.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.image_height">
+<span class="sig-name descname"><span class="pre">image_height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_height" title="Permalink to this definition">#</a></dt>
+<dd><p>Height of the tactile image in pixels.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.image_width">
+<span class="sig-name descname"><span class="pre">image_width</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_width" title="Permalink to this definition">#</a></dt>
+<dd><p>Width of the tactile image in pixels.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.num_bins">
+<span class="sig-name descname"><span class="pre">num_bins</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.num_bins" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of bins for gradient magnitude and direction quantization.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel">
+<span class="sig-name descname"><span class="pre">mm_per_pixel</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel" title="Permalink to this definition">#</a></dt>
+<dd><p>Millimeters per pixel conversion factor for reconstructing 2D tactile image from the height map.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="isaaclab_contrib.mdp.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">isaaclab_contrib.mdp</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../lab_tasks/isaaclab_tasks.utils.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">isaaclab_tasks.utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visuo-tactile-sensor">Visuo-Tactile Sensor</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.__init__"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.num_instances"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.num_instances</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.data"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.data</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.reset"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.reset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.get_initial_render()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.device"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.device</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.is_initialized"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.is_initialized</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensor.set_debug_vis()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_depth_image"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_depth_image</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_rgb_image"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_rgb_image</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_pos_w"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_points_pos_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_points_quat_w"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_points_quat_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.penetration_depth"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.penetration_depth</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_normal_force"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_normal_force</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorData.tactile_shear_force"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorData.tactile_shear_force</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.render_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.render_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_camera_tactile"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.enable_camera_tactile</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.prim_path"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.update_period"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.update_period</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.history_length"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.history_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.debug_vis"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.debug_vis</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.enable_force_field"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.enable_force_field</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_array_size"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tactile_array_size</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tactile_margin"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tactile_margin</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.contact_object_prim_path_expr"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.contact_object_prim_path_expr</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.normal_contact_stiffness"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.normal_contact_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.friction_coefficient"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.friction_coefficient</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.tangential_stiffness"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.tangential_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.camera_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.camera_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualizer_cfg"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.visualizer_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.trimesh_vis_tactile_points"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.trimesh_vis_tactile_points</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.VisuoTactileSensorCfg.visualize_sdf_closest_pts"><code class="docutils literal notranslate"><span class="pre">VisuoTactileSensorCfg.visualize_sdf_closest_pts</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.base_data_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.base_data_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.sensor_data_dir_name"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.sensor_data_dir_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.background_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.background_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.calib_path"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.calib_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.real_background"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.real_background</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_height"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.image_height</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.image_width"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.image_width</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.num_bins"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.num_bins</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#isaaclab_contrib.sensors.GelSightRenderCfg.mm_per_pixel"><code class="docutils literal notranslate"><span class="pre">GelSightRenderCfg.mm_per_pixel</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2025, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 29, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

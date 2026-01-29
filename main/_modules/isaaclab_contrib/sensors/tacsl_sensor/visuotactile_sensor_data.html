@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg &#8212; Isaac Lab Documentation</title>
+    <title>isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -54,7 +54,7 @@
     <script src="../../../../_static/copybutton.js"></script>
     <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor_cfg';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_data';</script>
     <link rel="icon" href="../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../search.html" />
@@ -158,7 +158,7 @@
             <label for="version-select" style="font-weight: bold; display: block;">Version</label>
           </div>
           <select id="version-select" class="version-dropdown" style="margin: 0 auto; display: block;" onchange="location = this.value;">
-            <option value="visuotactile_sensor_cfg.html" selected>main</option>
+            <option value="visuotactile_sensor_data.html" selected>main</option>
             <option value="../../../../../release/2.1.0/index.html" >release/2.1.0</option>
             <option value="../../../../../release/2.2.0/index.html" >release/2.2.0</option>
             <option value="../../../../../release/2.3.0/index.html" >release/2.3.0</option>
@@ -437,6 +437,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -534,7 +535,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor_cfg.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor_data.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -604,197 +605,56 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg</h1><div class="highlight"><pre>
+  <h1>Source code for isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 
-<span class="c1"># needed to import for allowing type-hinting: torch.Tensor | None</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">MISSING</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkersCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">VISUO_TACTILE_SENSOR_MARKER_CFG</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configclass</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.utils.assets</span><span class="w"> </span><span class="kn">import</span> <span class="n">ISAACLAB_NUCLEUS_DIR</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">..camera.tiled_camera_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">TiledCameraCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..sensor_base_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBaseCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensor</span>
-
-<span class="c1">##</span>
-<span class="c1"># GelSight Render Configuration</span>
-<span class="c1">##</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 
 
-<span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">GelSightRenderCfg</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for GelSight sensor rendering parameters.</span>
+<div class="viewcode-block" id="VisuoTactileSensorData"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html#isaaclab_contrib.sensors.VisuoTactileSensorData">[docs]</a><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">VisuoTactileSensorData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for the visuo-tactile sensor.</span>
 
-<span class="sd">    This configuration defines the rendering parameters for example-based tactile image synthesis</span>
-<span class="sd">    using the Taxim approach.</span>
+<span class="sd">    This class contains the tactile sensor data that includes:</span>
 
-<span class="sd">    Reference:</span>
-<span class="sd">        Si, Z., &amp; Yuan, W. (2022). Taxim: An example-based simulation model for GelSight</span>
-<span class="sd">        tactile sensors. IEEE Robotics and Automation Letters, 7(2), 2361-2368.</span>
-<span class="sd">        https://arxiv.org/abs/2109.04027</span>
+<span class="sd">    - Camera-based tactile sensing (RGB and depth images)</span>
+<span class="sd">    - Force field tactile sensing (normal and shear forces)</span>
+<span class="sd">    - Tactile point positions and contact information</span>
 
-<span class="sd">    Data Directory Structure:</span>
-<span class="sd">        The sensor data should be organized in the following structure::</span>
-
-<span class="sd">            base_data_path/</span>
-<span class="sd">            └── sensor_data_dir_name/</span>
-<span class="sd">                ├── bg.jpg              # Background image (required)</span>
-<span class="sd">                ├── polycalib.npz       # Polynomial calibration data (required)</span>
-<span class="sd">                └── real_bg.npy         # Real background data (optional)</span>
-
-<span class="sd">    Example:</span>
-<span class="sd">        Using predefined sensor configuration::</span>
-
-<span class="sd">            from isaaclab_assets.sensors import GELSIGHT_R15_CFG</span>
-
-<span class="sd">            sensor_cfg = VisuoTactileSensorCfg(render_cfg=GELSIGHT_R15_CFG)</span>
-
-<span class="sd">        Using custom sensor data::</span>
-
-<span class="sd">            custom_cfg = GelSightRenderCfg(</span>
-<span class="sd">                base_data_path=&quot;/path/to/my/sensors&quot;,</span>
-<span class="sd">                sensor_data_dir_name=&quot;my_custom_sensor&quot;,</span>
-<span class="sd">                image_height=480,</span>
-<span class="sd">                image_width=640,</span>
-<span class="sd">                mm_per_pixel=0.05,</span>
-<span class="sd">            )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">base_data_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAACLAB_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/TacSL&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base path to the directory containing sensor calibration data.</span>
+    <span class="c1"># Camera-based tactile data</span>
+    <span class="n">tactile_depth_image</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile depth images. Shape is (num_instances, height, width, 1).&quot;&quot;&quot;</span>
 
-<span class="sd">    If ``None``, defaults to Isaac Lab Nucleus directory at</span>
-<span class="sd">    ``{ISAACLAB_NUCLEUS_DIR}/TacSL``. Download the data from Nucleus if not present locally.</span>
-<span class="sd">    If a custom path is provided, uses the data directly from that location without downloading.</span>
+    <span class="n">tactile_rgb_image</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tactile RGB images rendered using the Taxim approach from :cite:t:`si2022taxim`.</span>
+<span class="sd">    Shape is (num_instances, height, width, 3).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">sensor_data_dir_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Directory name containing the sensor calibration and background data.</span>
+    <span class="c1"># Force field tactile data</span>
+    <span class="n">tactile_points_pos_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Positions of tactile points in world frame. Shape is (num_instances, num_tactile_points, 3).&quot;&quot;&quot;</span>
 
-<span class="sd">    This should be a relative path (directory name) inside the :attr:`base_data_path`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tactile_points_quat_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Orientations of tactile points in world frame. Shape is (num_instances, num_tactile_points, 4).&quot;&quot;&quot;</span>
 
-    <span class="n">background_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bg.jpg&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Filename of the background image within the data directory.&quot;&quot;&quot;</span>
+    <span class="n">penetration_depth</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Penetration depth at each tactile point. Shape is (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
 
-    <span class="n">calib_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;polycalib.npz&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Filename of the polynomial calibration data within the data directory.&quot;&quot;&quot;</span>
+    <span class="n">tactile_normal_force</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normal forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points).&quot;&quot;&quot;</span>
 
-    <span class="n">real_background</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;real_bg.npy&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Filename of the real background data within the data directory.&quot;&quot;&quot;</span>
-
-    <span class="n">image_height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Height of the tactile image in pixels.&quot;&quot;&quot;</span>
-
-    <span class="n">image_width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Width of the tactile image in pixels.&quot;&quot;&quot;</span>
-
-    <span class="n">num_bins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">120</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of bins for gradient magnitude and direction quantization.&quot;&quot;&quot;</span>
-
-    <span class="n">mm_per_pixel</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Millimeters per pixel conversion factor for reconstructing 2D tactile image from the height map.&quot;&quot;&quot;</span>
-
-
-<span class="c1">##</span>
-<span class="c1"># Visuo-Tactile Sensor Configuration</span>
-<span class="c1">##</span>
-
-
-<div class="viewcode-block" id="VisuoTactileSensorCfg"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensorCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">VisuoTactileSensorCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the visuo-tactile sensor.</span>
-
-<span class="sd">    This sensor provides both camera-based tactile sensing and force field tactile sensing.</span>
-<span class="sd">    It can capture tactile RGB/depth images and compute penalty-based contact forces.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">VisuoTactileSensor</span>
-
-    <span class="c1"># Sensor type and capabilities</span>
-    <span class="n">render_cfg</span><span class="p">:</span> <span class="n">GelSightRenderCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for GelSight sensor rendering.</span>
-
-<span class="sd">    This defines the rendering parameters for converting depth maps to realistic tactile images.</span>
-<span class="sd">    Defaults to GelSight R1.5 parameters. Use predefined configs like GELSIGHT_R15_CFG or</span>
-<span class="sd">    GELSIGHT_MINI_CFG from isaaclab_assets.sensors for standard sensor models.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">enable_camera_tactile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable camera-based tactile sensing.&quot;&quot;&quot;</span>
-
-    <span class="n">enable_force_field</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable force field tactile sensing.&quot;&quot;&quot;</span>
-
-    <span class="c1"># Force field configuration</span>
-    <span class="n">tactile_array_size</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of tactile points for force field sensing in (rows, cols) format.&quot;&quot;&quot;</span>
-
-    <span class="n">tactile_margin</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Margin for tactile point generation (in meters).</span>
-
-<span class="sd">    This parameter defines the exclusion margin from the edges of the elastomer mesh when generating</span>
-<span class="sd">    the tactile point grid. It ensures that force field points are not generated on the very edges</span>
-<span class="sd">    of the sensor surface where geometry might be unstable or less relevant for contact.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">contact_object_prim_path_expr</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Prim path expression to find the contact object for force field computation.</span>
-
-<span class="sd">    This specifies the object that will make contact with the tactile sensor. The sensor will automatically</span>
-<span class="sd">    find the SDF collision mesh within this object for optimal force field computation.</span>
-
-<span class="sd">    .. note::</span>
-<span class="sd">        The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which</span>
-<span class="sd">        will be replaced with the environment namespace.</span>
-
-<span class="sd">        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_.*/ContactObject``.</span>
-
-<span class="sd">    .. attention::</span>
-<span class="sd">        For force field computation to work properly, the contact object must have an SDF collision mesh.</span>
-<span class="sd">        The sensor will search for the first SDF mesh within the specified prim hierarchy.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1"># Force field physics parameters</span>
-    <span class="n">normal_contact_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normal contact stiffness for penalty-based force computation.&quot;&quot;&quot;</span>
-
-    <span class="n">friction_coefficient</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Friction coefficient for shear forces.&quot;&quot;&quot;</span>
-
-    <span class="n">tangential_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Tangential stiffness for shear forces.&quot;&quot;&quot;</span>
-
-    <span class="n">camera_cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Camera configuration for tactile RGB/depth sensing.</span>
-
-<span class="sd">    If None, camera-based sensing will be disabled even if :attr:`enable_camera_tactile` is True.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1"># Visualization</span>
-    <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">VISUO_TACTILE_SENSOR_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
-        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/TactileSensor&quot;</span>
-    <span class="p">)</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration object for the visualization markers.</span>
-
-<span class="sd">    .. note::</span>
-<span class="sd">        This attribute is only used when debug visualization is enabled.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">trimesh_vis_tactile_points</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to visualize tactile points for debugging using trimesh. Defaults to False.&quot;&quot;&quot;</span>
-
-    <span class="n">visualize_sdf_closest_pts</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to visualize SDF closest points for debugging. Defaults to False.&quot;&quot;&quot;</span></div>
+    <span class="n">tactile_shear_force</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Shear forces at each tactile point in sensor frame. Shape is (num_instances, num_tactile_points, 2).&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

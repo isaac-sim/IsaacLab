@@ -438,6 +438,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -694,10 +695,11 @@
 <section id="configuration">
 <h2>Configuration<a class="headerlink" href="#configuration" title="Permalink to this heading">#</a></h2>
 <p>Tactile sensors require specific configuration parameters to define their behavior and data collection properties. The sensor can be configured with various parameters including sensor resolution, force sensitivity, and output data types.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.tacsl_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorCfg</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">TiledCameraCfg</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">TiledCameraCfg</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_assets.sensors</span><span class="w"> </span><span class="kn">import</span> <span class="n">GELSIGHT_R15_CFG</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab_contrib.sensors.tacsl_sensor</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorCfg</span>
 
 <span class="c1"># Tactile sensor configuration</span>
 <span class="n">tactile_sensor</span> <span class="o">=</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">(</span>

@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>isaaclab.sensors.tacsl_sensor.visuotactile_sensor &#8212; Isaac Lab Documentation</title>
+    <title>isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor &#8212; Isaac Lab Documentation</title>
   
   
   
@@ -54,7 +54,7 @@
     <script src="../../../../_static/copybutton.js"></script>
     <script src="../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor';</script>
     <link rel="icon" href="../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../search.html" />
@@ -437,6 +437,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -534,7 +535,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab/sensors/tacsl_sensor/visuotactile_sensor.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/isaaclab_contrib/sensors/tacsl_sensor/visuotactile_sensor.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -604,7 +605,7 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for isaaclab.sensors.tacsl_sensor.visuotactile_sensor</h1><div class="highlight"><pre>
+  <h1>Source code for isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -630,8 +631,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.markers</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisualizationMarkers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.camera</span><span class="w"> </span><span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">TiledCamera</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.sensor_base</span><span class="w"> </span><span class="kn">import</span> <span class="n">SensorBase</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.tacsl_sensor.visuotactile_render</span><span class="w"> </span><span class="kn">import</span> <span class="n">GelsightRender</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorData</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_render</span><span class="w"> </span><span class="kn">import</span> <span class="n">GelsightRender</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.visuotactile_sensor_cfg</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisuoTactileSensorCfg</span>
@@ -641,7 +643,7 @@
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="VisuoTactileSensor"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">VisuoTactileSensor</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
+<div class="viewcode-block" id="VisuoTactileSensor"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html#isaaclab_contrib.sensors.VisuoTactileSensor">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">VisuoTactileSensor</span><span class="p">(</span><span class="n">SensorBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;A tactile sensor for both camera-based and force field tactile sensing.</span>
 
 <span class="sd">    This sensor provides:</span>
@@ -692,7 +694,7 @@
     <span class="n">cfg</span><span class="p">:</span> <span class="n">VisuoTactileSensorCfg</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The configuration parameters.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="VisuoTactileSensor.__init__"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="VisuoTactileSensor.__init__"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html#isaaclab_contrib.sensors.VisuoTactileSensor.__init__">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">VisuoTactileSensorCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the tactile sensor object.</span>
 
 <span class="sd">        Args:</span>
@@ -767,7 +769,7 @@
 <span class="sd">    Operations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="VisuoTactileSensor.reset"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="VisuoTactileSensor.reset"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html#isaaclab_contrib.sensors.VisuoTactileSensor.reset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the sensor internals.&quot;&quot;&quot;</span>
         <span class="c1"># reset the timestamps</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
@@ -799,7 +801,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_visualization</span><span class="p">()</span>
 
-<div class="viewcode-block" id="VisuoTactileSensor.get_initial_render"><a class="viewcode-back" href="../../../../source/api/lab/isaaclab.sensors.html#isaaclab.sensors.VisuoTactileSensor.get_initial_render">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_initial_render</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="VisuoTactileSensor.get_initial_render"><a class="viewcode-back" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html#isaaclab_contrib.sensors.VisuoTactileSensor.get_initial_render">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_initial_render</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the initial tactile sensor render for baseline comparison.</span>
 
 <span class="sd">        This method captures the initial state of the tactile sensor when no contact</span>

@@ -437,6 +437,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.actuators.html">isaaclab_contrib.actuators</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.assets.html">isaaclab_contrib.assets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.mdp.html">isaaclab_contrib.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_contrib/isaaclab_contrib.sensors.html">isaaclab_contrib.sensors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../source/api/lab_tasks/isaaclab_tasks.utils.html">isaaclab_tasks.utils</a></li>
 </ul>
 </details></li>
@@ -619,6 +620,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warp</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wp</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">carb</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">Vt</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">isaaclab.sim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sim_utils</span>
@@ -743,17 +745,19 @@
                     <span class="p">)</span>
 
         <span class="c1"># Determine if Fabric is supported on the device</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">!=</span> <span class="s2">&quot;cpu&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/physics/fabricEnabled&quot;</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using Fabric for the XFormPrimView over &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_prim_path</span><span class="si">}</span><span class="s2">&#39; on device &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Check for unsupported Fabric + CPU combination</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">==</span> <span class="s2">&quot;cpu&quot;</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Fabric mode with Warp fabricarray operations is not supported on CPU device. &quot;</span>
-                <span class="s2">&quot;Warp&#39;s CPU backend for fabricarray writes has known reliability issues. &quot;</span>
-                <span class="s2">&quot;Fabric itself supports CPU, but our GPU-accelerated Warp kernels require CUDA. &quot;</span>
-                <span class="s2">&quot;Please disable Fabric or use device=&#39;cuda&#39;.&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Fabric mode with Warp fabric-array operations is not supported on CPU devices. &quot;</span>
+                <span class="s2">&quot;While Fabric itself can run on both CPU and GPU, our batch Warp kernels for &quot;</span>
+                <span class="s2">&quot;fabric-array operations require CUDA and are not reliable on the CPU backend. &quot;</span>
+                <span class="s2">&quot;To ensure stability, Fabric is being disabled and execution will fall back &quot;</span>
+                <span class="s2">&quot;to standard USD operations on the CPU. This may impact performance.&quot;</span>
             <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_use_fabric</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># Create indices buffer</span>
         <span class="c1"># Since we iterate over the indices, we need to use range instead of torch tensor</span>
