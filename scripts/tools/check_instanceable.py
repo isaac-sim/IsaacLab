@@ -64,10 +64,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path
 
@@ -78,9 +78,7 @@ def main():
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
     # Load kit helper
-    sim = SimulationContext(
-        stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(SimulationCfg(dt=0.01))
 
     # get stage handle
     stage = sim_utils.get_current_stage()
