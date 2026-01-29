@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 import logging
+
+import torch
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
 

@@ -88,12 +88,11 @@ class BaseContactSensor(SensorBase):
     @abstractmethod
     def contact_view(self):
         """View for the contact reporting.
-        
+
         .. note::
             None if there is no view associated with the sensor.
         """
         raise NotImplementedError
-
 
     """
     Operations

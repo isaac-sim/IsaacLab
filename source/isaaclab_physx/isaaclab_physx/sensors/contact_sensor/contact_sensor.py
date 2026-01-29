@@ -281,8 +281,8 @@ class ContactSensor(BaseContactSensor):
 
         # obtain contact points
         if self.cfg.track_contact_points:
-            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = (
-                self.contact_view.get_contact_data(dt=self._sim_physics_dt)
+            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = self.contact_view.get_contact_data(
+                dt=self._sim_physics_dt
             )
             self._data.contact_pos_w[env_ids] = self._unpack_contact_buffer_data(
                 buffer_contact_points, buffer_count, buffer_start_indices

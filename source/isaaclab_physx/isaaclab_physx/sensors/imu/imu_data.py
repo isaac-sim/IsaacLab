@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
+import logging
+
 import torch
 
 from isaaclab.sensors.imu import BaseImuData
-
-import logging
 
 logger = logging.getLogger(__name__)
 
