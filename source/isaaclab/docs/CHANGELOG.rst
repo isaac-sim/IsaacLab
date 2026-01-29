@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.54.2 (2026-01-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved :mod:`isaaclab.sensors.tacsl_sensor` to :mod:`isaaclab_contrib.sensors.tacsl_sensor` module,
+  since it is not completely ready for release yet.
+
+
 0.54.1 (2026-01-25)
 ~~~~~~~~~~~~~~~~~~~
 
