@@ -933,7 +933,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                self.asset.data.default_fixed_tendon_stiffness.clone(),
+                self.asset.data.fixed_tendon_stiffness.clone(),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -945,7 +945,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # damping
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                self.asset.data.default_fixed_tendon_damping.clone(),
+                self.asset.data.fixed_tendon_damping.clone(),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -957,7 +957,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                self.asset.data.default_fixed_tendon_limit_stiffness.clone(),
+                self.asset.data.fixed_tendon_limit_stiffness.clone(),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -970,7 +970,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self.asset.data.default_fixed_tendon_pos_limits.clone()
+            limit = self.asset.data.fixed_tendon_pos_limits.clone()
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1004,7 +1004,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # rest length
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                self.asset.data.default_fixed_tendon_rest_length.clone(),
+                self.asset.data.fixed_tendon_rest_length.clone(),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1016,7 +1016,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                self.asset.data.default_fixed_tendon_offset.clone(),
+                self.asset.data.fixed_tendon_offset.clone(),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
