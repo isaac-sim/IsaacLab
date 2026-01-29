@@ -93,9 +93,9 @@ class ManusVive(DeviceBase):
         self._previous_headpose = default_pose.copy()
 
         xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
-        carb.settings.get_settings().set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
-        carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", xr_anchor.prim_path)
+        carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
+        carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
+        carb.settings.get_settings().set_string("/xrstage/customAnchor", xr_anchor.prim_path)
 
     def __del__(self):
         """Clean up resources when the object is destroyed.

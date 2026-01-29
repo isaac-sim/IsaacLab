@@ -20,7 +20,7 @@ Changed
 * Removed explicit URDF importer extension version dependency in :class:`~isaaclab.sim.converters.urdf_converter.UrdfConverter` and related code.
 
 
-0.54.2 (2026-01-28)
+0.54.3 (2026-01-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -30,7 +30,7 @@ Changed
   since it is not completely ready for release yet.
 
 
-0.54.1 (2026-01-25)
+0.54.2 (2026-01-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -43,6 +43,15 @@ Fixed
 
 * Fixed incorrect horizontal angle calculation in :func:`~isaaclab.sensors.ray_caster.patterns.patterns.lidar_pattern`
   that caused the actual angular resolution to differ from the requested resolution.
+
+
+0.54.1 (2026-01-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Teleop: update carb settings to be compatible with Isaac Sim 6.0/Kit XR 110.0
 
 
 0.54.0 (2026-01-13)
