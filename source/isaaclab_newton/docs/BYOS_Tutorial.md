@@ -1415,35 +1415,6 @@ config = RodConfig(
 
 ---
 
-## Reference: Rod Solver Files
-
-| File | Lines | Purpose |
-|------|-------|---------|
-| `rod_data.py` | 715 | 8 config classes + `RodData` state |
-| `rod_kernels.py` | 1249 | 16+ GPU kernels (XPBD + collision + fused) |
-| `rod_solver.py` | 1122 | `RodSolver` + `DirectTreeSolver` + optimizations |
-| `__init__.py` | 45 | Public exports |
-
-### Kernel Inventory (rod_kernels.py)
-
-| Kernel | Lines | Purpose |
-|--------|-------|---------|
-| `predict_positions_kernel` | 20 | Position integration |
-| `predict_orientations_kernel` | 20 | Quaternion integration |
-| `solve_stretch_constraints_kernel` | 75 | Inextensibility |
-| `solve_bend_twist_constraints_kernel` | 115 | Cosserat bending/twisting |
-| `solve_shear_constraints_kernel` | 80 | Timoshenko shear |
-| `solve_ground_collision_kernel` | 30 | Ground plane collision |
-| `solve_mesh_collision_kernel` | 60 | BVH mesh collision |
-| `apply_coulomb_friction_kernel` | 50 | Coulomb friction |
-| `apply_viscous_friction_kernel` | 30 | Viscous friction |
-| `update_velocities_kernel` | 20 | Velocity from positions |
-| `normalize_quaternions_kernel` | 10 | Quaternion normalization |
-| `reset_lambda_kernel` | 10 | Reset Lagrange multipliers |
-| `compute_total_energy_kernel` | 40 | Energy computation |
-
----
-
 ## Next Steps
 
 1. **Start simple:** Particle system with distance constraints
