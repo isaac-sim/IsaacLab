@@ -196,7 +196,7 @@ class RigidObject(AssetBase):
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -209,7 +209,7 @@ class RigidObject(AssetBase):
     def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -222,7 +222,7 @@ class RigidObject(AssetBase):
     def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -235,7 +235,7 @@ class RigidObject(AssetBase):
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
@@ -246,7 +246,7 @@ class RigidObject(AssetBase):
     def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
@@ -275,16 +275,13 @@ class RigidObject(AssetBase):
             )
             self._data.root_com_state_w[env_ids, :3] = expected_com_pos
             self._data.root_com_state_w[env_ids, 3:7] = expected_com_quat
-        # convert root quaternion from wxyz to xyzw
-        root_poses_xyzw = self._data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
-        # set into simulation
-        self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
+        # set into simulation (root_link_pose_w already uses xyzw format)
+        self.root_physx_view.set_transforms(self._data.root_link_pose_w, indices=physx_env_ids)
 
     def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
         Args:

@@ -150,6 +150,7 @@ Table of Contents
    source/migration/migrating_from_isaacgymenvs
    source/migration/migrating_from_omniisaacgymenvs
    source/migration/migrating_from_orbit
+   source/migration/migrating_to_isaaclab_3-0
 
 .. toctree::
    :maxdepth: 1

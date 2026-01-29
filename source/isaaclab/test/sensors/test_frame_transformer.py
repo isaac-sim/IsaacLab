@@ -33,9 +33,9 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):
-    """Converts Euler XYZ to Quaternion (w, x, y, z)."""
+    """Converts Euler XYZ to Quaternion (x, y, z, w)."""
     quat = tf.Rotation.from_euler("xyz", (roll, pitch, yaw), degrees=degrees).as_quat()
-    return tuple(quat[[3, 0, 1, 2]].tolist())
+    return tuple(quat.tolist())  # scipy already returns xyzw
 
 
 def euler_rpy_apply(rpy, xyz, degrees=False):
@@ -403,7 +403,7 @@ def test_frame_transformer_offset_frames(sim):
                 prim_path="{ENV_REGEX_NS}/cube",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.1),
-                    rot=(1.0, 0.0, 0.0, 0.0),
+                    rot=(0.0, 0.0, 0.0, 1.0),
                 ),
             ),
             FrameTransformerCfg.FrameCfg(
@@ -411,7 +411,7 @@ def test_frame_transformer_offset_frames(sim):
                 prim_path="{ENV_REGEX_NS}/cube",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, -0.1),
-                    rot=(1.0, 0.0, 0.0, 0.0),
+                    rot=(0.0, 0.0, 0.0, 1.0),
                 ),
             ),
         ],

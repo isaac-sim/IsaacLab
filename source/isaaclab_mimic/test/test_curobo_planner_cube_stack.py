@@ -84,7 +84,7 @@ def _execute_gripper_action(
         _env_step_with_action(env, action)
 
 
-DOWN_FACING_QUAT = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float32)
+DOWN_FACING_QUAT = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 
 @pytest.fixture(scope="class")

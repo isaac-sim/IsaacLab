@@ -89,9 +89,9 @@ class TestSe3AbsRetargeter(unittest.TestCase):
 
     def test_retarget_defaults(self):
         # Mock input data
-        wrist_pose = np.array([0.1, 0.2, 0.3, 1.0, 0.0, 0.0, 0.0])
-        thumb_tip_pose = np.array([0.15, 0.25, 0.35, 1.0, 0.0, 0.0, 0.0])
-        index_tip_pose = np.array([0.15, 0.20, 0.35, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose = np.array([0.1, 0.2, 0.3, 0.0, 0.0, 0.0, 1.0])
+        thumb_tip_pose = np.array([0.15, 0.25, 0.35, 0.0, 0.0, 0.0, 1.0])
+        index_tip_pose = np.array([0.15, 0.20, 0.35, 0.0, 0.0, 0.0, 1.0])
 
         data = {
             DeviceBase.TrackingTarget.HAND_RIGHT: {
@@ -112,9 +112,9 @@ class TestSe3AbsRetargeter(unittest.TestCase):
         self.cfg.use_wrist_position = False
         retargeter = Se3AbsRetargeter(self.cfg)
 
-        wrist_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        thumb_tip_pose = np.array([1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        index_tip_pose = np.array([3.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        thumb_tip_pose = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        index_tip_pose = np.array([3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         data = {
             DeviceBase.TrackingTarget.HAND_RIGHT: {
@@ -143,9 +143,9 @@ class TestSe3RelRetargeter(unittest.TestCase):
         self.retargeter = Se3RelRetargeter(self.cfg)
 
     def test_retarget_movement(self):
-        wrist_pose_1 = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        thumb_tip_pose_1 = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        index_tip_pose_1 = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose_1 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        thumb_tip_pose_1 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        index_tip_pose_1 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         data_1 = {
             DeviceBase.TrackingTarget.HAND_LEFT: {
@@ -157,9 +157,9 @@ class TestSe3RelRetargeter(unittest.TestCase):
 
         _ = self.retargeter.retarget(data_1)
 
-        wrist_pose_2 = np.array([0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        thumb_tip_pose_2 = np.array([0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-        index_tip_pose_2 = np.array([0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose_2 = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        thumb_tip_pose_2 = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+        index_tip_pose_2 = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         data_2 = {
             DeviceBase.TrackingTarget.HAND_LEFT: {
@@ -182,8 +182,8 @@ class TestGripperRetargeter(unittest.TestCase):
     def test_gripper_logic(self):
         data_open = {
             DeviceBase.TrackingTarget.HAND_RIGHT: {
-                "thumb_tip": np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
-                "index_tip": np.array([0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
+                "thumb_tip": np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
+                "index_tip": np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
             }
         }
         result = self.retargeter.retarget(data_open)
@@ -191,8 +191,8 @@ class TestGripperRetargeter(unittest.TestCase):
 
         data_close = {
             DeviceBase.TrackingTarget.HAND_RIGHT: {
-                "thumb_tip": np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
-                "index_tip": np.array([0.02, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
+                "thumb_tip": np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
+                "index_tip": np.array([0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
             }
         }
         result = self.retargeter.retarget(data_close)
@@ -224,7 +224,7 @@ class TestUnitreeG1Retargeter(unittest.TestCase):
         )
         retargeter = UnitreeG1Retargeter(cfg)
 
-        wrist_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {
             DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
             DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
@@ -247,7 +247,7 @@ class TestGR1T2Retargeter(unittest.TestCase):
         cfg = GR1T2RetargeterCfg(enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"])
         retargeter = GR1T2Retargeter(cfg)
 
-        wrist_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {
             DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
             DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
@@ -297,7 +297,7 @@ class TestG1TriHandUpperBodyMotionControllerGripperRetargeter(unittest.TestCase)
         )
         retargeter = G1TriHandUpperBodyMotionControllerGripperRetargeter(cfg)
 
-        pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         inputs_trigger_high = np.zeros(7)
         inputs_trigger_high[2] = 0.8  # Trigger
 
@@ -325,7 +325,7 @@ class TestG1TriHandUpperBodyMotionControllerRetargeter(unittest.TestCase):
         )
         retargeter = G1TriHandUpperBodyMotionControllerRetargeter(cfg)
 
-        pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         inputs = np.zeros(7)
 
         data = {
@@ -355,7 +355,7 @@ class TestG1TriHandUpperBodyRetargeter(unittest.TestCase):
         )
         retargeter = G1TriHandUpperBodyRetargeter(cfg)
 
-        wrist_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
         data = {
             DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
             DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},

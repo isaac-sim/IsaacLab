@@ -104,7 +104,7 @@ class RigidObjectData:
     """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).
 
     The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities are
-    of the center of mass frame.
+    of the center of mass frame. Quaternions are stored in (x, y, z, w) format.
     """
 
     default_mass: torch.Tensor = None
@@ -129,12 +129,10 @@ class RigidObjectData:
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the actor frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation
             pose = self._root_physx_view.get_transforms().clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
             self._root_link_pose_w.timestamp = self._sim_timestamp
@@ -166,7 +164,7 @@ class RigidObjectData:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
@@ -210,7 +208,7 @@ class RigidObjectData:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
-        world. The orientation is provided in (w, x, y, z) format.
+        world. The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._root_link_state_w.data = torch.cat((self.root_link_pose_w, self.root_link_vel_w), dim=-1)
@@ -241,7 +239,7 @@ class RigidObjectData:
         """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         return self.root_link_pose_w.view(-1, 1, 7)
 
@@ -259,7 +257,7 @@ class RigidObjectData:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         return self.root_com_pose_w.view(-1, 1, 7)
 
@@ -289,7 +287,7 @@ class RigidObjectData:
         Shape is (num_instances, 1, 13).
 
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         return self.root_link_state_w.view(-1, 1, 13)
 
@@ -300,7 +298,7 @@ class RigidObjectData:
 
         The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
         world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (w, x, y, z) format.
+        principle inertia. The orientation is provided in (x, y, z, w) format.
         """
         return self.root_com_state_w.view(-1, 1, 13)
 
@@ -323,12 +321,11 @@ class RigidObjectData:
         Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # read data from simulation
+            # read data from simulation (PhysX returns xyzw format which is)
             pose = self._root_physx_view.get_coms().to(self.device)
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose.view(-1, 1, 7)
             self._body_com_pose_b.timestamp = self._sim_timestamp
@@ -405,7 +402,7 @@ class RigidObjectData:
 
     @property
     def root_link_quat_w(self) -> torch.Tensor:
-        """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
@@ -437,7 +434,7 @@ class RigidObjectData:
 
     @property
     def root_com_quat_w(self) -> torch.Tensor:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
@@ -469,7 +466,7 @@ class RigidObjectData:
 
     @property
     def body_link_quat_w(self) -> torch.Tensor:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
@@ -501,7 +498,7 @@ class RigidObjectData:
 
     @property
     def body_com_quat_w(self) -> torch.Tensor:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
@@ -550,7 +547,7 @@ class RigidObjectData:
 
     @property
     def body_com_quat_b(self) -> torch.Tensor:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
+        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, 1, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.

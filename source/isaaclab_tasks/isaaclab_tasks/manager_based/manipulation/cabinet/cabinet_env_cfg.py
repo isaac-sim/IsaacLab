@@ -60,7 +60,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.8, 0, 0.4),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            rot=(0.0, 0.0, 1.0, 0.0),
             joint_pos={
                 "door_left_joint": 0.0,
                 "door_right_joint": 0.0,
@@ -95,7 +95,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
                 name="drawer_handle_top",
                 offset=OffsetCfg(
                     pos=(0.305, 0.0, 0.01),
-                    rot=(0.5, 0.5, -0.5, -0.5),  # align with end-effector frame
+                    rot=(0.5, -0.5, -0.5, 0.5),  # align with end-effector frame
                 ),
             ),
         ],

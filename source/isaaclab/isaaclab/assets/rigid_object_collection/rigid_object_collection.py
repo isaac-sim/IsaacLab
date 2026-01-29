@@ -248,7 +248,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object state over selected environment and object indices into the simulation.
 
-        The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The object state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -267,7 +267,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object center of mass state over selected environment indices into the simulation.
 
-        The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The object state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -286,7 +286,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object link state over selected environment indices into the simulation.
 
-        The object state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The object state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
@@ -305,7 +305,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object pose over selected environment and object indices into the simulation.
 
-        The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The object pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             object_pose: Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).
@@ -322,7 +322,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object pose over selected environment and object indices into the simulation.
 
-        The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The object pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         Args:
             object_pose: Object poses in simulation frame. Shape is (len(env_ids), len(object_ids), 7).
@@ -358,13 +358,9 @@ class RigidObjectCollection(AssetBase):
             self._data.object_com_state_w[env_ids[:, None], object_ids, :3] = com_pos
             self._data.object_com_state_w[env_ids[:, None], object_ids, 3:7] = com_quat
 
-        # convert the quaternion from wxyz to xyzw
-        poses_xyzw = self._data.object_link_pose_w.clone()
-        poses_xyzw[..., 3:] = math_utils.convert_quat(poses_xyzw[..., 3:], to="xyzw")
-
-        # set into simulation
+        # set into simulation (object_link_pose_w already uses xyzw format)
         view_ids = self._env_obj_ids_to_view_ids(env_ids, object_ids)
-        self.root_physx_view.set_transforms(self.reshape_data_to_view(poses_xyzw), indices=view_ids)
+        self.root_physx_view.set_transforms(self.reshape_data_to_view(self._data.object_link_pose_w), indices=view_ids)
 
     def write_object_com_pose_to_sim(
         self,
@@ -374,7 +370,7 @@ class RigidObjectCollection(AssetBase):
     ):
         """Set the object center of mass pose over selected environment indices into the simulation.
 
-        The object pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The object pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
         Args:

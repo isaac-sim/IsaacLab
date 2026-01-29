@@ -106,7 +106,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
         cube_1_config_dict = {
             "blue_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_1_Blue",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -115,7 +115,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
             ),
             "red_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_1_Red",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0403], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0403], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -127,7 +127,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
         cube_2_config_dict = {
             "red_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_2_Red",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -136,7 +136,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
             ),
             "yellow_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_2_Yellow",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0403], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0403], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/yellow_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -148,7 +148,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
         cube_3_config_dict = {
             "yellow_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_3_Yellow",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/yellow_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -157,7 +157,7 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(StackInstanceRandomizeEnvCfg):
             ),
             "green_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_2_Green",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0403], rot=[1, 0, 0, 0]),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0403], rot=[0, 0, 0, 1]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                     scale=(1.0, 1.0, 1.0),

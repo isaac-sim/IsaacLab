@@ -106,7 +106,7 @@ def generate_articulation_cfg(
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(0.0, 0.0, 0.0),
                 joint_pos=({"RevoluteJoint": 1.5708}),
-                rot=(0.7071055, 0.7071081, 0, 0),
+                rot=(0.7071081, 0, 0, 0.7071055),
             ),
         )
     elif articulation_type == "single_joint_explicit":

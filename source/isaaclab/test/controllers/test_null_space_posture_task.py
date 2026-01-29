@@ -96,7 +96,7 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         frame_task = tasks[0]
         # Create pin.SE3 from position and quaternion
         position = np.array([0.5, 0.3, 0.8])  # x, y, z
-        quaternion = pin.Quaternion(1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity quaternion)
+        quaternion = pin.Quaternion(0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity quaternion)
         target_pose = pin.SE3(quaternion, position)
         frame_task.set_target(target_pose)
 
@@ -193,7 +193,7 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         frame_task = tasks[0]
         # Create pin.SE3 from position and quaternion
         position = np.array([0.3, 0.3, 0.5])
-        quaternion = pin.Quaternion(1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity quaternion)
+        quaternion = pin.Quaternion(0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity quaternion)
         target_pose = pin.SE3(quaternion, position)
         frame_task.set_target(target_pose)
 

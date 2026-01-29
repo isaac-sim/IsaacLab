@@ -42,8 +42,8 @@ class XrCfg:
     Specifically: this position will appear at the origin of the XR device's local coordinate frame.
     """
 
-    anchor_rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Specifies the rotation (as a quaternion) of the simulation when viewed in an XR device.
+    anchor_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Specifies the rotation (as a quaternion xyzw) of the simulation when viewed in an XR device.
 
     Specifically: this rotation will determine how the simulation is rotated with respect to the
     origin of the XR device's local coordinate frame.
@@ -81,7 +81,7 @@ class XrCfg:
     """
 
     anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array(
-        [1, 0, 0, 0], dtype=np.float64
+        [0, 0, 0, 1], dtype=np.float64
     )
     """Specifies the function to calculate the rotation of the XR anchor when anchor_rotation_mode is CUSTOM.
 

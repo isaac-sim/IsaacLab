@@ -171,9 +171,7 @@ def reset_object_collections(
 
         # Compose new orientations by applying the sampled euler noise in quaternion space.
         orientations_delta = math_utils.quat_from_euler_xyz(samples[..., 3], samples[..., 4], samples[..., 5])
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
         orientations = math_utils.quat_mul(orientations, orientations_delta)
-        orientations = math_utils.convert_quat(orientations, to="xyzw")
 
     # velocities
     new_velocities = sel_view_states[:, 7:13]
@@ -239,7 +237,7 @@ def build_grocery_defaults(
     grid_y, grid_x = torch.meshgrid(y, x, indexing="ij")
     grid_z = CACHE_HEIGHT * torch.ones_like(grid_x)
     # We can then create the poses for the cached groceries.
-    ref_quat = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(num_x_objects * num_y_objects, 1)
+    ref_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(num_x_objects * num_y_objects, 1)
     positions = torch.stack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten()), dim=-1)
     poses = torch.cat((positions, ref_quat), dim=-1)
     # Duplicate across environments, cap at max_num_objects

@@ -46,10 +46,16 @@ def assert_vec3_close(v1: Gf.Vec3d | Gf.Vec3f, v2: tuple | Gf.Vec3d | Gf.Vec3f, 
         assert math.isclose(v1[i], v2[i], abs_tol=eps), f"Vector mismatch at index {i}: {v1[i]} != {v2[i]}"
 
 
-def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd | tuple, eps: float = 1e-6):
+def assert_quat_close(
+    q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6
+):
     """Assert two quaternions are close, accounting for double-cover (q and -q represent same rotation)."""
-    if isinstance(q2, tuple):
-        q2 = Gf.Quatd(*q2)
+    if isinstance(q1, (tuple, list)):
+        # q1 is (x, y, z, w)
+        q1 = Gf.Quatd(q1[3], q1[0], q1[1], q1[2])
+    if isinstance(q2, (tuple, list)):
+        # q2 is (x, y, z, w)
+        q2 = Gf.Quatd(q2[3], q2[0], q2[1], q2[2])
     # Check if quaternions are close (either q1 ≈ q2 or q1 ≈ -q2)
     real_match = math.isclose(q1.GetReal(), q2.GetReal(), abs_tol=eps)
     imag_match = all(math.isclose(q1.GetImaginary()[i], q2.GetImaginary()[i], abs_tol=eps) for i in range(3))
@@ -83,7 +89,7 @@ def test_standardize_xform_ops_basic():
         "/World/TestXform",
         "Xform",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),  # w, x, y, z
+        orientation=(0.0, 0.0, 0.0, 1.0),  # x, y, z, w (identity)
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
@@ -105,7 +111,7 @@ def test_standardize_xform_ops_basic():
 
     # Verify the transform values are preserved (approximately)
     assert_vec3_close(prim.GetAttribute("xformOp:translate").Get(), (1.0, 2.0, 3.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (1.0, 0.0, 0.0, 0.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
     assert_vec3_close(prim.GetAttribute("xformOp:scale").Get(), (1.0, 1.0, 1.0))
 
 
@@ -139,7 +145,7 @@ def test_standardize_xform_ops_with_rotation_xyz():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify world pose is preserved (may have small numeric differences due to rotation conversion)
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-4)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-4)
+    assert_quat_close(quat_before, quat_after, eps=1e-4)
 
     # Verify the deprecated operation is removed
     assert "xformOp:rotateXYZ" not in prim.GetPropertyNames()
@@ -182,7 +188,7 @@ def test_standardize_xform_ops_with_transform_matrix():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
 
     # Verify the transform operation is removed
     assert "xformOp:transform" not in prim.GetPropertyNames()
@@ -200,7 +206,7 @@ def test_standardize_xform_ops_preserves_world_pose():
     # Create a prim with specific world pose
     translation = (10.0, 20.0, 30.0)
     # Rotation of 90 degrees around Z axis
-    orientation = (0.7071068, 0.0, 0.0, 0.7071068)  # w, x, y, z
+    orientation = (0.0, 0.0, 0.7071068, 0.7071068)  # x, y, z, w
     scale = (2.0, 3.0, 4.0)
 
     prim = sim_utils.create_prim(
@@ -223,7 +229,7 @@ def test_standardize_xform_ops_preserves_world_pose():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify the world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
 
 
 def test_standardize_xform_ops_with_units_resolve():
@@ -259,7 +265,7 @@ def test_standardize_xform_ops_with_units_resolve():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
 
     # Verify unitsResolve is removed
     assert "xformOp:scale:unitsResolve" not in prim.GetPropertyNames()
@@ -279,7 +285,7 @@ def test_standardize_xform_ops_with_hierarchy():
         "/World/Parent",
         "Xform",
         translation=(5.0, 0.0, 0.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
@@ -289,7 +295,7 @@ def test_standardize_xform_ops_with_hierarchy():
         "/World/Parent/Child",
         "Xform",
         translation=(0.0, 3.0, 0.0),
-        orientation=(0.7071068, 0.0, 0.7071068, 0.0),  # 90 deg around Y
+        orientation=(0.0, 0.7071068, 0.0, 0.7071068),  # 90 deg around Y
         scale=(0.5, 0.5, 0.5),
         stage=stage,
     )
@@ -308,9 +314,9 @@ def test_standardize_xform_ops_with_hierarchy():
 
     # Verify world poses are preserved
     assert_vec3_close(Gf.Vec3d(*parent_pos_before), parent_pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*parent_quat_before), parent_quat_after, eps=1e-5)
+    assert_quat_close(parent_quat_before, parent_quat_after, eps=1e-5)
     assert_vec3_close(Gf.Vec3d(*child_pos_before), child_pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*child_quat_before), child_quat_after, eps=1e-5)
+    assert_quat_close(child_quat_before, child_quat_after, eps=1e-5)
 
 
 def test_standardize_xform_ops_multiple_deprecated_ops():
@@ -346,7 +352,7 @@ def test_standardize_xform_ops_multiple_deprecated_ops():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos), Gf.Vec3d(*pos_after), eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat), Gf.Quatd(*quat_after), eps=1e-5)
+    assert_quat_close(quat, quat_after, eps=1e-5)
 
     # Verify all deprecated operations are removed
     assert "xformOp:rotateX" not in prim.GetPropertyNames()
@@ -367,7 +373,7 @@ def test_standardize_xform_ops_with_existing_standard_ops():
         "/World/TestExistingStandard",
         "Xform",
         translation=(7.0, 8.0, 9.0),
-        orientation=(0.9238795, 0.3826834, 0.0, 0.0),  # rotation around X
+        orientation=(0.3826834, 0.0, 0.0, 0.9238795),  # rotation around X
         scale=(1.5, 2.5, 3.5),
         stage=stage,
     )
@@ -388,7 +394,7 @@ def test_standardize_xform_ops_with_existing_standard_ops():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
 
     # Verify operations still exist and are in correct order
     xform_ops = get_xform_ops(prim)
@@ -430,7 +436,7 @@ def test_standardize_xform_ops_on_geometry_prim():
         "/World/TestCube",
         "Cube",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(2.0, 2.0, 2.0),
         attributes={"size": 1.0},
         stage=stage,
@@ -446,7 +452,7 @@ def test_standardize_xform_ops_on_geometry_prim():
     pos_after, quat_after = sim_utils.resolve_prim_pose(cube_prim)
     # Verify world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
 
     # Verify standard operations exist
     xform_ops = get_xform_ops(cube_prim)
@@ -463,7 +469,7 @@ def test_standardize_xform_ops_with_non_uniform_scale():
         "/World/TestNonUniformScale",
         "Xform",
         translation=(5.0, 10.0, 15.0),
-        orientation=(0.7071068, 0.0, 0.7071068, 0.0),  # 90 deg around Y
+        orientation=(0.0, 0.7071068, 0.0, 0.7071068),  # 90 deg around Y
         scale=(1.0, 2.0, 3.0),  # Non-uniform scale
         stage=stage,
     )
@@ -482,7 +488,7 @@ def test_standardize_xform_ops_with_non_uniform_scale():
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     # Verify world pose is preserved
     assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
     # Verify scale is preserved
     final_scale = prim.GetAttribute("xformOp:scale").Get()
     assert_vec3_close(initial_scale, final_scale, eps=1e-5)
@@ -498,7 +504,7 @@ def test_standardize_xform_ops_identity_transform():
         "/World/TestIdentity",
         "Xform",
         translation=(0.0, 0.0, 0.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),  # Identity quaternion
+        orientation=(0.0, 0.0, 0.0, 1.0),  # Identity quaternion
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
@@ -512,7 +518,7 @@ def test_standardize_xform_ops_identity_transform():
 
     # Verify identity values
     assert_vec3_close(prim.GetAttribute("xformOp:translate").Get(), (0.0, 0.0, 0.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (1.0, 0.0, 0.0, 0.0))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 0.0, 1.0))
     assert_vec3_close(prim.GetAttribute("xformOp:scale").Get(), (1.0, 1.0, 1.0))
 
 
@@ -526,14 +532,14 @@ def test_standardize_xform_ops_with_explicit_values():
         "/World/TestExplicitValues",
         "Xform",
         translation=(10.0, 10.0, 10.0),
-        orientation=(0.7071068, 0.7071068, 0.0, 0.0),
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),
         scale=(5.0, 5.0, 5.0),
         stage=stage,
     )
 
     # Apply standardize_xform_ops with new explicit values
     new_translation = (1.0, 2.0, 3.0)
-    new_orientation = (1.0, 0.0, 0.0, 0.0)
+    new_orientation = (0.0, 0.0, 0.0, 1.0)  # xyzw identity
     new_scale = (2.0, 2.0, 2.0)
 
     result = sim_utils.standardize_xform_ops(
@@ -549,7 +555,7 @@ def test_standardize_xform_ops_with_explicit_values():
     # Verify the prim is at the expected world location
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     assert_vec3_close(Gf.Vec3d(*pos_after), new_translation, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*quat_after), new_orientation, eps=1e-5)
+    assert_quat_close(quat_after, new_orientation, eps=1e-5)
 
     # Verify standard operation order
     xform_ops = get_xform_ops(prim)
@@ -566,7 +572,7 @@ def test_standardize_xform_ops_with_partial_values():
         "/World/TestPartialValues",
         "Xform",
         translation=(1.0, 2.0, 3.0),
-        orientation=(0.9238795, 0.3826834, 0.0, 0.0),  # rotation around X
+        orientation=(0.3826834, 0.0, 0.0, 0.9238795),  # rotation around X
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
@@ -586,12 +592,12 @@ def test_standardize_xform_ops_with_partial_values():
     # Verify orientation and scale are preserved
     quat_after = prim.GetAttribute("xformOp:orient").Get()
     scale_after = prim.GetAttribute("xformOp:scale").Get()
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+    assert_quat_close(quat_before, quat_after, eps=1e-5)
     assert_vec3_close(scale_before, scale_after, eps=1e-5)
 
     # Verify the prim's world orientation hasn't changed (only translation changed)
     _, quat_after_world = sim_utils.resolve_prim_pose(prim)
-    assert_quat_close(Gf.Quatd(*quat_before), quat_after_world, eps=1e-5)
+    assert_quat_close(quat_before, quat_after_world, eps=1e-5)
 
 
 def test_standardize_xform_ops_non_xformable_prim(caplog):
@@ -677,7 +683,7 @@ def test_standardize_xform_ops_with_complex_hierarchy():
         pos_before, quat_before = poses_before[name]
         pos_after, quat_after = poses_after[name]
         assert_vec3_close(Gf.Vec3d(*pos_before), pos_after, eps=1e-5)
-        assert_quat_close(Gf.Quatd(*quat_before), quat_after, eps=1e-5)
+        assert_quat_close(quat_before, quat_after, eps=1e-5)
 
 
 def test_standardize_xform_ops_preserves_float_precision():
@@ -695,7 +701,7 @@ def test_standardize_xform_ops_preserves_float_precision():
     translate_op.Set(Gf.Vec3f(1.0, 2.0, 3.0))
 
     orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat)
-    orient_op.Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
+    orient_op.Set(Gf.Quatf(0.0, 0.0, 0.0, 1.0))
 
     scale_op = xformable.AddScaleOp(UsdGeom.XformOp.PrecisionFloat)
     scale_op.Set(Gf.Vec3f(1.0, 1.0, 1.0))
@@ -707,7 +713,7 @@ def test_standardize_xform_ops_preserves_float_precision():
 
     # Now apply standardize_xform_ops with new values (provided as double precision Python floats)
     new_translation = (5.0, 10.0, 15.0)
-    new_orientation = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
+    new_orientation = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around X
     new_scale = (2.0, 3.0, 4.0)
 
     result = sim_utils.standardize_xform_ops(
@@ -740,7 +746,7 @@ def test_standardize_xform_ops_preserves_float_precision():
     # Verify the world pose matches what we set
     pos_after, quat_after = sim_utils.resolve_prim_pose(prim)
     assert_vec3_close(Gf.Vec3d(*pos_after), new_translation, eps=1e-4)
-    assert_quat_close(Gf.Quatd(*quat_after), new_orientation, eps=1e-4)
+    assert_quat_close(quat_after, new_orientation, eps=1e-4)
 
 
 """
@@ -758,7 +764,7 @@ def test_validate_standard_xform_ops_valid():
         "/World/TestValid",
         "Xform",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
@@ -788,7 +794,7 @@ def test_validate_standard_xform_ops_invalid_order():
     translate_op.Set(Gf.Vec3d(1.0, 2.0, 3.0))
 
     orient_op = xformable.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
-    orient_op.Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+    orient_op.Set(Gf.Quatd(0.0, 0.0, 0.0, 1.0))
 
     # Validate it - should return False
     assert sim_utils.validate_standard_xform_ops(prim) is False
@@ -884,7 +890,7 @@ def test_validate_standard_xform_ops_extra_operations():
         "/World/TestExtra",
         "Xform",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
@@ -937,7 +943,7 @@ def test_validate_standard_xform_ops_on_geometry():
         "/World/TestCube",
         "Cube",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
@@ -1045,7 +1051,7 @@ def test_resolve_prim_pose():
         pos, quat = sim_utils.resolve_prim_pose(dummy_prim, ref_prim=xform_prim)
         pos, quat = np.array(pos), np.array(quat)
         np.testing.assert_allclose(pos, np.zeros(3), atol=1e-3)
-        np.testing.assert_allclose(quat, np.array([1, 0, 0, 0]), atol=1e-3)
+        np.testing.assert_allclose(quat, np.array([0.0, 0.0, 0.0, 1.0]), atol=1e-3)
         # xform prim w.r.t. cube prim
         pos, quat = sim_utils.resolve_prim_pose(xform_prim, ref_prim=cube_prim)
         pos, quat = np.array(pos), np.array(quat)
@@ -1149,14 +1155,14 @@ def test_convert_world_pose_to_local_basic():
         "/World/Parent",
         "Xform",
         translation=(5.0, 0.0, 0.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation
+        orientation=(0.0, 0.0, 0.0, 1.0),  # identity rotation
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
 
     # World pose we want to achieve for a child
     world_position = (10.0, 3.0, 0.0)
-    world_orientation = (1.0, 0.0, 0.0, 0.0)  # identity rotation
+    world_orientation = (0.0, 0.0, 0.0, 1.0)  # identity rotation
 
     # Convert to local space
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1167,7 +1173,7 @@ def test_convert_world_pose_to_local_basic():
 
     # The expected local translation is world_position - parent_position = (10-5, 3-0, 0-0) = (5, 3, 0)
     assert_vec3_close(Gf.Vec3d(*local_translation), (5.0, 3.0, 0.0), eps=1e-5)
-    assert_quat_close(Gf.Quatd(*local_orientation), (1.0, 0.0, 0.0, 0.0), eps=1e-5)
+    assert_quat_close(local_orientation, (0.0, 0.0, 0.0, 1.0), eps=1e-5)
 
 
 def test_convert_world_pose_to_local_with_rotation():
@@ -1180,14 +1186,14 @@ def test_convert_world_pose_to_local_with_rotation():
         "/World/RotatedParent",
         "Xform",
         translation=(0.0, 0.0, 0.0),
-        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        orientation=(0.0, 0.0, 0.7071068, 0.7071068),  # 90 deg around Z
         scale=(1.0, 1.0, 1.0),
         stage=stage,
     )
 
     # World pose: position at (1, 0, 0) with identity rotation
     world_position = (1.0, 0.0, 0.0)
-    world_orientation = (1.0, 0.0, 0.0, 0.0)
+    world_orientation = (0.0, 0.0, 0.0, 1.0)
 
     # Convert to local space
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1208,7 +1214,7 @@ def test_convert_world_pose_to_local_with_rotation():
 
     # Verify it matches the desired world pose
     assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-5)
-    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-5)
+    assert_quat_close(child_world_quat, world_orientation, eps=1e-5)
 
 
 def test_convert_world_pose_to_local_with_scale():
@@ -1221,14 +1227,14 @@ def test_convert_world_pose_to_local_with_scale():
         "/World/ScaledParent",
         "Xform",
         translation=(1.0, 2.0, 3.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
 
     # World pose we want
     world_position = (5.0, 6.0, 7.0)
-    world_orientation = (0.7071068, 0.7071068, 0.0, 0.0)  # 90 deg around X
+    world_orientation = (0.7071068, 0.0, 0.0, 0.7071068)  # 90 deg around X
 
     # Convert to local space
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1249,7 +1255,7 @@ def test_convert_world_pose_to_local_with_scale():
 
     # Verify (may have some tolerance due to scale effects on rotation)
     assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-4)
-    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
+    assert_quat_close(child_world_quat, world_orientation, eps=1e-4)
 
 
 def test_convert_world_pose_to_local_invalid_parent():
@@ -1262,7 +1268,7 @@ def test_convert_world_pose_to_local_invalid_parent():
     assert not invalid_prim.IsValid()
 
     world_position = (10.0, 20.0, 30.0)
-    world_orientation = (0.7071068, 0.0, 0.7071068, 0.0)
+    world_orientation = (0.0, 0.7071068, 0.0, 0.7071068)
 
     # Convert with invalid reference prim
     with pytest.raises(ValueError):
@@ -1278,7 +1284,7 @@ def test_convert_world_pose_to_local_root_parent():
     root_prim = stage.GetPrimAtPath("/")
 
     world_position = (15.0, 25.0, 35.0)
-    world_orientation = (0.9238795, 0.3826834, 0.0, 0.0)
+    world_orientation = (0.3826834, 0.0, 0.0, 0.9238795)
 
     # Convert with root parent
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1289,7 +1295,7 @@ def test_convert_world_pose_to_local_root_parent():
 
     # Should return unchanged
     assert_vec3_close(Gf.Vec3d(*local_translation), world_position, eps=1e-10)
-    assert_quat_close(Gf.Quatd(*local_orientation), world_orientation, eps=1e-10)
+    assert_quat_close(local_orientation, world_orientation, eps=1e-10)
 
 
 def test_convert_world_pose_to_local_none_orientation():
@@ -1302,7 +1308,7 @@ def test_convert_world_pose_to_local_none_orientation():
         "/World/ParentNoOrient",
         "Xform",
         translation=(3.0, 4.0, 5.0),
-        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        orientation=(0.0, 0.0, 0.7071068, 0.7071068),  # 90 deg around Z
         stage=stage,
     )
 
@@ -1327,7 +1333,7 @@ def test_convert_world_pose_to_local_complex_hierarchy():
         "/World/Grandparent",
         "Xform",
         translation=(10.0, 0.0, 0.0),
-        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        orientation=(0.0, 0.0, 0.7071068, 0.7071068),  # 90 deg around Z
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
@@ -1336,14 +1342,14 @@ def test_convert_world_pose_to_local_complex_hierarchy():
         "/World/Grandparent/Parent",
         "Xform",
         translation=(5.0, 0.0, 0.0),  # local to grandparent
-        orientation=(0.7071068, 0.7071068, 0.0, 0.0),  # 90 deg around X
+        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around X
         scale=(0.5, 0.5, 0.5),
         stage=stage,
     )
 
     # World pose we want to achieve
     world_position = (20.0, 15.0, 10.0)
-    world_orientation = (1.0, 0.0, 0.0, 0.0)
+    world_orientation = (0.0, 0.0, 0.0, 1.0)
 
     # Convert to local space relative to parent
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1364,7 +1370,7 @@ def test_convert_world_pose_to_local_complex_hierarchy():
 
     # Should match the desired world pose (with some tolerance for complex transforms)
     assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-4)
-    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-4)
+    assert_quat_close(child_world_quat, world_orientation, eps=1e-4)
 
 
 def test_convert_world_pose_to_local_with_mixed_prim_types():
@@ -1378,7 +1384,7 @@ def test_convert_world_pose_to_local_with_mixed_prim_types():
         "/World/Grandparent",
         "Xform",
         translation=(5.0, 3.0, 2.0),
-        orientation=(0.7071068, 0.0, 0.0, 0.7071068),  # 90 deg around Z
+        orientation=(0.0, 0.0, 0.7071068, 0.7071068),  # 90 deg around Z
         scale=(2.0, 2.0, 2.0),
         stage=stage,
     )
@@ -1389,14 +1395,14 @@ def test_convert_world_pose_to_local_with_mixed_prim_types():
     # Obtain parent prim pose (should be grandparent's transform)
     parent_pos, parent_quat = sim_utils.resolve_prim_pose(parent)
     assert_vec3_close(Gf.Vec3d(*parent_pos), (5.0, 3.0, 2.0), eps=1e-5)
-    assert_quat_close(Gf.Quatd(*parent_quat), (0.7071068, 0.0, 0.0, 0.7071068), eps=1e-5)
+    assert_quat_close(parent_quat, (0.0, 0.0, 0.7071068, 0.7071068), eps=1e-5)
 
     # Child: Mesh prim (geometry)
     child = sim_utils.create_prim("/World/Grandparent/Parent/Child", "Mesh", stage=stage)
 
     # World pose we want to achieve for the child
     world_position = (10.0, 5.0, 3.0)
-    world_orientation = (1.0, 0.0, 0.0, 0.0)  # identity rotation
+    world_orientation = (0.0, 0.0, 0.0, 1.0)  # identity rotation
 
     # Convert to local space relative to parent (Scope)
     local_translation, local_orientation = sim_utils.convert_world_pose_to_local(
@@ -1411,7 +1417,7 @@ def test_convert_world_pose_to_local_with_mixed_prim_types():
     translate_op = xformable.GetTranslateOp()
     translate_op.Set(Gf.Vec3d(*local_translation))
     orient_op = xformable.GetOrientOp()
-    orient_op.Set(Gf.Quatd(*local_orientation))
+    orient_op.Set(Gf.Quatd(local_orientation[3], local_orientation[0], local_orientation[1], local_orientation[2]))
 
     # Verify world pose of child
     child_world_pos, child_world_quat = sim_utils.resolve_prim_pose(child)
@@ -1420,4 +1426,4 @@ def test_convert_world_pose_to_local_with_mixed_prim_types():
     # Note: Scope prims typically have no transform, so the child's world pose should account
     # for the grandparent's transform
     assert_vec3_close(Gf.Vec3d(*child_world_pos), world_position, eps=1e-10)
-    assert_quat_close(Gf.Quatd(*child_world_quat), world_orientation, eps=1e-10)
+    assert_quat_close(child_world_quat, world_orientation, eps=1e-10)

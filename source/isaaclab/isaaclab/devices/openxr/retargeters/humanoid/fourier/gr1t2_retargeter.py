@@ -139,7 +139,7 @@ class GR1T2Retargeter(RetargeterBase):
         # This was determined through trial and error
         zero_pos = torch.zeros(3, dtype=torch.float32)
         # 180 degree rotation around z axis
-        z_axis_rot_quat = torch.tensor([0, 0, 0, 1], dtype=torch.float32)
+        z_axis_rot_quat = torch.tensor([0, 0, 1, 0], dtype=torch.float32)
         usd_right_roll_link_in_openxr_right_wrist = PoseUtils.make_pose(
             zero_pos, PoseUtils.matrix_from_quat(z_axis_rot_quat)
         )

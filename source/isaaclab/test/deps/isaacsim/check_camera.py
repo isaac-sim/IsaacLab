@@ -133,7 +133,7 @@ def main():
         cam_prim_path,
         prim_type="Camera",
         translation=(5.0, 5.0, 5.0),
-        orientation=(0.33985113, 0.17591988, 0.42470818, 0.82047324),
+        orientation=(0.17591988, 0.42470818, 0.82047324, 0.33985113),
     )
     _ = UsdGeom.Camera(cam_prim)
     # Get render product

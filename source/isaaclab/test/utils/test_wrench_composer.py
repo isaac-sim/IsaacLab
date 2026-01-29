@@ -35,7 +35,7 @@ class MockAssetData:
             num_bodies: Number of bodies.
             device: Device to use.
             link_pos: Optional link positions (num_envs, num_bodies, 3). Defaults to zeros.
-            link_quat: Optional link quaternions in (w, x, y, z) format (num_envs, num_bodies, 4).
+            link_quat: Optional link quaternions in (x, y, z, w) format (num_envs, num_bodies, 4).
                        Defaults to identity quaternion.
         """
         if link_pos is not None:
@@ -46,9 +46,9 @@ class MockAssetData:
         if link_quat is not None:
             self.body_link_quat_w = link_quat.to(device=device, dtype=torch.float32)
         else:
-            # Identity quaternion (w, x, y, z) = (1, 0, 0, 0)
+            # Identity quaternion (x, y, z, w) = (0, 0, 0, 1)
             self.body_link_quat_w = torch.zeros((num_envs, num_bodies, 4), dtype=torch.float32, device=device)
-            self.body_link_quat_w[..., 0] = 1.0
+            self.body_link_quat_w[..., 3] = 1.0
 
 
 class MockRigidObject:
@@ -73,7 +73,7 @@ class MockRigidObject:
             num_bodies: Number of bodies.
             device: Device to use.
             link_pos: Optional link positions (num_envs, num_bodies, 3).
-            link_quat: Optional link quaternions in (w, x, y, z) format (num_envs, num_bodies, 4).
+            link_quat: Optional link quaternions in (x, y, z, w) format (num_envs, num_bodies, 4).
         """
         self.num_instances = num_envs
         self.num_bodies = num_bodies
@@ -84,19 +84,19 @@ class MockRigidObject:
 # --- Helper functions for quaternion math ---
 
 
-def quat_rotate_inv_np(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
+def quat_rotate_inv_np(quat_xyzw: np.ndarray, vec: np.ndarray) -> np.ndarray:
     """Rotate a vector by the inverse of a quaternion (numpy).
 
     Args:
-        quat_wxyz: Quaternion in (w, x, y, z) format. Shape: (..., 4)
+        quat_xyzw: Quaternion in (x, y, z, w) format. Shape: (..., 4)
         vec: Vector to rotate. Shape: (..., 3)
 
     Returns:
         Rotated vector. Shape: (..., 3)
     """
     # Extract components
-    w = quat_wxyz[..., 0:1]
-    xyz = quat_wxyz[..., 1:4]
+    xyz = quat_xyzw[..., 0:3]
+    w = quat_xyzw[..., 3:4]
 
     # For inverse rotation, we conjugate the quaternion (negate xyz)
     # q^-1 * v * q = q_conj * v * q_conj^-1 for unit quaternion
@@ -110,7 +110,7 @@ def quat_rotate_inv_np(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
 
 
 def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndarray:
-    """Generate random unit quaternions in (w, x, y, z) format.
+    """Generate random unit quaternions in (x, y, z, w) format.
 
     Args:
         rng: Random number generator.
@@ -577,10 +577,10 @@ def test_90_degree_rotation_global_force(device: str):
     """Test global force with a known 90-degree rotation for easy verification."""
     num_envs, num_bodies = 1, 1
 
-    # 90-degree rotation around Z-axis: (w, x, y, z) = (cos(45°), 0, 0, sin(45°))
+    # 90-degree rotation around Z-axis: (x, y, z, w) = (0, 0, sin(45°), cos(45°))
     # This rotates X -> Y, Y -> -X
     angle = np.pi / 2
-    link_quat_np = np.array([[[[np.cos(angle / 2), 0, 0, np.sin(angle / 2)]]]], dtype=np.float32).reshape(1, 1, 4)
+    link_quat_np = np.array([[[[0, 0, np.sin(angle / 2), np.cos(angle / 2)]]]], dtype=np.float32).reshape(1, 1, 4)
     link_quat_torch = torch.from_numpy(link_quat_np)
 
     mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)

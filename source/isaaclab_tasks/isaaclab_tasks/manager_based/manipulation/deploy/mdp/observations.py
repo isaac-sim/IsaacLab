@@ -96,7 +96,7 @@ class gear_shaft_pos_w(ManagerTermBase):
         self.offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
         self.identity_quat = (
-            torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
             .repeat(env.num_envs, 1)
             .contiguous()
         )

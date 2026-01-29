@@ -33,7 +33,7 @@ from isaaclab.sim import build_simulation_context
 def generate_cubes_scene(
     num_cubes: int = 1,
     height: float = 1.0,
-    initial_rot: tuple[float, ...] = (1.0, 0.0, 0.0, 0.0),
+    initial_rot: tuple[float, ...] = (0.0, 0.0, 0.0, 1.0),
     has_api: bool = True,
     material_path: str | None = "material",
     kinematic_enabled: bool = False,
@@ -44,7 +44,7 @@ def generate_cubes_scene(
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes. Default is 1.0.
-        initial_rot: Initial rotation of the cubes. Default is (1.0, 0.0, 0.0, 0.0).
+        initial_rot: Initial rotation of the cubes (xyzw format). Default is (0.0, 0.0, 0.0, 1.0).
         has_api: Whether the cubes have a deformable body API on them.
         material_path: Path to the material file. If None, no material is added. Default is "material",
             which is path relative to the spawned object prim path.

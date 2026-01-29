@@ -41,7 +41,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
@@ -51,7 +51,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     blue_exhaust_pipe = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/BlueExhaustPipe",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.04904, 0.31, 1.2590], rot=[0, 0, 1.0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.04904, 0.31, 1.2590], rot=[0, 1.0, 0.0, 0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_exhaust_pipe.usd",
             scale=(0.5, 0.5, 1.5),
@@ -61,7 +61,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     blue_sorting_bin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/BlueSortingBin",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.16605, 0.39, 0.98634], rot=[1.0, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.16605, 0.39, 0.98634], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/blue_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
@@ -71,7 +71,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     black_sorting_bin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/BlackSortingBin",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.40132, 0.39, 0.98634], rot=[1.0, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.40132, 0.39, 0.98634], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/exhaust_pipe_task/exhaust_pipe_assets/black_sorting_bin.usd",
             scale=(1.0, 1.7, 1.0),
@@ -84,7 +84,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
-            rot=(0.7071, 0, 0, 0.7071),
+            rot=(0.0, 0.0, 0.7071, 0.7071),
             joint_pos={
                 # right-arm
                 "right_shoulder_pitch_joint": 0.0,
@@ -145,7 +145,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(-0.17246, 0.98502, 0.0, 0.0), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.85418), rot=(0.0, 0.98502, 0.0, -0.17246), convention="ros"),
     )
 
     # Ground plane
@@ -264,7 +264,7 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     # OpenXR hand tracking has 26 joints per hand
@@ -282,16 +282,16 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
                 -0.2909,
                 0.2778,
                 1.1247,
-                0.5253,
                 0.5747,
                 -0.4160,
                 0.4699,
+                0.5253,
                 0.22878,
                 0.2536,
                 1.0953,
                 0.5,
-                0.5,
                 -0.5,
+                0.5,
                 0.5,
                 0.0,
                 0.0,

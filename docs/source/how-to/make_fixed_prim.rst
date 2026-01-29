@@ -100,7 +100,7 @@ For instance, to spawn an ANYmal robot and make it static in the simulation worl
         ),
     )
     anymal_spawn_cfg.func(
-        "/World/ANYmal", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(1.0, 0.0, 0.0, 0.0)
+        "/World/ANYmal", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(0.0, 0.0, 0.0, 1.0)
     )
 
 

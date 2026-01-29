@@ -9,7 +9,6 @@ import torch
 
 import omni.physics.tensors.impl.api as physx
 
-import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
@@ -132,12 +131,10 @@ class DeformableObjectData:
         """Simulation mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
         Shape is (num_instances, max_sim_elements_per_body, 4).
 
-        The rotations are stored as quaternions in the order (w, x, y, z).
+        The rotations are stored as quaternions in the order (x, y, z, w).
         """
         if self._sim_element_quat_w.timestamp < self._sim_timestamp:
-            # convert from xyzw to wxyz
             quats = self._root_physx_view.get_sim_element_rotations().view(self._root_physx_view.count, -1, 4)
-            quats = math_utils.convert_quat(quats, to="wxyz")
             # set the buffer data and timestamp
             self._sim_element_quat_w.data = quats
             self._sim_element_quat_w.timestamp = self._sim_timestamp
@@ -148,12 +145,10 @@ class DeformableObjectData:
         """Collision mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
         Shape is (num_instances, max_collision_elements_per_body, 4).
 
-        The rotations are stored as quaternions in the order (w, x, y, z).
+        The rotations are stored as quaternions in the order (x, y, z, w).
         """
         if self._collision_element_quat_w.timestamp < self._sim_timestamp:
-            # convert from xyzw to wxyz
             quats = self._root_physx_view.get_element_rotations().view(self._root_physx_view.count, -1, 4)
-            quats = math_utils.convert_quat(quats, to="wxyz")
             # set the buffer data and timestamp
             self._collision_element_quat_w.data = quats
             self._collision_element_quat_w.timestamp = self._sim_timestamp
