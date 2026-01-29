@@ -41,14 +41,13 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import RigidPrim
-from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -88,19 +87,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
 def main():
     """Main function."""
 
-    # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
-        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(SimulationCfg())
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs
@@ -127,20 +116,25 @@ def main():
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    balls_cfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/ball",
+        spawn=None,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
+    )
+    balls = RigidObject(cfg=balls_cfg)
 
     # Play simulator
     sim.reset()
 
     # Initialize the views
     # -- balls
-    ball_view.initialize()
+    print(balls)
     # Print the sensor information
     print(ray_caster)
 
     # Get the initial positions of the balls
-    ball_initial_positions, ball_initial_orientations = ball_view.get_world_poses()
-    ball_initial_velocities = ball_view.get_velocities()
+    ball_initial_poses = balls.data.root_pose_w.clone()
+    ball_initial_velocities = balls.data.root_vel_w.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -156,12 +150,11 @@ def main():
         # Reset the scene
         if step_count % 500 == 0:
             # sample random indices to reset
-            reset_indices = torch.randint(0, num_envs, (num_envs // 2,))
+            reset_indices = torch.randint(0, num_envs, (num_envs // 2,), device=sim.device)
             # reset the balls
-            ball_view.set_world_poses(
-                ball_initial_positions[reset_indices], ball_initial_orientations[reset_indices], indices=reset_indices
-            )
-            ball_view.set_velocities(ball_initial_velocities[reset_indices], indices=reset_indices)
+            balls.write_root_pose_to_sim(ball_initial_poses[reset_indices], env_ids=reset_indices)
+            balls.write_root_velocity_to_sim(ball_initial_velocities[reset_indices], env_ids=reset_indices)
+            balls.reset(reset_indices)
             # reset the sensor
             ray_caster.reset(reset_indices)
             # reset the counter

@@ -107,12 +107,66 @@ To stop all tasks early, press Ctrl+C; the script will cancel all running Ray ta
 """  # noqa: E501
 
 import argparse
+import ast
+import operator
 from datetime import datetime
 
 import yaml
 
 # Local imports
 import util  # isort: skip
+
+# Safe operators for arithmetic expression evaluation
+_SAFE_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Pow: operator.pow,
+    ast.Mod: operator.mod,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
+
+
+def safe_eval_arithmetic(expr: str) -> int | float:
+    """
+    Safely evaluate a string containing only arithmetic expressions.
+
+    Supports: +, -, *, /, //, **, % and numeric literals.
+    Raises ValueError for any non-arithmetic expressions.
+
+    Args:
+        expr: A string containing an arithmetic expression (e.g., "10*1024*1024").
+
+    Returns:
+        The numeric result of the expression.
+
+    Raises:
+        ValueError: If the expression contains non-arithmetic operations.
+    """
+
+    def _eval_node(node: ast.AST) -> int | float:
+        if isinstance(node, ast.Expression):
+            return _eval_node(node.body)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        elif isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPERATORS:
+            left = _eval_node(node.left)
+            right = _eval_node(node.right)
+            return _SAFE_OPERATORS[type(node.op)](left, right)
+        elif isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPERATORS:
+            operand = _eval_node(node.operand)
+            return _SAFE_OPERATORS[type(node.op)](operand)
+        else:
+            raise ValueError(f"Unsafe expression: {ast.dump(node)}")
+
+    try:
+        tree = ast.parse(expr.strip(), mode="eval")
+        return _eval_node(tree)
+    except (SyntaxError, TypeError) as e:
+        raise ValueError(f"Invalid arithmetic expression: {expr}") from e
 
 
 def parse_args() -> argparse.Namespace:
@@ -154,11 +208,14 @@ def parse_task_resource(task: dict) -> util.JobResource:
     """
     resource = util.JobResource()
     if "num_gpus" in task:
-        resource.num_gpus = eval(task["num_gpus"]) if isinstance(task["num_gpus"], str) else task["num_gpus"]
+        value = task["num_gpus"]
+        resource.num_gpus = safe_eval_arithmetic(value) if isinstance(value, str) else value
     if "num_cpus" in task:
-        resource.num_cpus = eval(task["num_cpus"]) if isinstance(task["num_cpus"], str) else task["num_cpus"]
+        value = task["num_cpus"]
+        resource.num_cpus = safe_eval_arithmetic(value) if isinstance(value, str) else value
     if "memory" in task:
-        resource.memory = eval(task["memory"]) if isinstance(task["memory"], str) else task["memory"]
+        value = task["memory"]
+        resource.memory = safe_eval_arithmetic(value) if isinstance(value, str) else value
     return resource
 
 

@@ -10,11 +10,11 @@ The following configuration parameters are available:
 * :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1 with (TODO add motor propeller combination)
 """
 
-from isaaclab_contrib.actuators import ThrusterCfg
-from isaaclab_contrib.assets import MultirotorCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+from isaaclab_contrib.actuators import ThrusterCfg
+from isaaclab_contrib.assets import MultirotorCfg
 
 ##
 # Configuration - Actuators.

@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import GelsightRender
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 
 
 def test_gelsight_render_custom_path_missing_file():

@@ -354,7 +354,7 @@ def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
     Returns:
-        bool: True if loading, False otherwise
+        True if loading, False otherwise
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -388,6 +388,14 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        pathResolverContext=<invalid repr>)
     """
     stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
+
+    if fabric:
+        import usdrt
+
+        # Get stage ID and attach to Fabric stage
+        stage_id = get_current_stage_id()
+        return usdrt.Usd.Stage.Attach(stage_id)
+
     return stage
 
 
