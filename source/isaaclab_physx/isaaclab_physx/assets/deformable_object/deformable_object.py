@@ -92,7 +92,7 @@ class DeformableObject(AssetBase):
     def root_view(self) -> physx.SoftBodyView:
         """Deformable body view for the asset.
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._root_physx_view
@@ -112,7 +112,7 @@ class DeformableObject(AssetBase):
         This view is optional and may not be available if the material is not bound to the deformable body.
         If the material is not available, then the material properties will be set to default values.
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._material_physx_view
@@ -223,7 +223,7 @@ class DeformableObject(AssetBase):
         and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation
         frame.
 
-        Note:
+        .. note::
             The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.
 
         Args:

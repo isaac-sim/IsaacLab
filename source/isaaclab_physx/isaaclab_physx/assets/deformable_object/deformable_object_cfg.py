@@ -24,6 +24,6 @@ class DeformableObjectCfg(AssetBaseCfg):
     )
     """The configuration object for the visualization markers. Defaults to DEFORMABLE_TARGET_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """

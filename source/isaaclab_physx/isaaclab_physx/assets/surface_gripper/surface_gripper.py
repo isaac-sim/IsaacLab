@@ -40,12 +40,12 @@ class SurfaceGripper(AssetBase):
     properties of the grippers at runtime. Finally, the :func:`set_grippers_command` function should be used to set the
     desired command for the grippers.
 
-    Note:
+    .. note::
         The :func:`set_grippers_command` function does not write to the simulation. The simulation automatically
          calls :func:`write_data_to_sim` function to write the command to the simulation. Similarly, the update
          function is called automatically for every simulation step, and does not need to be called by the user.
 
-    Note:
+    .. note::
         The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
         Use `--device cpu` to run the simulation on CPU.
     """
@@ -176,7 +176,7 @@ class SurfaceGripper(AssetBase):
         - "Closing" --> 0.0
         - "Closed" --> 1.0
 
-        Note:
+        .. note::
             We need to do this conversion for every single step of the simulation because the gripper can lose contact
             with the object if some conditions are met: such as if a large force is applied to the gripped object.
         """
@@ -251,7 +251,7 @@ class SurfaceGripper(AssetBase):
             ValueError: If the simulation backend is not CPU.
             RuntimeError: If the Simulation Context is not initialized or if gripper prims are not found.
 
-        Note:
+        .. note::
             The SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU.
             Use `--device cpu` to run the simulation on CPU.
         """

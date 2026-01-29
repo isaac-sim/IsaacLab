@@ -30,6 +30,12 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    def target_pose_source(self) -> list[int]:
+        """Pose of the target frame(s) relative to source frame. Shape is (N, M, 7). Quaternion in wxyz order."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def target_pos_source(self) -> torch.Tensor:
         """Position of the target frame(s) relative to source frame. Shape is (N, M, 3)."""
         raise NotImplementedError
@@ -42,6 +48,12 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    def target_pose_w(self) -> torch.Tensor:
+        """Pose of the target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in wxyz order."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def target_pos_w(self) -> torch.Tensor:
         """Position of the target frame(s) after offset in world frame. Shape is (N, M, 3)."""
         raise NotImplementedError
@@ -50,6 +62,12 @@ class BaseFrameTransformerData(ABC):
     @abstractmethod
     def target_quat_w(self) -> torch.Tensor:
         """Orientation of the target frame(s) after offset in world frame (w, x, y, z). Shape is (N, M, 4)."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def source_pose_w(self) -> torch.Tensor:
+        """Pose of the source frame after offset in world frame. Shape is (N, 7). Quaternion in wxyz order."""
         raise NotImplementedError
 
     @property

@@ -42,7 +42,7 @@ class CameraCfg(SensorBaseCfg):
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.
 
-    Note:
+    .. note::
         The parent frame is the frame the sensor attaches to. For example, the parent frame of a
         camera at path ``/World/envs/env_0/Robot/Camera`` is ``/World/envs/env_0/Robot``.
     """

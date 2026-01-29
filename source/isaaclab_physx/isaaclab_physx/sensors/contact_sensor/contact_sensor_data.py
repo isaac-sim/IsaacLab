@@ -14,6 +14,11 @@ class ContactSensorData(BaseContactSensorData):
     """Data container for the PhysX contact reporting sensor."""
 
     @property
+    def pose_w(self) -> torch.Tensor | None:
+        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        return torch.cat([self._pos_w, self._quat_w], dim=-1)
+
+    @property
     def pos_w(self) -> torch.Tensor | None:
         """Position of the sensor origin in world frame. Shape is (N, 3).
 

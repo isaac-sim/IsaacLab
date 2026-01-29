@@ -577,7 +577,7 @@ class Camera(SensorBase):
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
 
-        Note:
+        .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """

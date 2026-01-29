@@ -21,6 +21,12 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
+    def pose_w(self) -> torch.Tensor | None:
+        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
     def pos_w(self) -> torch.Tensor | None:
         """Position of the sensor origin in world frame. Shape is (N, 3).
 

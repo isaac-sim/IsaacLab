@@ -125,16 +125,16 @@ class ContactSensor(BaseContactSensor):
     def body_physx_view(self) -> physx.RigidBodyView:
         """View for the rigid bodies captured (PhysX).
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._body_physx_view
 
     @property
-    def contact_physx_view(self) -> physx.RigidContactView:
+    def contact_view(self) -> physx.RigidContactView:
         """Contact reporter view for the bodies (PhysX).
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._contact_physx_view

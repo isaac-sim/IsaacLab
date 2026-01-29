@@ -84,6 +84,17 @@ class BaseContactSensor(SensorBase):
         """Ordered names of bodies with contact sensors attached."""
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def contact_view(self):
+        """View for the contact reporting.
+        
+        .. note::
+            None if there is no view associated with the sensor.
+        """
+        raise NotImplementedError
+
+
     """
     Operations
     """
@@ -107,7 +118,7 @@ class BaseContactSensor(SensorBase):
         by comparing the current contact time with the given time period. If the contact time is less
         than the given time period, then the bodies are considered to be in contact.
 
-        Note:
+        .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
             words :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true
             if the sensor is updated by the physics or the environment stepping time-step and the sensor
@@ -143,7 +154,7 @@ class BaseContactSensor(SensorBase):
         by comparing the current air time with the given time period. If the air time is less
         than the given time period, then the bodies are considered to not be in contact.
 
-        Note:
+        .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
             :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true if
             the sensor is updated by the physics or the environment stepping time-step and the sensor
@@ -175,6 +186,7 @@ class BaseContactSensor(SensorBase):
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """
 
+    @abstractmethod
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 

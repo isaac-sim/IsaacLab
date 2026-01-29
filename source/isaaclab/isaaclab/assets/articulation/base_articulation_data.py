@@ -590,7 +590,7 @@ class BaseArticulationData(ABC):
     def heading_w(self) -> torch.Tensor:
         """Yaw heading of the base frame (in radians). Shape is (num_instances,).
 
-        Note:
+        .. note::
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """

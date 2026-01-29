@@ -101,7 +101,7 @@ class FrameTransformer(BaseFrameTransformer):
     def num_bodies(self) -> int:
         """Returns the number of target bodies being tracked.
 
-        Note:
+        .. note::
             This is an alias used for consistency with other sensors. Otherwise, we recommend using
             :attr:`len(data.target_frame_names)` to access the number of target frames.
         """
@@ -111,7 +111,7 @@ class FrameTransformer(BaseFrameTransformer):
     def body_names(self) -> list[str]:
         """Returns the names of the target bodies being tracked.
 
-        Note:
+        .. note::
             This is an alias used for consistency with other sensors. Otherwise, we recommend using
             :attr:`data.target_frame_names` to access the target frame names.
         """

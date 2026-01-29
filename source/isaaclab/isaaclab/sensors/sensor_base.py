@@ -294,7 +294,7 @@ class SensorBase(ABC):
     def _initialize_callback(self, event):
         """Initializes the scene elements.
 
-        Note:
+        .. note::
             PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
             called whenever the simulator "plays" from a "stop" state.
         """
@@ -319,7 +319,7 @@ class SensorBase(ABC):
         Args:
             prim_path: The path to the prim that is being deleted.
 
-        Note:
+        .. note::
             This function is called when the prim is deleted.
         """
         if prim_path == "/":

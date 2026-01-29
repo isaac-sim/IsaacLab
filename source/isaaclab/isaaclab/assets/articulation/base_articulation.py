@@ -166,7 +166,7 @@ class BaseArticulation(AssetBase):
     def root_view(self):
         """Root view for the asset.
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         raise NotImplementedError()
@@ -203,7 +203,7 @@ class BaseArticulation(AssetBase):
         If any explicit actuators are present, then the actuator models are used to compute the
         joint commands. Otherwise, the joint commands are directly set into the simulation.
 
-        Note:
+        .. note::
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
@@ -1107,7 +1107,7 @@ class BaseArticulation(AssetBase):
     def _validate_cfg(self) -> None:
         """Validate the configuration after processing.
 
-        Note:
+        .. note::
             This function should be called only after the configuration has been processed and the buffers have been
             created. Otherwise, some settings that are altered during processing may not be validated.
             For instance, the actuator models may change the joint max velocity limits.
@@ -1118,7 +1118,8 @@ class BaseArticulation(AssetBase):
     def _log_articulation_info(self) -> None:
         """Log information about the articulation.
 
-        Note: We purposefully read the values from the simulator to ensure that the values are configured as expected.
+        .. note::
+            We purposefully read the values from the simulator to ensure that the values are configured as expected.
         """
         raise NotImplementedError()
 

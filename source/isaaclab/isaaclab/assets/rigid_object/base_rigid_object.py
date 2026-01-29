@@ -89,7 +89,7 @@ class BaseRigidObject(AssetBase):
     def root_view(self):
         """Root view for the asset.
 
-        Note:
+        .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         raise NotImplementedError()
@@ -123,7 +123,7 @@ class BaseRigidObject(AssetBase):
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
 
-        Note:
+        .. note::
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """

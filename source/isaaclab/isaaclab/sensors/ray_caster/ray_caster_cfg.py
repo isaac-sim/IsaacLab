@@ -35,7 +35,7 @@ class RayCasterCfg(SensorBaseCfg):
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.
 
-    Note:
+    .. note::
         Currently, only a single static mesh is supported. We are working on supporting multiple
         static meshes and dynamic meshes.
     """
@@ -93,6 +93,6 @@ class RayCasterCfg(SensorBaseCfg):
     visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """
