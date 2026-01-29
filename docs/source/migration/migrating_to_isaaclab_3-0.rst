@@ -53,6 +53,25 @@ The following asset classes remain in the ``isaaclab`` package and can still be 
 
 These classes now inherit from new abstract base classes but maintain full backward compatibility.
 
+The following sensor classes also remain in the ``isaaclab`` package with unchanged imports:
+
+- :class:`~isaaclab.sensors.ContactSensor`, :class:`~isaaclab.sensors.ContactSensorCfg`, :class:`~isaaclab.sensors.ContactSensorData`
+- :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.ImuCfg`, :class:`~isaaclab.sensors.ImuData`
+- :class:`~isaaclab.sensors.FrameTransformer`, :class:`~isaaclab.sensors.FrameTransformerCfg`, :class:`~isaaclab.sensors.FrameTransformerData`
+
+These sensor classes now use factory patterns that automatically instantiate the appropriate backend
+implementation (PhysX by default), maintaining full backward compatibility.
+
+If you need to import the PhysX sensor implementations directly (e.g., for type hints or subclassing),
+you can import from ``isaaclab_physx.sensors``:
+
+.. code-block:: python
+
+   # Direct PhysX implementation imports
+   from isaaclab_physx.sensors import ContactSensor, ContactSensorData
+   from isaaclab_physx.sensors import Imu, ImuData
+   from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
+
 
 ``root_physx_view`` Deprecation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

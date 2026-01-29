@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Imu Sensor
-"""
+"""Sub-module for PhysX rigid contact sensor."""
 
-from .base_imu import BaseImu
-from .base_imu_data import BaseImuData
-from .imu import Imu
-from .imu_cfg import ImuCfg
-from .imu_data import ImuData
+from .contact_sensor import ContactSensor
+from .contact_sensor_data import ContactSensorData

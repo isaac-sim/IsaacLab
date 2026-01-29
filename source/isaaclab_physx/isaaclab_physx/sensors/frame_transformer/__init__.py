@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for frame transformer sensor."""
+"""Sub-module for PhysX frame transformer sensor."""
 
-from .base_frame_transformer import BaseFrameTransformer
-from .base_frame_transformer_data import BaseFrameTransformerData
 from .frame_transformer import FrameTransformer
-from .frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
 from .frame_transformer_data import FrameTransformerData
