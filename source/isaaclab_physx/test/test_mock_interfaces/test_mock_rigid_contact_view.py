@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -7,9 +12,8 @@
 
 import pytest
 import torch
-
-from isaaclab_physx.test.mock_interfaces.views import MockRigidContactView
 from isaaclab_physx.test.mock_interfaces.factories import create_mock_rigid_contact_view
+from isaaclab_physx.test.mock_interfaces.views import MockRigidContactView
 
 
 class TestMockRigidContactViewInit:
@@ -181,9 +185,7 @@ class TestMockRigidContactViewFactory:
 
     def test_factory_custom_max_contacts(self):
         """Test factory with custom max contact data count."""
-        view = create_mock_rigid_contact_view(
-            count=2, num_bodies=3, max_contact_data_count=32
-        )
+        view = create_mock_rigid_contact_view(count=2, num_bodies=3, max_contact_data_count=32)
         _, _, _, separations, _, _ = view.get_contact_data(0.01)
         assert separations.shape[1] == 32
 

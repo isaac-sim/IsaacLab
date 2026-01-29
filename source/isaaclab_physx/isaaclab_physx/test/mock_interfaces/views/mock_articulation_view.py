@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -157,9 +162,7 @@ class MockArticulationView:
             Tensor of shape (N, L, 7) with [pos(3), quat_xyzw(4)] per link.
         """
         if self._link_transforms is None:
-            self._link_transforms = torch.zeros(
-                self._count, self._num_links, 7, device=self._device
-            )
+            self._link_transforms = torch.zeros(self._count, self._num_links, 7, device=self._device)
             self._link_transforms[:, :, 6] = 1.0  # w=1 for identity quaternion
         return self._link_transforms.clone()
 
@@ -170,9 +173,7 @@ class MockArticulationView:
             Tensor of shape (N, L, 6) with [lin_vel(3), ang_vel(3)] per link.
         """
         if self._link_velocities is None:
-            self._link_velocities = torch.zeros(
-                self._count, self._num_links, 6, device=self._device
-            )
+            self._link_velocities = torch.zeros(self._count, self._num_links, 6, device=self._device)
         return self._link_velocities.clone()
 
     # -- DOF Getters --
@@ -204,9 +205,7 @@ class MockArticulationView:
             Tensor of shape (N, J) with projected joint forces.
         """
         if self._dof_projected_joint_forces is None:
-            self._dof_projected_joint_forces = torch.zeros(
-                self._count, self._num_dofs, device=self._device
-            )
+            self._dof_projected_joint_forces = torch.zeros(self._count, self._num_dofs, device=self._device)
         return self._dof_projected_joint_forces.clone()
 
     def get_dof_limits(self) -> torch.Tensor:
@@ -250,9 +249,7 @@ class MockArticulationView:
         """
         if self._dof_max_forces is None:
             # Default: infinite max force
-            self._dof_max_forces = torch.full(
-                (self._count, self._num_dofs), float("inf"), device=self._device
-            )
+            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
         return self._dof_max_forces.clone()
 
     def get_dof_max_velocities(self) -> torch.Tensor:
@@ -263,9 +260,7 @@ class MockArticulationView:
         """
         if self._dof_max_velocities is None:
             # Default: infinite max velocity
-            self._dof_max_velocities = torch.full(
-                (self._count, self._num_dofs), float("inf"), device=self._device
-            )
+            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
         return self._dof_max_velocities.clone()
 
     def get_dof_armatures(self) -> torch.Tensor:
@@ -285,9 +280,7 @@ class MockArticulationView:
             Tensor of shape (N, J) with joint friction coefficients.
         """
         if self._dof_friction_coefficients is None:
-            self._dof_friction_coefficients = torch.zeros(
-                self._count, self._num_dofs, device=self._device
-            )
+            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device=self._device)
         return self._dof_friction_coefficients.clone()
 
     # -- Mass Property Getters --
@@ -321,9 +314,7 @@ class MockArticulationView:
         """
         if self._inertias is None:
             # Default: identity inertia
-            self._inertias = torch.zeros(
-                self._count, self._num_links, 3, 3, device=self._device
-            )
+            self._inertias = torch.zeros(self._count, self._num_links, 3, 3, device=self._device)
             self._inertias[:, :, 0, 0] = 1.0
             self._inertias[:, :, 1, 1] = 1.0
             self._inertias[:, :, 2, 2] = 1.0
@@ -521,9 +512,7 @@ class MockArticulationView:
         """
         max_forces = max_forces.to(self._device)
         if self._dof_max_forces is None:
-            self._dof_max_forces = torch.full(
-                (self._count, self._num_dofs), float("inf"), device=self._device
-            )
+            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
         if indices is not None:
             self._dof_max_forces[indices] = max_forces
         else:
@@ -542,9 +531,7 @@ class MockArticulationView:
         """
         max_velocities = max_velocities.to(self._device)
         if self._dof_max_velocities is None:
-            self._dof_max_velocities = torch.full(
-                (self._count, self._num_dofs), float("inf"), device=self._device
-            )
+            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
         if indices is not None:
             self._dof_max_velocities[indices] = max_velocities
         else:
@@ -582,9 +569,7 @@ class MockArticulationView:
         """
         friction_coefficients = friction_coefficients.to(self._device)
         if self._dof_friction_coefficients is None:
-            self._dof_friction_coefficients = torch.zeros(
-                self._count, self._num_dofs, device=self._device
-            )
+            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device=self._device)
         if indices is not None:
             self._dof_friction_coefficients[indices] = friction_coefficients
         else:
@@ -644,9 +629,7 @@ class MockArticulationView:
         """
         inertias = inertias.to(self._device)
         if self._inertias is None:
-            self._inertias = torch.zeros(
-                self._count, self._num_links, 3, 3, device=self._device
-            )
+            self._inertias = torch.zeros(self._count, self._num_links, 3, 3, device=self._device)
             self._inertias[:, :, 0, 0] = 1.0
             self._inertias[:, :, 1, 1] = 1.0
             self._inertias[:, :, 2, 2] = 1.0

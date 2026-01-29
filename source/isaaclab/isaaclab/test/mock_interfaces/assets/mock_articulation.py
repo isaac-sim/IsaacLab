@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,8 +13,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
 import torch
-from typing import Sequence
 
 
 class MockArticulationData:
@@ -1143,9 +1149,7 @@ class MockArticulation:
 
     # -- Finder methods --
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies by name regex patterns."""
         return self._find_by_regex(self._body_names, name_keys, preserve_order)
 
@@ -1457,9 +1461,7 @@ class MockArticulation:
         if joint_ids is None:
             joint_ids = slice(None)
         if self._data._joint_pos_target is None:
-            self._data._joint_pos_target = torch.zeros(
-                self._num_instances, self._num_joints, device=self._device
-            )
+            self._data._joint_pos_target = torch.zeros(self._num_instances, self._num_joints, device=self._device)
         self._data._joint_pos_target[env_ids, joint_ids] = target.to(self._device)
 
     def set_joint_velocity_target(
@@ -1474,9 +1476,7 @@ class MockArticulation:
         if joint_ids is None:
             joint_ids = slice(None)
         if self._data._joint_vel_target is None:
-            self._data._joint_vel_target = torch.zeros(
-                self._num_instances, self._num_joints, device=self._device
-            )
+            self._data._joint_vel_target = torch.zeros(self._num_instances, self._num_joints, device=self._device)
         self._data._joint_vel_target[env_ids, joint_ids] = target.to(self._device)
 
     def set_joint_effort_target(
@@ -1491,9 +1491,7 @@ class MockArticulation:
         if joint_ids is None:
             joint_ids = slice(None)
         if self._data._joint_effort_target is None:
-            self._data._joint_effort_target = torch.zeros(
-                self._num_instances, self._num_joints, device=self._device
-            )
+            self._data._joint_effort_target = torch.zeros(self._num_instances, self._num_joints, device=self._device)
         self._data._joint_effort_target[env_ids, joint_ids] = target.to(self._device)
 
     # -- Tendon methods (fixed) --

@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,15 +13,15 @@
 import pytest
 import torch
 
-from isaaclab.test.mock_interfaces.sensors import MockImu, MockContactSensor, MockFrameTransformer
 from isaaclab.test.mock_interfaces.sensors import (
-    create_mock_imu,
-    create_mock_contact_sensor,
+    MockContactSensor,
+    MockFrameTransformer,
+    MockImu,
     create_mock_foot_contact_sensor,
     create_mock_frame_transformer,
+    create_mock_imu,
 )
 from isaaclab.test.mock_interfaces.utils import MockSensorBuilder
-
 
 # ==============================================================================
 # MockImu Tests

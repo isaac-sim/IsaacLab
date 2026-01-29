@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,8 +13,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
 import torch
-from typing import Sequence
 
 
 class MockRigidObjectData:
@@ -616,9 +622,7 @@ class MockRigidObject:
 
     # -- Finder methods --
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies by name regex patterns."""
         if isinstance(name_keys, str):
             name_keys = [name_keys]

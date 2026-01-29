@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -110,9 +115,7 @@ class MockRigidContactView:
             Tensor of shape (N*B, F, 3) with forces per body per filter.
         """
         if self._contact_force_matrix is None:
-            self._contact_force_matrix = torch.zeros(
-                self._total_bodies, self._filter_count, 3, device=self._device
-            )
+            self._contact_force_matrix = torch.zeros(self._total_bodies, self._filter_count, 3, device=self._device)
         return self._contact_force_matrix.clone()
 
     def get_contact_data(
@@ -135,25 +138,15 @@ class MockRigidContactView:
         max_contacts = self._max_contact_data_count
 
         if self._contact_positions is None:
-            self._contact_positions = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._contact_positions = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._contact_normals is None:
-            self._contact_normals = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._contact_normals = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._contact_impulses is None:
-            self._contact_impulses = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._contact_impulses = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._contact_separations is None:
-            self._contact_separations = torch.zeros(
-                self._total_bodies, max_contacts, device=self._device
-            )
+            self._contact_separations = torch.zeros(self._total_bodies, max_contacts, device=self._device)
         if self._contact_num_found is None:
-            self._contact_num_found = torch.zeros(
-                self._total_bodies, dtype=torch.int32, device=self._device
-            )
+            self._contact_num_found = torch.zeros(self._total_bodies, dtype=torch.int32, device=self._device)
         if self._contact_patch_id is None:
             self._contact_patch_id = torch.zeros(
                 self._total_bodies, max_contacts, dtype=torch.int32, device=self._device
@@ -168,9 +161,7 @@ class MockRigidContactView:
             self._contact_patch_id.clone(),
         )
 
-    def get_friction_data(
-        self, dt: float
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_friction_data(self, dt: float) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Get friction data.
 
         Args:
@@ -186,17 +177,11 @@ class MockRigidContactView:
         max_contacts = self._max_contact_data_count
 
         if self._friction_forces is None:
-            self._friction_forces = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._friction_forces = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._friction_impulses is None:
-            self._friction_impulses = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._friction_impulses = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._friction_points is None:
-            self._friction_points = torch.zeros(
-                self._total_bodies, max_contacts, 3, device=self._device
-            )
+            self._friction_points = torch.zeros(self._total_bodies, max_contacts, 3, device=self._device)
         if self._friction_patch_id is None:
             self._friction_patch_id = torch.zeros(
                 self._total_bodies, max_contacts, dtype=torch.int32, device=self._device

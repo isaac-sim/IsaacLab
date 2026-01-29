@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -13,13 +18,12 @@ from isaaclab.test.mock_interfaces.assets import (
     MockRigidObject,
     MockRigidObjectCollection,
     create_mock_articulation,
-    create_mock_quadruped,
     create_mock_humanoid,
+    create_mock_quadruped,
     create_mock_rigid_object,
     create_mock_rigid_object_collection,
 )
-from isaaclab.test.mock_interfaces.utils import MockArticulationBuilder, MockSensorBuilder
-
+from isaaclab.test.mock_interfaces.utils import MockArticulationBuilder
 
 # ==============================================================================
 # MockArticulation Tests

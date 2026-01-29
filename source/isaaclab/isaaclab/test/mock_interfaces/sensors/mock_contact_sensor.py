@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,8 +13,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
 import torch
-from typing import Sequence
 
 
 class MockContactSensorData:
@@ -93,9 +99,7 @@ class MockContactSensorData:
         if self._history_length == 0:
             return None
         if self._net_forces_w_history is None:
-            return torch.zeros(
-                self._num_instances, self._history_length, self._num_bodies, 3, device=self._device
-            )
+            return torch.zeros(self._num_instances, self._history_length, self._num_bodies, 3, device=self._device)
         return self._net_forces_w_history
 
     @property
@@ -104,9 +108,7 @@ class MockContactSensorData:
         if self._num_filter_bodies == 0:
             return None
         if self._force_matrix_w is None:
-            return torch.zeros(
-                self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device
-            )
+            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
         return self._force_matrix_w
 
     @property
@@ -131,9 +133,7 @@ class MockContactSensorData:
         if self._num_filter_bodies == 0:
             return None
         if self._contact_pos_w is None:
-            return torch.zeros(
-                self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device
-            )
+            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
         return self._contact_pos_w
 
     @property
@@ -142,9 +142,7 @@ class MockContactSensorData:
         if self._num_filter_bodies == 0:
             return None
         if self._friction_forces_w is None:
-            return torch.zeros(
-                self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device
-            )
+            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
         return self._friction_forces_w
 
     @property
@@ -312,9 +310,7 @@ class MockContactSensor:
         self._num_bodies = num_bodies
         self._body_names = body_names or [f"body_{i}" for i in range(num_bodies)]
         self._device = device
-        self._data = MockContactSensorData(
-            num_instances, num_bodies, device, history_length, num_filter_bodies
-        )
+        self._data = MockContactSensorData(num_instances, num_bodies, device, history_length, num_filter_bodies)
 
     # -- Properties --
 
@@ -350,9 +346,7 @@ class MockContactSensor:
 
     # -- Methods --
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies by name regex patterns.
 
         Args:

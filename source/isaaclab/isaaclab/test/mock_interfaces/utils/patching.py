@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,8 +13,9 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, TypeVar
+from typing import Any, TypeVar
 from unittest.mock import patch
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -104,9 +110,7 @@ def patch_sensor(
                 body_names=create_kwargs.get("body_names", kwargs.get("body_names")),
                 device=create_kwargs.get("device", device),
                 history_length=create_kwargs.get("history_length", kwargs.get("history_length", 0)),
-                num_filter_bodies=create_kwargs.get(
-                    "num_filter_bodies", kwargs.get("num_filter_bodies", 0)
-                ),
+                num_filter_bodies=create_kwargs.get("num_filter_bodies", kwargs.get("num_filter_bodies", 0)),
             )
 
     elif sensor_type == "imu":
@@ -124,12 +128,8 @@ def patch_sensor(
         def create_mock(*args: Any, **create_kwargs: Any) -> MockFrameTransformer:
             return MockFrameTransformer(
                 num_instances=create_kwargs.get("num_instances", num_instances),
-                num_target_frames=create_kwargs.get(
-                    "num_target_frames", kwargs.get("num_target_frames", 1)
-                ),
-                target_frame_names=create_kwargs.get(
-                    "target_frame_names", kwargs.get("target_frame_names")
-                ),
+                num_target_frames=create_kwargs.get("num_target_frames", kwargs.get("num_target_frames", 1)),
+                target_frame_names=create_kwargs.get("target_frame_names", kwargs.get("target_frame_names")),
                 device=create_kwargs.get("device", device),
             )
 

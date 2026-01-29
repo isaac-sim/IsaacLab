@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -30,9 +35,7 @@ def create_mock_imu(
         Configured MockImu instance.
     """
     imu = MockImu(num_instances=num_instances, device=device)
-    imu.data.set_projected_gravity_b(
-        torch.tensor([gravity], device=device).expand(num_instances, -1).clone()
-    )
+    imu.data.set_projected_gravity_b(torch.tensor([gravity], device=device).expand(num_instances, -1).clone())
     return imu
 
 

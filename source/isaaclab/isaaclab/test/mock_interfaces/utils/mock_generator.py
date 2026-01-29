@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -7,8 +12,9 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from ..assets import MockArticulation
@@ -19,12 +25,14 @@ class MockArticulationBuilder:
     """Builder class for creating custom MockArticulation instances.
 
     Example:
-        >>> robot = (MockArticulationBuilder()
+        >>> robot = (
+        ...     MockArticulationBuilder()
         ...     .with_joints(["hip", "knee", "ankle"], default_pos=[0.0, 0.5, -0.5])
         ...     .with_bodies(["base", "thigh", "shin", "foot"])
         ...     .with_fixed_base(True)
         ...     .with_num_instances(8)
-        ...     .build())
+        ...     .build()
+        ... )
     """
 
     def __init__(self):
@@ -42,7 +50,7 @@ class MockArticulationBuilder:
         self._fixed_tendon_names: list[str] | None = None
         self._spatial_tendon_names: list[str] | None = None
 
-    def with_num_instances(self, num_instances: int) -> "MockArticulationBuilder":
+    def with_num_instances(self, num_instances: int) -> MockArticulationBuilder:
         """Set the number of articulation instances.
 
         Args:
@@ -59,7 +67,7 @@ class MockArticulationBuilder:
         joint_names: list[str],
         default_pos: list[float] | None = None,
         default_vel: list[float] | None = None,
-    ) -> "MockArticulationBuilder":
+    ) -> MockArticulationBuilder:
         """Set joint configuration.
 
         Args:
@@ -75,7 +83,7 @@ class MockArticulationBuilder:
         self._default_joint_vel = default_vel
         return self
 
-    def with_bodies(self, body_names: list[str]) -> "MockArticulationBuilder":
+    def with_bodies(self, body_names: list[str]) -> MockArticulationBuilder:
         """Set body configuration.
 
         Args:
@@ -87,7 +95,7 @@ class MockArticulationBuilder:
         self._body_names = body_names
         return self
 
-    def with_fixed_base(self, is_fixed: bool) -> "MockArticulationBuilder":
+    def with_fixed_base(self, is_fixed: bool) -> MockArticulationBuilder:
         """Set whether the articulation has a fixed base.
 
         Args:
@@ -99,7 +107,7 @@ class MockArticulationBuilder:
         self._is_fixed_base = is_fixed
         return self
 
-    def with_device(self, device: str) -> "MockArticulationBuilder":
+    def with_device(self, device: str) -> MockArticulationBuilder:
         """Set the device for tensor allocation.
 
         Args:
@@ -111,9 +119,7 @@ class MockArticulationBuilder:
         self._device = device
         return self
 
-    def with_joint_limits(
-        self, lower: float, upper: float
-    ) -> "MockArticulationBuilder":
+    def with_joint_limits(self, lower: float, upper: float) -> MockArticulationBuilder:
         """Set uniform joint position limits for all joints.
 
         Args:
@@ -126,9 +132,7 @@ class MockArticulationBuilder:
         self._joint_pos_limits = (lower, upper)
         return self
 
-    def with_fixed_tendons(
-        self, tendon_names: list[str]
-    ) -> "MockArticulationBuilder":
+    def with_fixed_tendons(self, tendon_names: list[str]) -> MockArticulationBuilder:
         """Set fixed tendon configuration.
 
         Args:
@@ -141,9 +145,7 @@ class MockArticulationBuilder:
         self._num_fixed_tendons = len(tendon_names)
         return self
 
-    def with_spatial_tendons(
-        self, tendon_names: list[str]
-    ) -> "MockArticulationBuilder":
+    def with_spatial_tendons(self, tendon_names: list[str]) -> MockArticulationBuilder:
         """Set spatial tendon configuration.
 
         Args:
@@ -156,7 +158,7 @@ class MockArticulationBuilder:
         self._num_spatial_tendons = len(tendon_names)
         return self
 
-    def build(self) -> "MockArticulation":
+    def build(self) -> MockArticulation:
         """Build the MockArticulation instance.
 
         Returns:
@@ -213,11 +215,13 @@ class MockSensorBuilder:
     """Builder class for creating custom mock sensor instances.
 
     Example:
-        >>> sensor = (MockSensorBuilder("contact")
+        >>> sensor = (
+        ...     MockSensorBuilder("contact")
         ...     .with_num_instances(4)
         ...     .with_bodies(["FL_foot", "FR_foot", "RL_foot", "RR_foot"])
         ...     .with_device("cuda")
-        ...     .build())
+        ...     .build()
+        ... )
     """
 
     def __init__(self, sensor_type: str):
@@ -240,7 +244,7 @@ class MockSensorBuilder:
         # Frame transformer specific
         self._target_frame_names: list[str] = []
 
-    def with_num_instances(self, num_instances: int) -> "MockSensorBuilder":
+    def with_num_instances(self, num_instances: int) -> MockSensorBuilder:
         """Set the number of sensor instances.
 
         Args:
@@ -252,7 +256,7 @@ class MockSensorBuilder:
         self._num_instances = num_instances
         return self
 
-    def with_device(self, device: str) -> "MockSensorBuilder":
+    def with_device(self, device: str) -> MockSensorBuilder:
         """Set the device for tensor allocation.
 
         Args:
@@ -264,7 +268,7 @@ class MockSensorBuilder:
         self._device = device
         return self
 
-    def with_bodies(self, body_names: list[str]) -> "MockSensorBuilder":
+    def with_bodies(self, body_names: list[str]) -> MockSensorBuilder:
         """Set body names (for contact sensor).
 
         Args:
@@ -276,7 +280,7 @@ class MockSensorBuilder:
         self._body_names = body_names
         return self
 
-    def with_history_length(self, length: int) -> "MockSensorBuilder":
+    def with_history_length(self, length: int) -> MockSensorBuilder:
         """Set history buffer length (for contact sensor).
 
         Args:
@@ -288,7 +292,7 @@ class MockSensorBuilder:
         self._history_length = length
         return self
 
-    def with_filter_bodies(self, num_filter_bodies: int) -> "MockSensorBuilder":
+    def with_filter_bodies(self, num_filter_bodies: int) -> MockSensorBuilder:
         """Set number of filter bodies (for contact sensor).
 
         Args:
@@ -300,7 +304,7 @@ class MockSensorBuilder:
         self._num_filter_bodies = num_filter_bodies
         return self
 
-    def with_target_frames(self, frame_names: list[str]) -> "MockSensorBuilder":
+    def with_target_frames(self, frame_names: list[str]) -> MockSensorBuilder:
         """Set target frame names (for frame transformer).
 
         Args:
@@ -312,7 +316,7 @@ class MockSensorBuilder:
         self._target_frame_names = frame_names
         return self
 
-    def build(self) -> "MockContactSensor | MockImu | MockFrameTransformer":
+    def build(self) -> MockContactSensor | MockImu | MockFrameTransformer:
         """Build the mock sensor instance.
 
         Returns:

@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -82,7 +87,7 @@ def create_mock_quadruped(
     # Set reasonable default joint limits for a quadruped
     joint_pos_limits = torch.zeros(num_instances, 12, 2, device=device)
     joint_pos_limits[..., 0] = -1.57  # Lower limit
-    joint_pos_limits[..., 1] = 1.57   # Upper limit
+    joint_pos_limits[..., 1] = 1.57  # Upper limit
     robot.data.set_joint_pos_limits(joint_pos_limits)
 
     return robot
@@ -106,23 +111,48 @@ def create_mock_humanoid(
     # Simplified humanoid joint structure
     joint_names = [
         # Torso
-        "torso_yaw", "torso_pitch", "torso_roll",
+        "torso_yaw",
+        "torso_pitch",
+        "torso_roll",
         # Left arm
-        "L_shoulder_pitch", "L_shoulder_roll", "L_shoulder_yaw", "L_elbow",
+        "L_shoulder_pitch",
+        "L_shoulder_roll",
+        "L_shoulder_yaw",
+        "L_elbow",
         # Right arm
-        "R_shoulder_pitch", "R_shoulder_roll", "R_shoulder_yaw", "R_elbow",
+        "R_shoulder_pitch",
+        "R_shoulder_roll",
+        "R_shoulder_yaw",
+        "R_elbow",
         # Left leg
-        "L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle_pitch",
+        "L_hip_yaw",
+        "L_hip_roll",
+        "L_hip_pitch",
+        "L_knee",
+        "L_ankle_pitch",
         # Right leg
-        "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle_pitch",
+        "R_hip_yaw",
+        "R_hip_roll",
+        "R_hip_pitch",
+        "R_knee",
+        "R_ankle_pitch",
     ]
 
     body_names = [
-        "pelvis", "torso",
-        "L_upper_arm", "L_lower_arm", "L_hand",
-        "R_upper_arm", "R_lower_arm", "R_hand",
-        "L_thigh", "L_shin", "L_foot",
-        "R_thigh", "R_shin", "R_foot",
+        "pelvis",
+        "torso",
+        "L_upper_arm",
+        "L_lower_arm",
+        "L_hand",
+        "R_upper_arm",
+        "R_lower_arm",
+        "R_hand",
+        "L_thigh",
+        "L_shin",
+        "L_foot",
+        "R_thigh",
+        "R_shin",
+        "R_foot",
         "head",
     ]
 

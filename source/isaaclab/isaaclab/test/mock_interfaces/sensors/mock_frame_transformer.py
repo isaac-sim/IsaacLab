@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -8,8 +13,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
 import torch
-from typing import Sequence
 
 
 class MockFrameTransformerData:
@@ -202,9 +208,7 @@ class MockFrameTransformer:
         self._num_target_frames = num_target_frames
         self._target_frame_names = target_frame_names or [f"frame_{i}" for i in range(num_target_frames)]
         self._device = device
-        self._data = MockFrameTransformerData(
-            num_instances, num_target_frames, self._target_frame_names, device
-        )
+        self._data = MockFrameTransformerData(num_instances, num_target_frames, self._target_frame_names, device)
 
     # -- Properties --
 
@@ -235,9 +239,7 @@ class MockFrameTransformer:
 
     # -- Methods --
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find target frames by name regex patterns.
 
         Args:

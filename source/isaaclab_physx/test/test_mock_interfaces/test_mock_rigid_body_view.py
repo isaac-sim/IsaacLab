@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -7,9 +12,8 @@
 
 import pytest
 import torch
-
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 from isaaclab_physx.test.mock_interfaces.factories import create_mock_rigid_body_view
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 
 class TestMockRigidBodyViewInit:
