@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.54.4 (2026-01-29)
+0.56.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -35,7 +35,7 @@ Changed
   * ``test_frame_transformer.py`` → ``isaaclab_physx/test/sensors/``
 
 
-0.54.3 (2026-01-29)
+0.55.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added

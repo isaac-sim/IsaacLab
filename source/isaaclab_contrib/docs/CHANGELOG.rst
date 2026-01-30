@@ -1,10 +1,10 @@
 Changelog
 ---------
 
-0.0.3 (2026-01-29)
+0.1.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~
 
-Updated
+Changed
 ^^^^^^^
 
 * Updated the multirotor asset to use the new base classes from the isaaclab_physx package.
