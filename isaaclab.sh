@@ -584,7 +584,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             pip_command=$(extract_pip_command)
             pip_uninstall_command=$(extract_pip_uninstall_command)
-            
+
             # show which environment is being used
             if [ -n "${VIRTUAL_ENV}" ]; then
                 echo "[INFO] Using uv/venv environment: ${VIRTUAL_ENV}"
