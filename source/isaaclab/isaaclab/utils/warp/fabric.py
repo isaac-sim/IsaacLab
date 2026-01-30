@@ -57,12 +57,11 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
 
     This kernel extracts transform components from Fabric's omni:fabric:worldMatrix attribute
     and stores them in separate arrays. It handles the quaternion convention conversion
-    (Warp uses xyzw, Isaac Lab uses wxyz).
 
     Args:
         fabric_matrices: Fabric array containing 4x4 transformation matrices
         array_positions: Output array for positions (N, 3)
-        array_orientations: Output array for quaternions in wxyz format (N, 4)
+        array_orientations: Output array for quaternions in xyzw format (N, 4)
         array_scales: Output array for scales (N, 3)
         indices: View indices to process
         mapping: Mapping from view indices to fabric indices
@@ -81,12 +80,12 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
         array_positions[output_index, 0] = position[0]
         array_positions[output_index, 1] = position[1]
         array_positions[output_index, 2] = position[2]
-    # extract orientation (Warp quaternion is xyzw, convert to wxyz)
+    # extract orientation
     if array_orientations.shape[0] > 0:
-        array_orientations[output_index, 0] = rotation[3]  # w
-        array_orientations[output_index, 1] = rotation[0]  # x
-        array_orientations[output_index, 2] = rotation[1]  # y
-        array_orientations[output_index, 3] = rotation[2]  # z
+        array_orientations[output_index, 0] = rotation[0]  # x
+        array_orientations[output_index, 1] = rotation[1]  # y
+        array_orientations[output_index, 2] = rotation[2]  # z
+        array_orientations[output_index, 3] = rotation[3]  # w
     # extract scale
     if array_scales.shape[0] > 0:
         array_scales[output_index, 0] = scale[0]
@@ -109,7 +108,6 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
     """Compose Fabric transformation matrices from position, orientation, and scale arrays.
 
     This kernel updates Fabric's omni:fabric:worldMatrix attribute from separate component arrays.
-    It handles the quaternion convention conversion (Isaac Lab uses wxyz, Warp uses xyzw).
 
     After calling this kernel, IFabricHierarchy.updateWorldXforms() should be called to
     propagate changes through the hierarchy.
@@ -117,7 +115,7 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
     Args:
         fabric_matrices: Fabric array containing 4x4 transformation matrices to update
         array_positions: Input array for positions (N, 3) or None
-        array_orientations: Input array for quaternions in wxyz format (N, 4) or None
+        array_orientations: Input array for quaternions in xyzw format (N, 4) or None
         array_scales: Input array for scales (N, 3) or None
         broadcast_positions: If True, use first position for all prims
         broadcast_orientations: If True, use first orientation for all prims
@@ -145,10 +143,10 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
             index = 0
         else:
             index = i
-        rotation[0] = array_orientations[index, 1]  # x
-        rotation[1] = array_orientations[index, 2]  # y
-        rotation[2] = array_orientations[index, 3]  # z
-        rotation[3] = array_orientations[index, 0]  # w
+        rotation[0] = array_orientations[index, 0]  # x
+        rotation[1] = array_orientations[index, 1]  # y
+        rotation[2] = array_orientations[index, 2]  # z
+        rotation[3] = array_orientations[index, 3]  # w
     # update scale
     if array_scales.shape[0] > 0:
         if broadcast_scales:

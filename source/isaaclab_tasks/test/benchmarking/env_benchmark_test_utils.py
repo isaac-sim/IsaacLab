@@ -8,13 +8,27 @@ import json
 import math
 import os
 import re
-from datetime import datetime
 
 import numpy as np
 import yaml
-from tensorboard.backend.event_processing import event_accumulator
 
-import carb
+
+def _get_repo_path():
+    """Get the repository root by searching for marker files.
+
+    Searches upward from the current file for IsaacLab repository markers
+    (isaaclab.sh or setup.py) to robustly find the repo root.
+    """
+    current = os.path.abspath(__file__)
+    # Look for isaaclab.sh or setup.py as markers (max 10 levels up)
+    for _ in range(10):
+        current = os.path.dirname(current)
+        if os.path.exists(os.path.join(current, "isaaclab.sh")):
+            return current
+        # Fallback marker
+        if os.path.exists(os.path.join(current, "setup.py")) and os.path.exists(os.path.join(current, "source")):
+            return current
+    raise RuntimeError("Could not find IsaacLab repository root. Expected to find 'isaaclab.sh' in parent directories.")
 
 
 def get_env_configs(configs_path):
@@ -77,14 +91,17 @@ def evaluate_job(workflow, task, env_config, duration):
         if val is None or not isinstance(val, (int, float)) or (isinstance(val, float) and math.isnan(val)):
             continue
         val = round(val, 4)
+        threshold_val_rounded = round(threshold_val, 4)
         if uses_lower_threshold:
-            # print(f"{threshold_name}: {val} > {round(threshold_val, 4)}")
             if val < threshold_val:
                 kpi_payload["success"] = False
+                if not kpi_payload["msg"]:
+                    kpi_payload["msg"] = f"{threshold_name} below threshold: {val} < {threshold_val_rounded}"
         else:
-            # print(f"{threshold_name}: {val} < {round(threshold_val, 4)}")
             if val > threshold_val:
                 kpi_payload["success"] = False
+                if not kpi_payload["msg"]:
+                    kpi_payload["msg"] = f"{threshold_name} above threshold: {val} > {threshold_val_rounded}"
         kpi_payload[threshold_name] = val
         if threshold_name == "reward":
             normalized_reward = val / threshold_val
@@ -99,8 +116,14 @@ def evaluate_job(workflow, task, env_config, duration):
     return kpi_payload
 
 
-def process_kpi_data(kpi_payloads, tag=""):
-    """Combine and augment the KPI payloads."""
+def process_kpi_data(kpi_payloads, tag, timestamp):
+    """Combine and augment the KPI payloads.
+
+    Args:
+        kpi_payloads: Dictionary of KPI payloads for each job.
+        tag: Tag for the KPI payload.
+        timestamp: Timestamp to use (ISO format).
+    """
     # accumulate workflow outcomes
     totals = {}
     successes = {}
@@ -127,7 +150,7 @@ def process_kpi_data(kpi_payloads, tag=""):
         "successes": successes,
         "failures_did_not_finish": failures_did_not_finish,
         "failures_did_not_pass_thresholds": failures_did_not_pass_thresholds,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": timestamp,
         "tag": tag,
     }
 
@@ -137,7 +160,7 @@ def process_kpi_data(kpi_payloads, tag=""):
 def output_payloads(payloads):
     """Output the KPI payloads to a json file."""
     # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    repo_path = _get_repo_path()
     output_path = os.path.join(repo_path, "logs/kpi.json")
     # create directory if it doesn't exist
     if not os.path.exists(os.path.dirname(output_path)):
@@ -150,13 +173,17 @@ def output_payloads(payloads):
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
     # first grab all log files
-    repo_path = os.path.join(carb.tokens.get_tokens_interface().resolve("${app}"), "..")
+    repo_path = _get_repo_path()
+
+    # Defer Isaac Sim version import to avoid preloading USD before SimulationApp starts.
     from isaaclab.utils.version import get_isaac_sim_version
 
     if get_isaac_sim_version().major < 5:
         repo_path = os.path.join(repo_path, "..")
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")
+    elif workflow == "sb3":
+        log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/*/*.tfevents.*")
     else:
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/*.tfevents.*")
     log_files = glob.glob(log_files_path)
@@ -167,11 +194,20 @@ def _retrieve_logs(workflow, task):
     latest_log_file = max(log_files, key=os.path.getctime)
     # parse tf file into a dictionary
     log_data = _parse_tf_logs(latest_log_file)
+
+    # validate that log data contains entries
+    if not log_data:
+        print(f"Warning: Log file {latest_log_file} parsed but contains no data")
+        return None
+
     return log_data
 
 
 def _parse_tf_logs(log):
     """Parse the tensorflow filepath into a dictionary."""
+    # Defer tensorboard import to avoid side effects during pytest collection.
+    from tensorboard.backend.event_processing import event_accumulator
+
     log_data = {}
     ea = event_accumulator.EventAccumulator(log)
     ea.Reload()
@@ -190,7 +226,7 @@ def _extract_log_val(name, log_data, uses_lower_threshold, workflow):
             reward_tags = {
                 "rl_games": "rewards/iter",
                 "rsl_rl": "Train/mean_reward",
-                "sb3": None,  # TODO: complete when sb3 is fixed
+                "sb3": "rollout/ep_rew_mean",
                 "skrl": "Reward / Total reward (mean)",
             }
             tag = reward_tags.get(workflow)
@@ -201,18 +237,17 @@ def _extract_log_val(name, log_data, uses_lower_threshold, workflow):
             episode_tags = {
                 "rl_games": "episode_lengths/iter",
                 "rsl_rl": "Train/mean_episode_length",
-                "sb3": None,  # TODO: complete when sb3 is fixed
+                "sb3": "rollout/ep_len_mean",
                 "skrl": "Episode / Total timesteps (mean)",
             }
             tag = episode_tags.get(workflow)
             if tag:
                 return _extract_feature(log_data, tag, uses_lower_threshold)
-
-        elif name == "training_time":
-            return {"rl_games": log_data["rewards/time"][-1][0], "rsl_rl": None, "sb3": None, "skrl": None}.get(
-                workflow
-            )
-    except Exception:
+    except KeyError as e:
+        print(f"Warning: Metric '{name}' not found in logs for workflow '{workflow}': {e}")
+        return None
+    except Exception as e:
+        print(f"Error extracting '{name}' for workflow '{workflow}': {e}")
         return None
 
     raise ValueError(f"Env Config name {name} is not supported.")

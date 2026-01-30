@@ -39,7 +39,7 @@ def spawn_sphere(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -85,7 +85,7 @@ def spawn_cuboid(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -130,7 +130,7 @@ def spawn_cylinder(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -172,7 +172,7 @@ def spawn_capsule(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -214,7 +214,7 @@ def spawn_cone(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -269,7 +269,7 @@ def _spawn_geom_from_prim_type(
         attributes: The attributes to apply to the prim.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.

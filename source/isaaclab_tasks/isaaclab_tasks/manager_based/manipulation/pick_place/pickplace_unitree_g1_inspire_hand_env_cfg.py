@@ -45,7 +45,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     packing_table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -54,7 +54,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
@@ -70,7 +70,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 1.0),
-            rot=(0.7071, 0, 0, 0.7071),
+            rot=(0.0, 0.0, 0.7071, 0.7071),
             joint_pos={
                 # right-arm
                 "right_shoulder_pitch_joint": 0.0,
@@ -309,7 +309,7 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     # Temporary directory for URDF files
@@ -324,16 +324,16 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
             -0.1487,
             0.2038,
             1.0952,
+            0.0,
+            0.0,
             0.707,
-            0.0,
-            0.0,
             0.707,
             0.1487,
             0.2038,
             1.0952,
+            0.0,
+            0.0,
             0.707,
-            0.0,
-            0.0,
             0.707,
             0.0,
             0.0,

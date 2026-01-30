@@ -115,8 +115,7 @@ class RMPFlowAction(ActionTerm):
         if self.cfg.use_relative_mode:
             return 6  # delta_eef_xyz, delta_eef_rpy
         else:
-            return 7  # absolute_eef_xyz, absolute_eef_quat
-        # self._rmpflow_controller.num_actions = 7 since it use quaternions (w,x,y,z) as command
+            return 7  # absolute_eef_xyz, absolute_eef_quat (x, y, z, w)
 
     @property
     def raw_actions(self) -> torch.Tensor:

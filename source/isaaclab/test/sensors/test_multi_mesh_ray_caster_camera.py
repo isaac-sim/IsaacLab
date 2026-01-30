@@ -34,11 +34,11 @@ from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.timer import Timer
 
-# sample camera poses
+# sample camera poses (quaternions in xyzw format)
 POSITION = [2.5, 2.5, 2.5]
-QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
-QUAT_OPENGL = [0.33985113, 0.17591988, 0.42470818, 0.82047324]
-QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
+QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]
+QUAT_OPENGL = [0.17591988, 0.42470818, 0.82047324, 0.33985113]
+QUAT_WORLD = [-0.27984815, -0.1159169, 0.88047623, -0.3647052]
 
 
 @pytest.fixture(scope="function")
@@ -61,7 +61,7 @@ def setup_simulation():
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
@@ -200,7 +200,7 @@ def test_camera_init_intrinsic_matrix(setup_simulation):
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsic_matrix,
@@ -437,7 +437,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
         prim_path="/World/Camera_warp",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=data_types,
@@ -520,7 +520,7 @@ def test_output_equal_to_usdcamera(setup_simulation, data_types):
 def test_output_equal_to_usdcamera_offset(setup_simulation):
     """Test that ray caster camera output equals USD camera output with offset."""
     sim, dt, camera_cfg = setup_simulation
-    offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
+    offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -598,12 +598,12 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     under an XForm prim that is translated and rotated from the world origin."""
     sim, dt, camera_cfg = setup_simulation
 
-    offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+    offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
 
-    # gf quat
+    # gf quat (QUAT_OPENGL is xyzw, Gf.Quatd uses wxyz)
     gf_quatf = Gf.Quatd()
-    gf_quatf.SetReal(QUAT_OPENGL[0])
-    gf_quatf.SetImaginary(tuple(QUAT_OPENGL[1:]))
+    gf_quatf.SetReal(QUAT_OPENGL[3])
+    gf_quatf.SetImaginary(tuple(QUAT_OPENGL[:3]))
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -696,7 +696,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
     sim, dt, camera_cfg = setup_simulation
 
     # create cameras
-    offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+    offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
     offset_pos = (2.5, 2.5, 4.0)
     intrinsics = [380.0831, 0.0, width / 2, 0.0, 380.0831, height / 2, 0.0, 0.0, 1.0]
     sim_utils.create_prim("/World/Camera_warp", "Xform")
@@ -799,7 +799,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=["distance_to_camera"],

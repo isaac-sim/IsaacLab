@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
+from isaaclab.utils import math as torch_utils
 
 
 def get_keypoint_offsets(num_keypoints, device):
@@ -70,10 +70,10 @@ def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
 def get_held_base_pose(held_pos, held_quat, task_name, fixed_asset_cfg, num_envs, device):
     """Get current poses for keypoint and success computation."""
     held_base_pos_local = get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device)
-    held_base_quat_local = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+    held_base_quat_local = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).unsqueeze(0).repeat(num_envs, 1)
 
-    held_base_quat, held_base_pos = torch_utils.tf_combine(
-        held_quat, held_pos, held_base_quat_local, held_base_pos_local
+    held_base_pos, held_base_quat = torch_utils.combine_frame_transforms(
+        held_pos, held_quat, held_base_pos_local, held_base_quat_local
     )
     return held_base_pos, held_base_quat
 
@@ -94,10 +94,10 @@ def get_target_held_base_pose(fixed_pos, fixed_quat, task_name, fixed_asset_cfg,
         fixed_success_pos_local[:, 2] = head_height + shank_length - thread_pitch * 1.5
     else:
         raise NotImplementedError("Task not implemented")
-    fixed_success_quat_local = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+    fixed_success_quat_local = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).unsqueeze(0).repeat(num_envs, 1)
 
-    target_held_base_quat, target_held_base_pos = torch_utils.tf_combine(
-        fixed_quat, fixed_pos, fixed_success_quat_local, fixed_success_pos_local
+    target_held_base_pos, target_held_base_quat = torch_utils.combine_frame_transforms(
+        fixed_pos, fixed_quat, fixed_success_pos_local, fixed_success_quat_local
     )
     return target_held_base_pos, target_held_base_quat
 

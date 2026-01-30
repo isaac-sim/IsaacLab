@@ -62,7 +62,7 @@ class Se3AbsRetargeter(RetargeterBase):
             self._goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
             self._goal_marker.set_visibility(True)
             self._visualization_pos = np.zeros(3)
-            self._visualization_rot = np.array([1.0, 0.0, 0.0, 0.0])
+            self._visualization_rot = np.array([0.0, 0.0, 0.0, 1.0])  # xyzw format
 
     def retarget(self, data: dict) -> torch.Tensor:
         """Convert hand joint poses to robot end-effector command.
@@ -115,14 +115,14 @@ class Se3AbsRetargeter(RetargeterBase):
 
         # Get rotation
         if self._use_wrist_rotation:
-            # wrist is w,x,y,z but scipy expects x,y,z,w
-            base_rot = Rotation.from_quat([*wrist[4:], wrist[3]])
+            # Scipy expects x,y,z,w
+            base_rot = Rotation.from_quat(wrist[3:])
         else:
             # Average the orientations of thumb and index using SLERP
-            # thumb_tip is w,x,y,z but scipy expects x,y,z,w
-            r0 = Rotation.from_quat([*thumb_tip[4:], thumb_tip[3]])
-            # index_tip is w,x,y,z but scipy expects x,y,z,w
-            r1 = Rotation.from_quat([*index_tip[4:], index_tip[3]])
+            # Scipy expects x,y,z,w
+            r0 = Rotation.from_quat(thumb_tip[3:])
+            # Scipy expects x,y,z,w
+            r1 = Rotation.from_quat(index_tip[3:])
             key_times = [0, 1]
             slerp = Slerp(key_times, Rotation.concatenate([r0, r1]))
             base_rot = slerp([0.5])[0]
@@ -136,9 +136,8 @@ class Se3AbsRetargeter(RetargeterBase):
             x = 0.0  # Zero out rotation around x-axis
             final_rot = Rotation.from_euler("ZYX", [z, y, x]) * Rotation.from_euler("X", np.pi, degrees=False)
 
-        # Convert back to w,x,y,z format
-        quat = final_rot.as_quat()
-        rotation = np.array([quat[3], quat[0], quat[1], quat[2]])  # Output remains w,x,y,z
+        # We are already in x,y,z,w format
+        rotation = final_rot.as_quat()
 
         # Update visualization if enabled
         if self._enable_visualization:
@@ -156,7 +155,7 @@ class Se3AbsRetargeter(RetargeterBase):
         if self._enable_visualization:
             trans = np.array([self._visualization_pos])
             quat = Rotation.from_matrix(self._visualization_rot).as_quat()
-            rot = np.array([np.array([quat[3], quat[0], quat[1], quat[2]])])
+            rot = np.array([np.array([quat[0], quat[1], quat[2], quat[3]])])
             self._goal_marker.visualize(translations=trans, orientations=rot)
 
 
