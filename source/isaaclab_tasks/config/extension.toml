@@ -1,7 +1,7 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-version = "0.10.41"
+version = "0.10.42"
 
 # Description
 title = "Isaac Lab Environments"
