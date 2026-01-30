@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.54.3 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.timer.Timer.get_timer_statistics` to get the statistics of the elapsed time of a timer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.utils.timer.Timer` class to use the online Welford's algorithm to compute the mean and standard deviation of the elapsed time.
+
+
 0.54.2 (2026-01-28)
 ~~~~~~~~~~~~~~~~~~~
 
