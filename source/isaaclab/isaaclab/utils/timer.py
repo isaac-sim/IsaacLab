@@ -7,10 +7,11 @@
 
 from __future__ import annotations
 
+import math
 import time
 from contextlib import ContextDecorator
 from typing import Any, ClassVar
-import math
+
 
 class TimerError(Exception):
     """A custom exception used to report errors in use of :class:`Timer` class."""
@@ -221,7 +222,7 @@ class Timer(ContextDecorator):
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
         # Non-breaking change: return the last elapsed time
-        return Timer.timing_info.get(name)['last']
+        return Timer.timing_info.get(name)["last"]
 
     @staticmethod
     def get_timer_statistics(name: str) -> dict[str, float]:
