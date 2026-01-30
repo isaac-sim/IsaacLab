@@ -72,27 +72,27 @@ class TestMockRigidBodyViewGetters:
     def test_get_masses_shape(self, view):
         """Test masses shape."""
         masses = view.get_masses()
-        assert masses.shape == (4, 1, 1)
+        assert masses.shape == (4, 1)
 
     def test_get_masses_default_value(self, view):
         """Test that default mass is 1."""
         masses = view.get_masses()
-        assert torch.allclose(masses, torch.ones(4, 1, 1))
+        assert torch.allclose(masses, torch.ones(4, 1))
 
     def test_get_coms_shape(self, view):
         """Test centers of mass shape."""
         coms = view.get_coms()
-        assert coms.shape == (4, 1, 7)
+        assert coms.shape == (4, 7)
 
     def test_get_inertias_shape(self, view):
         """Test inertias shape."""
         inertias = view.get_inertias()
-        assert inertias.shape == (4, 1, 3, 3)
+        assert inertias.shape == (4, 9)
 
     def test_get_inertias_default_value(self, view):
         """Test that default inertia is identity."""
         inertias = view.get_inertias()
-        expected = torch.eye(3).unsqueeze(0).unsqueeze(0).expand(4, 1, 3, 3)
+        expected = torch.eye(3).repeat(4, 1).reshape(4, 9)
         assert torch.allclose(inertias, expected)
 
     def test_getters_return_clones(self, view):

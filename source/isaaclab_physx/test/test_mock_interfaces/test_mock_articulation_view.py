@@ -182,7 +182,7 @@ class TestMockArticulationViewMassGetters:
     def test_get_masses_shape(self, view):
         """Test masses shape."""
         masses = view.get_masses()
-        assert masses.shape == (4, 13, 1)
+        assert masses.shape == (4, 13)
 
     def test_get_coms_shape(self, view):
         """Test centers of mass shape."""
@@ -192,7 +192,7 @@ class TestMockArticulationViewMassGetters:
     def test_get_inertias_shape(self, view):
         """Test inertias shape."""
         inertias = view.get_inertias()
-        assert inertias.shape == (4, 13, 3, 3)
+        assert inertias.shape == (4, 13, 9)
 
 
 class TestMockArticulationViewSetters:
