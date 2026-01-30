@@ -354,7 +354,7 @@ def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
     Returns:
-        bool: True if loading, False otherwise
+        True if loading, False otherwise
 
     Example:
         >>> import isaaclab.sim as sim_utils
