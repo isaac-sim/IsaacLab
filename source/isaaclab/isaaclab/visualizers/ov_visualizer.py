@@ -178,7 +178,9 @@ class OVVisualizer(Visualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
-        camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera"
+        # Create camera prim path based on viewport name (sanitize to enure valid USD path) 1
+        camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
+
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             UsdGeom.Camera.Define(usd_stage, camera_path)
