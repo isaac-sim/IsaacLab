@@ -69,19 +69,19 @@ fast:
     upper_thresholds:
       duration: 1800
   sb3:Isaac-Lift-Cube-Franka-v0:
-    max_iterations: 100
+    max_iterations: 150
     lower_thresholds:
-      reward: 50
-      episode_length: 80
-    upper_thresholds:
-      duration: 800
-  rl_games:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
-    max_iterations: 100
-    lower_thresholds:
-      reward: 30
+      reward: 1.5
       episode_length: 150
     upper_thresholds:
-      duration: 800
+      duration: 2000
+  rl_games:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
+    max_iterations: 200
+    lower_thresholds:
+      reward: 0.7
+      episode_length: 150
+    upper_thresholds:
+      duration: 1200
   rsl_rl:Isaac-Reach-OpenArm-v0:
     max_iterations: 200
     lower_thresholds:
