@@ -19,11 +19,11 @@ from prettytable import PrettyTable
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 import isaaclab.utils.math as math_utils
-from isaaclab.utils.string import resolve_matching_names
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -31,8 +31,9 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
     import omni.physics.tensors.impl.api as physx
+
+    from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1822,14 +1823,10 @@ class Articulation(BaseArticulation):
 
         # -- joint state
         # joint pos
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_pos, self.joint_names
-        )
+        indices_list, _, values_list = resolve_matching_names_values(self.cfg.init_state.joint_pos, self.joint_names)
         self.data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
         # joint vel
-        indices_list, _, values_list = string_utils.resolve_matching_names_values(
-            self.cfg.init_state.joint_vel, self.joint_names
-        )
+        indices_list, _, values_list = resolve_matching_names_values(self.cfg.init_state.joint_vel, self.joint_names)
         self.data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
 
     """
