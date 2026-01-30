@@ -25,42 +25,7 @@ _context = threading.local()  # thread-local storage to handle nested contexts a
 # _context is a singleton design in isaacsim and for that reason
 #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
 #  that singleton to this _context
-# Note: We use try/except because during Sphinx doc builds, mocked modules may have attributes
-# that don't support assignment or __globals__ item assignment (they are mock objects)
-try:
-    sim_stage._context = _context  # type: ignore
-
-    # Also patch the function globals to ensure they use our _context
-    # (This is technically redundant with the module attribute assignment, but ensures robustness)
-    if hasattr(sim_stage, "get_current_stage") and hasattr(sim_stage.get_current_stage, "__globals__"):
-        sim_stage.get_current_stage.__globals__["_context"] = _context
-    if hasattr(sim_stage, "use_stage") and hasattr(sim_stage.use_stage, "__globals__"):
-        sim_stage.use_stage.__globals__["_context"] = _context
-except TypeError:
-    pass  # Ignore during doc builds when modules are mocked
-
-# isaacsim.core.experimental.utils.stage has its own _context, so we need to share it as well
-# this is needed for SimulationManager which uses the experimental stage utils for prim lookups
-# We need to ensure both isaacsim.core.utils.stage and isaacsim.core.experimental.utils.stage
-# share the same _context so that when one module sets the stage context, the other can see it
-try:
-    from isaacsim.core.experimental.utils import stage as exp_stage
-
-    # Share the same _context object across all stage utility modules
-    # Note: We use try/except because during Sphinx doc builds, mocked modules may have attributes
-    # that don't support assignment or __globals__ item assignment (they are mock objects)
-    try:
-        exp_stage._context = _context  # type: ignore
-
-        # Also patch the function globals to ensure they use our _context
-        if hasattr(exp_stage, "get_current_stage") and hasattr(exp_stage.get_current_stage, "__globals__"):
-            exp_stage.get_current_stage.__globals__["_context"] = _context
-        if hasattr(exp_stage, "use_stage") and hasattr(exp_stage.use_stage, "__globals__"):
-            exp_stage.use_stage.__globals__["_context"] = _context
-    except TypeError:
-        pass  # Ignore during doc builds when modules are mocked
-except (ImportError, ModuleNotFoundError):
-    pass  # experimental utils not available (Isaac Sim < 5.0)
+sim_stage._context = _context  # type: ignore
 
 
 def create_new_stage() -> Usd.Stage:
