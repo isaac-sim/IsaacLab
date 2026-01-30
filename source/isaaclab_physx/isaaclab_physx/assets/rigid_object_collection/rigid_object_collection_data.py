@@ -549,7 +549,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def default_object_pose(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_body_pose` instead."""
         warnings.warn(
-            "The `default_object_pose` property will be deprecated in a future release. Please use"
+            "The `default_object_pose` property will be deprecated in a IsaacLab 4.0. Please use"
             " `default_body_pose` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -560,7 +560,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def default_object_vel(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_body_vel` instead."""
         warnings.warn(
-            "The `default_object_vel` property will be deprecated in a future release. Please use"
+            "The `default_object_vel` property will be deprecated in a IsaacLab 4.0. Please use"
             " `default_body_vel` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -571,7 +571,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def default_object_state(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_body_state` instead."""
         warnings.warn(
-            "The `default_object_state` property will be deprecated in a future release. Please use"
+            "The `default_object_state` property will be deprecated in a IsaacLab 4.0. Please use"
             " `default_body_state` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -582,7 +582,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_pose_w(self):
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
-            "The `object_link_pose_w` property will be deprecated in a future release. Please use"
+            "The `object_link_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_pose_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -593,7 +593,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_vel_w(self):
         """Deprecated property. Please use :attr:`body_link_vel_w` instead."""
         warnings.warn(
-            "The `object_link_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_link_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -604,7 +604,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_pose_w(self):
         """Deprecated property. Please use :attr:`body_com_pose_w` instead."""
         warnings.warn(
-            "The `object_com_pose_w` property will be deprecated in a future release. Please use"
+            "The `object_com_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_pose_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -615,7 +615,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_vel_w(self):
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
-            "The `object_com_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_com_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -626,7 +626,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_state_w(self):
         """Deprecated property. Please use :attr:`body_state_w` instead."""
         warnings.warn(
-            "The `object_state_w` property will be deprecated in a future release. Please use `body_state_w` instead.",
+            "The `object_state_w` property will be deprecated in a IsaacLab 4.0. Please use `body_state_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -636,7 +636,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_state_w(self):
         """Deprecated property. Please use :attr:`body_link_state_w` instead."""
         warnings.warn(
-            "The `object_link_state_w` property will be deprecated in a future release. Please use"
+            "The `object_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_state_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -647,7 +647,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_state_w(self):
         """Deprecated property. Please use :attr:`body_com_state_w` instead."""
         warnings.warn(
-            "The `object_com_state_w` property will be deprecated in a future release. Please use"
+            "The `object_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_state_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -658,7 +658,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_acc_w(self):
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
-            "The `object_com_acc_w` property will be deprecated in a future release. Please use"
+            "The `object_com_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -669,7 +669,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_pose_b(self):
         """Deprecated property. Please use :attr:`body_com_pose_b` instead."""
         warnings.warn(
-            "The `object_com_pose_b` property will be deprecated in a future release. Please use"
+            "The `object_com_pose_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_pose_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -680,7 +680,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
-            "The `object_link_pos_w` property will be deprecated in a future release. Please use"
+            "The `object_link_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_pos_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -691,7 +691,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_quat_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
-            "The `object_link_quat_w` property will be deprecated in a future release. Please use"
+            "The `object_link_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_quat_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -702,7 +702,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_lin_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
         warnings.warn(
-            "The `object_link_lin_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_link_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_lin_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -713,7 +713,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_ang_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
         warnings.warn(
-            "The `object_link_ang_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_link_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_ang_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -724,7 +724,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
         warnings.warn(
-            "The `object_com_pos_w` property will be deprecated in a future release. Please use"
+            "The `object_com_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_pos_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -735,7 +735,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_quat_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
         warnings.warn(
-            "The `object_com_quat_w` property will be deprecated in a future release. Please use"
+            "The `object_com_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_quat_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -746,7 +746,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_lin_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
-            "The `object_com_lin_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_com_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -757,7 +757,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_ang_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
-            "The `object_com_ang_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_com_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -768,7 +768,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_lin_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
-            "The `object_com_lin_acc_w` property will be deprecated in a future release. Please use"
+            "The `object_com_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -779,7 +779,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_ang_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
-            "The `object_com_ang_acc_w` property will be deprecated in a future release. Please use"
+            "The `object_com_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -790,7 +790,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_pos_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         warnings.warn(
-            "The `object_com_pos_b` property will be deprecated in a future release. Please use"
+            "The `object_com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_pos_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -801,7 +801,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_quat_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         warnings.warn(
-            "The `object_com_quat_b` property will be deprecated in a future release. Please use"
+            "The `object_com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_quat_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -812,7 +812,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_lin_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
         warnings.warn(
-            "The `object_link_lin_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_link_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_lin_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -823,7 +823,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_link_ang_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
         warnings.warn(
-            "The `object_link_ang_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_link_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_link_ang_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -834,7 +834,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_lin_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
-            "The `object_com_lin_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_com_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -845,7 +845,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_com_ang_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
-            "The `object_com_ang_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_com_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -856,8 +856,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_pose_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
-            "The `object_pose_w` property will be deprecated in a future release. Please use"
-            " `body_link_pose_w` instead.",
+            "The `object_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -867,7 +866,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
-            "The `object_pos_w` property will be deprecated in a future release. Please use `body_link_pos_w` instead.",
+            "The `object_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -877,8 +876,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_quat_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
-            "The `object_quat_w` property will be deprecated in a future release. Please use"
-            " `body_link_quat_w` instead.",
+            "The `object_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -888,7 +886,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
-            "The `object_vel_w` property will be deprecated in a future release. Please use `body_com_vel_w` instead.",
+            "The `object_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -898,7 +896,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_lin_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
-            "The `object_lin_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -909,7 +907,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_ang_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
-            "The `object_ang_vel_w` property will be deprecated in a future release. Please use"
+            "The `object_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -920,7 +918,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_lin_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
-            "The `object_lin_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -931,7 +929,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_ang_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
-            "The `object_ang_vel_b` property will be deprecated in a future release. Please use"
+            "The `object_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_vel_b` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -942,7 +940,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
-            "The `object_acc_w` property will be deprecated in a future release. Please use `body_com_acc_w` instead.",
+            "The `object_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -952,7 +950,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_lin_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
-            "The `object_lin_acc_w` property will be deprecated in a future release. Please use"
+            "The `object_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_lin_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -963,7 +961,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def object_ang_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
-            "The `object_ang_acc_w` property will be deprecated in a future release. Please use"
+            "The `object_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
             " `body_com_ang_acc_w` instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -974,7 +972,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def com_pos_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         warnings.warn(
-            "The `com_pos_b` property will be deprecated in a future release. Please use `body_com_pos_b` instead.",
+            "The `com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_pos_b` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -984,7 +982,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def com_quat_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         warnings.warn(
-            "The `com_quat_b` property will be deprecated in a future release. Please use `body_com_quat_b` instead.",
+            "The `com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_quat_b` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
