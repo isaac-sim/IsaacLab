@@ -106,7 +106,7 @@ Prior to using CloudXR with Isaac Lab, please review the following system requir
       in the Apple Vision Pro being unable to find the Isaac Lab workstation on the network)
 
 .. note::
-   If you are using DGX Spark, check `DGX Spark Limitations <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations>`_ for compatibility.
+   If you are using DGX Spark, check `DGX Spark Limitations <https://isaac-sim.github.io/IsaacLab/v2.3.2/source/setup/installation/index.html#dgx-spark-details-and-limitations>`_ for compatibility.
 
 
 .. _`Omniverse Spatial Streaming`: https://docs.omniverse.nvidia.com/avp/latest/setup-network.html

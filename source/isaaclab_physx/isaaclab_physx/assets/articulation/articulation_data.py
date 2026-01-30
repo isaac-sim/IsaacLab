@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
+import warnings
 import weakref
 
 import torch
@@ -178,9 +179,11 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
-        logger.warning(
-            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
-            Please use the default_root_pose and default_root_vel properties instead."
+        warnings.warn(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return torch.cat([self._default_root_pose, self._default_root_vel], dim=1)
 
@@ -194,9 +197,11 @@ class ArticulationData(BaseArticulationData):
         Raises:
             ValueError: If the articulation data is already primed.
         """
-        logger.warning(
-            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. \
-            Please use the default_root_pose and default_root_vel properties instead."
+        warnings.warn(
+            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
@@ -1114,222 +1119,274 @@ class ArticulationData(BaseArticulationData):
     @property
     def root_pose_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_link_pose_w` instead."""
-        logger.warning(
-            "The `root_pose_w` property will be deprecated in a future release. Please use `root_link_pose_w` instead."
+        warnings.warn(
+            "The `root_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_link_pose_w
 
     @property
     def root_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_link_pos_w` instead."""
-        logger.warning(
-            "The `root_pos_w` property will be deprecated in a future release. Please use `root_link_pos_w` instead."
+        warnings.warn(
+            "The `root_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pos_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_link_pos_w
 
     @property
     def root_quat_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_link_quat_w` instead."""
-        logger.warning(
-            "The `root_quat_w` property will be deprecated in a future release. Please use `root_link_quat_w` instead."
+        warnings.warn(
+            "The `root_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_quat_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_link_quat_w
 
     @property
     def root_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_com_vel_w` instead."""
-        logger.warning(
-            "The `root_vel_w` property will be deprecated in a future release. Please use `root_com_vel_w` instead."
+        warnings.warn(
+            "The `root_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_com_vel_w
 
     @property
     def root_lin_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_com_lin_vel_w` instead."""
-        logger.warning(
-            "The `root_lin_vel_w` property will be deprecated in a future release. Please use"
-            " `root_com_lin_vel_w` instead."
+        warnings.warn(
+            "The `root_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `root_com_lin_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_com_lin_vel_w
 
     @property
     def root_ang_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_com_ang_vel_w` instead."""
-        logger.warning(
-            "The `root_ang_vel_w` property will be deprecated in a future release. Please use"
-            " `root_com_ang_vel_w` instead."
+        warnings.warn(
+            "The `root_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `root_com_ang_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_com_ang_vel_w
 
     @property
     def root_lin_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_com_lin_vel_b` instead."""
-        logger.warning(
-            "The `root_lin_vel_b` property will be deprecated in a future release. Please use"
-            " `root_com_lin_vel_b` instead."
+        warnings.warn(
+            "The `root_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `root_com_lin_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_com_lin_vel_b
 
     @property
     def root_ang_vel_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`root_com_ang_vel_b` instead."""
-        logger.warning(
-            "The `root_ang_vel_b` property will be deprecated in a future release. Please use"
-            " `root_com_ang_vel_b` instead."
+        warnings.warn(
+            "The `root_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `root_com_ang_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_com_ang_vel_b
 
     @property
     def body_pose_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
-        logger.warning(
-            "The `body_pose_w` property will be deprecated in a future release. Please use `body_link_pose_w` instead."
+        warnings.warn(
+            "The `body_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_link_pose_w
 
     @property
     def body_pos_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
-        logger.warning(
-            "The `body_pos_w` property will be deprecated in a future release. Please use `body_link_pos_w` instead."
+        warnings.warn(
+            "The `body_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_link_pos_w
 
     @property
     def body_quat_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
-        logger.warning(
-            "The `body_quat_w` property will be deprecated in a future release. Please use `body_link_quat_w` instead."
+        warnings.warn(
+            "The `body_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_link_quat_w
 
     @property
     def body_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
-        logger.warning(
-            "The `body_vel_w` property will be deprecated in a future release. Please use `body_com_vel_w` instead."
+        warnings.warn(
+            "The `body_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_vel_w
 
     @property
     def body_lin_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
-        logger.warning(
-            "The `body_lin_vel_w` property will be deprecated in a future release. Please use"
-            " `body_com_lin_vel_w` instead."
+        warnings.warn(
+            "The `body_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_lin_vel_w
 
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
-        logger.warning(
-            "The `body_ang_vel_w` property will be deprecated in a future release. Please use"
-            " `body_com_ang_vel_w` instead."
+        warnings.warn(
+            "The `body_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_ang_vel_w
 
     @property
     def body_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
-        logger.warning(
-            "The `body_acc_w` property will be deprecated in a future release. Please use `body_com_acc_w` instead."
+        warnings.warn(
+            "The `body_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_acc_w
 
     @property
     def body_lin_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
-        logger.warning(
-            "The `body_lin_acc_w` property will be deprecated in a future release. Please use"
-            " `body_com_lin_acc_w` instead."
+        warnings.warn(
+            "The `body_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_lin_acc_w
 
     @property
     def body_ang_acc_w(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
-        logger.warning(
-            "The `body_ang_acc_w` property will be deprecated in a future release. Please use"
-            " `body_com_ang_acc_w` instead."
+        warnings.warn(
+            "The `body_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_ang_acc_w
 
     @property
     def com_pos_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
-        logger.warning(
-            "The `com_pos_b` property will be deprecated in a future release. Please use `body_com_pos_b` instead."
+        warnings.warn(
+            "The `com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_pos_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_pos_b
 
     @property
     def com_quat_b(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
-        logger.warning(
-            "The `com_quat_b` property will be deprecated in a future release. Please use `body_com_quat_b` instead."
+        warnings.warn(
+            "The `com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_quat_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.body_com_quat_b
 
     @property
     def joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        logger.warning(
-            "The `joint_limits` property will be deprecated in a future release. Please use `joint_pos_limits` instead."
+        warnings.warn(
+            "The `joint_limits` property will be deprecated in a IsaacLab 4.0. Please use `joint_pos_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.joint_pos_limits
 
     @property
     def default_joint_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_pos_limits` instead."""
-        logger.warning(
-            "The `default_joint_limits` property will be deprecated in a future release. Please use"
-            " `default_joint_pos_limits` instead."
+        warnings.warn(
+            "The `default_joint_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_joint_pos_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.default_joint_pos_limits
 
     @property
     def joint_velocity_limits(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        logger.warning(
-            "The `joint_velocity_limits` property will be deprecated in a future release. Please use"
-            " `joint_vel_limits` instead."
+        warnings.warn(
+            "The `joint_velocity_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `joint_vel_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.joint_vel_limits
 
     @property
     def joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        logger.warning(
-            "The `joint_friction` property will be deprecated in a future release. Please use"
-            " `joint_friction_coeff` instead."
+        warnings.warn(
+            "The `joint_friction` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `joint_friction_coeff` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.joint_friction_coeff
 
     @property
     def default_joint_friction(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        logger.warning(
-            "The `default_joint_friction` property will be deprecated in a future release. Please use"
-            " `default_joint_friction_coeff` instead."
+        warnings.warn(
+            "The `default_joint_friction` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_joint_friction_coeff` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.default_joint_friction_coeff
 
     @property
     def fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        logger.warning(
-            "The `fixed_tendon_limit` property will be deprecated in a future release. Please use"
-            " `fixed_tendon_pos_limits` instead."
+        warnings.warn(
+            "The `fixed_tendon_limit` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `fixed_tendon_pos_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.fixed_tendon_pos_limits
 
     @property
     def default_fixed_tendon_limit(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        logger.warning(
-            "The `default_fixed_tendon_limit` property will be deprecated in a future release. Please use"
-            " `default_fixed_tendon_pos_limits` instead."
+        warnings.warn(
+            "The `default_fixed_tendon_limit` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_fixed_tendon_pos_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.default_fixed_tendon_pos_limits
 
