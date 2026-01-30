@@ -298,7 +298,7 @@ def compute_rot(
     vec_loc[env_index] = spatial_rotate_inv(wp.transform_get_rotation(torso_pose[env_index]), velocity[env_index])
     rpy[env_index] = euler_from_quat(wp.transform_get_rotation(torso_pose[env_index]))
     angle_to_target[env_index] = (
-        wp.atan2(targets[env_index][2] - torso_pose[env_index][2], targets[env_index][0] - torso_pose[env_index][0])
+        wp.atan2(targets[env_index][1] - torso_pose[env_index][1], targets[env_index][0] - torso_pose[env_index][0])
         - rpy[env_index][2]
     )
 

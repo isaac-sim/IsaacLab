@@ -63,7 +63,7 @@ def compute_rot(
 
     roll, pitch, yaw = euler_xyz_from_quat(torso_quat)
 
-    walk_target_angle = torch.atan2(targets[:, 2] - torso_positions[:, 2], targets[:, 0] - torso_positions[:, 0])
+    walk_target_angle = torch.atan2(targets[:, 1] - torso_positions[:, 1], targets[:, 0] - torso_positions[:, 0])
     angle_to_target = walk_target_angle - yaw
 
     return vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target
