@@ -275,8 +275,8 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": [-0.0, 0.0],
-                "y": [-0.0, 0.0],
+                "x": [-0.2, 0.2],
+                "y": [-0.2, 0.2],
                 "z": [0.0, 0.4],
                 "roll": [-3.14, 3.14],
                 "pitch": [-3.14, 3.14],
@@ -318,19 +318,19 @@ class EventCfg:
         },
     )
 
-    # # Note (Octi): This is a deliberate trick in Remake to accelerate learning.
-    # # By scheduling gravity as a curriculum — starting with no gravity (easy)
-    # # and gradually introducing full gravity (hard) — the agent learns more smoothly.
-    # # This removes the need for a special "Lift" reward (often required to push the
-    # # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
-    # variable_gravity = EventTerm(
-    #     func=mdp.randomize_physics_scene_gravity,
-    #     mode="reset",
-    #     params={
-    #         "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-    #         "operation": "abs",
-    #     },
-    # )
+    # Note (Octi): This is a deliberate trick in Remake to accelerate learning.
+    # By scheduling gravity as a curriculum — starting with no gravity (easy)
+    # and gradually introducing full gravity (hard) — the agent learns more smoothly.
+    # This removes the need for a special "Lift" reward (often required to push the
+    # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            "operation": "abs",
+        },
+    )
 
 
 @configclass
@@ -417,7 +417,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg | None = None
+    curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -442,9 +442,9 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         # self.sim.physx.bounce_threshold_velocity = 0.01
         # self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
 
-        # if self.curriculum is not None:
-        #     self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
-        #     self.curriculum.adr.params["rot_tol"] = self.rewards.success.params["rot_std"] / 2
+        if self.curriculum is not None:
+            self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
+            self.curriculum.adr.params["rot_tol"] = self.rewards.success.params["rot_std"] / 2
         self.sim: SimulationCfg = SimulationCfg(
             newton_cfg=NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(
@@ -475,9 +475,9 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.rewards.orientation_tracking = None  # no orientation reward
         self.commands.object_pose.position_only = True
-        # if self.curriculum is not None:
-        #     self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
-        #     self.curriculum.adr.params["rot_tol"] = None  # make adr not tracking orientation
+        if self.curriculum is not None:
+            self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
+            self.curriculum.adr.params["rot_tol"] = None  # make adr not tracking orientation
 
 
 # class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
@@ -490,12 +490,12 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
 #         # self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
 
 
-# class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
-#     """Dexsuite lift task evaluation environment definition"""
+class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
+    """Dexsuite lift task evaluation environment definition"""
 
-#     def __post_init__(self):
-#         super().__post_init__()
-#         # self.commands.object_pose.resampling_time_range = (2.0, 3.0)
-#         # self.commands.object_pose.debug_vis = True
-#         # self.commands.object_pose.position_only = True
-#         # self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
+        self.commands.object_pose.debug_vis = True
+        self.commands.object_pose.position_only = True
+        self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
