@@ -12,7 +12,8 @@ methods in the Articulation class. Each method is benchmarked under two scenario
 2. **Torch Tensor**: Inputs are PyTorch tensors with tensor indices.
 
 Usage:
-    python benchmark_articulation.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B] [--num_joints J]
+    python benchmark_articulation.py [--num_iterations N] [--warmup_steps W]
+        [--num_instances I] [--num_bodies B] [--num_joints J]
 
 Example:
     python benchmark_articulation.py --num_iterations 1000 --warmup_steps 10
@@ -38,6 +39,7 @@ wp.init()
 # =============================================================================
 # Mock Setup - Must happen BEFORE importing Articulation
 # =============================================================================
+
 
 class MockPhysicsSimView:
     """Simple mock for the physics simulation view."""
@@ -151,7 +153,10 @@ mock_cfg_module = ModuleType("isaaclab.assets.articulation.articulation_cfg")
 
 class ArticulationCfg:
     """Mock ArticulationCfg for testing."""
-    def __init__(self, prim_path: str = "/World/Robot", soft_joint_pos_limit_factor: float = 1.0, actuators: dict = None):
+
+    def __init__(
+        self, prim_path: str = "/World/Robot", soft_joint_pos_limit_factor: float = 1.0, actuators: dict = None
+    ):
         self.prim_path = prim_path
         self.soft_joint_pos_limit_factor = soft_joint_pos_limit_factor
         self.actuators = actuators or {}
@@ -203,8 +208,12 @@ from pathlib import Path
 benchmark_dir = Path(__file__).resolve().parent
 
 # Load ArticulationData
-articulation_data_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
-spec = importlib.util.spec_from_file_location("isaaclab_physx.assets.articulation.articulation_data", articulation_data_path)
+articulation_data_path = (
+    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
+)
+spec = importlib.util.spec_from_file_location(
+    "isaaclab_physx.assets.articulation.articulation_data", articulation_data_path
+)
 articulation_data_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.articulation.articulation_data"] = articulation_data_module
 spec.loader.exec_module(articulation_data_module)
@@ -219,6 +228,9 @@ spec.loader.exec_module(articulation_module)
 Articulation = articulation_module.Articulation
 
 # Import shared utilities from common module
+# Import mock classes from PhysX test utilities
+from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
+
 from isaaclab.test.benchmark import (
     BenchmarkConfig,
     MethodBenchmark,
@@ -234,15 +246,13 @@ from isaaclab.test.benchmark import (
     print_results,
 )
 
-# Import mock classes from PhysX test utilities
-from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
-
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Also suppress logging warnings (the body_acc_w deprecation warnings use logging)
 import logging
+
 logging.getLogger("isaaclab_physx").setLevel(logging.ERROR)
 logging.getLogger("isaaclab").setLevel(logging.ERROR)
 

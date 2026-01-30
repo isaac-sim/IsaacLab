@@ -10,7 +10,8 @@ in the ArticulationData class. Each function is run multiple times with randomiz
 and timing statistics (mean and standard deviation) are reported.
 
 Usage:
-    python benchmark_articulation_data.py [--num_iterations N] [--warmup_steps W] [--num_instances I] [--num_bodies B] [--num_joints J]
+    python benchmark_articulation_data.py [--num_iterations N] [--warmup_steps W]
+        [--num_instances I] [--num_bodies B] [--num_joints J]
 
 Example:
     python benchmark_articulation_data.py --num_iterations 10000 --warmup_steps 10
@@ -33,6 +34,7 @@ wp.init()
 # =============================================================================
 # Mock Setup - Must happen BEFORE importing ArticulationData
 # =============================================================================
+
 
 class MockPhysicsSimView:
     """Simple mock for the physics simulation view."""
@@ -78,6 +80,7 @@ sys.modules["isaaclab.assets.articulation.base_articulation_data"] = mock_base_m
 
 # Mock pxr (USD library - not available in headless docker, used by isaaclab.utils.mesh)
 from unittest.mock import MagicMock
+
 sys.modules["pxr"] = MagicMock()
 sys.modules["pxr.Usd"] = MagicMock()
 sys.modules["pxr.UsdGeom"] = MagicMock()
@@ -87,11 +90,12 @@ import importlib.util
 from pathlib import Path
 
 benchmark_dir = Path(__file__).resolve().parent
-articulation_data_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
+articulation_data_path = (
+    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
+)
 
 spec = importlib.util.spec_from_file_location(
-    "isaaclab_physx.assets.articulation.articulation_data",
-    articulation_data_path
+    "isaaclab_physx.assets.articulation.articulation_data", articulation_data_path
 )
 articulation_data_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.articulation.articulation_data"] = articulation_data_module
@@ -99,8 +103,14 @@ spec.loader.exec_module(articulation_data_module)
 ArticulationData = articulation_data_module.ArticulationData
 
 # Import shared utilities from common module
-from isaaclab.test.benchmark import BenchmarkConfig, BenchmarkResult, MethodBenchmark, benchmark_method
+# Import mock classes from PhysX test utilities
+from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
+
 from isaaclab.test.benchmark import (
+    BenchmarkConfig,
+    BenchmarkResult,
+    MethodBenchmark,
+    benchmark_method,
     export_results_csv,
     export_results_json,
     get_default_output_filename,
@@ -108,9 +118,6 @@ from isaaclab.test.benchmark import (
     print_hardware_info,
     print_results,
 )
-
-# Import mock classes from PhysX test utilities
-from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -257,6 +264,7 @@ PROPERTY_DEPENDENCIES = {
 # Benchmark Functions
 # =============================================================================
 
+
 def get_benchmarkable_properties(articulation_data: ArticulationData) -> list[str]:
     """Get list of properties that can be benchmarked."""
     all_properties = []
@@ -340,6 +348,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
     print("-" * 80)
 
     for i, benchmark in enumerate(benchmarks):
+
         def prop_accessor(prop=benchmark.method_name, **kwargs):
             return getattr(articulation_data, prop)
 

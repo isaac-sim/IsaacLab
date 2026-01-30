@@ -35,6 +35,7 @@ wp.init()
 # Mock Setup - Must happen BEFORE importing RigidObjectData
 # =============================================================================
 
+
 # Mock BaseRigidObjectData - this is just an abstract class, so we provide an empty one
 # to avoid importing the whole isaaclab.assets package
 class BaseRigidObjectData:
@@ -83,11 +84,12 @@ import importlib.util
 from pathlib import Path
 
 benchmark_dir = Path(__file__).resolve().parent
-rigid_object_data_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object" / "rigid_object_data.py"
+rigid_object_data_path = (
+    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object" / "rigid_object_data.py"
+)
 
 spec = importlib.util.spec_from_file_location(
-    "isaaclab_physx.assets.rigid_object.rigid_object_data",
-    rigid_object_data_path
+    "isaaclab_physx.assets.rigid_object.rigid_object_data", rigid_object_data_path
 )
 rigid_object_data_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.rigid_object.rigid_object_data"] = rigid_object_data_module
@@ -95,8 +97,14 @@ spec.loader.exec_module(rigid_object_data_module)
 RigidObjectData = rigid_object_data_module.RigidObjectData
 
 # Import shared utilities from common module
-from isaaclab.test.benchmark import BenchmarkConfig, BenchmarkResult, MethodBenchmark, benchmark_method
+# Import mock classes from PhysX test utilities
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+
 from isaaclab.test.benchmark import (
+    BenchmarkConfig,
+    BenchmarkResult,
+    MethodBenchmark,
+    benchmark_method,
     export_results_csv,
     export_results_json,
     get_default_output_filename,
@@ -104,9 +112,6 @@ from isaaclab.test.benchmark import (
     print_hardware_info,
     print_results,
 )
-
-# Import mock classes from PhysX test utilities
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -205,6 +210,7 @@ PROPERTY_DEPENDENCIES = {
 # Benchmark Functions
 # =============================================================================
 
+
 def get_benchmarkable_properties(rigid_object_data: RigidObjectData) -> list[str]:
     """Get list of properties that can be benchmarked."""
     all_properties = []
@@ -281,6 +287,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
     print("-" * 80)
 
     for i, benchmark in enumerate(benchmarks):
+
         def prop_accessor(prop=benchmark.method_name, **kwargs):
             return getattr(rigid_object_data, prop)
 

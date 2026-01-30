@@ -17,14 +17,14 @@ from __future__ import annotations
 
 import contextlib
 import json
-import numpy as np
 import os
 import platform
 import subprocess
-import torch
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 import warp as wp
 
 if TYPE_CHECKING:
@@ -147,13 +147,15 @@ def get_hardware_info() -> dict:
 
         for i in range(torch.cuda.device_count()):
             gpu_props = torch.cuda.get_device_properties(i)
-            hardware_info["gpu"]["devices"].append({
-                "index": i,
-                "name": gpu_props.name,
-                "total_memory_gb": round(gpu_props.total_memory / (1024**3), 2),
-                "compute_capability": f"{gpu_props.major}.{gpu_props.minor}",
-                "multi_processor_count": gpu_props.multi_processor_count,
-            })
+            hardware_info["gpu"]["devices"].append(
+                {
+                    "index": i,
+                    "name": gpu_props.name,
+                    "total_memory_gb": round(gpu_props.total_memory / (1024**3), 2),
+                    "compute_capability": f"{gpu_props.major}.{gpu_props.minor}",
+                    "multi_processor_count": gpu_props.multi_processor_count,
+                }
+            )
 
         # Current device info
         current_device = torch.cuda.current_device()
@@ -513,30 +515,34 @@ def export_results_csv(results: list[BenchmarkResult], filename: str):
 
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([
-            "Name",
-            "Mode",
-            "Mean (µs)",
-            "Std (µs)",
-            "Iterations",
-            "Dependencies",
-            "Skipped",
-            "Skip Reason",
-        ])
+        writer.writerow(
+            [
+                "Name",
+                "Mode",
+                "Mean (µs)",
+                "Std (µs)",
+                "Iterations",
+                "Dependencies",
+                "Skipped",
+                "Skip Reason",
+            ]
+        )
 
         for result in results:
             deps_str = ", ".join(result.dependencies) if result.dependencies else ""
             mode_str = result.mode if result.mode else ""
-            writer.writerow([
-                result.name,
-                mode_str,
-                f"{result.mean_time_us:.4f}" if not result.skipped else "",
-                f"{result.std_time_us:.4f}" if not result.skipped else "",
-                result.num_iterations,
-                deps_str,
-                result.skipped,
-                result.skip_reason,
-            ])
+            writer.writerow(
+                [
+                    result.name,
+                    mode_str,
+                    f"{result.mean_time_us:.4f}" if not result.skipped else "",
+                    f"{result.std_time_us:.4f}" if not result.skipped else "",
+                    result.num_iterations,
+                    deps_str,
+                    result.skipped,
+                    result.skip_reason,
+                ]
+            )
 
     print(f"\nResults exported to {filename}")
 

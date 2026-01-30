@@ -39,6 +39,7 @@ wp.init()
 # Mock Setup - Must happen BEFORE importing RigidObject
 # =============================================================================
 
+
 class MockPhysicsSimView:
     """Simple mock for the physics simulation view."""
 
@@ -149,8 +150,12 @@ from pathlib import Path
 benchmark_dir = Path(__file__).resolve().parent
 
 # Load RigidObjectData
-rigid_object_data_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object" / "rigid_object_data.py"
-spec = importlib.util.spec_from_file_location("isaaclab_physx.assets.rigid_object.rigid_object_data", rigid_object_data_path)
+rigid_object_data_path = (
+    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object" / "rigid_object_data.py"
+)
+spec = importlib.util.spec_from_file_location(
+    "isaaclab_physx.assets.rigid_object.rigid_object_data", rigid_object_data_path
+)
 rigid_object_data_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.rigid_object.rigid_object_data"] = rigid_object_data_module
 spec.loader.exec_module(rigid_object_data_module)
@@ -164,12 +169,17 @@ sys.modules["isaaclab_physx.assets.rigid_object.rigid_object"] = rigid_object_mo
 spec.loader.exec_module(rigid_object_module)
 RigidObject = rigid_object_module.RigidObject
 
+
 # Simple RigidObjectCfg for testing
 class RigidObjectCfg:
     def __init__(self, prim_path: str = "/World/Object"):
         self.prim_path = prim_path
 
+
 # Import shared utilities from common module
+# Import mock classes from PhysX test utilities
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+
 from isaaclab.test.benchmark import (
     BenchmarkConfig,
     MethodBenchmark,
@@ -178,14 +188,10 @@ from isaaclab.test.benchmark import (
     export_results_json,
     get_default_output_filename,
     get_hardware_info,
-    make_tensor_body_ids,
     make_tensor_env_ids,
     print_hardware_info,
     print_results,
 )
-
-# Import mock classes from PhysX test utilities
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -193,6 +199,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Suppress isaaclab logging (deprecation warnings)
 import logging
+
 logging.getLogger("isaaclab_physx").setLevel(logging.ERROR)
 logging.getLogger("isaaclab").setLevel(logging.ERROR)
 

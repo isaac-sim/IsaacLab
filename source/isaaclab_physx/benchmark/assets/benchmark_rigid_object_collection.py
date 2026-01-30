@@ -34,6 +34,7 @@ wp.init()
 # Mock Setup - Must happen BEFORE importing RigidObjectCollection
 # =============================================================================
 
+
 class MockPhysicsSimView:
     """Simple mock for the physics simulation view."""
 
@@ -139,22 +140,37 @@ from pathlib import Path
 benchmark_dir = Path(__file__).resolve().parent
 
 # Load RigidObjectCollectionData
-data_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object_collection" / "rigid_object_collection_data.py"
-spec = importlib.util.spec_from_file_location("isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data", data_path)
+data_path = (
+    benchmark_dir.parents[1]
+    / "isaaclab_physx"
+    / "assets"
+    / "rigid_object_collection"
+    / "rigid_object_collection_data.py"
+)
+spec = importlib.util.spec_from_file_location(
+    "isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data", data_path
+)
 data_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data"] = data_module
 spec.loader.exec_module(data_module)
 RigidObjectCollectionData = data_module.RigidObjectCollectionData
 
 # Load RigidObjectCollection
-collection_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object_collection" / "rigid_object_collection.py"
-spec = importlib.util.spec_from_file_location("isaaclab_physx.assets.rigid_object_collection.rigid_object_collection", collection_path)
+collection_path = (
+    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object_collection" / "rigid_object_collection.py"
+)
+spec = importlib.util.spec_from_file_location(
+    "isaaclab_physx.assets.rigid_object_collection.rigid_object_collection", collection_path
+)
 collection_module = importlib.util.module_from_spec(spec)
 sys.modules["isaaclab_physx.assets.rigid_object_collection.rigid_object_collection"] = collection_module
 spec.loader.exec_module(collection_module)
 RigidObjectCollection = collection_module.RigidObjectCollection
 
 # Import shared utilities
+# Import mock view
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+
 from isaaclab.test.benchmark import (
     BenchmarkConfig,
     MethodBenchmark,
@@ -163,14 +179,11 @@ from isaaclab.test.benchmark import (
     export_results_json,
     get_default_output_filename,
     get_hardware_info,
-    make_tensor_env_ids,
     make_tensor_body_ids,
+    make_tensor_env_ids,
     print_hardware_info,
     print_results,
 )
-
-# Import mock view
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -178,6 +191,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Suppress isaaclab logging (deprecation warnings)
 import logging
+
 logging.getLogger("isaaclab_physx").setLevel(logging.ERROR)
 logging.getLogger("isaaclab").setLevel(logging.ERROR)
 
@@ -228,9 +242,12 @@ def create_test_collection(
 # Input Generators
 # =============================================================================
 
+
 def gen_body_state_torch_list(config: BenchmarkConfig) -> dict:
     return {
-        "body_states": torch.rand(config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32),
+        "body_states": torch.rand(
+            config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32
+        ),
         "env_ids": list(range(config.num_instances)),
         "body_ids": list(range(config.num_bodies)),
     }
@@ -238,7 +255,9 @@ def gen_body_state_torch_list(config: BenchmarkConfig) -> dict:
 
 def gen_body_state_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "body_states": torch.rand(config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32),
+        "body_states": torch.rand(
+            config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
     }
@@ -262,7 +281,9 @@ def gen_body_pose_torch_tensor(config: BenchmarkConfig) -> dict:
 
 def gen_body_velocity_torch_list(config: BenchmarkConfig) -> dict:
     return {
-        "body_velocities": torch.rand(config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32),
+        "body_velocities": torch.rand(
+            config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32
+        ),
         "env_ids": list(range(config.num_instances)),
         "body_ids": list(range(config.num_bodies)),
     }
@@ -270,7 +291,9 @@ def gen_body_velocity_torch_list(config: BenchmarkConfig) -> dict:
 
 def gen_body_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "body_velocities": torch.rand(config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32),
+        "body_velocities": torch.rand(
+            config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
     }
@@ -330,7 +353,9 @@ def gen_coms_torch_tensor(config: BenchmarkConfig) -> dict:
 # --- Inertias ---
 def gen_inertias_torch_list(config: BenchmarkConfig) -> dict:
     return {
-        "inertias": torch.rand(config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32),
+        "inertias": torch.rand(
+            config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
+        ),
         "env_ids": list(range(config.num_instances)),
         "body_ids": list(range(config.num_bodies)),
     }
@@ -338,7 +363,9 @@ def gen_inertias_torch_list(config: BenchmarkConfig) -> dict:
 
 def gen_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
     return {
-        "inertias": torch.rand(config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32),
+        "inertias": torch.rand(
+            config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
+        ),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
     }
@@ -495,7 +522,10 @@ def run_benchmark(config: BenchmarkConfig):
         device=config.device,
     )
 
-    print(f"Benchmarking RigidObjectCollection (PhysX) with {config.num_instances} instances, {config.num_bodies} bodies...")
+    print(
+        f"Benchmarking RigidObjectCollection (PhysX) with {config.num_instances} instances, "
+        f"{config.num_bodies} bodies..."
+    )
     print(f"Device: {config.device}")
     print(f"Iterations: {config.num_iterations}, Warmup: {config.warmup_steps}")
     print(f"Modes: {modes_to_run if modes_to_run else 'All available'}")

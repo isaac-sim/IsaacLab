@@ -12,11 +12,11 @@ benchmark scripts for both Articulation and RigidObject classes.
 from __future__ import annotations
 
 import contextlib
-import numpy as np
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import numpy as np
 import warp as wp
 
 
