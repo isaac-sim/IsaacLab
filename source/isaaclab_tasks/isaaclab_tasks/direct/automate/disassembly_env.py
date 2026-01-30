@@ -237,7 +237,7 @@ class DisassemblyEnv(DirectRLEnv):
         rot_diff_quat = torch_utils.quat_mul(
             self.fingertip_midpoint_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
         )
-        rot_diff_quat *= torch.sign(rot_diff_quat[:, 0]).unsqueeze(-1)
+        rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
         self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()

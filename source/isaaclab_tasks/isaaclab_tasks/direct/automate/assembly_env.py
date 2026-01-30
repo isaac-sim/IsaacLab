@@ -154,7 +154,7 @@ class AssemblyEnv(DirectRLEnv):
             .repeat(self.num_envs, 1)
         )
         self.robot_to_gripper_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         self.plug_grasp_pos_local = self.plug_grasps[: self.num_envs, :3]
         self.plug_grasp_quat_local = torch.roll(self.plug_grasps[: self.num_envs, 3:], -1, 1)
@@ -316,7 +316,7 @@ class AssemblyEnv(DirectRLEnv):
         rot_diff_quat = torch_utils.quat_mul(
             self.fingertip_midpoint_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
         )
-        rot_diff_quat *= torch.sign(rot_diff_quat[:, 0]).unsqueeze(-1)
+        rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
         self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()
