@@ -2,18 +2,22 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
 
 import logging
 import weakref
+from typing import TYPE_CHECKING
 
 import torch
 
-import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 
-import isaaclab.utils.math as math_utils
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, convert_quat, combine_frame_transforms, normalize
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer
+
+if TYPE_CHECKING:
+    from isaaclab.assets.articulation.articulation_view import ArticulationView
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -40,7 +44,7 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: physx.ArticulationView, device: str):
+    def __init__(self, root_view: ArticulationView, device: str):
         """Initializes the articulation data.
 
         Args:
@@ -51,7 +55,7 @@ class ArticulationData(BaseArticulationData):
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_view: physx.ArticulationView = weakref.proxy(root_view)
+        self._root_view: ArticulationView = weakref.proxy(root_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -62,7 +66,7 @@ class ArticulationData(BaseArticulationData):
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+        gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
         self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_view.count, 1)
@@ -473,7 +477,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_root_transforms().clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            pose[:, 3:7] = convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
             self._root_link_pose_w.timestamp = self._sim_timestamp
@@ -492,7 +496,7 @@ class ArticulationData(BaseArticulationData):
             vel = self.root_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             vel[:, :3] += torch.linalg.cross(
-                vel[:, 3:], math_utils.quat_apply(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
+                vel[:, 3:], quat_apply(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
             )
             # set the buffer data and timestamp
             self._root_link_vel_w.data = vel
@@ -509,7 +513,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            pos, quat = math_utils.combine_frame_transforms(
+            pos, quat = combine_frame_transforms(
                 self.root_link_pos_w, self.root_link_quat_w, self.body_com_pos_b[:, 0], self.body_com_quat_b[:, 0]
             )
             # set the buffer data and timestamp
@@ -598,7 +602,7 @@ class ArticulationData(BaseArticulationData):
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
             poses = self._root_view.get_link_transforms().clone()
-            poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
+            poses[..., 3:7] = convert_quat(poses[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_link_pose_w.data = poses
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -618,7 +622,7 @@ class ArticulationData(BaseArticulationData):
             velocities = self.body_com_vel_w.clone()
             # adjust linear velocity to link from center of mass
             velocities[..., :3] += torch.linalg.cross(
-                velocities[..., 3:], math_utils.quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+                velocities[..., 3:], quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
             )
             # set the buffer data and timestamp
             self._body_link_vel_w.data = velocities
@@ -636,7 +640,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            pos, quat = math_utils.combine_frame_transforms(
+            pos, quat = combine_frame_transforms(
                 self.body_link_pos_w, self.body_link_quat_w, self.body_com_pos_b, self.body_com_quat_b
             )
             # set the buffer data and timestamp
@@ -726,7 +730,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_coms().to(self.device)
-            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
+            pose[..., 3:7] = convert_quat(pose[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose
             self._body_com_pose_b.timestamp = self._sim_timestamp
@@ -793,7 +797,7 @@ class ArticulationData(BaseArticulationData):
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
+        return quat_apply_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -803,7 +807,7 @@ class ArticulationData(BaseArticulationData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
+        forward_w = quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     @property
@@ -813,7 +817,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
+        return quat_apply_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
 
     @property
     def root_link_ang_vel_b(self) -> torch.Tensor:
@@ -822,7 +826,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
+        return quat_apply_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
 
     @property
     def root_com_lin_vel_b(self) -> torch.Tensor:
@@ -831,7 +835,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
+        return quat_apply_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
 
     @property
     def root_com_ang_vel_b(self) -> torch.Tensor:
@@ -840,7 +844,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return math_utils.quat_apply_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
+        return quat_apply_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
 
     """
     Sliced properties.

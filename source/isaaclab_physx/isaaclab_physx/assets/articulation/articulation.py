@@ -16,13 +16,12 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
-import isaaclab.sim as sim_utils
+from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 import isaaclab.utils.math as math_utils
-import isaaclab.utils.string as string_utils
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.utils.types import ArticulationActions
@@ -33,6 +32,7 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+    import omni.physics.tensors.impl.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -277,7 +277,7 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
+        return resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -299,7 +299,7 @@ class Articulation(BaseArticulation):
         if joint_subset is None:
             joint_subset = self.joint_names
         # find joints
-        return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
+        return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -323,7 +323,7 @@ class Articulation(BaseArticulation):
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
         # find tendons
-        return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -345,7 +345,7 @@ class Articulation(BaseArticulation):
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
         # find tendons
-        return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
@@ -591,6 +591,9 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -629,6 +632,9 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -664,6 +670,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -693,6 +704,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -725,6 +741,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -785,6 +806,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -820,6 +846,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -854,6 +885,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -900,6 +936,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -962,6 +1003,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -996,6 +1042,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1030,6 +1081,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if body_ids is None:
             body_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and body_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1058,6 +1114,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if body_ids is None:
             body_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and body_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1086,6 +1147,11 @@ class Articulation(BaseArticulation):
             physx_env_ids = self._ALL_INDICES
         if body_ids is None:
             body_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and body_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1203,6 +1269,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1230,6 +1299,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1257,6 +1329,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
@@ -1289,6 +1364,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set stiffness
@@ -1315,6 +1393,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set damping
@@ -1342,6 +1423,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit_stiffness
@@ -1368,6 +1452,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit
@@ -1395,6 +1482,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set rest_length
@@ -1421,6 +1511,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set offset
@@ -1477,6 +1570,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if spatial_tendon_ids is None:
             spatial_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and spatial_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set stiffness
@@ -1506,6 +1602,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if spatial_tendon_ids is None:
             spatial_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and spatial_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set damping
@@ -1534,6 +1633,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if spatial_tendon_ids is None:
             spatial_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and spatial_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit stiffness
@@ -1561,6 +1663,9 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         if spatial_tendon_ids is None:
             spatial_tendon_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         if env_ids != slice(None) and spatial_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set offset
@@ -1610,13 +1715,13 @@ class Articulation(BaseArticulation):
             # No articulation root prim path was specified, so we need to search
             # for it. We search for this in the first environment and then
             # create a regex that matches all environments.
-            first_env_matching_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+            first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
             if first_env_matching_prim is None:
                 raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
             first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
 
             # Find all articulation root prims in the first environment.
-            first_env_root_prims = sim_utils.get_all_matching_child_prims(
+            first_env_root_prims = get_all_matching_child_prims(
                 first_env_matching_prim_path,
                 predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
                 traverse_instance_prims=False,

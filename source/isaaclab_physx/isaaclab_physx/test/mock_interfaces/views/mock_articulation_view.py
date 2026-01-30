@@ -35,7 +35,7 @@ class MockArticulationView:
         - dof_dampings: (N, J) - joint dampings
         - dof_max_forces: (N, J) - maximum joint forces
         - dof_max_velocities: (N, J) - maximum joint velocities
-        - masses: (N, L, 1) - per-link masses
+        - masses: (N, L) - per-link masses
         - coms: (N, L, 7) - per-link centers of mass
         - inertias: (N, L, 3, 3) - per-link inertia tensors
 
@@ -89,6 +89,8 @@ class MockArticulationView:
         self._root_velocities: torch.Tensor | None = None
         self._link_transforms: torch.Tensor | None = None
         self._link_velocities: torch.Tensor | None = None
+        self._link_accelerations: torch.Tensor | None = None
+        self._link_incoming_joint_force: torch.Tensor | None = None
         self._dof_positions: torch.Tensor | None = None
         self._dof_velocities: torch.Tensor | None = None
         self._dof_projected_joint_forces: torch.Tensor | None = None
@@ -99,9 +101,23 @@ class MockArticulationView:
         self._dof_max_velocities: torch.Tensor | None = None
         self._dof_armatures: torch.Tensor | None = None
         self._dof_friction_coefficients: torch.Tensor | None = None
+        self._dof_friction_properties: torch.Tensor | None = None
         self._masses: torch.Tensor | None = None
         self._coms: torch.Tensor | None = None
         self._inertias: torch.Tensor | None = None
+
+    # -- Helper Methods --
+
+    def _check_cpu_tensor(self, tensor: torch.Tensor, name: str) -> None:
+        """Check that tensor is on CPU, raise RuntimeError if on GPU.
+
+        This mimics PhysX behavior where joint/body properties must be on CPU.
+        """
+        if tensor.is_cuda:
+            raise RuntimeError(
+                f"Expected CPU tensor for {name}, but got tensor on {tensor.device}. "
+                "Joint and body properties must be set with CPU tensors."
+            )
 
     # -- Properties --
 
@@ -212,11 +228,11 @@ class MockArticulationView:
         """Get position limits of all DOFs.
 
         Returns:
-            Tensor of shape (N, J, 2) with [lower, upper] limits.
+            Tensor of shape (N, J, 2) with [lower, upper] limits. Always on CPU.
         """
         if self._dof_limits is None:
-            # Default: no limits (infinite)
-            self._dof_limits = torch.zeros(self._count, self._num_dofs, 2, device=self._device)
+            # Default: no limits (infinite) - stored on CPU
+            self._dof_limits = torch.zeros(self._count, self._num_dofs, 2, device="cpu")
             self._dof_limits[:, :, 0] = float("-inf")  # lower limit
             self._dof_limits[:, :, 1] = float("inf")  # upper limit
         return self._dof_limits.clone()
@@ -225,62 +241,62 @@ class MockArticulationView:
         """Get stiffnesses of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with joint stiffnesses.
+            Tensor of shape (N, J) with joint stiffnesses. Always on CPU.
         """
         if self._dof_stiffnesses is None:
-            self._dof_stiffnesses = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_stiffnesses = torch.zeros(self._count, self._num_dofs, device="cpu")
         return self._dof_stiffnesses.clone()
 
     def get_dof_dampings(self) -> torch.Tensor:
         """Get dampings of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with joint dampings.
+            Tensor of shape (N, J) with joint dampings. Always on CPU.
         """
         if self._dof_dampings is None:
-            self._dof_dampings = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_dampings = torch.zeros(self._count, self._num_dofs, device="cpu")
         return self._dof_dampings.clone()
 
     def get_dof_max_forces(self) -> torch.Tensor:
         """Get maximum forces of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with maximum joint forces.
+            Tensor of shape (N, J) with maximum joint forces. Always on CPU.
         """
         if self._dof_max_forces is None:
-            # Default: infinite max force
-            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
+            # Default: infinite max force - stored on CPU
+            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
         return self._dof_max_forces.clone()
 
     def get_dof_max_velocities(self) -> torch.Tensor:
         """Get maximum velocities of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with maximum joint velocities.
+            Tensor of shape (N, J) with maximum joint velocities. Always on CPU.
         """
         if self._dof_max_velocities is None:
-            # Default: infinite max velocity
-            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
+            # Default: infinite max velocity - stored on CPU
+            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
         return self._dof_max_velocities.clone()
 
     def get_dof_armatures(self) -> torch.Tensor:
         """Get armatures of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with joint armatures.
+            Tensor of shape (N, J) with joint armatures. Always on CPU.
         """
         if self._dof_armatures is None:
-            self._dof_armatures = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_armatures = torch.zeros(self._count, self._num_dofs, device="cpu")
         return self._dof_armatures.clone()
 
     def get_dof_friction_coefficients(self) -> torch.Tensor:
         """Get friction coefficients of all DOFs.
 
         Returns:
-            Tensor of shape (N, J) with joint friction coefficients.
+            Tensor of shape (N, J) with joint friction coefficients. Always on CPU.
         """
         if self._dof_friction_coefficients is None:
-            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device="cpu")
         return self._dof_friction_coefficients.clone()
 
     # -- Mass Property Getters --
@@ -289,20 +305,20 @@ class MockArticulationView:
         """Get masses of all links.
 
         Returns:
-            Tensor of shape (N, L, 1) with link masses.
+            Tensor of shape (N, L) with link masses. Always on CPU.
         """
         if self._masses is None:
-            self._masses = torch.ones(self._count, self._num_links, 1, device=self._device)
+            self._masses = torch.ones(self._count, self._num_links, device="cpu")
         return self._masses.clone()
 
     def get_coms(self) -> torch.Tensor:
         """Get centers of mass of all links.
 
         Returns:
-            Tensor of shape (N, L, 7) with [pos(3), quat_xyzw(4)] per link.
+            Tensor of shape (N, L, 7) with [pos(3), quat_xyzw(4)] per link. Always on CPU.
         """
         if self._coms is None:
-            self._coms = torch.zeros(self._count, self._num_links, 7, device=self._device)
+            self._coms = torch.zeros(self._count, self._num_links, 7, device="cpu")
             self._coms[:, :, 6] = 1.0  # w=1 for identity quaternion
         return self._coms.clone()
 
@@ -310,14 +326,14 @@ class MockArticulationView:
         """Get inertia tensors of all links.
 
         Returns:
-            Tensor of shape (N, L, 3, 3) with 3x3 inertia matrices per link.
+            Tensor of shape (N, L, 9) with flattened 3x3 inertia matrices per link (row-major). Always on CPU.
         """
         if self._inertias is None:
-            # Default: identity inertia
-            self._inertias = torch.zeros(self._count, self._num_links, 3, 3, device=self._device)
-            self._inertias[:, :, 0, 0] = 1.0
-            self._inertias[:, :, 1, 1] = 1.0
-            self._inertias[:, :, 2, 2] = 1.0
+            # Default: identity inertia - flattened [1,0,0,0,1,0,0,0,1] - stored on CPU
+            self._inertias = torch.zeros(self._count, self._num_links, 9, device="cpu")
+            self._inertias[:, :, 0] = 1.0  # [0,0]
+            self._inertias[:, :, 4] = 1.0  # [1,1]
+            self._inertias[:, :, 8] = 1.0  # [2,2]
         return self._inertias.clone()
 
     # -- Root Setters --
@@ -448,12 +464,15 @@ class MockArticulationView:
         """Set position limits of all DOFs.
 
         Args:
-            limits: Tensor of shape (N, J, 2) with [lower, upper] limits.
+            limits: Tensor of shape (N, J, 2) with [lower, upper] limits. Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If limits tensor is on GPU.
         """
-        limits = limits.to(self._device)
+        self._check_cpu_tensor(limits, "dof_limits")
         if self._dof_limits is None:
-            self._dof_limits = torch.zeros(self._count, self._num_dofs, 2, device=self._device)
+            self._dof_limits = torch.zeros(self._count, self._num_dofs, 2, device="cpu")
             self._dof_limits[:, :, 0] = float("-inf")
             self._dof_limits[:, :, 1] = float("inf")
         if indices is not None:
@@ -469,12 +488,15 @@ class MockArticulationView:
         """Set stiffnesses of all DOFs.
 
         Args:
-            stiffnesses: Tensor of shape (N, J).
+            stiffnesses: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If stiffnesses tensor is on GPU.
         """
-        stiffnesses = stiffnesses.to(self._device)
+        self._check_cpu_tensor(stiffnesses, "dof_stiffnesses")
         if self._dof_stiffnesses is None:
-            self._dof_stiffnesses = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_stiffnesses = torch.zeros(self._count, self._num_dofs, device="cpu")
         if indices is not None:
             self._dof_stiffnesses[indices] = stiffnesses
         else:
@@ -488,12 +510,15 @@ class MockArticulationView:
         """Set dampings of all DOFs.
 
         Args:
-            dampings: Tensor of shape (N, J).
+            dampings: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If dampings tensor is on GPU.
         """
-        dampings = dampings.to(self._device)
+        self._check_cpu_tensor(dampings, "dof_dampings")
         if self._dof_dampings is None:
-            self._dof_dampings = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_dampings = torch.zeros(self._count, self._num_dofs, device="cpu")
         if indices is not None:
             self._dof_dampings[indices] = dampings
         else:
@@ -507,12 +532,15 @@ class MockArticulationView:
         """Set maximum forces of all DOFs.
 
         Args:
-            max_forces: Tensor of shape (N, J).
+            max_forces: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If max_forces tensor is on GPU.
         """
-        max_forces = max_forces.to(self._device)
+        self._check_cpu_tensor(max_forces, "dof_max_forces")
         if self._dof_max_forces is None:
-            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
+            self._dof_max_forces = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
         if indices is not None:
             self._dof_max_forces[indices] = max_forces
         else:
@@ -526,12 +554,15 @@ class MockArticulationView:
         """Set maximum velocities of all DOFs.
 
         Args:
-            max_velocities: Tensor of shape (N, J).
+            max_velocities: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If max_velocities tensor is on GPU.
         """
-        max_velocities = max_velocities.to(self._device)
+        self._check_cpu_tensor(max_velocities, "dof_max_velocities")
         if self._dof_max_velocities is None:
-            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device=self._device)
+            self._dof_max_velocities = torch.full((self._count, self._num_dofs), float("inf"), device="cpu")
         if indices is not None:
             self._dof_max_velocities[indices] = max_velocities
         else:
@@ -545,12 +576,15 @@ class MockArticulationView:
         """Set armatures of all DOFs.
 
         Args:
-            armatures: Tensor of shape (N, J).
+            armatures: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If armatures tensor is on GPU.
         """
-        armatures = armatures.to(self._device)
+        self._check_cpu_tensor(armatures, "dof_armatures")
         if self._dof_armatures is None:
-            self._dof_armatures = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_armatures = torch.zeros(self._count, self._num_dofs, device="cpu")
         if indices is not None:
             self._dof_armatures[indices] = armatures
         else:
@@ -564,12 +598,15 @@ class MockArticulationView:
         """Set friction coefficients of all DOFs.
 
         Args:
-            friction_coefficients: Tensor of shape (N, J).
+            friction_coefficients: Tensor of shape (N, J). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If friction_coefficients tensor is on GPU.
         """
-        friction_coefficients = friction_coefficients.to(self._device)
+        self._check_cpu_tensor(friction_coefficients, "dof_friction_coefficients")
         if self._dof_friction_coefficients is None:
-            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device=self._device)
+            self._dof_friction_coefficients = torch.zeros(self._count, self._num_dofs, device="cpu")
         if indices is not None:
             self._dof_friction_coefficients[indices] = friction_coefficients
         else:
@@ -585,12 +622,15 @@ class MockArticulationView:
         """Set masses of all links.
 
         Args:
-            masses: Tensor of shape (N, L, 1).
+            masses: Tensor of shape (N, L). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If masses tensor is on GPU.
         """
-        masses = masses.to(self._device)
+        self._check_cpu_tensor(masses, "masses")
         if self._masses is None:
-            self._masses = torch.ones(self._count, self._num_links, 1, device=self._device)
+            self._masses = torch.ones(self._count, self._num_links, device="cpu")
         if indices is not None:
             self._masses[indices] = masses
         else:
@@ -604,12 +644,15 @@ class MockArticulationView:
         """Set centers of mass of all links.
 
         Args:
-            coms: Tensor of shape (N, L, 7).
+            coms: Tensor of shape (N, L, 7). Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If coms tensor is on GPU.
         """
-        coms = coms.to(self._device)
+        self._check_cpu_tensor(coms, "coms")
         if self._coms is None:
-            self._coms = torch.zeros(self._count, self._num_links, 7, device=self._device)
+            self._coms = torch.zeros(self._count, self._num_links, 7, device="cpu")
             self._coms[:, :, 6] = 1.0
         if indices is not None:
             self._coms[indices] = coms
@@ -624,15 +667,18 @@ class MockArticulationView:
         """Set inertia tensors of all links.
 
         Args:
-            inertias: Tensor of shape (N, L, 3, 3).
+            inertias: Tensor of shape (N, L, 9) - flattened 3x3 matrices. Must be on CPU.
             indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If inertias tensor is on GPU.
         """
-        inertias = inertias.to(self._device)
+        self._check_cpu_tensor(inertias, "inertias")
         if self._inertias is None:
-            self._inertias = torch.zeros(self._count, self._num_links, 3, 3, device=self._device)
-            self._inertias[:, :, 0, 0] = 1.0
-            self._inertias[:, :, 1, 1] = 1.0
-            self._inertias[:, :, 2, 2] = 1.0
+            self._inertias = torch.zeros(self._count, self._num_links, 9, device="cpu")
+            self._inertias[:, :, 0] = 1.0
+            self._inertias[:, :, 4] = 1.0
+            self._inertias[:, :, 8] = 1.0
         if indices is not None:
             self._inertias[indices] = inertias
         else:
@@ -756,7 +802,7 @@ class MockArticulationView:
         """Set mock mass data directly for testing.
 
         Args:
-            masses: Tensor of shape (N, L, 1).
+            masses: Tensor of shape (N, L).
         """
         self._masses = masses.to(self._device)
 
@@ -775,3 +821,102 @@ class MockArticulationView:
             inertias: Tensor of shape (N, L, 3, 3).
         """
         self._inertias = inertias.to(self._device)
+
+    # -- Additional mock state for extended properties --
+
+    def get_dof_friction_properties(self) -> torch.Tensor:
+        """Get friction properties of all DOFs.
+
+        Returns:
+            Tensor of shape (N, J, 3) with [static_friction, dynamic_friction, viscous_friction]. Always on CPU.
+        """
+        if self._dof_friction_properties is None:
+            self._dof_friction_properties = torch.zeros(self._count, self._num_dofs, 3, device="cpu")
+        return self._dof_friction_properties.clone()
+
+    def get_link_accelerations(self) -> torch.Tensor:
+        """Get accelerations of all links.
+
+        Returns:
+            Tensor of shape (N, L, 6) with [lin_acc(3), ang_acc(3)] per link.
+        """
+        if self._link_accelerations is None:
+            self._link_accelerations = torch.zeros(self._count, self._num_links, 6, device=self._device)
+        return self._link_accelerations.clone()
+
+    def get_link_incoming_joint_force(self) -> torch.Tensor:
+        """Get incoming joint forces for all links.
+
+        Returns:
+            Tensor of shape (N, L, 6) with [force(3), torque(3)] per link.
+        """
+        if self._link_incoming_joint_force is None:
+            self._link_incoming_joint_force = torch.zeros(self._count, self._num_links, 6, device=self._device)
+        return self._link_incoming_joint_force.clone()
+
+    def set_mock_dof_friction_properties(self, friction_properties: torch.Tensor) -> None:
+        """Set mock DOF friction properties data directly for testing.
+
+        Args:
+            friction_properties: Tensor of shape (N, J, 3).
+        """
+        self._dof_friction_properties = friction_properties.to(self._device)
+
+    def set_mock_link_accelerations(self, accelerations: torch.Tensor) -> None:
+        """Set mock link acceleration data directly for testing.
+
+        Args:
+            accelerations: Tensor of shape (N, L, 6).
+        """
+        self._link_accelerations = accelerations.to(self._device)
+
+    def set_mock_link_incoming_joint_force(self, forces: torch.Tensor) -> None:
+        """Set mock link incoming joint force data directly for testing.
+
+        Args:
+            forces: Tensor of shape (N, L, 6).
+        """
+        self._link_incoming_joint_force = forces.to(self._device)
+
+    def set_random_mock_data(self) -> None:
+        """Set all internal state to random values for benchmarking.
+
+        This method initializes all mock data with random values,
+        useful for benchmarking where the actual values don't matter.
+        """
+        # Root state
+        self._root_transforms = torch.randn(self._count, 7, device=self._device)
+        self._root_transforms[:, 3:7] = torch.nn.functional.normalize(self._root_transforms[:, 3:7], dim=-1)
+        self._root_velocities = torch.randn(self._count, 6, device=self._device)
+
+        # Link state
+        self._link_transforms = torch.randn(self._count, self._num_links, 7, device=self._device)
+        self._link_transforms[:, :, 3:7] = torch.nn.functional.normalize(self._link_transforms[:, :, 3:7], dim=-1)
+        self._link_velocities = torch.randn(self._count, self._num_links, 6, device=self._device)
+        self._link_accelerations = torch.randn(self._count, self._num_links, 6, device=self._device)
+        self._link_incoming_joint_force = torch.randn(self._count, self._num_links, 6, device=self._device)
+
+        # DOF state
+        self._dof_positions = torch.randn(self._count, self._num_dofs, device=self._device)
+        self._dof_velocities = torch.randn(self._count, self._num_dofs, device=self._device)
+        self._dof_projected_joint_forces = torch.randn(self._count, self._num_dofs, device=self._device)
+
+        # DOF properties - stored on CPU (PhysX requirement)
+        self._dof_limits = torch.randn(self._count, self._num_dofs, 2, device="cpu")
+        self._dof_stiffnesses = torch.rand(self._count, self._num_dofs, device="cpu") * 100
+        self._dof_dampings = torch.rand(self._count, self._num_dofs, device="cpu") * 10
+        self._dof_max_forces = torch.rand(self._count, self._num_dofs, device="cpu") * 100
+        self._dof_max_velocities = torch.rand(self._count, self._num_dofs, device="cpu") * 10
+        self._dof_armatures = torch.rand(self._count, self._num_dofs, device="cpu") * 0.1
+        self._dof_friction_coefficients = torch.rand(self._count, self._num_dofs, device="cpu")
+        self._dof_friction_properties = torch.rand(self._count, self._num_dofs, 3, device="cpu")
+
+        # Mass properties - stored on CPU (PhysX requirement)
+        self._masses = torch.rand(self._count, self._num_links, device="cpu") * 10
+        self._coms = torch.randn(self._count, self._num_links, 7, device="cpu")
+        self._coms[:, :, 3:7] = torch.nn.functional.normalize(self._coms[:, :, 3:7], dim=-1)
+        # Inertias: (N, L, 9) flattened format
+        self._inertias = torch.zeros(self._count, self._num_links, 9, device="cpu")
+        self._inertias[:, :, 0] = torch.rand(self._count, self._num_links)  # [0,0]
+        self._inertias[:, :, 4] = torch.rand(self._count, self._num_links)  # [1,1]
+        self._inertias[:, :, 8] = torch.rand(self._count, self._num_links)  # [2,2]

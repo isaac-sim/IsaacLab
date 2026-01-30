@@ -264,7 +264,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_mass(self) -> torch.Tensor:
-        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
+        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1)."""
         raise NotImplementedError()
 
     @property

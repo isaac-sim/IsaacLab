@@ -436,7 +436,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_inertia(self) -> torch.Tensor:
-        """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
+        """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 9)."""
         raise NotImplementedError
 
     @property

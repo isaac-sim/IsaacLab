@@ -11,4 +11,5 @@
 """Utilities for creating and using mock interfaces."""
 
 from .mock_generator import MockArticulationBuilder, MockSensorBuilder
+from .mock_wrench_composer import MockWrenchComposer
 from .patching import patch_articulation, patch_sensor

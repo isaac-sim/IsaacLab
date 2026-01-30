@@ -331,6 +331,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES
 
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self.data.body_link_pose_w[env_ids[:, None], body_ids] = body_poses.clone()
@@ -383,6 +389,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # -- body_ids
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES
+
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
 
         # set into internal buffers
         self.data.body_com_pose_w[env_ids[:, None], body_ids] = body_poses.clone()
@@ -448,6 +460,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES
 
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self.data.body_com_vel_w[env_ids[:, None], body_ids] = body_velocities.clone()
@@ -489,6 +507,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if body_ids is None:
             body_ids = self._ALL_BODY_INDICES
 
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
         # set into internal buffers
         self.data.body_link_vel_w[env_ids[:, None], body_ids] = body_velocities.clone()
         # update these buffers only if the user is using them. Otherwise this adds to overhead.
@@ -520,10 +544,31 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set masses of all bodies.
 
         Args:
-            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
+        # resolve indices
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES
+        if body_ids is None:
+            body_ids = self._ALL_BODY_INDICES
+
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+        # set into internal buffers
+        # _body_mass shape from view is (num_instances * num_bodies, 1)
+        # We need to update only the selected env_ids and body_ids
+        view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids)
+        # masses input shape is (len(env_ids), len(body_ids)), flatten to match view
+        self.data._body_mass[view_ids] = masses.reshape(-1, 1)
+
+        # set into simulation
+        self.root_view.set_masses(self.data._body_mass.cpu(), indices=view_ids.cpu())
 
     def set_coms(
         self,
@@ -534,11 +579,37 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set center of mass positions of all bodies.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass positions for. Defaults to None
                 (all environments).
         """
+        # resolve indices
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES
+        if body_ids is None:
+            body_ids = self._ALL_BODY_INDICES
+
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+        # get view indices
+        view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids)
+
+        # get current com poses and update position part
+        # body_com_pose_b triggers lazy evaluation, so we work with the underlying buffer
+        current_poses = self.root_view.get_coms().to(self.device)
+        # coms input shape is (len(env_ids), len(body_ids), 3), flatten to (N, 3)
+        current_poses[view_ids, :3] = coms.reshape(-1, 3)
+
+        # set into simulation
+        self.root_view.set_coms(current_poses.cpu(), indices=view_ids.cpu())
+
+        # invalidate the cached buffer
+        self.data._body_com_pose_b.timestamp = -1
 
     def set_inertias(
         self,
@@ -549,10 +620,32 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Set inertias of all bodies.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 3, 3).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
+        # resolve indices
+        if env_ids is None:
+            env_ids = self._ALL_ENV_INDICES
+        if body_ids is None:
+            body_ids = self._ALL_BODY_INDICES
+
+        # convert lists to tensors for proper indexing
+        if isinstance(env_ids, list):
+            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        if isinstance(body_ids, list):
+            body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+        # get view indices
+        view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids)
+
+        # set into internal buffers
+        # _body_inertia shape from view is (num_instances * num_bodies, 9) - flattened 3x3 matrices
+        # inertias input shape is (len(env_ids), len(body_ids), 3, 3), flatten to (N, 9)
+        self.data._body_inertia[view_ids] = inertias.reshape(-1, 9)
+
+        # set into simulation
+        self.root_view.set_inertias(self.data._body_inertia.cpu(), indices=view_ids.cpu())
 
     def set_external_force_and_torque(
         self,
