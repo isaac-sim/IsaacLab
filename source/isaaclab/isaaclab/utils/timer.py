@@ -182,8 +182,11 @@ class Timer(ContextDecorator):
             self._mean = value
             self._m2 = 0.0
 
-        # Update the std
-        self._std = math.sqrt(self._m2 / self._n)
+        # Update the std (sample standard deviation with Bessel's correction)
+        if self._n > 1:
+            self._std = math.sqrt(self._m2 / (self._n - 1))
+        else:
+            self._std = 0.0
 
     """
     Context managers
