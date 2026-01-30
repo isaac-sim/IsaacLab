@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -104,9 +104,9 @@ class UsdFileCfg(FileCfg):
     variants: object | dict[str, str] | None = None
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
-    This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-    or a dictionary mapping between the two. Please check the :meth:`~isaaclab.sim.utils.select_usd_variants` function
-    for more information.
+    This can either be a configclass object, in which case each attribute is used as a variant set name and
+    its specified value, or a dictionary mapping between the two. Please check the
+    :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
     """
 
 
@@ -157,6 +157,41 @@ class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
 """
 Spawning ground plane.
 """
+
+
+@configclass
+class UsdFileWithCompliantContactCfg(UsdFileCfg):
+    """Configuration for spawning a USD asset with compliant contact physics material.
+
+    This class extends :class:`UsdFileCfg` to support applying compliant contact properties
+    (stiffness and damping) to specific prims in the spawned asset. It uses the
+    :meth:`spawn_from_usd_with_compliant_contact_material` function to perform the spawning and
+    material application.
+    """
+
+    func: Callable = from_files.spawn_from_usd_with_compliant_contact_material
+
+    compliant_contact_stiffness: float | None = None
+    """Stiffness of the compliant contact. Defaults to None.
+
+    This parameter is the same as
+    :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_stiffness`.
+    """
+
+    compliant_contact_damping: float | None = None
+    """Damping of the compliant contact. Defaults to None.
+
+    This parameter is the same as
+    :attr:`isaaclab.sim.spawners.materials.RigidBodyMaterialCfg.compliant_contact_damping`.
+    """
+
+    physics_material_prim_path: str | list[str] | None = None
+    """Path to the prim or prims to apply the physics material to. Defaults to None, in which case the
+    physics material is not applied.
+
+    If the path is relative, then it will be relative to the prim's path.
+    If None, then the physics material will not be applied.
+    """
 
 
 @configclass

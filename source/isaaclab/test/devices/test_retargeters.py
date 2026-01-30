@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,11 +16,12 @@ HEADLESS = True
 app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
-import numpy as np
 import sys
-import torch
 import unittest
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import torch
 
 # Mock dependencies that might require a running simulation or specific hardware
 sys.modules["isaaclab.markers"] = MagicMock()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,9 +33,9 @@ class InteractiveSceneCfg:
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
+
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-
             # terrain - flat terrain plane
             terrain = TerrainImporterCfg(
                 prim_path="/World/ground",

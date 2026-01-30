@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -42,7 +42,6 @@ class CartpoleShowcaseEnv(CartpoleEnv):
         self.cartpole.set_joint_effort_target(target, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
-
         # fundamental spaces
         # - Box
         if isinstance(self.single_observation_space["policy"], gym.spaces.Box):

@@ -1,12 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.math import (
     apply_delta_pose,
@@ -509,7 +510,6 @@ class OperationalSpaceController:
 
             # Null space position control
             if self.cfg.nullspace_control == "position":
-
                 # Check if the current joint positions and velocities are provided
                 if current_joint_pos is None or current_joint_vel is None:
                     raise ValueError("Current joint positions and velocities are required for null-space control.")

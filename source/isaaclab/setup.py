@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,8 +6,8 @@
 """Installation script for the 'isaaclab' python package."""
 
 import os
-import toml
 
+import toml
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file
@@ -31,7 +31,7 @@ INSTALL_REQUIRES = [
     "trimesh",
     "pyglet<2",
     # image processing
-    "transformers",
+    "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang",
     # make sure this is consistent with isaac sim version
@@ -44,6 +44,7 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     "flaky",
+    "packaging",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers

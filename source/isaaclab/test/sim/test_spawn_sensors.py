@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,11 +14,11 @@ simulation_app = AppLauncher(headless=True).app
 
 
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
+
+from pxr import Usd
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
 from isaaclab.utils.string import to_camel_case
 
@@ -26,10 +26,10 @@ from isaaclab.utils.string import to_camel_case
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
-    stage_utils.update_stage()
+    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim_utils.update_stage()
     yield sim
     sim.stop()
     sim.clear()
@@ -50,10 +50,10 @@ def test_spawn_pinhole_camera(sim):
     prim = cfg.func("/World/pinhole_camera", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/pinhole_camera")
+    assert sim.stage.GetPrimAtPath("/World/pinhole_camera").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Camera"
     # Check properties
-    _validate_properties_on_prim("/World/pinhole_camera", cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
+    _validate_properties_on_prim(prim, cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
 
 
 def test_spawn_fisheye_camera(sim):
@@ -70,10 +70,10 @@ def test_spawn_fisheye_camera(sim):
     prim = cfg.func("/World/fisheye_camera", cfg)
     # Check validity
     assert prim.IsValid()
-    assert prim_utils.is_prim_path_valid("/World/fisheye_camera")
+    assert sim.stage.GetPrimAtPath("/World/fisheye_camera").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Camera"
     # Check properties
-    _validate_properties_on_prim("/World/fisheye_camera", cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
+    _validate_properties_on_prim(prim, cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
 
 
 """
@@ -81,15 +81,14 @@ Helper functions.
 """
 
 
-def _validate_properties_on_prim(prim_path: str, cfg: object, custom_attr: dict):
+def _validate_properties_on_prim(prim: Usd.Prim, cfg: object, custom_attr: dict):
     """Validate the properties on the prim.
 
     Args:
-        prim_path: The prim name.
+        prim: The prim.
         cfg: The configuration object.
         custom_attr: The custom attributes for sensor.
     """
-
     # delete custom attributes in the config that are not USD parameters
     non_usd_cfg_param_names = [
         "func",
@@ -99,8 +98,7 @@ def _validate_properties_on_prim(prim_path: str, cfg: object, custom_attr: dict)
         "semantic_tags",
         "from_intrinsic_matrix",
     ]
-    # get prim
-    prim = prim_utils.get_prim_at_path(prim_path)
+    # validate the properties
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
         if attr_name in non_usd_cfg_param_names or attr_value is None:

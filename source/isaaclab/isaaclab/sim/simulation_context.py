@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,14 +7,9 @@ import builtins
 import enum
 import glob
 import logging
-import numpy as np
 import os
 import re
-import sys
-import tempfile
 import time
-import toml
-import torch
 import traceback
 import weakref
 from collections.abc import Iterator
@@ -22,21 +17,26 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
-import carb
 import flatdict
+import numpy as np
+import toml
+import torch
+
+import carb
 import omni.physx
 import omni.usd
 from isaacsim.core.api.simulation_context import SimulationContext as _SimulationContext
 from isaacsim.core.simulation_manager import SimulationManager
 from isaacsim.core.utils.viewports import set_camera_view
-from isaacsim.core.version import get_version
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdPhysics, UsdUtils
 
-import isaaclab.sim.utils.stage as stage_utils
+import isaaclab.sim as sim_utils
+from isaaclab.utils.logger import configure_logging
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .utils import ColoredFormatter, RateLimitFilter, bind_physics_material
+from .utils import bind_physics_material
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -100,8 +100,8 @@ class SimulationContext(_SimulationContext):
         control what is updated when the simulation is rendered. This is where the render mode comes in. There are
         four different render modes:
 
-        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
-          so none of the above are updated.
+        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag
+          is disabled, so none of the above are updated.
         * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
         * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
         * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
@@ -132,24 +132,29 @@ class SimulationContext(_SimulationContext):
         cfg.validate()
         self.cfg = cfg
         # check that simulation is running
-        if stage_utils.get_current_stage() is None:
+        if sim_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
 
         # setup logger
-        self.logger = self._setup_logger()
+        self.logger = configure_logging(
+            logging_level=self.cfg.logging_level,
+            save_logs_to_file=self.cfg.save_logs_to_file,
+            log_dir=self.cfg.log_dir,
+        )
 
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
-            self._initial_stage = stage_utils.create_new_stage_in_memory()
+            self._initial_stage = sim_utils.create_new_stage_in_memory()
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
+        # cache stage if it is not already cached
+        stage_cache = UsdUtils.StageCache.Get()
+        stage_id = stage_cache.GetId(self._initial_stage).ToLongInt()
+        if stage_id < 0:
+            stage_cache.Insert(self._initial_stage)
 
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
-
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        self._isaacsim_version = get_version()
 
         # apply carb physics settings
         self._apply_physics_settings()
@@ -280,7 +285,7 @@ class SimulationContext(_SimulationContext):
         self._physics_device = SimulationManager.get_physics_sim_device()
 
         # create a simulation context to control the simulator
-        if float(".".join(self._isaacsim_version[2])) < 5:
+        if get_isaac_sim_version().major < 5:
             # stage arg is not supported before isaac sim 5.0
             super().__init__(
                 stage_units_in_meters=1.0,
@@ -359,15 +364,26 @@ class SimulationContext(_SimulationContext):
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.
 
-        This is a wrapper around the ``isaacsim.core.version.get_version()`` function.
-
         The returned tuple contains the following information:
 
-        * Major version (int): This is the year of the release (e.g. 2022).
-        * Minor version (int): This is the half-year of the release (e.g. 1 or 2).
-        * Patch version (int): This is the patch number of the release (e.g. 0).
+        * Major version: This is the year of the release (e.g. 2022).
+        * Minor version: This is the half-year of the release (e.g. 1 or 2).
+        * Patch version: This is the patch number of the release (e.g. 0).
+
+        .. attention::
+            This function is deprecated and will be removed in the future.
+            We recommend using :func:`isaaclab.utils.version.get_isaac_sim_version`
+            instead of this function.
+
+        Returns:
+            A tuple containing the major, minor, and patch versions.
+
+        Example:
+            >>> sim = SimulationContext()
+            >>> sim.get_version()
+            (2022, 1, 0)
         """
-        return int(self._isaacsim_version[2]), int(self._isaacsim_version[3]), int(self._isaacsim_version[4])
+        return get_isaac_sim_version().major, get_isaac_sim_version().minor, get_isaac_sim_version().micro
 
     """
     Operations - New utilities.
@@ -481,14 +497,6 @@ class SimulationContext(_SimulationContext):
         """
         return self.carb_settings.get(name)
 
-    def forward(self) -> None:
-        """Updates articulation kinematics and fabric for rendering."""
-        if self._fabric_iface is not None:
-            if self.physics_sim_view is not None and self.is_playing():
-                # Update the articulations' link's poses before rendering
-                self.physics_sim_view.update_articulations_kinematic()
-            self._update_fabric(0.0, 0.0)
-
     def get_initial_stage(self) -> Usd.Stage:
         """Returns stage handle used during scene creation.
 
@@ -521,6 +529,14 @@ class SimulationContext(_SimulationContext):
             for _ in range(2):
                 self.render()
         self._disable_app_control_on_stop_handle = False
+
+    def forward(self) -> None:
+        """Updates articulation kinematics and fabric for rendering."""
+        if self._fabric_iface is not None:
+            if self.physics_sim_view is not None and self.is_playing():
+                # Update the articulations' link's poses before rendering
+                self.physics_sim_view.update_articulations_kinematic()
+            self._update_fabric(0.0, 0.0)
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -631,7 +647,7 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
-        with stage_utils.use_stage(self.get_initial_stage()):
+        with sim_utils.use_stage(self.get_initial_stage()):
             # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
             # when in headless mode
             self.set_setting("/app/player/playSimulations", False)
@@ -694,6 +710,9 @@ class SimulationContext(_SimulationContext):
         self.carb_settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # hide the Simulation Settings window
         self.carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        self.carb_settings.set_bool("/physics/visualizationSimulationOutput", False)
+        # set fabric enabled flag
+        self.carb_settings.set_bool("/physics/fabricEnabled", self.cfg.use_fabric)
 
     def _apply_render_settings_from_cfg(self):  # noqa: C901
         """Sets rtx settings specified in the RenderCfg."""
@@ -737,7 +756,7 @@ class SimulationContext(_SimulationContext):
             # grab isaac lab apps path
             isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
             # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if float(".".join(self._isaacsim_version[2])) < 5:
+            if get_isaac_sim_version().major < 5:
                 isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
 
             # grab preset settings
@@ -953,7 +972,7 @@ class SimulationContext(_SimulationContext):
 
         # Save stage to disk
         stage_path = os.path.join(self._anim_recording_output_dir, "stage_simulation.usdc")
-        stage_utils.save_stage(stage_path, save_and_reload_in_place=False)
+        sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
 
         # Find the latest ovd file not named tmp.ovd
         ovd_files = [
@@ -1010,46 +1029,6 @@ class SimulationContext(_SimulationContext):
                 self.render()
         return
 
-    """
-    Logger.
-    """
-
-    def _setup_logger(self):
-        """Sets up the logger."""
-        root_logger = logging.getLogger()
-        root_logger.setLevel(self.cfg.logging_level)
-
-        # remove existing handlers
-        if root_logger.hasHandlers():
-            for handler in root_logger.handlers:
-                root_logger.removeHandler(handler)
-
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(self.cfg.logging_level)
-
-        formatter = ColoredFormatter(fmt="%(asctime)s [%(filename)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
-        handler.setFormatter(formatter)
-        handler.addFilter(RateLimitFilter(interval_seconds=5))
-        root_logger.addHandler(handler)
-
-        # --- File handler (optional) ---
-        if self.cfg.save_logs_to_file:
-            temp_dir = tempfile.gettempdir()
-            log_file_path = os.path.join(temp_dir, f"isaaclab_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
-
-            file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
-            file_handler.setLevel(logging.DEBUG)
-            file_formatter = logging.Formatter(
-                fmt="%(asctime)s [%(filename)s:%(lineno)d] %(levelname)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-            )
-            file_handler.setFormatter(file_formatter)
-            root_logger.addHandler(file_handler)
-
-            # Print the log file path once at startup
-            print(f"[INFO] IsaacLab logging to file: {log_file_path}")
-
-        return root_logger
-
 
 @contextmanager
 def build_simulation_context(
@@ -1068,20 +1047,20 @@ def build_simulation_context(
     aspects of the simulation, such as time step, gravity, device, and scene elements like ground plane and
     lighting.
 
-    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings, with parameters
-    overwritten based on arguments to the function.
+    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings,
+    with parameters overwritten based on arguments to the function.
 
     An example usage of the context manager function:
 
     ..  code-block:: python
 
         with build_simulation_context() as sim:
-             # Design the scene
+            # Design the scene
 
-             # Play the simulation
-             sim.reset()
-             while sim.is_playing():
-                 sim.step()
+            # Play the simulation
+            sim.reset()
+            while sim.is_playing():
+                sim.step()
 
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.
@@ -1100,7 +1079,7 @@ def build_simulation_context(
     """
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             # Construct one and overwrite the dt, gravity, and device

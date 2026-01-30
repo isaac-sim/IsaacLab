@@ -1,12 +1,7 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import configclass
@@ -17,12 +12,18 @@ from isaaclab_tasks.manager_based.manipulation.reach.config.openarm.unimanual.re
 )
 
 ##
+# Pre-defined configs
+##
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+
+##
 # Environment configuration
 ##
 
 
 @configclass
 class OpenArmReachEnvCfg(ReachEnvCfg):
+    """Configuration for the single-arm OpenArm Reach Environment."""
 
     def __post_init__(self):
         # post init of parent

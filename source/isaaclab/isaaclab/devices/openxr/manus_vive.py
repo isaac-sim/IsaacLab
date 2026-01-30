@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,15 +10,17 @@ Manus and Vive for teleoperation and interaction.
 from __future__ import annotations
 
 import contextlib
-import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import numpy as np
+from packaging import version
+
 import carb
-from isaacsim.core.version import get_version
 
 from isaaclab.devices.openxr.common import HAND_JOINT_NAMES
 from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.utils.version import get_isaac_sim_version
 
 from ..device_base import DeviceBase, DeviceCfg
 from .xr_cfg import XrCfg
@@ -70,10 +72,9 @@ class ManusVive(DeviceBase):
         """
         super().__init__(retargeters)
         # Enforce minimum Isaac Sim version (>= 5.1)
-        version_info = get_version()
-        major, minor = int(version_info[2]), int(version_info[3])
-        if (major < 5) or (major == 5 and minor < 1):
-            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version {major}.{minor}. ")
+        isaac_sim_version = get_isaac_sim_version()
+        if isaac_sim_version < version.parse("5.1"):
+            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version: '{isaac_sim_version}'.")
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (
@@ -203,15 +204,17 @@ class ManusVive(DeviceBase):
             quatw = quat.GetReal()
 
             # Store in w, x, y, z order to match our convention
-            self._previous_headpose = np.array([
-                position[0],
-                position[1],
-                position[2],
-                quatw,
-                quati[0],
-                quati[1],
-                quati[2],
-            ])
+            self._previous_headpose = np.array(
+                [
+                    position[0],
+                    position[1],
+                    position[2],
+                    quatw,
+                    quati[0],
+                    quati[1],
+                    quati[2],
+                ]
+            )
 
         return self._previous_headpose
 

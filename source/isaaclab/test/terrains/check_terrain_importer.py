@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -69,15 +69,13 @@ import omni.kit.commands
 from isaacsim.core.api.materials import PhysicsMaterial
 from isaacsim.core.api.materials.preview_surface import PreviewSurface
 from isaacsim.core.api.objects import DynamicSphere
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
 from isaacsim.core.utils.extensions import enable_extension
-from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -89,18 +87,9 @@ def main():
     """Generates a terrain from isaaclab."""
 
     # Load kit helper
-    sim_params = {
-        "use_gpu": True,
-        "use_gpu_pipeline": True,
-        "use_flatcache": True,
-        "use_fabric": True,
-        "enable_scene_query_support": True,
-    }
-    sim = SimulationContext(
-        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(SimulationCfg())
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view(eye=(0.0, 30.0, 25.0), target=(0.0, 0.0, -2.5))
 
     # Parameters
     num_balls = 2048
@@ -109,7 +98,7 @@ def main():
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    sim_utils.define_prim("/World/envs/env_0")
 
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -136,7 +125,7 @@ def main():
     else:
         # -- Ball geometry
         cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
+        sim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
         # -- Ball physics
         SingleRigidPrim(
             prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)

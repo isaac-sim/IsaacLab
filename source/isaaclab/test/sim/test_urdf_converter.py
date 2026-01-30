@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,27 +12,36 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
 
+import numpy as np
 import pytest
-from isaacsim.core.api.simulation_context import SimulationContext
-from isaacsim.core.prims import Articulation
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
+from packaging.version import Version
 
-import isaaclab.sim.utils.prims as prim_utils
-import isaaclab.sim.utils.stage as stage_utils
+import omni.kit.app
+from isaacsim.core.prims import Articulation
+
+import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+from isaaclab.utils.version import get_isaac_sim_version
 
 
 # Create a fixture for setup and teardown
 @pytest.fixture
 def sim_config():
     # Create a new stage
-    stage_utils.create_new_stage()
-    # retrieve path to urdf importer extension
-    enable_extension("isaacsim.asset.importer.urdf-2.4.31")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.urdf-2.4.31")
+    sim_utils.create_new_stage()
+    # pin the urdf importer extension to the older version
+    manager = omni.kit.app.get_app().get_extension_manager()
+    if get_isaac_sim_version() >= Version("5.1"):
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
+        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
+    else:
+        pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
+    # obtain the extension path
+    extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
+    extension_path = manager.get_extension_path(extension_id)
     # default configuration
     config = UrdfConverterCfg(
         asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
@@ -44,9 +53,10 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()
@@ -96,9 +106,9 @@ def test_create_prim_from_usd(sim_config):
     urdf_converter = UrdfConverter(config)
 
     prim_path = "/World/Robot"
-    prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
-    assert prim_utils.is_prim_path_valid(prim_path)
+    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
 
 
 @pytest.mark.isaacsim_ci
@@ -120,7 +130,7 @@ def test_config_drive_type(sim_config):
     urdf_converter = UrdfConverter(config)
     # check the drive type of the robot
     prim_path = "/World/Robot"
-    prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
+    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
     # access the robot
     robot = Articulation(prim_path, reset_xform_properties=False)
@@ -130,11 +140,13 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
 
     # check drive values for the robot (read from usd)
+    # Note: Disable the app control callback to prevent hanging during sim.stop()
+    sim._disable_app_control_on_stop_handle = True
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
