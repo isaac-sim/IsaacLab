@@ -9,6 +9,8 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from isaaclab.assets import Articulation
 from isaaclab.envs import mdp
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
@@ -94,11 +96,16 @@ class DifficultyScheduler(ManagerTermBase):
         asset: Articulation = env.scene[asset_cfg.name]
         object = env.scene[object_cfg.name]
         command = env.command_manager.get_command("object_pose")
+        # Convert warp arrays to torch tensors
+        asset_root_pos_w = wp.to_torch(asset.data.root_pos_w)
+        asset_root_quat_w = wp.to_torch(asset.data.root_quat_w)
+        object_root_pos_w = wp.to_torch(object.data.root_pos_w)
+        object_root_quat_w = wp.to_torch(object.data.root_quat_w)
         des_pos_w, des_quat_w = combine_frame_transforms(
-            asset.data.root_pos_w[env_ids], asset.data.root_quat_w[env_ids], command[env_ids, :3], command[env_ids, 3:7]
+            asset_root_pos_w[env_ids], asset_root_quat_w[env_ids], command[env_ids, :3], command[env_ids, 3:7]
         )
         pos_err, rot_err = compute_pose_error(
-            des_pos_w, des_quat_w, object.data.root_pos_w[env_ids], object.data.root_quat_w[env_ids]
+            des_pos_w, des_quat_w, object_root_pos_w[env_ids], object_root_quat_w[env_ids]
         )
         pos_dist = torch.norm(pos_err, dim=1)
         rot_dist = torch.norm(rot_err, dim=1)
