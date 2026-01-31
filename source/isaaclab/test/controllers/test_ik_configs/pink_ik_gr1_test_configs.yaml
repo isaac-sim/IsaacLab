@@ -5,7 +5,8 @@ tolerances:
   check_errors: true
 # Pose format: position [x, y, z] and orientation [qw, qx, qy, qz].
 # Poses are specified relative to the robot base frame (not world frame).
-allowed_steps_to_settle: 5
+# Time values are in seconds
+allowed_time_to_settle: 0.25
 tests:
   vertical_movement:
     left_hand_pose:
@@ -18,7 +19,7 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.23, 0.32, 1.2]
       orientation: [0.5, 0.5, -0.5, 0.5]
-    allowed_steps_per_motion: 8
+    allowed_time_per_motion: 0.4
     repeat: 2
     requires_waist_bending: false
   stay_still:
@@ -32,7 +33,7 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.23, 0.28, 1.1]
       orientation: [0.5, 0.5, -0.5, 0.5]
-    allowed_steps_per_motion: 8
+    allowed_time_per_motion: 0.4
     repeat: 4
     requires_waist_bending: false
   horizontal_movement:
@@ -46,7 +47,7 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.13, 0.32, 1.1]
       orientation: [0.5, 0.5, -0.5, 0.5]
-    allowed_steps_per_motion: 8
+    allowed_time_per_motion: 0.4
     repeat: 2
     requires_waist_bending: false
   horizontal_small_movement:
@@ -60,7 +61,7 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.22, 0.32, 1.1]
       orientation: [0.5, 0.5, -0.5, 0.5]
-    allowed_steps_per_motion: 8
+    allowed_time_per_motion: 0.4
     repeat: 2
     requires_waist_bending: false
   forward_waist_bending_movement:
@@ -74,7 +75,7 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.23, 0.5, 1.05]
       orientation: [0.5, 0.5, -0.5, 0.5]
-    allowed_steps_per_motion: 25
+    allowed_time_per_motion: 1.25
     repeat: 3
     requires_waist_bending: true
   rotation_movements:
@@ -96,6 +97,6 @@ tests:
       orientation: [0.5, 0.5, -0.5, 0.5]
     - position: [0.23, 0.32, 1.1]
       orientation: [0.7071, 0.7071, 0.0, 0.0]
-    allowed_steps_per_motion: 10
+    allowed_time_per_motion: 0.5
     repeat: 2
     requires_waist_bending: false

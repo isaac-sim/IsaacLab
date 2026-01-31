@@ -45,6 +45,7 @@ from pathlib import Path
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
 import isaaclab_tasks  # noqa: F401
@@ -105,7 +106,8 @@ def create_test_env(env_name, num_envs):
     """Create a test environment with the Pink IK controller."""
     device = "cuda:0"
 
-    # omni.usd.get_context().new_stage()
+    # Create a new stage (works with both omni and newton backends)
+    stage_utils.create_new_stage()
     env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
     # Modify scene config to not spawn the packing table to avoid collision with the robot
     # del env_cfg.scene.packing_table
@@ -271,8 +273,11 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         obs, _ = env.reset()
 
-        # Make the first phase longer than subsequent ones
-        initial_steps = test_cfg["allowed_steps_to_settle"]
+        # Convert time (seconds) to steps using environment's step_dt
+        step_dt = env.step_dt
+        initial_steps = int(test_cfg["allowed_time_to_settle"] / step_dt)
+        steps_per_motion = int(test_config["allowed_time_per_motion"] / step_dt)
+
         phase = "initial"
         steps_in_phase = 0
 
@@ -305,7 +310,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
             if phase == "initial":
                 check_interval = initial_steps
             else:
-                check_interval = test_config["allowed_steps_per_motion"]
+                check_interval = steps_per_motion
 
             # Check convergence and verify errors
             if steps_in_phase % check_interval == 0:
