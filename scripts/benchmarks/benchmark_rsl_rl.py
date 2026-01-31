@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The IsaacLab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 """Script to benchmark RL agent with RSL-RL."""
 
@@ -77,8 +73,6 @@ app_start_time_begin = time.perf_counter_ns()
 simulation_app = None
 app_launcher = None
 if args_cli.kit:
-    from isaaclab.app import AppLauncher
-
     # Force Omniverse mode by setting environment variable
     # This ensures SimulationApp is launched even without explicit visualizers
     os.environ["LAUNCH_OV_APP"] = "1"
