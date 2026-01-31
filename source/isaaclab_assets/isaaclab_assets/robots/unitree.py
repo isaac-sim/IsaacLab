@@ -368,7 +368,7 @@ DAMPING_4010 = 2.0 * DAMPING_RATIO * ARMATURE_4010 * NATURAL_FREQ
 G1_29_DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
-        activate_contact_sensors=True,
+        activate_contact_sensors=False,
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
         ),
@@ -384,17 +384,15 @@ G1_29_DOF_CFG = ArticulationCfg(
         ".*elbow.*": 1.0,     # Elbow links get 90% gravity compensation
         ".*wrist.*": 1.0,     # Wrist links get full gravity compensation
         ".*hand.*": 1.0,     # Hands links get full gravity compensation
-        ".*waist.*": 1.0,     # Waist links get full gravity compensation
         ".*torso.*": 1.0,     # Torso links get full gravity compensation
     },
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.76),
+        pos=(0.0, 0.0, 0.78),
         rot=(0, 0, 0.7071, 0.7071),
         joint_pos={
             ".*_hip_pitch_joint": -0.10,
             ".*_knee_joint": 0.30,
             ".*_ankle_pitch_joint": -0.20,
-            ".*_wrist_.*_joint": 0.0,
         },
         joint_vel={".*": 0.0},
     ),
@@ -407,42 +405,53 @@ G1_29_DOF_CFG = ArticulationCfg(
                 ".*_knee_joint",
             ],
             effort_limit={
-                ".*_hip_yaw_joint": EFFORT_LIMIT_7520_14,
-                ".*_hip_roll_joint": EFFORT_LIMIT_7520_22,
-                ".*_hip_pitch_joint": EFFORT_LIMIT_7520_14,
-                ".*_knee_joint": EFFORT_LIMIT_7520_22,
+                ".*_hip_yaw_joint": 88.0,
+                ".*_hip_roll_joint": 88.0,
+                ".*_hip_pitch_joint": 88.0,
+                ".*_knee_joint": 139.0,
             },
             velocity_limit={
-                ".*_hip_yaw_joint": VEL_LIMIT_7520_14,
-                ".*_hip_roll_joint": VEL_LIMIT_7520_22,
-                ".*_hip_pitch_joint": VEL_LIMIT_7520_14,
-                ".*_knee_joint": VEL_LIMIT_7520_22,
+                ".*_hip_yaw_joint": 32.0,
+                ".*_hip_roll_joint": 32.0,
+                ".*_hip_pitch_joint": 32.0,
+                ".*_knee_joint": 20.0,
             },
             stiffness={
-                ".*_hip_yaw_joint": STIFFNESS_7520_14,
-                ".*_hip_roll_joint": STIFFNESS_7520_22,
-                ".*_hip_pitch_joint": STIFFNESS_7520_14,
-                ".*_knee_joint": STIFFNESS_7520_22,
+                ".*_hip_yaw_joint": 100.0,
+                ".*_hip_roll_joint": 100.0,
+                ".*_hip_pitch_joint": 100.0,
+                ".*_knee_joint": 200.0,
             },
             damping={
-                ".*_hip_yaw_joint": DAMPING_7520_14,
-                ".*_hip_roll_joint": DAMPING_7520_22,
-                ".*_hip_pitch_joint": DAMPING_7520_14,
-                ".*_knee_joint": DAMPING_7520_22,
+                ".*_hip_yaw_joint": 2.5,
+                ".*_hip_roll_joint": 2.5,
+                ".*_hip_pitch_joint": 2.5,
+                ".*_knee_joint": 5.0,
             },
             armature={
-                ".*_hip_yaw_joint": ARMATURE_7520_14,
-                ".*_hip_roll_joint": ARMATURE_7520_22,
-                ".*_hip_pitch_joint": ARMATURE_7520_14,
-                ".*_knee_joint": ARMATURE_7520_22,
+                ".*_hip_.*": 0.03,
+                ".*_knee_joint": 0.03,
             },
         ),
         "feet": ImplicitActuatorCfg(
-            effort_limit=50,
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
-            stiffness=STIFFNESS_5020 * 2.0,
-            damping=DAMPING_5020 * 2.0,
-            armature=ARMATURE_5020 * 2.0,
+            stiffness={
+                ".*_ankle_pitch_joint": 20.0,
+                ".*_ankle_roll_joint": 20.0,
+            },
+            damping={
+                ".*_ankle_pitch_joint": 0.2,
+                ".*_ankle_roll_joint": 0.1,
+            },
+            effort_limit={
+                ".*_ankle_pitch_joint": 50.0,
+                ".*_ankle_roll_joint": 50.0,
+            },
+            velocity_limit={
+                ".*_ankle_pitch_joint": 37.0,
+                ".*_ankle_roll_joint": 37.0,
+            },
+            armature=0.03,
         ),
         "waist": ImplicitActuatorCfg(
             joint_names_expr=[
@@ -467,6 +476,9 @@ G1_29_DOF_CFG = ArticulationCfg(
                 "waist_yaw_joint": DAMPING_7520_14,
                 "waist_pitch_joint": DAMPING_5020,
                 "waist_roll_joint": DAMPING_5020,
+                "waist_yaw_joint": 5,
+                "waist_pitch_joint": 5,
+                "waist_roll_joint": 5,
             },
             armature={
                 "waist_yaw_joint": ARMATURE_7520_14,
@@ -484,8 +496,11 @@ G1_29_DOF_CFG = ArticulationCfg(
             ],
             effort_limit=EFFORT_LIMIT_5020,
             velocity_limit=VEL_LIMIT_5020,
-            stiffness=STIFFNESS_5020,
-            damping=DAMPING_5020,
+            # TODO: These high gains are needed to achieve the <3mm accuracy test for Pink IK test.
+            # Ideally, we should be able to use much lower gains, but the gravity compensation needs to
+            # first be improved.
+            stiffness=1000,
+            damping=10,
             armature=ARMATURE_5020,
         ),
         "hands": ImplicitActuatorCfg(

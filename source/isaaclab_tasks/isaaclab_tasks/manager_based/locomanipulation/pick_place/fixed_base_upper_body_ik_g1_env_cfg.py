@@ -12,6 +12,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets.rigid_object import RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -43,25 +44,27 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     """
 
     # Table
-    # packing_table = AssetBaseCfg(
-    #     prim_path="/World/envs/env_.*/PackingTable",
-    #     init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
+    # packing_table = RigidObjectCfg(
+    #     prim_path="{ENV_REGEX_NS}/PackingTable",
+    #     init_state=RigidObjectCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
     #     spawn=UsdFileCfg(
-    #         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+    #         # usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+    #         usd_path="/home/michalin/workspace/IsaacLab_Assets/props/Collected_packing_table/packing_table.usd",
     #         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
     #     ),
     # )
 
-    # Newton does not support RigidObjectCfg
-    # object = ArticulationCfg(
+    # Object as ArticulationCfg (Newton does not support RigidObjectCfg)
+    # object: ArticulationCfg = ArticulationCfg(
     #     prim_path="{ENV_REGEX_NS}/Object",
-    #     init_state=ArticulationCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
-    #     spawn=UsdFileCfg(
-    #         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+    #     spawn=sim_utils.UsdFileCfg(
+    #         # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+    #         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
     #         scale=(0.75, 0.75, 0.75),
-    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-    #         articulation_props=sim_utils.ArticulationRootPropertiesCfg(),
     #     ),
+    #     init_state=ArticulationCfg.InitialStateCfg(pos=(-0.35, 0.45, 0.6996), rot=(0.0, 0.0, 0.0, 1.0)),
+    #     actuators={},
+    #     articulation_root_prim_path="",
     # )
 
     # Unitree G1 Humanoid robot - fixed base configuration
@@ -167,12 +170,13 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=50,
-                nconmax=20,
+                nconmax=50,
                 ls_iterations=20,
-                cone="pyramidal",
+                cone="elliptic",
                 impratio=1,
                 ls_parallel=True,
                 integrator="implicit",
+                solver="newton",
             ),
         )
     )

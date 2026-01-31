@@ -7,7 +7,10 @@ from isaaclab_assets.robots.unitree import G1_29_DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -43,27 +46,29 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     """
 
     # Table
-    packing_table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        ),
-    )
+    # packing_table = AssetBaseCfg(
+    #     prim_path="/World/envs/env_.*/PackingTable",
+    #     init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    #     ),
+    # )
 
-    object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
-            scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        ),
-    )
+    # object = RigidObjectCfg(
+    #     prim_path="{ENV_REGEX_NS}/Object",
+    #     init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
+    #     spawn=UsdFileCfg(
+    #         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+    #         scale=(0.75, 0.75, 0.75),
+    #         rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    #     ),
+    # )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_29_DOF_CFG
+    robot: ArticulationCfg = G1_29_DOF_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/Robot"
+    )
 
     # Ground plane
     ground = AssetBaseCfg(
@@ -94,6 +99,21 @@ class ActionsCfg:
         policy_output_scale=0.25,
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt",
+        # Policy outputs lower body joint actions in this order (matching training order)
+        policy_joint_order=[
+            "left_hip_pitch_joint",
+            "right_hip_pitch_joint",
+            "left_hip_roll_joint",
+            "right_hip_roll_joint",
+            "left_hip_yaw_joint",
+            "right_hip_yaw_joint",
+            "left_knee_joint",
+            "right_knee_joint",
+            "left_ankle_pitch_joint",
+            "right_ankle_pitch_joint",
+            "left_ankle_roll_joint",
+            "right_ankle_roll_joint",
+        ],
     )
 
 
@@ -114,8 +134,8 @@ class ObservationsCfg:
         )
         robot_root_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("robot")})
         robot_root_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("robot")})
-        object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
-        object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        # object_pos = ObsTerm(func=base_mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
+        # object_rot = ObsTerm(func=base_mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         robot_links_state = ObsTerm(func=manip_mdp.get_all_robot_link_state)
 
         left_eef_pos = ObsTerm(func=manip_mdp.get_eef_pos, params={"link_name": "left_wrist_yaw_link"})
@@ -145,11 +165,11 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=locomanip_mdp.time_out, time_out=True)
 
-    object_dropping = DoneTerm(
-        func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
-    )
+    # object_dropping = DoneTerm(
+    #     func=base_mdp.root_height_below_minimum, params={"minimum_height": 0.5, "asset_cfg": SceneEntityCfg("object")}
+    # )
 
-    success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
+    # success = DoneTerm(func=manip_mdp.task_done_pick_place, params={"task_link_name": "right_wrist_yaw_link"})
 
 
 ##
@@ -167,8 +187,25 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     behaviors.
     """
 
+    sim: SimulationCfg = SimulationCfg(
+        newton_cfg=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=50,
+                nconmax=50,
+                ls_iterations=20,
+                cone="elliptic",
+                impratio=1,
+                ls_parallel=True,
+                integrator="implicit",
+                solver="newton",
+            ),
+        )
+    )
+
     # Scene settings
-    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(
+        num_envs=1, env_spacing=2.5, replicate_physics=True
+    )
     # MDP settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

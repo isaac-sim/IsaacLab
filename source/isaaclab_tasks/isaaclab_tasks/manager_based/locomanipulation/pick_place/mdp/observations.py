@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 import warp as wp
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
 from isaaclab.managers import SceneEntityCfg
 
 
@@ -31,3 +34,28 @@ def upper_body_last_action(
     upper_body_joint_pos_target = joint_pos_target[:, joint_indices]
 
     return upper_body_joint_pos_target
+
+
+@generic_io_descriptor(dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
+def last_action_with_remap(
+    env: ManagerBasedRLEnv,
+    action_name: str | None = None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Get the last raw action from an action term with reordering based on joint_ids.
+
+    Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their actions returned.
+
+    Args:
+        env: The manager-based RL environment.
+        action_name: The name of the action term to get raw actions from.
+        asset_cfg: The SceneEntity associated with this observation. The joint_ids are used to index/reorder.
+
+    Returns:
+        The raw actions tensor reordered by joint_ids.
+        Shape: (num_envs, len(joint_ids))
+    """
+    if action_name is None:
+        return env.action_manager.action[:, asset_cfg.joint_ids]
+    else:
+        return env.action_manager.get_term(action_name).raw_actions[:, asset_cfg.joint_ids]

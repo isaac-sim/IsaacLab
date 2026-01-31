@@ -17,7 +17,7 @@ tests:
       orientation: [0.7071, 0.0, 0.0, 0.7071]
     - position: [0.28, 0.1, 0.8]
       orientation: [0.7071, 0.0, 0.0, 0.7071]
-    allowed_steps_per_motion: 25
+    allowed_steps_per_motion: 40
     repeat: 2
     requires_waist_bending: false
   horizontal_small_movement:
@@ -67,7 +67,7 @@ tests:
       orientation: [0.7071, 0.0, 0.0, 0.7071]
     - position: [0.18, 0.15, 0.85]
       orientation: [0.7071, 0.0, 0.0, 0.7071]
-    allowed_steps_per_motion: 30
+    allowed_steps_per_motion: 50
     repeat: 2
     requires_waist_bending: false
   forward_waist_bending_movement:
@@ -85,7 +85,7 @@ tests:
       orientation: [0.7071, 0.0, 0.0, 0.7071]
     - position: [0.18, 0.3, 0.8]
       orientation: [0.7071, 0.0, 0.0, 0.7071]
-    allowed_steps_per_motion: 60
+    allowed_steps_per_motion: 100
     repeat: 2
     requires_waist_bending: true
   rotation_movements:

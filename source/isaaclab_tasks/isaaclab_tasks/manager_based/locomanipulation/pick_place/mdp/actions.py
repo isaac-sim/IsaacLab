@@ -45,6 +45,19 @@ class AgileBasedLowerBodyAction(ActionTerm):
         # find_joints returns (joint_mask: wp.array, joint_names: list[str], joint_indices: list[int])
         _, self._joint_names, self._joint_ids = self._asset.find_joints(self.cfg.joint_names)
 
+        # Build mapping from policy output order to articulation order if policy_joint_order is specified
+        self._policy_to_articulation_indices: torch.Tensor | None = None
+        if cfg.policy_joint_order is not None:
+            # Create a mapping from policy output index to articulation joint index
+            # policy_joint_order contains joint names in the order the policy outputs them
+            # self._joint_names contains joint names in articulation order (from find_joints)
+            policy_to_art_indices = []
+            for policy_joint_name in cfg.policy_joint_order:
+                if policy_joint_name in self._joint_names:
+                    art_idx = self._joint_names.index(policy_joint_name)
+                    policy_to_art_indices.append(art_idx)
+            self._policy_to_articulation_indices = torch.tensor(policy_to_art_indices, device=env.device)
+
         # Get the scale and offset from the configuration
         self._policy_output_scale = torch.tensor(cfg.policy_output_scale, device=env.device)
         self._policy_output_offset = wp.to_torch(self._asset.data.default_joint_pos)[:, self._joint_ids].clone()
@@ -110,10 +123,15 @@ class AgileBasedLowerBodyAction(ActionTerm):
 
         joint_actions = self._policy.forward(policy_input)
 
-        self._raw_actions[:] = joint_actions
+        # Remap policy output from policy order to articulation order if mapping is defined
+        self._raw_actions.zero_()
+        if self._policy_to_articulation_indices is not None:
+            self._raw_actions[:, self._policy_to_articulation_indices] = joint_actions
+        else:
+            self._raw_actions[:] = joint_actions
 
         # Apply scaling and offset to the raw actions from the policy
-        self._processed_actions = joint_actions * self._policy_output_scale + self._policy_output_offset
+        self._processed_actions = self._raw_actions * self._policy_output_scale + self._policy_output_offset
 
         # Clip actions if configured
         if self.cfg.clip is not None:

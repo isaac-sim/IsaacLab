@@ -30,16 +30,16 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
             orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=1,  # dampening for solver for step jumps
-            gain=1.0,
+            lm_damping=10,  # dampening for solver for step jumps
+            gain=0.5,
         ),
         LocalFrameTask(
             "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
             orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=1,  # dampening for solver for step jumps
-            gain=1.0,
+            lm_damping=10,  # dampening for solver for step jumps
+            gain=0.5,
         ),
         NullSpacePostureTask(
             cost=0.5,
