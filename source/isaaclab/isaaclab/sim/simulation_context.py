@@ -538,19 +538,6 @@ class SimulationContext:
     """
     Operations - Simulation Information.
     """
-    def is_fabric_enabled(self) -> bool:
-        """Returns whether the fabric interface is enabled.
-
-        When fabric interface is enabled, USD read/write operations are disabled. Instead all applications
-        read and write the simulation state directly from the fabric interface. This reduces a lot of overhead
-        that occurs during USD read/write operations.
-
-        For more information, please check `Fabric documentation`_.
-
-        .. _Fabric documentation: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
-        """
-        return self._fabric_iface is not None
-
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.
 
@@ -1222,6 +1209,7 @@ class SimulationContext:
 
             # acquire fabric interface
             self._fabric_iface = get_physx_fabric_interface()
+            self.carb_settings.set_bool("/isaaclab/fabric_enabled", True)
             if hasattr(self._fabric_iface, "force_update"):
                 # The update method in the fabric interface only performs an update if a physics step has occurred.
                 # However, for rendering, we need to force an update since any element of the scene might have been

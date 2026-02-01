@@ -368,7 +368,7 @@ def test_fabric_setting(use_fabric):
     sim = SimulationContext(cfg)
 
     # check fabric is enabled
-    assert sim.is_fabric_enabled() == use_fabric
+    assert sim..carb_settings.get_as_bool("/isaaclab/fabric_enabled") == use_fabric
 
 
 @pytest.mark.isaacsim_ci
