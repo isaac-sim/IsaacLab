@@ -822,7 +822,7 @@ class AssemblyEnv(DirectRLEnv):
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
         # Disable gravity.
-        physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
+        physics_sim_view = sim_utils.SimulationContext.instance()._physics_backend.physics_sim_view
         physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
 
         self.randomize_fixed_initial_state(env_ids)

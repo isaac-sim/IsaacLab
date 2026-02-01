@@ -532,7 +532,7 @@ def randomize_physics_scene_gravity(
     gravity = gravity[0].tolist()
 
     # set the gravity into the physics simulation
-    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
+    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance()._physics_backend.physics_sim_view
     physics_sim_view.set_gravity(carb.Float3(*gravity))
 
 

@@ -212,7 +212,7 @@ def test_reset():
     assert sim.is_playing()
 
     # check that physics sim view is created
-    assert sim.physics_sim_view is not None
+    assert sim._physics_backend.physics_sim_view is not None
 
 
 @pytest.mark.isaacsim_ci
@@ -368,7 +368,7 @@ def test_fabric_setting(use_fabric):
     sim = SimulationContext(cfg)
 
     # check fabric is enabled
-    assert sim..carb_settings.get_as_bool("/isaaclab/fabric_enabled") == use_fabric
+    assert sim.carb_settings.get_as_bool("/isaaclab/fabric_enabled") == use_fabric
 
 
 @pytest.mark.isaacsim_ci
