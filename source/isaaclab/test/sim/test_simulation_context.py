@@ -307,7 +307,7 @@ def test_get_initial_stage():
     sim = SimulationContext()
 
     # get initial stage
-    stage = sim.get_initial_stage()
+    stage = sim.stage
 
     # verify stage is valid
     assert stage is not None

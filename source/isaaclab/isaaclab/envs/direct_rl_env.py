@@ -128,7 +128,7 @@ class DirectRLEnv(gym.Env):
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 attach_stage_to_usd_context()
@@ -160,7 +160,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.sim.reset()
             # update scene to pre populate data buffers for assets and sensors.
             # this is needed for the observation manager to get valid tensors for initialization.

@@ -562,14 +562,6 @@ class SimulationContext:
         """
         return get_isaac_sim_version().major, get_isaac_sim_version().minor, get_isaac_sim_version().micro
 
-    def get_initial_stage(self) -> Usd.Stage:
-        """Returns stage handle used during scene creation.
-
-        Returns:
-            The stage used during scene creation.
-        """
-        return self._initial_stage
-
     def get_physics_dt(self) -> float:
         """Returns the physics time step of the simulation.
 
