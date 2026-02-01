@@ -97,7 +97,7 @@ def test_camera_init(setup_sim_camera):
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized

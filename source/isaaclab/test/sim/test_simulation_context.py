@@ -62,7 +62,7 @@ def test_init(device):
     # verify device property
     assert sim.device == device
     # verify no RTX sensors are available
-    assert not sim.has_rtx_sensors()
+    assert not sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
     # obtain physics scene api
     physx_scene_api = sim._physx_scene_api  # type: ignore

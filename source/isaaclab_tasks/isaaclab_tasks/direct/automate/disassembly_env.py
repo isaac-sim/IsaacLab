@@ -570,7 +570,7 @@ class DisassemblyEnv(DirectRLEnv):
             self.actions *= 0.0
             self.actions[env_ids, :6] = delta_hand_pose
 
-            is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.has_rtx_sensors()
+            is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
             # perform physics stepping
             for _ in range(self.cfg.decimation):
                 self._sim_step_counter += 1

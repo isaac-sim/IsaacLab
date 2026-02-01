@@ -538,22 +538,6 @@ class SimulationContext:
     """
     Operations - Simulation Information.
     """
-
-    def has_rtx_sensors(self) -> bool:
-        """Returns whether the simulation has any RTX-rendering related sensors.
-
-        This function returns the value of the simulation parameter ``"/isaaclab/render/rtx_sensors"``.
-        The parameter is set to True when instances of RTX-related sensors (cameras or LiDARs) are
-        created using Isaac Lab's sensor classes.
-
-        True if the simulation has RTX sensors (such as USD Cameras or LiDARs).
-
-        For more information, please check `NVIDIA RTX documentation`_.
-
-        .. _NVIDIA RTX documentation: https://developer.nvidia.com/rendering-technologies
-        """
-        return self.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
-
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled.
 

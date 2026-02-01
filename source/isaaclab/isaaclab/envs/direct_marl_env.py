@@ -370,7 +370,7 @@ class DirectMARLEnv(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.has_rtx_sensors()
+        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -488,7 +488,7 @@ class DirectMARLEnv(gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.has_rtx_sensors() and not recompute:
+        if not self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors") and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:

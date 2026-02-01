@@ -84,7 +84,7 @@ def test_multi_tiled_camera_init(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -180,7 +180,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -281,7 +281,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
