@@ -16,6 +16,7 @@ import torch
 import weakref
 from typing import TYPE_CHECKING
 
+import omni.kit.app
 import omni.timeline
 from isaacsim.core.utils.viewports import set_camera_view
 
@@ -84,6 +85,9 @@ class VisualizerInterface:
             sim_context: Parent simulation context.
         """
         self._sim = sim_context
+
+        # acquire application interface
+        self._app_iface = omni.kit.app.get_app_interface()
 
         # Detect render flags
         self._local_gui = self._sim.carb_settings.get("/app/window/enabled")
@@ -165,6 +169,11 @@ class VisualizerInterface:
         """Whether any GUI is available (local, livestreamed, or XR)."""
         return bool(self._sim.carb_settings.get("/isaaclab/has_gui"))
 
+    @property
+    def app(self) -> omni.kit.app.IApp:
+        """Omniverse Kit Application interface."""
+        return self._app_iface
+
     def is_playing(self) -> bool:
         """Check whether the simulation is playing."""
         return self._timeline_iface.is_playing()
@@ -179,7 +188,7 @@ class VisualizerInterface:
         self._timeline_iface.commit()
         # perform one step to propagate all physics handles properly
         self._sim.set_setting("/app/player/playSimulations", False)
-        self._sim.app.update()
+        self._app_iface.update()
         self._sim.set_setting("/app/player/playSimulations", True)
 
     def pause(self) -> None:
@@ -193,7 +202,7 @@ class VisualizerInterface:
         self._timeline_iface.commit()
         # perform one step to propagate all physics handles properly
         self._sim.set_setting("/app/player/playSimulations", False)
-        self._sim.app.update()
+        self._app_iface.update()
         self._sim.set_setting("/app/player/playSimulations", True)
 
     @property
@@ -300,7 +309,7 @@ class VisualizerInterface:
                 self._render_throttle_counter = 0
                 # here we don't render viewport so don't need to flush fabric data
                 self._sim.set_setting("/app/player/playSimulations", False)
-                self._sim.app.update()
+                self._app_iface.update()
                 self._sim.set_setting("/app/player/playSimulations", True)
         else:
             # manually flush the fabric data to update Hydra textures
@@ -309,7 +318,7 @@ class VisualizerInterface:
             # note: we don't call super().render() anymore because they do above operation inside
             #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
             self._sim.set_setting("/app/player/playSimulations", False)
-            self._sim.app.update()
+            self._app_iface.update()
             self._sim.set_setting("/app/player/playSimulations", True)
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
@@ -317,12 +326,20 @@ class VisualizerInterface:
             torch.cuda.set_device(self._sim.device)
 
     def reset(self, soft: bool = False) -> None:
-        """Reset visualizer (warmup renders on hard reset).
+        """Reset visualizer (timeline control + warmup renders on hard reset).
 
         Args:
-            soft: If True, skip warmup renders.
+            soft: If True, skip timeline reset and warmup.
         """
         if not soft:
+            # disable app control on stop handle
+            self.set_stop_handle_enabled(False)
+            if not self.is_stopped():
+                self.stop()
+            self.set_stop_handle_enabled(True)
+            # play the simulation
+            self.play()
+            # warmup renders to initialize replicator buffers
             for _ in range(2):
                 self.render()
 
@@ -330,14 +347,29 @@ class VisualizerInterface:
         """No-op for visualizer (rendering happens in render())."""
         pass
 
-    def step(self, render: bool = True) -> None:
-        """Step visualizer (delegates to render if enabled).
+    def step(self, render: bool = True) -> bool:
+        """Handle pause loop and prepare for physics step.
+
+        This method blocks while the timeline is paused, keeping the UI responsive.
+        It returns whether physics should proceed (True if playing, False if stopped).
 
         Args:
-            render: Whether to render after stepping.
+            render: Whether to render while waiting.
+
+        Returns:
+            True if physics should step (timeline is playing), False if stopped.
         """
-        # Rendering is handled by SimulationContext.step() calling render()
-        pass
+        # if paused, keep rendering until playing or stopped
+        was_paused = not self.is_playing()
+        while not self.is_playing() and not self.is_stopped():
+            self.render()
+
+        # refresh app after resuming from pause (physics needs to re-parse the scene)
+        if was_paused and self.is_playing():
+            self._app_iface.update()
+
+        # return whether physics should proceed
+        return self.is_playing()
 
     def close(self) -> None:
         """Clean up visualizer resources."""

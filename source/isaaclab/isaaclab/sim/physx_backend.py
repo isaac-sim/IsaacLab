@@ -430,7 +430,7 @@ class PhysXBackend:
         # --------------------------
 
         # set gravity
-        gravity = self._sim._gravity_tensor
+        gravity = torch.tensor(self._sim.cfg.gravity, dtype=torch.float32, device=self._physics_device)
         gravity_magnitude = torch.norm(gravity).item()
         # avoid division by zero
         if gravity_magnitude == 0.0:

@@ -129,18 +129,8 @@ class SimulationContext:
 
         # initialize visualizer interface (handles viewport, render mode, render settings)
         self._visualizer = VisualizerInterface(self)
-
-        # create a tensor for gravity
-        # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
-        #   the issue is with some heap memory corruption when torch tensor is created inside the asset class.
-        #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
-        self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
-
         # define a global variable to store the exceptions raised in the callback stack
         builtins.ISAACLAB_CALLBACK_EXCEPTION = None
-
-        # obtain interfaces for simulation
-        self._app_iface = omni.kit.app.get_app_interface()
 
         # initialize physics backend (handles scene creation, settings, fabric)
         self._physics_backend = PhysXBackend(self)
@@ -199,7 +189,7 @@ class SimulationContext:
     @property
     def app(self) -> omni.kit.app.IApp:
         """Omniverse Kit Application interface."""
-        return self._app_iface
+        return self._visualizer.app
 
     @property
     def stage(self) -> Usd.Stage:
@@ -410,26 +400,9 @@ class SimulationContext:
             soft (bool, optional): if set to True simulation won't be stopped and start again. It only calls the reset on the scene objects.
 
         """
-        # reset the simulation
-        if not soft:
-            # disable app control on stop handle
-            self._visualizer.set_stop_handle_enabled(False)
-            if not self.is_stopped():
-                self.stop()
-            self._visualizer.set_stop_handle_enabled(True)
-            # play the simulation
-            self.play()
-            # check for callback exceptions
-            self._check_for_callback_exceptions()
-
-        # reset physics backend (initializes physics, resets cuda device, kinematic bodies)
         self._physics_backend.reset(soft)
-
-        # perform additional rendering steps to warm up replicator buffers
-        # this is only needed for the first time we set the simulation
-        if not soft:
-            for _ in range(2):
-                self.render()
+        self._visualizer.reset(soft)
+        self._check_for_callback_exceptions()
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
@@ -445,22 +418,9 @@ class SimulationContext:
             render: Whether to render the scene after stepping the physics simulation.
                     If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
-        # check if the simulation timeline is paused. in that case keep stepping until it is playing
-        if not self.is_playing():
-            # step the simulator (but not the physics) to have UI still active
-            while not self.is_playing():
-                self.render()
-                # meantime if someone stops, break out of the loop
-                if self.is_stopped():
-                    break
-            # need to do one step to refresh the app
-            # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
-            #   without this the app becomes unresponsive.
-            # FIXME: This steps physics as well, which we is not good in general.
-            self._app_iface.update()
-
-        # step the physics simulation
-        self._physics_backend.step(render)
+        self._visualizer.step(render)
+        if self.is_playing():
+            self._physics_backend.step(render)
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
