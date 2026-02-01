@@ -20,7 +20,7 @@ import carb
 import omni.kit.app
 import omni.physx
 import omni.physics.tensors
-from pxr import Usd, Gf, PhysxSchema, Sdf, UsdGeom, UsdPhysics
+from pxr import Gf, PhysxSchema, Sdf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_manager import SimulationManager
@@ -344,11 +344,9 @@ class PhysXBackend:
             self._physx_scene_api = PhysxSchema.PhysxSceneAPI.Apply(self._physics_scene.GetPrim())
 
     def _configure_simulation_dt(self):
-        """Configures the simulation step size based on the physics and rendering step sizes."""
+        """Configures the physics simulation step size."""
         cfg = self._sim.cfg
-        stage = self._sim.stage
         carb_settings = self._sim.carb_settings
-        timeline_iface = self._sim._timeline_iface
 
         # if rendering is called the substeps term is used to determine
         # how many physics steps to perform per rendering step.
@@ -361,33 +359,6 @@ class PhysXBackend:
         # set minimum number of steps per frame
         min_steps = int(steps_per_second / render_interval)
         carb_settings.set_int("/persistent/simulation/minFrameRate", min_steps)
-
-        # compute rendering frequency
-        rendering_hz = int(1.0 / (cfg.dt * render_interval))
-
-        # If rate limiting is enabled, set the rendering rate to the specified value
-        # Otherwise run the app as fast as possible and do not specify the target rate
-        if carb_settings.get("/app/runLoops/main/rateLimitEnabled"):
-            carb_settings.set_int("/app/runLoops/main/rateLimitFrequency", rendering_hz)
-            timeline_iface.set_target_framerate(rendering_hz)
-        with Usd.EditContext(stage, stage.GetRootLayer()):
-            stage.SetTimeCodesPerSecond(rendering_hz)
-        timeline_iface.set_time_codes_per_second(rendering_hz)
-        # The isaac sim loop runner is enabled by default in isaac sim apps,
-        # but in case we are in an app with the kit loop runner, protect against this
-        try:
-            import omni.kit.loop._loop as omni_loop
-
-            _loop_runner = omni_loop.acquire_loop_interface()
-            _loop_runner.set_manual_step_size(cfg.dt * render_interval)
-            _loop_runner.set_manual_mode(True)
-        except Exception:
-            self._sim.logger.warning(
-                "Isaac Sim loop runner not found, enabling rate limiting to support rendering at specified rate"
-            )
-            carb_settings.set_bool("/app/runLoops/main/rateLimitEnabled", True)
-            carb_settings.set_int("/app/runLoops/main/rateLimitFrequency", rendering_hz)
-            timeline_iface.set_target_framerate(rendering_hz)
 
     def _apply_physics_settings(self):
         """Sets various carb physics settings."""

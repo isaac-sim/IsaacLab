@@ -6,23 +6,16 @@
 from __future__ import annotations
 
 import builtins
-import enum
-import flatdict
 import logging
-import os
-import toml
 import torch
 import traceback
-import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any, ClassVar
 
 import carb
 import omni.kit.app
-import omni.timeline
 import omni.usd
-from isaacsim.core.utils.viewports import set_camera_view
 from pxr import Usd, UsdUtils
 
 import isaaclab.sim as sim_utils
@@ -32,6 +25,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 from .physx_backend import PhysXBackend
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
+from .visualizer_interface import RenderMode, VisualizerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -83,40 +77,8 @@ class SimulationContext:
     _is_initialized: ClassVar[bool] = False
     """Whether the simulation context is initialized."""
 
-    class RenderMode(enum.IntEnum):
-        """Different rendering modes for the simulation.
-
-        Render modes correspond to how the viewport and other UI elements (such as listeners to keyboard or mouse
-        events) are updated. There are three main components that can be updated when the simulation is rendered:
-
-        1. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
-           extensions that are running in the background that need to be updated when the simulation is running.
-        2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
-           viewpoints. They can be attached to a viewport or be used independently to render the scene.
-        3. **Viewports**: These are windows where you can see the rendered scene.
-
-        Updating each of the above components has a different overhead. For example, updating the viewports is
-        computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to
-        control what is updated when the simulation is rendered. This is where the render mode comes in. There are
-        four different render modes:
-
-        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
-          so none of the above are updated.
-        * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
-        * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
-        * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
-
-        .. _Viewports: https://docs.omniverse.nvidia.com/extensions/latest/ext_viewport.html
-        """
-
-        NO_GUI_OR_RENDERING = -1
-        """The simulation is running without a GUI and off-screen rendering is disabled."""
-        NO_RENDERING = 0
-        """No rendering, where only other UI elements are updated at a lower rate."""
-        PARTIAL_RENDERING = 1
-        """Partial rendering, where the simulation cameras and UI elements are updated."""
-        FULL_RENDERING = 2
-        """Full rendering, where all the simulation viewports, cameras and UI elements are updated."""
+    # Expose RenderMode as class attribute for backwards compatibility
+    RenderMode = RenderMode
 
     def __init__(self, cfg: SimulationCfg | None = None):
         """Creates a simulation context to control the simulator.
@@ -165,72 +127,8 @@ class SimulationContext:
         # acquire settings interface
         self.carb_settings = carb.settings.get_settings()
 
-        # note: we read this once since it is not expected to change during runtime
-        # read flag for whether a local GUI is enabled
-        self._local_gui = self.carb_settings.get("/app/window/enabled")
-        # read flag for whether livestreaming GUI is enabled
-        self._livestream_gui = self.carb_settings.get("/app/livestream/enabled")
-        # read flag for whether XR GUI is enabled
-        self._xr_gui = self.carb_settings.get("/app/xr/enabled")
-
-        # read flag for whether the Isaac Lab viewport capture pipeline will be used,
-        # casting None to False if the flag doesn't exist
-        # this flag is set from the AppLauncher class
-        self._offscreen_render = bool(self.carb_settings.get("/isaaclab/render/offscreen"))
-        # read flag for whether the default viewport should be enabled
-        self._render_viewport = bool(self.carb_settings.get("/isaaclab/render/active_viewport"))
-        # flag for whether any GUI will be rendered (local, livestreamed or viewport)
-        has_gui = self._local_gui or self._livestream_gui or self._xr_gui
-        self.carb_settings.set_bool("/isaaclab/has_gui", has_gui)
-        # apply render settings from render config
-        self._apply_render_settings_from_cfg()
-
-        # store the default render mode
-        if not self.carb_settings.get("/isaaclab/has_gui") and not self._offscreen_render:
-            # set default render mode
-            # note: this is the terminal state: cannot exit from this render mode
-            self.render_mode = self.RenderMode.NO_GUI_OR_RENDERING
-            # set viewport context to None
-            self._viewport_context = None
-            self._viewport_window = None
-        elif not self.carb_settings.get("/isaaclab/has_gui") and self._offscreen_render:
-            # set default render mode
-            # note: this is the terminal state: cannot exit from this render mode
-            self.render_mode = self.RenderMode.PARTIAL_RENDERING
-            # set viewport context to None
-            self._viewport_context = None
-            self._viewport_window = None
-        else:
-            # note: need to import here in case the UI is not available (ex. headless mode)
-            import omni.ui as ui
-            from omni.kit.viewport.utility import get_active_viewport
-
-            # set default render mode
-            # note: this can be changed by calling the `set_render_mode` function
-            self.render_mode = self.RenderMode.FULL_RENDERING
-            # acquire viewport context
-            self._viewport_context = get_active_viewport()
-            self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
-            # acquire viewport window
-            # TODO @mayank: Why not just use get_active_viewport_and_window() directly?
-            self._viewport_window = ui.Workspace.get_window("Viewport")
-            # counter for periodic rendering
-            self._render_throttle_counter = 0
-            # rendering frequency in terms of number of render calls
-            self._render_throttle_period = 5
-
-        # check the case where we don't need to render the viewport
-        # since render_viewport can only be False in headless mode, we only need to check for offscreen_render
-        if not self._render_viewport and self._offscreen_render:
-            # disable the viewport if offscreen_render is enabled
-            from omni.kit.viewport.utility import get_active_viewport
-
-            get_active_viewport().updates_enabled = False
-
-        # override enable scene querying if rendering is enabled
-        # this is needed for some GUI features
-        if self.carb_settings.get("/isaaclab/has_gui"):
-            self.cfg.enable_scene_query_support = True
+        # initialize visualizer interface (handles viewport, render mode, render settings)
+        self._visualizer = VisualizerInterface(self)
 
         # create a tensor for gravity
         # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
@@ -241,22 +139,8 @@ class SimulationContext:
         # define a global variable to store the exceptions raised in the callback stack
         builtins.ISAACLAB_CALLBACK_EXCEPTION = None
 
-        # add callback to deal the simulation app when simulation is stopped.
-        # this is needed because physics views go invalid once we stop the simulation
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-        self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
-            order=15,
-        )
-        self._disable_app_control_on_stop_handle = False
-
         # obtain interfaces for simulation
         self._app_iface = omni.kit.app.get_app_interface()
-        self._timeline_iface = omni.timeline.get_timeline_interface()
-
-        # set timeline auto update to True
-        self._timeline_iface.set_auto_update(True)
 
         # initialize physics backend (handles scene creation, settings, fabric)
         self._physics_backend = PhysXBackend(self)
@@ -295,10 +179,8 @@ class SimulationContext:
             if not cls._is_initialized:
                 logger.warning("Simulation context is not initialized. Unable to clear the instance.")
                 return
-            # clear the callback
-            if cls._instance._app_control_on_stop_handle is not None:
-                cls._instance._app_control_on_stop_handle.unsubscribe()
-                cls._instance._app_control_on_stop_handle = None
+            # close visualizer (unsubscribes stop handle)
+            cls._instance._visualizer.close()
             # close physics backend (clears SimulationManager, detaches physx stage)
             cls._instance._physics_backend.close()
             # detach the stage from the USD stage cache
@@ -333,6 +215,11 @@ class SimulationContext:
             operates on a single GPU. This function returns the device that is used for physics simulation.
         """
         return self._physics_backend.device
+
+    @property
+    def render_mode(self) -> RenderMode:
+        """Current render mode."""
+        return self._visualizer.render_mode
 
     """
     Operations - Simulation Information.
@@ -404,9 +291,7 @@ class SimulationContext:
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
-        # safe call only if we have a GUI or viewport rendering enabled
-        if self.carb_settings.get("/isaaclab/has_gui") or self._offscreen_render or self._render_viewport:
-            set_camera_view(eye, target, camera_prim_path)
+        self._visualizer.set_camera_view(eye, target, camera_prim_path)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -425,34 +310,7 @@ class SimulationContext:
         Raises:
             ValueError: If the input mode is not supported.
         """
-        # check if mode change is possible -- not possible when no GUI is available
-        if not self.carb_settings.get("/isaaclab/has_gui"):
-            self.logger.warning(
-                f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
-            )
-            return
-        # check if there is a mode change
-        # note: this is mostly needed for GUI when we want to switch between full rendering and no rendering.
-        if mode != self.render_mode:
-            if mode == self.RenderMode.FULL_RENDERING:
-                # display the viewport and enable updates
-                self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
-                self._viewport_window.visible = True  # pyright: ignore [reportOptionalMemberAccess]
-            elif mode == self.RenderMode.PARTIAL_RENDERING:
-                # hide the viewport and disable updates
-                self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
-                self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
-            elif mode == self.RenderMode.NO_RENDERING:
-                # hide the viewport and disable updates
-                if self._viewport_context is not None:
-                    self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
-                    self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
-                # reset the throttle counter
-                self._render_throttle_counter = 0
-            else:
-                raise ValueError(f"Unsupported render mode: {mode}! Please check `RenderMode` for details.")
-            # update render mode
-            self.render_mode = mode
+        self._visualizer.set_render_mode(mode)
 
     def set_setting(self, name: str, value: Any):
         """Set simulation settings using the Carbonite SDK.
@@ -504,7 +362,7 @@ class SimulationContext:
         Returns:
             True if the simulator is playing.
         """
-        return self._timeline_iface.is_playing()
+        return self._visualizer.is_playing()
 
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped.
@@ -512,26 +370,17 @@ class SimulationContext:
         Returns:
             True if the simulator is stopped.
         """
-        return self._timeline_iface.is_stopped()
+        return self._visualizer.is_stopped()
 
     def play(self) -> None:
         """Start playing the simulation."""
-        # play the simulation
-        self._timeline_iface.play()
-        self._timeline_iface.commit()
-        # perform one step to propagate all physics handles properly
-        self.set_setting("/app/player/playSimulations", False)
-        self._app_iface.update()
-        self.set_setting("/app/player/playSimulations", True)
+        self._visualizer.play()
         # check for callback exceptions
         self._check_for_callback_exceptions()
 
     def pause(self) -> None:
         """Pause the simulation."""
-        # pause the simulation
-        self._timeline_iface.pause()
-        self._timeline_iface.commit()
-        # we don't need to propagate physics handles since no callbacks are triggered during pause
+        self._visualizer.pause()
         # check for callback exceptions
         self._check_for_callback_exceptions()
 
@@ -541,13 +390,7 @@ class SimulationContext:
         Note:
             Stopping the simulation will lead to the simulation state being lost.
         """
-        # stop the simulation
-        self._timeline_iface.stop()
-        self._timeline_iface.commit()
-        # perform one step to propagate all physics handles properly
-        self.set_setting("/app/player/playSimulations", False)
-        self._app_iface.update()
-        self.set_setting("/app/player/playSimulations", True)
+        self._visualizer.stop()
         # check for callback exceptions
         self._check_for_callback_exceptions()
 
@@ -570,10 +413,10 @@ class SimulationContext:
         # reset the simulation
         if not soft:
             # disable app control on stop handle
-            self._disable_app_control_on_stop_handle = True
+            self._visualizer.set_stop_handle_enabled(False)
             if not self.is_stopped():
                 self.stop()
-            self._disable_app_control_on_stop_handle = False
+            self._visualizer.set_stop_handle_enabled(True)
             # play the simulation
             self.play()
             # check for callback exceptions
@@ -631,35 +474,7 @@ class SimulationContext:
         Args:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
-        # check if we need to change the render mode
-        if mode is not None:
-            self.set_render_mode(mode)
-        # render based on the render mode
-        if self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING:
-            # we never want to render anything here (this is for complete headless mode)
-            pass
-        elif self.render_mode == self.RenderMode.NO_RENDERING:
-            # throttle the rendering frequency to keep the UI responsive
-            self._render_throttle_counter += 1
-            if self._render_throttle_counter % self._render_throttle_period == 0:
-                self._render_throttle_counter = 0
-                # here we don't render viewport so don't need to flush fabric data
-                self.set_setting("/app/player/playSimulations", False)
-                self._app_iface.update()
-                self.set_setting("/app/player/playSimulations", True)
-        else:
-            # manually flush the fabric data to update Hydra textures
-            self.forward()
-            # render the simulation
-            # note: we don't call super().render() anymore because they do above operation inside
-            #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
-            self.set_setting("/app/player/playSimulations", False)
-            self._app_iface.update()
-            self.set_setting("/app/player/playSimulations", True)
-
-        # app.update() may be changing the cuda device, so we force it back to our desired device here
-        if "cuda" in self.device:
-            torch.cuda.set_device(self.device)
+        self._visualizer.render(mode)
 
     @classmethod
     def clear(cls):
@@ -687,138 +502,18 @@ class SimulationContext:
     Helper Functions
     """
 
-    def _apply_render_settings_from_cfg(self):  # noqa: C901
-        """Sets rtx settings specified in the RenderCfg."""
-
-        # define mapping of user-friendly RenderCfg names to native carb names
-        rendering_setting_name_mapping = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-        }
-
-        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
-
-        # grab the rendering mode using the following priority:
-        # 1. command line argument --rendering_mode, if provided
-        # 2. rendering_mode from Render Config, if set
-        # 3. lastly, default to "balanced" mode, if neither is specified
-        rendering_mode = self.carb_settings.get("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = self.cfg.render.rendering_mode
-        if not rendering_mode:
-            rendering_mode = "balanced"
-
-        # set preset settings (same behavior as the CLI arg --rendering_mode)
-        if rendering_mode is not None:
-            # check if preset is supported
-            supported_rendering_modes = ["performance", "balanced", "quality"]
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
-                )
-
-            # grab isaac lab apps path
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-            if get_isaac_sim_version().major < 5:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
-
-            # grab preset settings
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            with open(preset_filename) as file:
-                preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-            # set presets
-            for key, value in preset_dict.items():
-                key = "/" + key.replace(".", "/")  # convert to carb setting format
-                self.set_setting(key, value)
-
-        # set user-friendly named settings
-        for key, value in vars(self.cfg.render).items():
-            if value is None or key in not_carb_settings:
-                # skip unset settings and non-carb settings
-                continue
-            if key not in rendering_setting_name_mapping:
-                raise ValueError(
-                    f"'{key}' in RenderCfg not found. Note: internal 'rendering_setting_name_mapping' dictionary might"
-                    " need to be updated."
-                )
-            key = rendering_setting_name_mapping[key]
-            self.set_setting(key, value)
-
-        # set general carb settings
-        carb_settings = self.cfg.render.carb_settings
-        if carb_settings is not None:
-            for key, value in carb_settings.items():
-                if "_" in key:
-                    key = "/" + key.replace("_", "/")  # convert from python variable style string
-                elif "." in key:
-                    key = "/" + key.replace(".", "/")  # convert from .kit file style string
-                if self.get_setting(key) is None:
-                    raise ValueError(f"'{key}' in RenderCfg.general_parameters does not map to a carb setting.")
-                self.set_setting(key, value)
-
-        # set denoiser mode
-        if self.cfg.render.antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=self.cfg.render.antialiasing_mode)
-            except Exception:
-                pass
-
-        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased.
-        if self.carb_settings.get("/rtx/rendermode").lower() == "raytracedlighting":
-            self.carb_settings.set_string("/rtx/rendermode", "RaytracedLighting")
-
     def _check_for_callback_exceptions(self):
         """Checks for callback exceptions and raises them if found."""
         # disable simulation stopping control so that we can crash the program
         # if an exception is raised in a callback.
-        self._disable_app_control_on_stop_handle = True
+        self._visualizer.set_stop_handle_enabled(False)
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:  # type: ignore
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
             raise exception_to_raise
         # re-enable simulation stopping control
-        self._disable_app_control_on_stop_handle = False
-
-    """
-    Callbacks.
-    """
-
-    def _app_control_on_stop_handle_fn(self, _):
-        """Callback to deal with the app when the simulation is stopped.
-
-        Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
-        resume the simulation from the last state. This leaves the app in an inconsistent state, where
-        two possible actions can be taken:
-
-        1. **Keep the app rendering**: In this case, the simulation is kept running and the app is not shutdown.
-           However, the physics is not updated and the script cannot be resumed from the last state. The
-           user has to manually close the app to stop the simulation.
-        2. **Shutdown the app**: This is the default behavior. In this case, the app is shutdown and
-           the simulation is stopped.
-
-        Note:
-            This callback is used only when running the simulation in a standalone python script. In an extension,
-            it is expected that the user handles the extension shutdown.
-        """
-        pass
-        # if not self._disable_app_control_on_stop_handle:
-        #     while not omni.timeline.get_timeline_interface().is_playing():
-        #         self.render()
+        self._visualizer.set_stop_handle_enabled(True)
 
 
 @contextmanager
