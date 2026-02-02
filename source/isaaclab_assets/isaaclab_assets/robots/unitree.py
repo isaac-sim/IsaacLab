@@ -378,16 +378,16 @@ G1_29_DOF_CFG = ArticulationCfg(
     ),
     soft_joint_pos_limit_factor=0.9,
     # Gravity compensation for upper body (arms and hands experience reduced gravity)
-    # Value of 1.0 = full compensation (no gravity), 0.0 = no compensation (full gravity)
-    gravity_compensation={
-        ".*shoulder.*": 1.0,  # Shoulder links get 90% gravity compensation
-        ".*elbow.*": 1.0,     # Elbow links get 90% gravity compensation
-        ".*wrist.*": 1.0,     # Wrist links get full gravity compensation
-        ".*hand.*": 1.0,     # Hands links get full gravity compensation
-        ".*torso.*": 1.0,     # Torso links get full gravity compensation
-    },
+    gravity_compensation=[
+        ".*shoulder.*",  # Shoulder links
+        ".*elbow.*",     # Elbow links
+        ".*wrist.*",     # Wrist links
+        ".*hand.*",      # Hand links
+        ".*torso.*",     # Torso links
+    ],
+    gravity_compensation_root_link_index="pelvis",
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.78),
+        pos=(0.0, 0.0, 0.75),
         rot=(0, 0, 0.7071, 0.7071),
         joint_pos={
             ".*_hip_pitch_joint": -0.10,
@@ -499,7 +499,7 @@ G1_29_DOF_CFG = ArticulationCfg(
             # TODO: These high gains are needed to achieve the <3mm accuracy test for Pink IK test.
             # Ideally, we should be able to use much lower gains, but the gravity compensation needs to
             # first be improved.
-            stiffness=1000,
+            stiffness=1500,
             damping=10,
             armature=ARMATURE_5020,
         ),

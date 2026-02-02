@@ -20,6 +20,7 @@ from isaaclab_newton.actuators import ActuatorBase, ImplicitActuator
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
 from isaaclab_newton.assets.utils.shared import find_bodies, find_joints
 from isaaclab_newton.kernels import (
+    apply_accumulated_root_force,
     apply_gravity_compensation_force,
     project_link_velocity_to_com_frame_masked_root,
     split_state_to_pose_and_velocity,
@@ -2180,6 +2181,10 @@ class Articulation(BaseArticulation):
         self._gravity_compensation_factor = wp.zeros(
             (self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device
         )
+        # Accumulator for root link compensation forces (shape: num_envs x 3 for x, y, z components)
+        self._root_comp_force = wp.zeros(
+            (self.num_instances, 3), dtype=wp.float32, device=self.device
+        )
         self._has_gravity_compensation = False
 
         # Assign joint and body names to the data
@@ -2389,17 +2394,24 @@ class Articulation(BaseArticulation):
         of the gravitational force scaled by the compensation factor during write_data_to_sim.
         """
         # Skip if no gravity compensation is configured
-        if self.cfg.gravity_compensation is None:
+        if self.cfg.gravity_compensation is None or self.cfg.gravity_compensation_root_link_index is None:
             return
 
-        # Resolve body names and values from the configuration
-        indices_list, names_list, values_list = string_utils.resolve_matching_names_values(
+
+        # Resolve body names from the configuration (list of regex patterns)
+        indices_list, names_list = string_utils.resolve_matching_names(
             self.cfg.gravity_compensation, self.body_names
         )
 
+        # Resolve body names and values of root_link
+        root_link_indices, _ = string_utils.resolve_matching_names(
+            self.cfg.gravity_compensation_root_link_index, self.body_names
+        )
+        self._root_link_index = root_link_indices[0]
+
         if len(indices_list) == 0:
             warnings.warn(
-                f"No bodies matched the gravity compensation patterns: {list(self.cfg.gravity_compensation.keys())}. "
+                f"No bodies matched the gravity compensation patterns: {self.cfg.gravity_compensation}. "
                 f"Available body names: {self.body_names}",
                 UserWarning,
             )
@@ -2407,8 +2419,7 @@ class Articulation(BaseArticulation):
 
         # Log the gravity compensation settings
         logger.info(
-            f"Applying gravity compensation for articulation '{self.cfg.prim_path}': "
-            f"{dict(zip(names_list, values_list))}"
+            f"Applying gravity compensation for articulation '{self.cfg.prim_path}': {names_list}"
         )
 
         # Fill in the values for matched bodies
@@ -2440,9 +2451,20 @@ class Articulation(BaseArticulation):
             #    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
 
     def _apply_gravity_compensation(self):
-        """Apply gravity compensation to the articulation."""
+        """Apply gravity compensation to the articulation.
+
+        This method uses a two-kernel approach to avoid race conditions:
+        1. First kernel accumulates compensation forces per-body and atomically accumulates
+           the negative compensation to the root link accumulator.
+        2. Second kernel applies the accumulated force to the root link.
+        """
         if self._has_gravity_compensation:
             gravity = NewtonManager._gravity_vector  # Already a tuple (x, y, z)
+
+            # Zero the accumulator before use
+            self._root_comp_force.zero_()
+
+            # First kernel: apply per-body compensation and atomically accumulate root link force
             wp.launch(
                 apply_gravity_compensation_force,
                 dim=(self.num_instances, self.num_bodies),
@@ -2451,6 +2473,20 @@ class Articulation(BaseArticulation):
                     self._gravity_compensation_factor,
                     wp.vec3f(gravity[0], gravity[1], gravity[2]),
                     self._data._sim_bind_body_external_wrench,
+                    self._root_link_index,
+                    self._root_comp_force,
+                ],
+                device=self.device,
+            )
+
+            # Second kernel: apply the accumulated compensation force to the root link
+            wp.launch(
+                apply_accumulated_root_force,
+                dim=self.num_instances,
+                inputs=[
+                    self._root_comp_force,
+                    self._data._sim_bind_body_external_wrench,
+                    self._root_link_index,
                 ],
                 device=self.device,
             )

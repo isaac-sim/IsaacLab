@@ -99,11 +99,18 @@ def apply_gravity_compensation_force(
     gravcomp: wp.array2d(dtype=wp.float32),
     gravity: wp.vec3f,
     body_f: wp.array2d(dtype=wp.spatial_vectorf),
+    root_link_index: wp.int32,
+    root_comp_force: wp.array2d(dtype=wp.float32),
 ):
     """Apply gravity compensation force to body_f.
 
     The compensation force is: F = m * (-g) * gravcomp_factor
     where m is body mass, g is gravity vector, and gravcomp_factor is the compensation factor.
+    The compensated weight is accumulated atomically into root_comp_force for later application to the root link.
+
+    Args:
+        root_comp_force: Accumulator array of shape (num_envs, 3) for x, y, z components.
+            Must be zeroed before calling this kernel.
     """
     env_index, body_index = wp.tid()
     mass = body_mass[env_index, body_index]
@@ -115,3 +122,31 @@ def apply_gravity_compensation_force(
     current_force = wp.spatial_top(current_wrench)
     new_force = wp.vec3f(current_force[0] + comp_force[0], current_force[1] + comp_force[1], current_force[2] + comp_force[2])
     body_f[env_index, body_index] = wp.spatial_vector(new_force, wp.spatial_bottom(current_wrench), wp.float32)
+
+    # Atomically accumulate the negative compensation force for the root link
+    wp.atomic_add(root_comp_force, env_index, 0, -comp_force[0])
+    wp.atomic_add(root_comp_force, env_index, 1, -comp_force[1])
+    wp.atomic_add(root_comp_force, env_index, 2, -comp_force[2])
+
+
+@wp.kernel
+def apply_accumulated_root_force(
+    root_comp_force: wp.array2d(dtype=wp.float32),
+    body_f: wp.array2d(dtype=wp.spatial_vectorf),
+    root_link_index: wp.int32,
+):
+    """Apply the accumulated compensation force to the root link.
+
+    This kernel should be called after apply_gravity_compensation_force to apply
+    the atomically accumulated forces to the root link.
+
+    Args:
+        root_comp_force: Accumulator array of shape (num_envs, 3) populated by
+            apply_gravity_compensation_force.
+    """
+    env_index = wp.tid()
+    current_wrench = body_f[env_index, root_link_index]
+    current_force = wp.spatial_top(current_wrench)
+    accumulated = wp.vec3f(root_comp_force[env_index, 0], root_comp_force[env_index, 1], root_comp_force[env_index, 2])
+    new_force = wp.vec3f(current_force[0] + accumulated[0], current_force[1] + accumulated[1], current_force[2] + accumulated[2])
+    body_f[env_index, root_link_index] = wp.spatial_vector(new_force, wp.spatial_bottom(current_wrench), wp.float32)

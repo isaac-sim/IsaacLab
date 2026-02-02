@@ -192,10 +192,11 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=50,
                 nconmax=50,
-                ls_iterations=20,
                 cone="elliptic",
-                impratio=1,
                 ls_parallel=True,
+                impratio=100,
+                iterations=100,
+                ls_iterations=50,
                 integrator="implicit",
                 solver="newton",
             ),

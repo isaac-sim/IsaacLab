@@ -220,13 +220,14 @@ def test_setup(env_and_cfg):
 @pytest.mark.parametrize(
     "test_name",
     [
-        "horizontal_movement",
-        "horizontal_small_movement",
-        "stay_still",
-        # TODO: Put this test back in when gravity compensation is improved.
-        # "forward_waist_bending_movement",
-        "vertical_movement",
-        "rotation_movements",
+        "pure_x_translation",
+        "pure_y_translation",
+        "pure_z_translation",
+        "diagonal_translation",
+        "pure_roll_rotation",
+        "pure_pitch_rotation",
+        "pure_yaw_rotation",
+        "compound_rotation",
     ],
 )
 def test_movement_types(test_setup, test_name):

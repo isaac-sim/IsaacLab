@@ -57,32 +57,16 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
-    gravity_compensation: dict[str, float] | None = None
-    """Gravity compensation values for bodies in the articulation. Defaults to None (no compensation).
+    gravity_compensation: list[str] | None = None
+    """List of body name patterns for gravity compensation.
 
-    This is a dictionary mapping body name patterns (regex) to gravity compensation values.
-    A value of 0.0 means no compensation (full gravity), while 1.0 means full compensation
-    (body experiences no gravity). Values between 0 and 1 provide partial compensation.
+    Each string is a regular expression pattern matching body names that should have
+    gravity compensation applied (full compensation, i.e., no gravity effect).
+    Defaults to None (no compensation).
+    """
 
-    Example usage:
-
-    .. code-block:: python
-
-        # Full gravity compensation for all arm bodies
-        gravity_compensation = {
-            ".*_arm_.*": 1.0,
-            ".*_hand_.*": 1.0,
-        }
-
-        # Partial gravity compensation for upper body
-        gravity_compensation = {
-            ".*_shoulder_.*": 0.8,
-            ".*_elbow_.*": 0.8,
-            "torso": 0.5,
-        }
-
-    .. note::
-        This feature only works when using the MuJoCo solver (SolverMuJoCo).
+    gravity_compensation_root_link_index: str | None = None
+    """Root link index for gravity compensation. Defaults to None (no compensation).
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING
