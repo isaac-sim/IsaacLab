@@ -460,15 +460,11 @@ class SimulationContext:
         """Checks for callback exceptions and raises them if found."""
         # disable simulation stopping control so that we can crash the program
         # if an exception is raised in a callback.
-        self._visualizer.set_stop_handle_enabled(False)
         # check if we need to raise an exception that was raised in a callback
         if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:  # type: ignore
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
             raise exception_to_raise
-        # re-enable simulation stopping control
-        self._visualizer.set_stop_handle_enabled(True)
-
 
 @contextmanager
 def build_simulation_context(
