@@ -1112,6 +1112,26 @@ class ArticulationData(BaseArticulationData):
         self._body_mass = self._root_view.get_masses().to(self.device).clone()
         self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
 
+        # -- Defaults (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+        self._default_joint_stiffness = None
+        self._default_joint_damping = None
+        self._default_joint_armature = None
+        self._default_joint_friction_coeff = None
+        self._default_joint_viscous_friction_coeff = None
+        self._default_joint_pos_limits = None
+        self._default_fixed_tendon_stiffness = None
+        self._default_fixed_tendon_damping = None
+        self._default_fixed_tendon_limit_stiffness = None
+        self._default_fixed_tendon_rest_length = None
+        self._default_fixed_tendon_offset = None
+        self._default_fixed_tendon_pos_limits = None
+        self._default_spatial_tendon_stiffness = None
+        self._default_spatial_tendon_damping = None
+        self._default_spatial_tendon_limit_stiffness = None
+        self._default_spatial_tendon_offset = None
+
     """
     Backward compatibility. (Deprecated properties)
     """
@@ -1391,161 +1411,255 @@ class ArticulationData(BaseArticulationData):
         return self.default_fixed_tendon_pos_limits
 
     """
-    Removed - Default values are no longer stored.
+    Defaults - Default values will no longer be stored.
     """
 
     @property
     def default_mass(self) -> torch.Tensor:
-        """Removed: Default mass is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_mass' has been removed. Default values are no longer stored. "
-            "Please use 'body_mass' to get the current mass values from the simulation."
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_mass is None:
+            self._default_mass = self.body_mass.clone()
+        return self._default_mass
 
     @property
     def default_inertia(self) -> torch.Tensor:
-        """Removed: Default inertia is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_inertia' has been removed. Default values are no longer stored. "
-            "Please use 'body_inertia' to get the current inertia values from the simulation."
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_inertia is None:
+            self._default_inertia = self.body_inertia.clone()
+        return self._default_inertia
 
     @property
     def default_joint_stiffness(self) -> torch.Tensor:
-        """Removed: Default joint stiffness is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_stiffness' has been removed. Default values are no longer stored. "
-            "Please use 'joint_stiffness' to get the current stiffness values from the simulation."
+        """Deprecated property. Please use :attr:`joint_stiffness` instead and manage the default joint stiffness
+        manually."""
+        warnings.warn(
+            "The `default_joint_stiffness` property will be deprecated in a IsaacLab 4.0. Please use `joint_stiffness`"
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_joint_stiffness is None:
+            self._default_joint_stiffness = self.joint_stiffness.clone()
+        return self._default_joint_stiffness
 
     @property
     def default_joint_damping(self) -> torch.Tensor:
-        """Removed: Default joint damping is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_damping' has been removed. Default values are no longer stored. "
-            "Please use 'joint_damping' to get the current damping values from the simulation."
+        """Deprecated property. Please use :attr:`joint_damping` instead and manage the default joint damping
+        manually."""
+        warnings.warn(
+            "The `default_joint_damping` property will be deprecated in a IsaacLab 4.0. Please use `joint_damping`"
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_joint_damping is None:
+            self._default_joint_damping = self.joint_damping.clone()
+        return self._default_joint_damping
 
     @property
     def default_joint_armature(self) -> torch.Tensor:
-        """Removed: Default joint armature is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_armature' has been removed. Default values are no longer stored. "
-            "Please use 'joint_armature' to get the current armature values from the simulation."
+        """Deprecated property. Please use :attr:`joint_armature` instead and manage the default joint armature
+        manually."""
+        warnings.warn(
+            "The `default_joint_armature` property will be deprecated in a IsaacLab 4.0. Please use `joint_armature`"
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_joint_armature is None:
+            self._default_joint_armature = self.joint_armature.clone()
+        return self._default_joint_armature
 
     @property
     def default_joint_friction_coeff(self) -> torch.Tensor:
-        """Removed: Default joint friction coefficient is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_friction_coeff' has been removed. Default values are no longer stored. "
-            "Please use 'joint_friction_coeff' to get the current friction coefficient values from the simulation."
+        """Deprecated property. Please use :attr:`joint_friction_coeff` instead and manage the default joint friction
+        coefficient manually."""
+        warnings.warn(
+            "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_friction_coeff` instead. The default value will need to be managed manually.",  
+            DeprecationWarning,
+            stacklevel=2,
         )
-
-    @property
-    def default_joint_dynamic_friction_coeff(self) -> torch.Tensor:
-        """Removed: Default joint dynamic friction coefficient is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_dynamic_friction_coeff' has been removed. Default values are no longer "
-            "stored. Please use 'joint_dynamic_friction_coeff' to get the current dynamic friction coefficient values"
-            " from the simulation."
-        )
+        if self._default_joint_friction_coeff is None:
+            self._default_joint_friction_coeff = self.joint_friction_coeff.clone()
+        return self._default_joint_friction_coeff
 
     @property
     def default_joint_viscous_friction_coeff(self) -> torch.Tensor:
-        """Removed: Default joint viscous friction coefficient is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_viscous_friction_coeff' has been removed. Default values are no longer "
-            "stored. Please use 'joint_viscous_friction_coeff' to get the current viscous friction coefficient values"
-            " from the simulation."
+        """Deprecated property. Please use :attr:`joint_viscous_friction_coeff` instead and manage the default joint
+        viscous friction coefficient manually."""
+        warnings.warn(
+            "The `default_joint_viscous_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_viscous_friction_coeff` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_joint_viscous_friction_coeff is None:
+            self._default_joint_viscous_friction_coeff = self.joint_viscous_friction_coeff.clone()
+        return self._default_joint_viscous_friction_coeff
 
     @property
     def default_joint_pos_limits(self) -> torch.Tensor:
-        """Removed: Default joint position limits are no longer stored."""
-        raise RuntimeError(
-            "The property 'default_joint_pos_limits' has been removed. Default values are no longer stored. "
-            "Please use 'joint_pos_limits' to get the current position limits from the simulation."
+        """Deprecated property. Please use :attr:`joint_pos_limits` instead and manage the default joint position
+        limits manually."""
+        warnings.warn(
+            "The `default_joint_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_pos_limits` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_joint_pos_limits is None:
+            self._default_joint_pos_limits = self.joint_pos_limits.clone()
+        return self._default_joint_pos_limits
 
     @property
     def default_fixed_tendon_stiffness(self) -> torch.Tensor:
-        """Removed: Default fixed tendon stiffness is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_stiffness' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_stiffness' to get the current stiffness values from the simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_stiffness` instead and manage the default fixed tendon
+        stiffness manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_stiffness is None:
+            self._default_fixed_tendon_stiffness = self.fixed_tendon_stiffness.clone()
+        return self._default_fixed_tendon_stiffness
 
     @property
     def default_fixed_tendon_damping(self) -> torch.Tensor:
-        """Removed: Default fixed tendon damping is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_damping' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_damping' to get the current damping values from the simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_damping` instead and manage the default fixed tendon
+        damping manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_damping` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_damping is None:
+            self._default_fixed_tendon_damping = self.fixed_tendon_damping.clone()
+        return self._default_fixed_tendon_damping
 
     @property
     def default_fixed_tendon_limit_stiffness(self) -> torch.Tensor:
-        """Removed: Default fixed tendon limit stiffness is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_limit_stiffness' has been removed. Default values are no longer "
-            "stored. Please use 'fixed_tendon_limit_stiffness' to get the current limit stiffness values from the "
-            "simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_limit_stiffness` instead and manage the default fixed
+        tendon limit stiffness manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_limit_stiffness is None:
+            self._default_fixed_tendon_limit_stiffness = self.fixed_tendon_limit_stiffness.clone()
+        return self._default_fixed_tendon_limit_stiffness
 
     @property
     def default_fixed_tendon_rest_length(self) -> torch.Tensor:
-        """Removed: Default fixed tendon rest length is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_rest_length' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_rest_length' to get the current rest length values from the simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_rest_length` instead and manage the default fixed tendon
+        rest length manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_rest_length` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_rest_length` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_rest_length is None:
+            self._default_fixed_tendon_rest_length = self.fixed_tendon_rest_length.clone()
+        return self._default_fixed_tendon_rest_length
 
     @property
     def default_fixed_tendon_offset(self) -> torch.Tensor:
-        """Removed: Default fixed tendon offset is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_offset' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_offset' to get the current offset values from the simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_offset` instead and manage the default fixed tendon
+        offset manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_offset` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_offset is None:
+            self._default_fixed_tendon_offset = self.fixed_tendon_offset.clone()
+        return self._default_fixed_tendon_offset
 
     @property
     def default_fixed_tendon_pos_limits(self) -> torch.Tensor:
-        """Removed: Default fixed tendon position limits are no longer stored."""
-        raise RuntimeError(
-            "The property 'default_fixed_tendon_pos_limits' has been removed. Default values are no longer stored. "
-            "Please use 'fixed_tendon_pos_limits' to get the current position limits from the simulation."
+        """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead and manage the default fixed tendon
+        position limits manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_pos_limits` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_fixed_tendon_pos_limits is None:
+            self._default_fixed_tendon_pos_limits = self.fixed_tendon_pos_limits.clone()
+        return self._default_fixed_tendon_pos_limits
 
     @property
     def default_spatial_tendon_stiffness(self) -> torch.Tensor:
-        """Removed: Default spatial tendon stiffness is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_spatial_tendon_stiffness' has been removed. Default values are no longer stored. "
-            "Please use 'spatial_tendon_stiffness' to get the current stiffness values from the simulation."
+        """Deprecated property. Please use :attr:`spatial_tendon_stiffness` instead and manage the default spatial
+        tendon stiffness manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_spatial_tendon_stiffness is None:
+            self._default_spatial_tendon_stiffness = self.spatial_tendon_stiffness.clone()
+        return self._default_spatial_tendon_stiffness
 
     @property
     def default_spatial_tendon_damping(self) -> torch.Tensor:
-        """Removed: Default spatial tendon damping is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_spatial_tendon_damping' has been removed. Default values are no longer stored. "
-            "Please use 'spatial_tendon_damping' to get the current damping values from the simulation."
+        """Deprecated property. Please use :attr:`spatial_tendon_damping` instead and manage the default spatial tendon
+        damping manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_damping` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_spatial_tendon_damping is None:
+            self._default_spatial_tendon_damping = self.spatial_tendon_damping.clone()
+        return self._default_spatial_tendon_damping
 
     @property
     def default_spatial_tendon_limit_stiffness(self) -> torch.Tensor:
-        """Removed: Default spatial tendon limit stiffness is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_spatial_tendon_limit_stiffness' has been removed. Default values are no longer "
-            "stored. Please use 'spatial_tendon_limit_stiffness' to get the current limit stiffness values from the "
-            "simulation."
+        """Deprecated property. Please use :attr:`spatial_tendon_limit_stiffness` instead and manage the default
+        spatial tendon limit stiffness manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_spatial_tendon_limit_stiffness is None:
+            self._default_spatial_tendon_limit_stiffness = self.spatial_tendon_limit_stiffness.clone()
+        return self._default_spatial_tendon_limit_stiffness
 
     @property
     def default_spatial_tendon_offset(self) -> torch.Tensor:
-        """Removed: Default spatial tendon offset is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_spatial_tendon_offset' has been removed. Default values are no longer stored. "
-            "Please use 'spatial_tendon_offset' to get the current offset values from the simulation."
+        """Deprecated property. Please use :attr:`spatial_tendon_offset` instead and manage the default spatial tendon
+        offset manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_offset` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_spatial_tendon_offset is None:
+            self._default_spatial_tendon_offset = self.spatial_tendon_offset.clone()
+        return self._default_spatial_tendon_offset
