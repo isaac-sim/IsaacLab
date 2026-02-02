@@ -25,7 +25,8 @@ from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
+from newton import ModelBuilder
+from isaaclab.sim.utils.stage import get_current_stage
 ##
 # Pre-defined configs
 ##
@@ -183,6 +184,20 @@ def generate_articulation(
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
 
+    def set_builder():
+        stage = get_current_stage()
+        builder = ModelBuilder()
+        num_envs = num_articulations
+        for i in range(num_envs):
+            proto = ModelBuilder()
+            proto.add_usd(stage, root_path=f"/World/Env_{i}", load_visual_shapes=True)
+            builder.add_world(proto)
+
+        NewtonManager.set_builder(builder)
+        NewtonManager._num_envs = num_articulations
+
+    NewtonManager.add_on_init_callback(set_builder)
+    
     return articulation, translations
 
 

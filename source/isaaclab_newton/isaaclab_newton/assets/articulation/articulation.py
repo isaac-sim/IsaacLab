@@ -2388,8 +2388,8 @@ class Articulation(BaseArticulation):
         # check that the default values are within the limits
         joint_pos_limits = torch.stack(
             (
-                wp.to_torch(self._root_view.get_attribute("joint_limit_lower", NewtonManager.get_model())),
-                wp.to_torch(self._root_view.get_attribute("joint_limit_upper", NewtonManager.get_model())),
+                wp.to_torch(self._root_view.get_attribute("joint_limit_lower", NewtonManager.get_model()))[:, 0],
+                wp.to_torch(self._root_view.get_attribute("joint_limit_upper", NewtonManager.get_model()))[:, 0],
             ),
             dim=2,
         )[0].to(self.device)
@@ -2410,7 +2410,7 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(self._root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))
+        joint_max_vel = wp.to_torch(self._root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))[:, 0]
         out_of_range = torch.abs(wp.to_torch(self.data.default_joint_vel)) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:

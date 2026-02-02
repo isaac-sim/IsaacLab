@@ -32,6 +32,8 @@ from isaaclab.utils.math import (
     quat_rotate,
     random_orientation,
 )
+from newton import ModelBuilder
+from isaaclab.sim.utils.stage import get_current_stage
 
 # FIXME: That should not be happening.
 # Need to create stage in memory to avoid weird leaks when running consecutive tests...
@@ -90,6 +92,21 @@ def generate_cubes_scene(
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
     cube_object = RigidObject(cfg=cube_object_cfg)
+
+    def set_builder():
+        stage = get_current_stage()
+        builder = ModelBuilder()
+        num_envs = num_cubes
+        for i in range(num_envs):
+            proto = ModelBuilder()
+            proto.add_usd(stage, root_path=f"/World/Table_{i}", load_visual_shapes=True)
+            builder.add_world(proto)
+
+        NewtonManager.set_builder(builder)
+        NewtonManager._num_envs = num_cubes
+
+    NewtonManager.add_on_init_callback(set_builder)
+    
 
     return cube_object, origins
 

@@ -151,65 +151,72 @@ class MockNewtonArticulationView:
 
         # Storage for mock data
         # Note: These are set via set_mock_data() before any property access in tests
-        self._root_transforms = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
-        self._link_transforms = wp.zeros((num_instances, num_bodies), dtype=wp.transformf, device=device)
+        print("num_instances:", num_instances)
+        print("num_bodies:", num_bodies)
+        print("num_joints:", num_joints)
+        print("is_fixed_base:", is_fixed_base)
         if is_fixed_base:
+            self._root_transforms = wp.zeros((num_instances, 1, 1), dtype=wp.transformf, device=device)
             self._root_velocities = None
             self._link_velocities = None
         else:
-            self._root_velocities = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
-            self._link_velocities = wp.zeros((num_instances, num_bodies), dtype=wp.spatial_vectorf, device=device)
-        self._dof_positions = wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-        self._dof_velocities = wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
+            self._root_transforms = wp.zeros((num_instances, 1), dtype=wp.transformf, device=device)
+            self._root_velocities = wp.zeros((num_instances, 1), dtype=wp.spatial_vectorf, device=device)
+            self._link_velocities = wp.zeros((num_instances, 1, num_bodies), dtype=wp.spatial_vectorf, device=device)
+
+        self._link_transforms = wp.zeros((num_instances, 1, num_bodies), dtype=wp.transformf, device=device)
+
+        self._dof_positions = wp.zeros((num_instances, 1, num_joints), dtype=wp.float32, device=device)
+        self._dof_velocities = wp.zeros((num_instances, 1, num_joints), dtype=wp.float32, device=device)
 
         # Initialize default attributes
         self._attributes: dict = {}
-        self._attributes["body_com"] = wp.zeros((self._count, self._link_count), dtype=wp.vec3f, device=self._device)
-        self._attributes["body_mass"] = wp.zeros((self._count, self._link_count), dtype=wp.float32, device=self._device)
+        self._attributes["body_com"] = wp.zeros((self._count, 1, self._link_count), dtype=wp.vec3f, device=self._device)
+        self._attributes["body_mass"] = wp.zeros((self._count, 1, self._link_count), dtype=wp.float32, device=self._device)
         self._attributes["body_inertia"] = wp.zeros(
-            (self._count, self._link_count), dtype=wp.mat33f, device=self._device
+            (self._count, 1, self._link_count), dtype=wp.mat33f, device=self._device
         )
         self._attributes["joint_limit_lower"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_limit_upper"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_target_ke"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_target_kd"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_armature"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_friction"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_velocity_limit"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_effort_limit"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["body_f"] = wp.zeros(
-            (self._count, self._link_count), dtype=wp.spatial_vectorf, device=self._device
+            (self._count, 1, self._link_count), dtype=wp.spatial_vectorf, device=self._device
         )
         self._attributes["joint_f"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_target_pos"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_target_vel"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_limit_ke"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
         self._attributes["joint_limit_kd"] = wp.zeros(
-            (self._count, self._joint_dof_count), dtype=wp.float32, device=self._device
+            (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
         )
 
     @property
