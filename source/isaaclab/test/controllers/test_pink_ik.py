@@ -23,7 +23,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli, _ = parser.parse_known_args()
 # Always run tests in headless mode by default
 args_cli.headless = True
-args_cli.visualizer = ['newton']
+args_cli.visualizer = ["newton"]
 args_cli.num_envs = 1
 
 # launch omniverse app
@@ -35,13 +35,13 @@ simulation_app = app_launcher.app
 import contextlib
 import gymnasium as gym
 import numpy as np
-import pytest
 import re
 import torch
-import warp as wp
 import yaml
 from pathlib import Path
 
+import pytest
+import warp as wp
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
@@ -50,6 +50,7 @@ from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_fro
 
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+
 # import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 

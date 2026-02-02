@@ -35,7 +35,7 @@ class AgileBasedLowerBodyActionCfg(ActionTermCfg):
 
     policy_joint_order: list[str] | None = None
     """The order of joints in the policy output. If None, uses the articulation joint order.
-    
+
     When specified, the policy output is assumed to be in this order and will be remapped
     to the articulation's joint order before applying. This should match the joint ordering
     used during policy training."""

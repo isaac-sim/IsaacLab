@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import re
@@ -1188,7 +1189,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     """
     # rigid bodies
     # Note: rigid_objects is not supported in Newton backend
-    try:
+    with contextlib.suppress(NotImplementedError):
         for rigid_object in env.scene.rigid_objects.values():
             # obtain default and deal with the offset for env origins
             default_root_state = rigid_object.data.default_root_state[env_ids].clone()
@@ -1196,8 +1197,6 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
             # set into the physics simulation
             rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
             rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
-    except NotImplementedError:
-        pass
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins

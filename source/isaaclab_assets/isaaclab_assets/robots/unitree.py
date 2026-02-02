@@ -337,20 +337,20 @@ G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_mi
 
 """Configuration for the Unitree G1 Humanoid robot with all 29 degrees of freedom + 7 DOF per hand."""
 
-ARMATURE_5020 = 0.003610 # kg-m^2
-ARMATURE_7520_14 = 0.01018 # kg-m^2
-ARMATURE_7520_22 = 0.02510 # kg-m^2
-ARMATURE_4010 = 0.00425 # kg-m^2
+ARMATURE_5020 = 0.003610  # kg-m^2
+ARMATURE_7520_14 = 0.01018  # kg-m^2
+ARMATURE_7520_22 = 0.02510  # kg-m^2
+ARMATURE_4010 = 0.00425  # kg-m^2
 
-VEL_LIMIT_5020 = 37.0 # rad/s
-VEL_LIMIT_7520_14 = 32.0 # rad/s
-VEL_LIMIT_7520_22 = 20.0 # rad/s
-VEL_LIMIT_4010 = 22.0 # rad/s
+VEL_LIMIT_5020 = 37.0  # rad/s
+VEL_LIMIT_7520_14 = 32.0  # rad/s
+VEL_LIMIT_7520_22 = 20.0  # rad/s
+VEL_LIMIT_4010 = 22.0  # rad/s
 
-EFFORT_LIMIT_5020 = 25.0 # Nm
-EFFORT_LIMIT_7520_14 = 88.0 # Nm
-EFFORT_LIMIT_7520_22 = 139.0 # Nm
-EFFORT_LIMIT_4010 = 5.0 # Nm
+EFFORT_LIMIT_5020 = 25.0  # Nm
+EFFORT_LIMIT_7520_14 = 88.0  # Nm
+EFFORT_LIMIT_7520_22 = 139.0  # Nm
+EFFORT_LIMIT_4010 = 5.0  # Nm
 
 NATURAL_FREQ = 50 * 2.0 * 3.1415926535  # 10Hz
 DAMPING_RATIO = 2.0
@@ -380,10 +380,10 @@ G1_29_DOF_CFG = ArticulationCfg(
     # Gravity compensation for upper body (arms and hands experience reduced gravity)
     gravity_compensation=[
         ".*shoulder.*",  # Shoulder links
-        ".*elbow.*",     # Elbow links
-        ".*wrist.*",     # Wrist links
-        ".*hand.*",      # Hand links
-        ".*torso.*",     # Torso links
+        ".*elbow.*",  # Elbow links
+        ".*wrist.*",  # Wrist links
+        ".*hand.*",  # Hand links
+        ".*torso.*",  # Torso links
     ],
     gravity_compensation_root_link_index="pelvis",
     init_state=ArticulationCfg.InitialStateCfg(
@@ -457,7 +457,7 @@ G1_29_DOF_CFG = ArticulationCfg(
             joint_names_expr=[
                 "waist_.*_joint",
             ],
-            effort_limit= {
+            effort_limit={
                 "waist_yaw_joint": EFFORT_LIMIT_7520_14,
                 "waist_pitch_joint": EFFORT_LIMIT_5020,
                 "waist_roll_joint": EFFORT_LIMIT_5020,
@@ -476,9 +476,6 @@ G1_29_DOF_CFG = ArticulationCfg(
                 "waist_yaw_joint": DAMPING_7520_14,
                 "waist_pitch_joint": DAMPING_5020,
                 "waist_roll_joint": DAMPING_5020,
-                "waist_yaw_joint": 5,
-                "waist_pitch_joint": 5,
-                "waist_roll_joint": 5,
             },
             armature={
                 "waist_yaw_joint": ARMATURE_7520_14,

@@ -47,8 +47,8 @@ from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_value_masked,
     update_array2D_with_array1D_indexed,
     update_array2D_with_array2D_masked,
-    update_array2D_with_value_masked,
     update_array2D_with_value_indexed,
+    update_array2D_with_value_masked,
 )
 from isaaclab.utils.warp.utils import (
     make_complete_data_from_torch_dual_index,
@@ -2182,9 +2182,7 @@ class Articulation(BaseArticulation):
             (self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device
         )
         # Accumulator for root link compensation forces (shape: num_envs x 3 for x, y, z components)
-        self._root_comp_force = wp.zeros(
-            (self.num_instances, 3), dtype=wp.float32, device=self.device
-        )
+        self._root_comp_force = wp.zeros((self.num_instances, 3), dtype=wp.float32, device=self.device)
         self._has_gravity_compensation = False
 
         # Assign joint and body names to the data
@@ -2397,11 +2395,8 @@ class Articulation(BaseArticulation):
         if self.cfg.gravity_compensation is None or self.cfg.gravity_compensation_root_link_index is None:
             return
 
-
         # Resolve body names from the configuration (list of regex patterns)
-        indices_list, names_list = string_utils.resolve_matching_names(
-            self.cfg.gravity_compensation, self.body_names
-        )
+        indices_list, names_list = string_utils.resolve_matching_names(self.cfg.gravity_compensation, self.body_names)
 
         # Resolve body names and values of root_link
         root_link_indices, _ = string_utils.resolve_matching_names(
@@ -2418,15 +2413,13 @@ class Articulation(BaseArticulation):
             return
 
         # Log the gravity compensation settings
-        logger.info(
-            f"Applying gravity compensation for articulation '{self.cfg.prim_path}': {names_list}"
-        )
+        logger.info(f"Applying gravity compensation for articulation '{self.cfg.prim_path}': {names_list}")
 
         # Fill in the values for matched bodies
         wp.launch(
-            update_array2D_with_value_indexed, 
-            dim=(self.num_instances, len(indices_list)), 
-            device=self.device, 
+            update_array2D_with_value_indexed,
+            dim=(self.num_instances, len(indices_list)),
+            device=self.device,
             inputs=[
                 1.0,
                 self._gravity_compensation_factor,

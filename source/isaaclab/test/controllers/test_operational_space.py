@@ -12,9 +12,9 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
 import torch
 
+import pytest
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils

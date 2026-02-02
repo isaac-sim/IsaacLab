@@ -116,11 +116,15 @@ def apply_gravity_compensation_force(
     mass = body_mass[env_index, body_index]
     comp_factor = gravcomp[env_index, body_index]
     # Calculate the opposite of gravity force scaled by compensation factor
-    comp_force = wp.vec3f(-gravity[0] * mass * comp_factor, -gravity[1] * mass * comp_factor, -gravity[2] * mass * comp_factor)
+    comp_force = wp.vec3f(
+        -gravity[0] * mass * comp_factor, -gravity[1] * mass * comp_factor, -gravity[2] * mass * comp_factor
+    )
     # Add to existing wrench (keep torque, add to force)
     current_wrench = body_f[env_index, body_index]
     current_force = wp.spatial_top(current_wrench)
-    new_force = wp.vec3f(current_force[0] + comp_force[0], current_force[1] + comp_force[1], current_force[2] + comp_force[2])
+    new_force = wp.vec3f(
+        current_force[0] + comp_force[0], current_force[1] + comp_force[1], current_force[2] + comp_force[2]
+    )
     body_f[env_index, body_index] = wp.spatial_vector(new_force, wp.spatial_bottom(current_wrench), wp.float32)
 
     # Atomically accumulate the negative compensation force for the root link
@@ -148,5 +152,7 @@ def apply_accumulated_root_force(
     current_wrench = body_f[env_index, root_link_index]
     current_force = wp.spatial_top(current_wrench)
     accumulated = wp.vec3f(root_comp_force[env_index, 0], root_comp_force[env_index, 1], root_comp_force[env_index, 2])
-    new_force = wp.vec3f(current_force[0] + accumulated[0], current_force[1] + accumulated[1], current_force[2] + accumulated[2])
+    new_force = wp.vec3f(
+        current_force[0] + accumulated[0], current_force[1] + accumulated[1], current_force[2] + accumulated[2]
+    )
     body_f[env_index, root_link_index] = wp.spatial_vector(new_force, wp.spatial_bottom(current_wrench), wp.float32)

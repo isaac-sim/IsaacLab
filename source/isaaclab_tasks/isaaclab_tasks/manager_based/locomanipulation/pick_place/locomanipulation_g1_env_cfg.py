@@ -7,9 +7,6 @@ from isaaclab_assets.robots.unitree import G1_29_DOF_CFG
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -17,9 +14,12 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
+from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.configs.action_cfg import AgileBasedLowerBodyActionCfg
@@ -66,9 +66,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_29_DOF_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot"
-    )
+    robot: ArticulationCfg = G1_29_DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # Ground plane
     ground = AssetBaseCfg(
@@ -204,9 +202,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     )
 
     # Scene settings
-    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
-    )
+    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # MDP settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

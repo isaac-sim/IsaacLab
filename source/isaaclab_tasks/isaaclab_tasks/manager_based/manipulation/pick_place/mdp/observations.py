@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
 
 def object_obs(
     env: ManagerBasedRLEnv,

@@ -23,8 +23,8 @@ simulation_app = AppLauncher(headless=True).app
 """Unit tests for NullSpacePostureTask with simplified robot configuration using Pink library directly."""
 
 import numpy as np
-import pytest
 
+import pytest
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
