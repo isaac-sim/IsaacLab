@@ -1488,7 +1488,7 @@ class ArticulationData(BaseArticulationData):
         coefficient manually."""
         warnings.warn(
             "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
-            "`joint_friction_coeff` instead. The default value will need to be managed manually.",  
+            "`joint_friction_coeff` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
         )
