@@ -40,6 +40,9 @@ class VisualizerInterface(Interface):
         # Create OV visualizer helper
         self._ov_visualizer = OVVisualizer(sim_context)
 
+        # Track previous playing state to detect transitions
+        self._was_playing = False
+
     # ------------------------------------------------------------------
     # Properties (delegate to OVVisualizer)
     # ------------------------------------------------------------------
@@ -163,9 +166,18 @@ class VisualizerInterface(Interface):
         Args:
             render: Whether to render after stepping.
         """
-        # if paused, keep rendering until playing or stopped
+        # If paused, keep rendering until playing or stopped
         while not self.is_playing() and not self.is_stopped():
             self.render()
+            self._was_playing = False
+
+        # # Detect transition: was not playing → now playing (resume from pause)
+        is_playing = self.is_playing()
+        if not self._was_playing and is_playing:
+            self.reset(soft=True) # TODO: it is currently buggy
+
+        # Update state tracking
+        self._was_playing = is_playing
 
         self.forward()
 

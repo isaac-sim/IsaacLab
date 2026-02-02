@@ -14,7 +14,7 @@ import os
 import toml
 import torch
 import weakref
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import omni.kit.app
 import omni.timeline
@@ -23,6 +23,8 @@ from isaacsim.core.utils.viewports import set_camera_view
 from isaaclab.utils.version import get_isaac_sim_version
 
 if TYPE_CHECKING:
+    import carb
+
     from .simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,149 @@ class RenderMode(enum.IntEnum):
     """Partial rendering, where the simulation cameras and UI elements are updated."""
     FULL_RENDERING = 2
     """Full rendering, where all the simulation viewports, cameras and UI elements are updated."""
+
+
+class TimelineControl:
+    """Helper class for managing timeline lifecycle (play/pause/stop).
+
+    This class wraps the omni.timeline interface and provides a clean API
+    for controlling simulation playback. It can be composed by visualizers
+    or simulation contexts that need timeline control.
+
+    Features:
+        - Play/pause/stop control with proper physics handle propagation
+        - Stop event callback subscription
+        - Timeline state queries (is_playing, is_stopped)
+    """
+
+    def __init__(
+        self,
+        app_interface: omni.kit.app.IApp,
+        carb_settings: "carb.settings.ISettings",
+        on_stop_callback: Callable[[], None] | None = None,
+    ):
+        """Initialize timeline control.
+
+        Args:
+            app_interface: Omniverse Kit application interface.
+            carb_settings: Carb settings interface for controlling playSimulations.
+            on_stop_callback: Optional callback to invoke when simulation stops.
+        """
+        self._app_iface = app_interface
+        self._carb_settings = carb_settings
+        self._on_stop_callback = on_stop_callback
+
+        # Acquire timeline interface
+        self._timeline_iface = omni.timeline.get_timeline_interface()
+        self._timeline_iface.set_auto_update(True)
+
+        # Setup stop handle callback
+        self._disable_stop_handle = False
+        timeline_event_stream = self._timeline_iface.get_timeline_event_stream()
+        self._stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            int(omni.timeline.TimelineEventType.STOP),
+            lambda *args, obj=weakref.proxy(self): obj._on_stop_event(*args),
+            order=15,
+        )
+
+    @property
+    def timeline_interface(self) -> omni.timeline.ITimeline:
+        """Get the underlying timeline interface."""
+        return self._timeline_iface
+
+    def is_playing(self) -> bool:
+        """Check whether the simulation is playing.
+
+        Returns:
+            True if simulation is currently playing, False otherwise.
+        """
+        return self._timeline_iface.is_playing()
+
+    def is_stopped(self) -> bool:
+        """Check whether the simulation is stopped.
+
+        Returns:
+            True if simulation is stopped, False otherwise.
+        """
+        return self._timeline_iface.is_stopped()
+
+    def play(self) -> None:
+        """Start playing the simulation.
+
+        This commits the timeline state and performs one app update step
+        to propagate all physics handles properly.
+        """
+        self._timeline_iface.play()
+        self._timeline_iface.commit()
+        # Perform one step to propagate all physics handles properly
+        self._carb_settings.set_bool("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self._carb_settings.set_bool("/app/player/playSimulations", True)
+
+    def pause(self) -> None:
+        """Pause the simulation.
+
+        This commits the timeline state to ensure the pause takes effect.
+        """
+        self._timeline_iface.pause()
+        self._timeline_iface.commit()
+
+    def stop(self) -> None:
+        """Stop the simulation.
+
+        This commits the timeline state and performs one app update step
+        to propagate all physics handles properly.
+        """
+        self._timeline_iface.stop()
+        self._timeline_iface.commit()
+        # Perform one step to propagate all physics handles properly
+        self._carb_settings.set_bool("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self._carb_settings.set_bool("/app/player/playSimulations", True)
+
+    def set_stop_handle_enabled(self, enabled: bool) -> None:
+        """Enable or disable the stop handle callback.
+
+        When disabled, the on_stop_callback will not be invoked when
+        the simulation stops.
+
+        Args:
+            enabled: If True, the stop handle callback is active.
+        """
+        self._disable_stop_handle = not enabled
+
+    def set_target_framerate(self, hz: int) -> None:
+        """Set the target framerate for the timeline.
+
+        Args:
+            hz: Target framerate in Hz.
+        """
+        self._timeline_iface.set_target_framerate(hz)
+
+    def set_time_codes_per_second(self, time_codes_per_second: float) -> None:
+        """Set the time codes per second for the timeline.
+
+        Args:
+            time_codes_per_second: Number of time codes per second.
+        """
+        self._timeline_iface.set_time_codes_per_second(time_codes_per_second)
+
+    def close(self) -> None:
+        """Clean up timeline resources.
+
+        Unsubscribes from the stop event and releases the timeline handle.
+        """
+        if self._stop_handle is not None:
+            self._stop_handle.unsubscribe()
+            self._stop_handle = None
+
+    def _on_stop_event(self, _) -> None:
+        """Internal callback when simulation stops.
+
+        Invokes the on_stop_callback if the stop handle is enabled.
+        """
+        if not self._disable_stop_handle and self._on_stop_callback is not None:
+            self._on_stop_callback()
 
 
 class OVVisualizer:
@@ -146,24 +291,15 @@ class OVVisualizer:
         if self._sim.carb_settings.get("/isaaclab/has_gui"):
             self._sim.cfg.enable_scene_query_support = True
 
-        # Acquire timeline interface
-        self._timeline_iface = omni.timeline.get_timeline_interface()
-
-        # Set timeline auto update to True
-        self._timeline_iface.set_auto_update(True)
+        # Initialize timeline control (manages play/pause/stop and stop callbacks)
+        self._timeline = TimelineControl(
+            app_interface=self._app_iface,
+            carb_settings=self._sim.carb_settings,
+            on_stop_callback=self._on_timeline_stop,
+        )
 
         # Configure rendering/timeline rate
         self._configure_rendering_dt()
-
-        # Add callback to deal the simulation app when simulation is stopped.
-        # this is needed because physics views go invalid once we stop the simulation
-        timeline_event_stream = self._timeline_iface.get_timeline_event_stream()
-        self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_handle_fn(*args),
-            order=15,
-        )
-        self._disable_app_control_on_stop_handle = False
 
     # ------------------------------------------------------------------
     # Properties
@@ -193,36 +329,30 @@ class OVVisualizer:
     # Timeline Control
     # ------------------------------------------------------------------
 
+    @property
+    def timeline(self) -> TimelineControl:
+        """Get the timeline control instance."""
+        return self._timeline
+
     def is_playing(self) -> bool:
         """Check whether the simulation is playing."""
-        return self._timeline_iface.is_playing()
+        return self._timeline.is_playing()
 
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped."""
-        return self._timeline_iface.is_stopped()
+        return self._timeline.is_stopped()
 
     def play(self) -> None:
         """Start playing the simulation."""
-        self._timeline_iface.play()
-        self._timeline_iface.commit()
-        # perform one step to propagate all physics handles properly
-        self._sim.set_setting("/app/player/playSimulations", False)
-        self._app_iface.update()
-        self._sim.set_setting("/app/player/playSimulations", True)
+        self._timeline.play()
 
     def pause(self) -> None:
         """Pause the simulation."""
-        self._timeline_iface.pause()
-        self._timeline_iface.commit()
+        self._timeline.pause()
 
     def stop(self) -> None:
         """Stop the simulation."""
-        self._timeline_iface.stop()
-        self._timeline_iface.commit()
-        # perform one step to propagate all physics handles properly
-        self._sim.set_setting("/app/player/playSimulations", False)
-        self._app_iface.update()
-        self._sim.set_setting("/app/player/playSimulations", True)
+        self._timeline.stop()
 
     # ------------------------------------------------------------------
     # Render Mode
@@ -319,28 +449,11 @@ class OVVisualizer:
         # check if we need to change the render mode
         if mode is not None:
             self.set_render_mode(mode)
-        # render based on the render mode
-        if self.render_mode == RenderMode.NO_GUI_OR_RENDERING:
-            # we never want to render anything here (this is for complete headless mode)
-            pass
-        elif self.render_mode == RenderMode.NO_RENDERING:
-            # throttle the rendering frequency to keep the UI responsive
-            self._render_throttle_counter += 1
-            if self._render_throttle_counter % self._render_throttle_period == 0:
-                self._render_throttle_counter = 0
-                # here we don't render viewport so don't need to flush fabric data
-                self._sim.set_setting("/app/player/playSimulations", False)
-                self._app_iface.update()
-                self._sim.set_setting("/app/player/playSimulations", True)
-        else:
-            # manually flush the fabric data to update Hydra textures
-            self._sim.forward()
-            # render the simulation
-            # note: we don't call super().render() anymore because they do above operation inside
-            #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
-            self._sim.set_setting("/app/player/playSimulations", False)
-            self._app_iface.update()
-            self._sim.set_setting("/app/player/playSimulations", True)
+        # note: we don't call super().render() anymore because they do above operation inside
+        #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
+        self._sim.set_setting("/app/player/playSimulations", False)
+        self._app_iface.update()
+        self._sim.set_setting("/app/player/playSimulations", True)
 
         # app.update() may be changing the cuda device, so we force it back to our desired device here
         if "cuda" in self._sim.device:
@@ -358,37 +471,28 @@ class OVVisualizer:
         """
         if not soft:
             # disable app control on stop handle during reset
-            self.set_stop_handle_enabled(False)
+            self._timeline.set_stop_handle_enabled(False)
             if not self.is_stopped():
                 self.stop()
-            self.set_stop_handle_enabled(True)
+            self._timeline.set_stop_handle_enabled(True)
             # play the simulation
             self.play()
             # warmup renders to initialize replicator buffers
             for _ in range(2):
                 self.render()
 
-    def set_stop_handle_enabled(self, enabled: bool) -> None:
-        """Enable or disable the app control on stop handle.
-
-        Args:
-            enabled: If True, the stop handle callback is active.
-        """
-        self._disable_app_control_on_stop_handle = not enabled
-
     def close(self) -> None:
         """Clean up visualizer resources."""
-        # Unsubscribe from stop handle
-        if self._app_control_on_stop_handle is not None:
-            self._app_control_on_stop_handle.unsubscribe()
-            self._app_control_on_stop_handle = None
+        # Clean up timeline control
+        if self._timeline is not None:
+            self._timeline.close()
 
     # ------------------------------------------------------------------
     # Private Methods
     # ------------------------------------------------------------------
 
-    def _app_control_on_stop_handle_fn(self, _):
-        """Callback to deal with the app when the simulation is stopped.
+    def _on_timeline_stop(self) -> None:
+        """Callback invoked when the simulation timeline is stopped.
 
         Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
         resume the simulation from the last state. This leaves the app in an inconsistent state, where
@@ -404,10 +508,8 @@ class OVVisualizer:
             This callback is used only when running the simulation in a standalone python script. In an extension,
             it is expected that the user handles the extension shutdown.
         """
+        # Currently a no-op, but can be extended to handle stop events
         pass
-        # if not self._disable_app_control_on_stop_handle:
-        #     while not omni.timeline.get_timeline_interface().is_playing():
-        #         self.render()
 
     def _apply_render_settings_from_cfg(self):  # noqa: C901
         """Sets rtx settings specified in the RenderCfg."""
@@ -519,12 +621,12 @@ class OVVisualizer:
         # Otherwise run the app as fast as possible and do not specify the target rate
         if carb_settings.get("/app/runLoops/main/rateLimitEnabled"):
             carb_settings.set_int("/app/runLoops/main/rateLimitFrequency", rendering_hz)
-            self._timeline_iface.set_target_framerate(rendering_hz)
+            self._timeline.set_target_framerate(rendering_hz)
 
         # set stage time codes per second
         with Usd.EditContext(stage, stage.GetRootLayer()):
             stage.SetTimeCodesPerSecond(rendering_hz)
-        self._timeline_iface.set_time_codes_per_second(rendering_hz)
+        self._timeline.set_time_codes_per_second(rendering_hz)
 
         # The isaac sim loop runner is enabled by default in isaac sim apps,
         # but in case we are in an app with the kit loop runner, protect against this
@@ -540,4 +642,4 @@ class OVVisualizer:
             )
             carb_settings.set_bool("/app/runLoops/main/rateLimitEnabled", True)
             carb_settings.set_int("/app/runLoops/main/rateLimitFrequency", rendering_hz)
-            self._timeline_iface.set_target_framerate(rendering_hz)
+            self._timeline.set_target_framerate(rendering_hz)

@@ -428,6 +428,7 @@ class SimulationContext:
         Args:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
+        self._physics_interface.forward()
         self._visualizer.render(mode)
 
     @classmethod
