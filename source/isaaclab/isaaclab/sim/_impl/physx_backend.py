@@ -20,9 +20,10 @@ import carb
 import omni.kit.app
 import omni.physx
 import omni.physics.tensors
-from pxr import Gf, PhysxSchema, Sdf, UsdGeom, UsdPhysics
+from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim._impl.physics_backend import PhysicsBackend
 from isaaclab.sim.simulation_manager import SimulationManager
 
 if TYPE_CHECKING:
@@ -182,11 +183,10 @@ class AnimationRecorder:
             file.write(content)
 
 
-class PhysXBackend:
+class PhysXBackend(PhysicsBackend):
     """PhysX physics backend.
 
     This class manages the PhysX physics simulation, including:
-    - Physics scene creation and configuration
     - Device settings (CPU/GPU)
     - Timestep and solver configuration
     - Fabric interface for fast data access
@@ -201,7 +201,7 @@ class PhysXBackend:
         Args:
             sim_context: Parent simulation context.
         """
-        self._sim = sim_context
+        super().__init__(sim_context)
 
         # acquire physics interfaces
         self._physx_iface = omni.physx.get_physx_interface()
@@ -214,12 +214,7 @@ class PhysXBackend:
         self._fabric_iface = None
         self._update_fabric = None
 
-        # Physics scene references (will be set in _init_physics_scene)
-        self._physics_scene = None
-        self._physx_scene_api = None
-
-        # Initialize physics
-        self._init_physics_scene()
+        # Configure physics
         self._configure_simulation_dt()
         self._apply_physics_settings()
         SimulationManager.initialize()
@@ -227,14 +222,14 @@ class PhysXBackend:
         # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
         # when in headless mode
         self._sim.set_setting("/app/player/playSimulations", False)
-        self._sim.app.update()
+        omni.kit.app.get_app().update()
         self._sim.set_setting("/app/player/playSimulations", True)
 
         # load flatcache/fabric interface
         self._load_fabric_interface()
 
         # initialize animation recorder
-        self._anim_recorder = AnimationRecorder(self._sim.carb_settings, self._sim.app)
+        self._anim_recorder = AnimationRecorder(self._sim.carb_settings, omni.kit.app.get_app())
 
     @property
     def device(self) -> str:
@@ -250,6 +245,10 @@ class PhysXBackend:
     def physics_sim_view(self) -> "omni.physics.tensors.SimulationView":
         """Physics simulation view with torch backend."""
         return SimulationManager.get_physics_sim_view()
+
+    def is_fabric_enabled(self) -> bool:
+        """Returns whether the fabric interface is enabled."""
+        return self._fabric_iface is not None
 
     def reset(self, soft: bool = False) -> None:
         """Reset the physics simulation.
@@ -273,40 +272,28 @@ class PhysXBackend:
 
     def forward(self) -> None:
         """Update articulation kinematics and fabric for rendering."""
-        if self._fabric_iface is not None:
+        if self._fabric_iface is not None and self._update_fabric is not None:
             physics_sim_view = SimulationManager.get_physics_sim_view()
             if physics_sim_view is not None and self._sim.is_playing():
                 # Update the articulations' link's poses before rendering
                 physics_sim_view.update_articulations_kinematic()
             self._update_fabric(0.0, 0.0)
 
-    def step(self, render: bool = True) -> bool:
-        """Step the physics simulation.
-
-        Args:
-            render: If True, step via app.update() which includes rendering.
-                   If False, step physics only without rendering.
-
-        Returns:
-            True if animation recording finished and app should shutdown, False otherwise.
-        """
+    def step(self) -> None:
+        """Step the physics simulation (physics only, no rendering)."""
         # update animation recorder if enabled
         if self._anim_recorder.enabled and self._anim_recorder.update():
             logger.warning("Animation recording finished. Closing app.")
-            self._sim.app.shutdown()
-            return True
+            omni.kit.app.get_app().shutdown()
+            return
 
-        if render:
-            self._sim.app.update()
-        else:
-            self._physx_sim_iface.simulate(self._sim.cfg.dt, 0.0)
-            self._physx_sim_iface.fetch_results()
+        # step physics only
+        self._physx_sim_iface.simulate(self._sim.cfg.dt, 0.0)
+        self._physx_sim_iface.fetch_results()
 
-        # app.update() may be changing the cuda device in step, so we force it back to our desired device here
+        # physics step may change cuda device, force it back
         if "cuda" in self._physics_device:
             torch.cuda.set_device(self._physics_device)
-
-        return False
 
     def close(self) -> None:
         """Clean up physics resources."""
@@ -320,33 +307,15 @@ class PhysXBackend:
     # Private initialization methods
     # -------------------------
 
-    def _init_physics_scene(self) -> None:
-        """Initialize the USD physics scene."""
-        stage = self._sim.stage
-        cfg = self._sim.cfg
-
-        with sim_utils.use_stage(stage):
-            # correct conventions for metric units
-            UsdGeom.SetStageUpAxis(stage, "Z")
-            UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-            UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
-
-            # find if any physics prim already exists and delete it
-            for prim in stage.Traverse():
-                if prim.HasAPI(PhysxSchema.PhysxSceneAPI) or prim.GetTypeName() == "PhysicsScene":
-                    sim_utils.delete_prim(prim.GetPath().pathString, stage=stage)
-
-            # create a new physics scene
-            if stage.GetPrimAtPath(cfg.physics_prim_path).IsValid():
-                raise RuntimeError(f"A prim already exists at path '{cfg.physics_prim_path}'.")
-
-            self._physics_scene = UsdPhysics.Scene.Define(stage, cfg.physics_prim_path)
-            self._physx_scene_api = PhysxSchema.PhysxSceneAPI.Apply(self._physics_scene.GetPrim())
-
     def _configure_simulation_dt(self):
         """Configures the physics simulation step size."""
         cfg = self._sim.cfg
         carb_settings = self._sim.carb_settings
+
+        # Get physics scene API from the physics interface
+        stage = self._sim.stage
+        physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+        physx_scene_api = PhysxSchema.PhysxSceneAPI(physics_scene_prim)
 
         # if rendering is called the substeps term is used to determine
         # how many physics steps to perform per rendering step.
@@ -355,7 +324,7 @@ class PhysXBackend:
 
         # set simulation step per second
         steps_per_second = int(1.0 / cfg.dt)
-        self._physx_scene_api.CreateTimeStepsPerSecondAttr(steps_per_second)
+        physx_scene_api.CreateTimeStepsPerSecondAttr(steps_per_second)
         # set minimum number of steps per frame
         min_steps = int(steps_per_second / render_interval)
         carb_settings.set_int("/persistent/simulation/minFrameRate", min_steps)
@@ -364,6 +333,11 @@ class PhysXBackend:
         """Sets various carb physics settings."""
         cfg = self._sim.cfg
         carb_settings = self._sim.carb_settings
+
+        # Get physics scene API from the physics interface
+        stage = self._sim.stage
+        physics_scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+        physx_scene_api = PhysxSchema.PhysxSceneAPI(physics_scene_prim)
 
         # --------------------------
         # Carb Physics API settings
@@ -429,18 +403,6 @@ class PhysXBackend:
         # USDPhysics API settings
         # --------------------------
 
-        # set gravity
-        gravity = torch.tensor(self._sim.cfg.gravity, dtype=torch.float32, device=self._physics_device)
-        gravity_magnitude = torch.norm(gravity).item()
-        # avoid division by zero
-        if gravity_magnitude == 0.0:
-            gravity_magnitude = 1.0
-        gravity_direction = gravity / gravity_magnitude
-        gravity_direction = gravity_direction.tolist()
-
-        self._physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
-        self._physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
-
         # create the default physics material
         # this material is used when no material is specified for a primitive
         material_path = f"{cfg.physics_prim_path}/defaultMaterial"
@@ -454,10 +416,10 @@ class PhysXBackend:
 
         # set broadphase type
         broadphase_type = "GPU" if "cuda" in cfg.device else "MBP"
-        self._physx_scene_api.CreateBroadphaseTypeAttr(broadphase_type)
+        physx_scene_api.CreateBroadphaseTypeAttr(broadphase_type)
         # set gpu dynamics
         enable_gpu_dynamics = "cuda" in cfg.device
-        self._physx_scene_api.CreateEnableGPUDynamicsAttr(enable_gpu_dynamics)
+        physx_scene_api.CreateEnableGPUDynamicsAttr(enable_gpu_dynamics)
 
         # GPU-dynamics does not support CCD, so we disable it if it is enabled.
         if enable_gpu_dynamics and cfg.physx.enable_ccd:
@@ -466,14 +428,14 @@ class PhysXBackend:
                 "CCD is disabled when GPU dynamics is enabled. Please disable CCD in the PhysxCfg config to avoid this"
                 " warning."
             )
-        self._physx_scene_api.CreateEnableCCDAttr(cfg.physx.enable_ccd)
+        physx_scene_api.CreateEnableCCDAttr(cfg.physx.enable_ccd)
 
         # set solver type
         solver_type = "PGS" if cfg.physx.solver_type == 0 else "TGS"
-        self._physx_scene_api.CreateSolverTypeAttr(solver_type)
+        physx_scene_api.CreateSolverTypeAttr(solver_type)
 
         # set solve articulation contact last
-        attr = self._physx_scene_api.GetPrim().CreateAttribute(
+        attr = physx_scene_api.GetPrim().CreateAttribute(
             "physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool
         )
         attr.Set(cfg.physx.solve_articulation_contact_last)
@@ -484,7 +446,7 @@ class PhysXBackend:
                 continue
             if key == "bounce_threshold_velocity":
                 key = "bounce_threshold"
-            sim_utils.safe_set_attribute_on_usd_schema(self._physx_scene_api, key, value, camel_case=True)
+            sim_utils.safe_set_attribute_on_usd_schema(physx_scene_api, key, value, camel_case=True)
 
         # throw warnings for helpful guidance
         if cfg.physx.solver_type == 1 and not cfg.physx.enable_external_forces_every_iteration:
@@ -545,7 +507,3 @@ class PhysXBackend:
         carb_settings.set_bool("/physics/updateResidualsToUsd", not cfg.use_fabric)
         # disable simulation output window visibility
         carb_settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
-
-    def is_fabric_enabled(self) -> bool:
-        """Returns whether the fabric interface is enabled."""
-        return self._fabric_iface is not None

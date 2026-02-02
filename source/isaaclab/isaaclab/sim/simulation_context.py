@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
 from isaaclab.utils.version import get_isaac_sim_version
 
-from .physx_backend import PhysXBackend
+from .physics_interface import PhysicsInterface
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .visualizer_interface import RenderMode, VisualizerInterface
@@ -131,8 +131,8 @@ class SimulationContext:
         # define a global variable to store the exceptions raised in the callback stack
         builtins.ISAACLAB_CALLBACK_EXCEPTION = None
 
-        # initialize physics backend (handles scene creation, settings, fabric)
-        self._physics_backend = PhysXBackend(self)
+        # initialize physics interface (handles scene creation, delegates to backends)
+        self._physics_interface = PhysicsInterface(self)
 
     def __new__(cls, *args, **kwargs) -> SimulationContext:
         """Returns the instance of the simulation context.
@@ -170,8 +170,8 @@ class SimulationContext:
                 return
             # close visualizer (unsubscribes stop handle)
             cls._instance._visualizer.close()
-            # close physics backend (clears SimulationManager, detaches physx stage)
-            cls._instance._physics_backend.close()
+            # close physics interface (clears SimulationManager, detaches physx stage)
+            cls._instance._physics_interface.close()
             # detach the stage from the USD stage cache
             stage_cache = UsdUtils.StageCache.Get()
             stage_id = stage_cache.GetId(cls._instance._initial_stage).ToLongInt()
@@ -198,7 +198,7 @@ class SimulationContext:
             In Omniverse, it is possible to configure multiple GPUs for rendering, while physics engine
             operates on a single GPU. This function returns the device that is used for physics simulation.
         """
-        return self._physics_backend.device
+        return self._physics_interface.device
 
     @property
     def render_mode(self) -> RenderMode:
@@ -394,13 +394,13 @@ class SimulationContext:
             soft (bool, optional): if set to True simulation won't be stopped and start again. It only calls the reset on the scene objects.
 
         """
-        self._physics_backend.reset(soft)
+        self._physics_interface.reset(soft)
         self._visualizer.reset(soft)
         self._check_for_callback_exceptions()
 
     def forward(self) -> None:
         """Updates articulation kinematics and fabric for rendering."""
-        self._physics_backend.forward()
+        self._physics_interface.forward()
 
     def step(self, render: bool = True):
         """Steps the simulation.
@@ -414,7 +414,7 @@ class SimulationContext:
         """
         self._visualizer.step(render)
         if self.is_playing():
-            self._physics_backend.step(render)
+            self._physics_interface.step(render)
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
