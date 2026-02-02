@@ -74,7 +74,7 @@ class SceneCfg(InteractiveSceneCfg):
             # trick: we let visualizer's color to show the table with success coloring
             visible=False,
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane

@@ -139,37 +139,37 @@ def test_copysign(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_is_identity_pose(device):
     """Test is_identity_pose method."""
-    # Single row identity pose
+    # Single row identity pose (xyzw format)
     identity_pos = torch.zeros(3, device=device)
-    identity_rot = torch.tensor((1.0, 0.0, 0.0, 0.0), device=device)
+    identity_rot = torch.tensor((0.0, 0.0, 0.0, 1.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
-    # Modified single row pose
+    # Modified single row pose (not identity)
     identity_pos = torch.tensor([1.0, 0.0, 0.0], device=device)
-    identity_rot = torch.tensor((1.0, 1.0, 0.0, 0.0), device=device)
+    identity_rot = torch.tensor((0.0, 1.0, 0.0, 1.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
-    # Multi-row identity pose
+    # Multi-row identity pose (xyzw format)
     identity_pos = torch.zeros(3, 3, device=device)
-    identity_rot = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
-    # Modified multi-row pose
+    # Modified multi-row pose (not identity)
     identity_pos = torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=device)
-    identity_rot = torch.tensor([[1.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_axis_angle_from_quat(device):
     """Test axis_angle_from_quat method."""
-    # Quaternions of the form (2,4) and (2,2,4)
+    # Quaternions of the form (2,4) and (2,2,4) in xyzw format
     quats = [
-        torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]).to(device),
+        torch.Tensor([[0.0, 0.0, 0.0, 1.0], [0.142006, 0.0, 0.5206887, 0.8418536]]).to(device),
         torch.Tensor(
             [
-                [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
-                [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
+                [[0.0, 0.0, 0.0, 1.0], [0.142006, 0.0, 0.5206887, 0.8418536]],
+                [[0.0, 0.0, 0.0, 1.0], [0.0995007, 0.0995007, 0.0995007, 0.9850375]],
             ]
         ).to(device),
     ]
@@ -195,9 +195,9 @@ def test_axis_angle_from_quat_approximation(device):
     theta = torch.Tensor([0.0000001]).to(device)
     # Arbitrary normalized axis of rotation in rads, (x,y,z)
     axis = [-0.302286, 0.205494, -0.930803]
-    # Generate quaternion
+    # Generate quaternion in xyzw format: [qx, qy, qz, qw]
     qw = torch.cos(theta / 2)
-    quat_vect = [qw] + [d * torch.sin(theta / 2) for d in axis]
+    quat_vect = [d * torch.sin(theta / 2) for d in axis] + [qw]
     quaternion = torch.tensor(quat_vect, dtype=torch.float32, device=device)
 
     # Convert quaternion to axis-angle
@@ -213,33 +213,33 @@ def test_axis_angle_from_quat_approximation(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_quat_error_magnitude(device):
     """Test quat_error_magnitude method."""
-    # No rotation
-    q1 = torch.Tensor([1, 0, 0, 0]).to(device)
-    q2 = torch.Tensor([1, 0, 0, 0]).to(device)
+    # No rotation (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1]).to(device)
+    q2 = torch.Tensor([0, 0, 0, 1]).to(device)
     expected_diff = torch.Tensor([0.0]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # PI/2 rotation
-    q1 = torch.Tensor([1.0, 0, 0.0, 0]).to(device)
-    q2 = torch.Tensor([0.7071068, 0.7071068, 0, 0]).to(device)
+    # PI/2 rotation around x (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1.0]).to(device)
+    q2 = torch.Tensor([0.7071068, 0, 0, 0.7071068]).to(device)
     expected_diff = torch.Tensor([PI / 2]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # PI rotation
-    q1 = torch.Tensor([1.0, 0, 0.0, 0]).to(device)
-    q2 = torch.Tensor([0.0, 0.0, 1.0, 0]).to(device)
+    # PI rotation around y (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1.0]).to(device)
+    q2 = torch.Tensor([0.0, 1.0, 0, 0.0]).to(device)
     expected_diff = torch.Tensor([PI]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # Batched inputs
+    # Batched inputs (xyzw format)
     q1 = torch.stack(
-        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([1.0, 0, 0.0, 0])], dim=0
+        [torch.Tensor([0, 0, 0, 1]), torch.Tensor([0, 0, 0, 1.0]), torch.Tensor([0, 0, 0, 1.0])], dim=0
     ).to(device)
     q2 = torch.stack(
-        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0])],
+        [torch.Tensor([0, 0, 0, 1]), torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0.0, 1.0, 0, 0.0])],
         dim=0,
     ).to(device)
     expected_diff = (
@@ -258,11 +258,11 @@ def test_quat_unique(device):
     # Test positive real quaternion
     pos_real_quats = math_utils.quat_unique(quats)
 
-    # Test that the real part is positive
-    assert torch.all(pos_real_quats[:, 0] > 0).item()
+    # Test that the real part (w, at index 3 in xyzw format) is positive
+    assert torch.all(pos_real_quats[:, 3] > 0).item()
 
-    non_pos_indices = quats[:, 0] < 0
-    # Check imaginary part have sign flipped if real part is negative
+    non_pos_indices = quats[:, 3] < 0
+    # Check quaternion is negated if real part was negative
     torch.testing.assert_close(pos_real_quats[non_pos_indices], -quats[non_pos_indices])
     torch.testing.assert_close(pos_real_quats[~non_pos_indices], quats[~non_pos_indices])
 
@@ -326,9 +326,10 @@ def test_quat_error_mag_with_quat_unique(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_convention_converter(device):
     """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
-    quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=device)
-    quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]], device=device)
-    quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]], device=device)
+    # Quaternions in xyzw format (converted from original wxyz test values)
+    quat_ros = torch.tensor([[0.33985114, 0.82047325, -0.42470819, -0.17591989]], device=device)
+    quat_opengl = torch.tensor([[0.17591988, 0.42470818, 0.82047324, 0.33985113]], device=device)
+    quat_world = torch.tensor([[-0.27984815, -0.1159169, 0.88047623, -0.3647052]], device=device)
 
     # from ROS
     torch.testing.assert_close(
@@ -402,10 +403,11 @@ def test_quat_conjugate(device):
     quat = math_utils.random_orientation(1000, device=device)
 
     value = math_utils.quat_conjugate(quat)
-    expected_real = quat[..., 0]
-    expected_imag = -quat[..., 1:]
-    torch.testing.assert_close(expected_real, value[..., 0])
-    torch.testing.assert_close(expected_imag, value[..., 1:])
+    # In xyzw format: xyz is imaginary (indices 0-2), w is real (index 3)
+    expected_imag = -quat[..., :3]
+    expected_real = quat[..., 3]
+    torch.testing.assert_close(expected_imag, value[..., :3])
+    torch.testing.assert_close(expected_real, value[..., 3])
 
 
 @pytest.mark.parametrize("device", ("cpu", "cuda:0"))
@@ -426,15 +428,15 @@ def test_quat_from_euler_xyz(device, num_envs, euler_angles):
 
     angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
     quat_value = math_utils.quat_unique(math_utils.quat_from_euler_xyz(angles[:, 0], angles[:, 1], angles[:, 2]))
-    expected_quat = math_utils.convert_quat(
+    # scipy's as_quat() already returns xyzw format, no conversion needed
+    expected_quat = (
         torch.tensor(
             scipy_tf.Rotation.from_euler("xyz", euler_angles, degrees=False).as_quat(),
             device=device,
             dtype=torch.float,
         )
         .unsqueeze(0)
-        .repeat((num_envs, 1)),
-        to="wxyz",
+        .repeat((num_envs, 1))
     )
     torch.testing.assert_close(expected_quat, quat_value)
 
@@ -622,10 +624,9 @@ def test_quat_to_and_from_angle_axis(device):
     n = 1024
     q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
     rot_vec_value = math_utils.axis_angle_from_quat(q_rand)
+    # Our quaternions are already in xyzw format, which scipy expects
     rot_vec_scipy = torch.tensor(
-        scipy_tf.Rotation.from_quat(
-            math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
-        ).as_rotvec(),
+        scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy()).as_rotvec(),
         device=device,
         dtype=torch.float32,
     )
@@ -679,9 +680,9 @@ def test_quat_box_minus_and_quat_box_plus(device):
             device=device,
         )
 
-        # Initialize quaternion trajectory starting from identity quaternion
+        # Initialize quaternion trajectory starting from identity quaternion (xyzw format)
         quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
-        quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(len(delta_angle), 1)
+        quat_trajectory[:, 0, :] = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(len(delta_angle), 1)
 
         # Integrate incremental rotations forward to form a closed loop trajectory
         for i in range(1, 2 * n + 1):
@@ -836,12 +837,12 @@ def test_yaw_quat(device):
     """
     Test for yaw_quat methods.
     """
-    # 90-degree (n/2 radians) rotations about the Y-axis
-    quat_input = torch.tensor([0.7071, 0, 0.7071, 0], device=device)
+    # 90-degree (pi/2 radians) rotations about the Y-axis (xyzw format)
+    quat_input = torch.tensor([0, 0.7071, 0, 0.7071], device=device)
     cloned_quat_input = quat_input.clone()
 
-    # Calculated output that the function should return
-    expected_output = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    # Calculated output that the function should return (identity in xyzw)
+    expected_output = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
 
     # Compute the result using the existing implementation
     result = math_utils.yaw_quat(quat_input)
@@ -891,8 +892,9 @@ def test_matrix_from_quat(device):
     # prepare random quaternions and vectors
     q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
     rot_mat = math_utils.matrix_from_quat(quaternions=q_rand)
+    # Our quaternions are already in xyzw format, which scipy expects
     rot_mat_scipy = torch.tensor(
-        scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu"), to="xyzw")).as_matrix(),
+        scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy()).as_matrix(),
         device=device,
         dtype=torch.float32,
     )
@@ -940,7 +942,8 @@ def test_quat_apply(device):
     # prepare random quaternions and vectors
     n = 1024
     q_rand = math_utils.random_orientation(num=n, device=device)
-    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+    # Our quaternions are already in xyzw format, which scipy expects
+    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
 
     v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
 
@@ -957,7 +960,8 @@ def test_quat_apply_inverse(device):
     # prepare random quaternions and vectors
     n = 1024
     q_rand = math_utils.random_orientation(num=n, device=device)
-    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+    # Our quaternions are already in xyzw format, which scipy expects
+    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
 
     v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
 
@@ -974,7 +978,7 @@ def test_quat_inv(device):
     """Test for quat_inv method.
 
     For random unit and non-unit quaternions q, the Hamilton products
-    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (0,0,0,1)
     within numerical precision.
     """
     num = 2048
@@ -986,7 +990,7 @@ def test_quat_inv(device):
     q_unit = torch.randn(num, 4, device=device)
     q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
 
-    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    identity = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # xyzw format
 
     for q in (q_nonunit, q_unit):
         q_inv = math_utils.quat_inv(q)
@@ -1005,13 +1009,13 @@ def test_quat_apply_benchmarks():
     """
 
     # define old implementation for quat_rotate and quat_rotate_inverse
-    # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+    # Updated for xyzw format (xyz at indices 0-2, w at index 3)
 
     @torch.jit.script
     def bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
+        q_vec = q[:, :3]  # xyz
+        q_w = q[:, 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
@@ -1020,8 +1024,8 @@ def test_quat_apply_benchmarks():
     @torch.jit.script
     def bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
+        q_vec = q[:, :3]  # xyz
+        q_w = q[:, 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
@@ -1029,8 +1033,8 @@ def test_quat_apply_benchmarks():
 
     @torch.jit.script
     def einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        q_w = q[..., 0]
-        q_vec = q[..., 1:]
+        q_vec = q[..., :3]  # xyz
+        q_w = q[..., 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
@@ -1038,8 +1042,8 @@ def test_quat_apply_benchmarks():
 
     @torch.jit.script
     def einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        q_w = q[..., 0]
-        q_vec = q[..., 1:]
+        q_vec = q[..., :3]  # xyz
+        q_w = q[..., 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
@@ -1261,26 +1265,27 @@ def test_euler_xyz_from_quat():
     against the expected output for various quaternions.
     The test includes quaternions representing different rotations around the x, y, and z axes.
     The test is performed for both the default output range (-π, π] and the wrapped output range [0, 2π).
+    Quaternions are in xyzw format.
     """
     quats = [
-        torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
+        torch.Tensor([[0.0, 0.0, 0.0, 1.0]]),  # 0° around x, y, z (identity)
         torch.Tensor(
             [
-                [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
-                [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
-                [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+                [0.3826834, 0.0, 0.0, 0.9238795],  # 45° around x
+                [0.0, -0.3826834, 0.0, 0.9238795],  # -45° around y
+                [0.0, 0.0, -0.3826834, 0.9238795],  # -45° around z
             ]
         ),
         torch.Tensor(
             [
-                [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
-                [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+                [-0.7071068, 0.0, 0.0, 0.7071068],  # -90° around x
+                [0.0, 0.0, -0.7071068, 0.7071068],  # -90° around z
             ]
         ),
         torch.Tensor(
             [
-                [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
-                [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+                [-0.9238795, 0.0, 0.0, 0.3826834],  # -135° around x
+                [0.0, 0.0, -0.9238795, 0.3826834],  # -135° around z
             ]
         ),
     ]

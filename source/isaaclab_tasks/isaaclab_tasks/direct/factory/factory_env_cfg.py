@@ -154,7 +154,7 @@ class FactoryEnvCfg(DirectRLEnvCfg):
                 "panda_finger_joint2": 0.04,
             },
             pos=(0.0, 0.0, 0.0),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
         ),
         actuators={
             "panda_arm1": ImplicitActuatorCfg(

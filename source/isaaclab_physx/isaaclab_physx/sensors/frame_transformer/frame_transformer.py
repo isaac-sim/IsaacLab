@@ -20,7 +20,6 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.utils.math import (
     combine_frame_transforms,
-    convert_quat,
     is_identity_pose,
     normalize,
     quat_from_angle_axis,
@@ -367,9 +366,6 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Reorder the transforms to be per environment as is expected of SensorData
         transforms = transforms[self._per_env_indices]
-
-        # Convert quaternions as PhysX uses xyzw form
-        transforms[:, 3:] = convert_quat(transforms[:, 3:], to="wxyz")
 
         # Process source frame transform
         source_frames = transforms[self._source_frame_body_ids]

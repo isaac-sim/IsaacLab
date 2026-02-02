@@ -306,7 +306,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -611,7 +611,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:

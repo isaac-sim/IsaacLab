@@ -40,7 +40,7 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def quat_w(self) -> torch.Tensor | None:
-        """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame. Shape is (N, 4).
+        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame. Shape is (N, 4).
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """

@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.56.0 (2026-01-30)
+2.1.0 (2026-02-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -35,8 +35,8 @@ Changed
   * ``test_frame_transformer.py`` → ``isaaclab_physx/test/sensors/``
 
 
-0.55.0 (2026-01-30)
-~~~~~~~~~~~~~~~~~~~
+2.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
@@ -102,6 +102,33 @@ Migration
 ^^^^^^^^^
 
 * See :ref:`migrating-to-isaaclab-3-0` for detailed migration instructions.
+
+1.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a tool to find hard-coded quaternions in the codebase and help user convert them to the new XYZW ordering.
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.54.3 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.timer.Timer.get_timer_statistics` to get the statistics of the elapsed time of a timer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.utils.timer.Timer` class to use the online Welford's algorithm to compute the mean and standard deviation of the elapsed time.
 
 
 0.54.2 (2026-01-28)

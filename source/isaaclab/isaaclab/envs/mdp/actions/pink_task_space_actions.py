@@ -131,7 +131,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     @property
     def orientation_dim(self) -> int:
-        """Dimension for orientation (w, x, y, z)."""
+        """Dimension for orientation (x, y, z, w)."""
         return 4
 
     @property

@@ -89,7 +89,7 @@ class HaplyDevice(DeviceBase):
         # Current data cache
         self.cached_data = {
             "position": np.zeros(3, dtype=np.float32),
-            "quaternion": np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32),
+            "quaternion": np.array([0.0, 0.0, 1.0, 0.0], dtype=np.float32),
             "buttons": {"a": False, "b": False, "c": False},
             "inverse3_connected": False,
             "versegrip_connected": False,

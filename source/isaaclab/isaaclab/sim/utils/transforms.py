@@ -86,7 +86,7 @@ def standardize_xform_ops(
         translation: Optional translation vector (x, y, z) in local space. If provided,
             overrides the prim's current translation. If None, preserves the current
             local translation. Defaults to None.
-        orientation: Optional orientation quaternion (w, x, y, z) in local space. If provided,
+        orientation: Optional orientation quaternion (x, y, z, w) in local space. If provided,
             overrides the prim's current orientation. If None, preserves the current
             local orientation. Defaults to None.
         scale: Optional scale vector (x, y, z). If provided, overrides the prim's current scale.
@@ -115,7 +115,7 @@ def standardize_xform_ops(
         >>> sim_utils.standardize_xform_ops(
         ...     prim,
         ...     translation=(1.0, 2.0, 3.0),
-        ...     orientation=(1.0, 0.0, 0.0, 0.0),  # identity rotation (w, x, y, z)
+        ...     orientation=(0.0, 0.0, 0.0, 1.0),  # identity rotation (x, y, z, w)
         ...     scale=(2.0, 2.0, 2.0),
         ... )
         >>>
@@ -151,7 +151,8 @@ def standardize_xform_ops(
     if translation is not None:
         xform_pos = Gf.Vec3d(*translation)
     if orientation is not None:
-        xform_quat = Gf.Quatd(*orientation)
+        # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
+        xform_quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
 
     # Handle scale resolution
     if scale is not None:
@@ -272,7 +273,7 @@ def resolve_prim_pose(
 
     Returns:
         A tuple containing the position (as a 3D vector) and the quaternion orientation
-        in the (w, x, y, z) format.
+        in the (x, y, z, w) format.
 
     Raises:
         ValueError: If the prim or ref prim is not valid.
@@ -319,7 +320,9 @@ def resolve_prim_pose(
 
     # extract position and orientation
     prim_pos = [*prim_tf.ExtractTranslation()]
-    prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
+    # prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
+    prim_quat = [*prim_tf.ExtractRotationQuat().imaginary, prim_tf.ExtractRotationQuat().real]
+
     return tuple(prim_pos), tuple(prim_quat)
 
 
@@ -385,7 +388,7 @@ def convert_world_pose_to_local(
 
     Args:
         position: The world-space position as (x, y, z).
-        orientation: The world-space orientation as quaternion (w, x, y, z). If None, only position is converted
+        orientation: The world-space orientation as quaternion (x, y, z, w). If None, only position is converted
             and None is returned for orientation.
         ref_prim: The reference USD prim to compute the local transform relative to. If this is
             the root prim ("/"), the world pose is returned unchanged.
@@ -394,7 +397,7 @@ def convert_world_pose_to_local(
         A tuple of (local_translation, local_orientation) where:
 
         - local_translation is a tuple of (x, y, z) in local space relative to ref_prim
-        - local_orientation is a tuple of (w, x, y, z) in local space relative to ref_prim,
+        - local_orientation is a tuple of (x, y, z, w) in local space relative to ref_prim,
           or None if no orientation was provided
 
     Raises:
@@ -410,7 +413,7 @@ def convert_world_pose_to_local(
         >>>
         >>> # Convert world pose to local (relative to ref_prim)
         >>> world_pos = (10.0, 5.0, 0.0)
-        >>> world_quat = (1.0, 0.0, 0.0, 0.0)  # identity rotation
+        >>> world_quat = (0.0, 0.0, 0.0, 1.0)  # identity rotation (x, y, z, w)
         >>> local_pos, local_quat = sim_utils.convert_world_pose_to_local(world_pos, world_quat, ref_prim)
         >>> print(f"Local position: {local_pos}")
         >>> print(f"Local orientation: {local_quat}")
@@ -433,8 +436,8 @@ def convert_world_pose_to_local(
     desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
 
     if orientation is not None:
-        # Set rotation from quaternion (w, x, y, z)
-        quat = Gf.Quatd(*orientation)
+        # Set rotation from quaternion (x, y, z, w) - Gf.Quatd expects (w, x, y, z)
+        quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
         desired_world_tf.SetRotateOnly(quat)
 
     # Convert world transform to local: local = world * inv(ref_world)
@@ -448,6 +451,7 @@ def convert_world_pose_to_local(
     local_orientation = None
     if orientation is not None:
         quat_result = local_transform.GetRotation().GetQuat()
-        local_orientation = (quat_result.GetReal(), *quat_result.GetImaginary())
+        # Gf.Quatd stores (w, x, y, z), return (x, y, z, w) for our convention
+        local_orientation = (*quat_result.GetImaginary(), quat_result.GetReal())
 
     return local_translation, local_orientation

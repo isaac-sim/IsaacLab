@@ -347,7 +347,7 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     "wrist_3_joint": -1.9896,
                 },
                 pos=(0.0, 0.0, 0.0),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
 
@@ -436,7 +436,7 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     "wrist_3_joint": -1.9896,
                 },
                 pos=(0.0, 0.0, 0.0),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
 

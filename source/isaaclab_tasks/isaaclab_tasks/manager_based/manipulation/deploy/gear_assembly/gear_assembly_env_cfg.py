@@ -71,7 +71,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     factory_gear_small = RigidObjectCfg(
@@ -96,7 +96,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     factory_gear_medium = RigidObjectCfg(
@@ -121,7 +121,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     factory_gear_large = RigidObjectCfg(
@@ -146,7 +146,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     # robots

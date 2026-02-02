@@ -22,7 +22,7 @@ class BaseImuData(ABC):
     @property
     @abstractmethod
     def pose_w(self) -> torch.Tensor:
-        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         raise NotImplementedError
 
     @property
@@ -34,7 +34,7 @@ class BaseImuData(ABC):
     @property
     @abstractmethod
     def quat_w(self) -> torch.Tensor:
-        """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame. Shape is (N, 4)."""
+        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame. Shape is (N, 4)."""
         raise NotImplementedError
 
     @property
