@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import builtins
 import logging
-import torch
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -185,11 +184,6 @@ class SimulationContext:
     """
     Properties.
     """
-
-    @property
-    def app(self) -> omni.kit.app.IApp:
-        """Omniverse Kit Application interface."""
-        return self._visualizer.app
 
     @property
     def stage(self) -> Usd.Stage:

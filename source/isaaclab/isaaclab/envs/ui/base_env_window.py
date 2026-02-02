@@ -448,7 +448,7 @@ class BaseEnvWindow:
         for _ in range(5):
             if omni.ui.Workspace.get_window(window_title):
                 break
-            await self.env.sim.app.next_update_async()
+            await self.env.sim._visualizer.app.next_update_async()
 
         # dock next to properties window
         custom_window = omni.ui.Workspace.get_window(window_title)

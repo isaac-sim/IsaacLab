@@ -56,7 +56,7 @@ def test_init(device):
     sim = SimulationContext(cfg=cfg)
 
     # verify app interface is valid
-    assert sim.app is not None
+    assert sim._visualizer.app is not None
     # verify stage is valid
     assert sim.stage is not None
     # verify device property
