@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Visualizer interface for SimulationContext (Omniverse/PhysX workflow)."""
+"""Visualizer interface for SimulationContext."""
 
 from __future__ import annotations
 
@@ -20,11 +20,7 @@ __all__ = ["RenderMode", "VisualizerInterface"]
 
 
 class VisualizerInterface(Interface):
-    """Manages viewport/rendering for SimulationContext (Omniverse workflow).
-
-    This interface delegates rendering operations to an internal OVVisualizer helper,
-    while managing the lifecycle integration with SimulationContext.
-    """
+    """Manages visualizer lifecycle and rendering for SimulationContext."""
 
     # Expose RenderMode as class attribute for backwards compatibility
     RenderMode = RenderMode
@@ -37,16 +33,24 @@ class VisualizerInterface(Interface):
         """
         super().__init__(sim_context)
         self.dt = self._sim.cfg.dt * self._sim.cfg.render_interval
-
         # Create OV visualizer helper
         self._ov_visualizer = OVVisualizer(sim_context)
-
         # Track previous playing state to detect transitions
         self._was_playing = False
 
-    # ------------------------------------------------------------------
-    # Properties (delegate to OVVisualizer)
-    # ------------------------------------------------------------------
+    # -- Properties --
+
+    @property
+    def settings(self):
+        return self._sim.carb_settings
+
+    @property
+    def device(self) -> str:
+        return self._sim.device
+
+    @property
+    def stage(self):
+        return self._sim.stage
 
     @property
     def offscreen_render(self) -> bool:
@@ -62,12 +66,6 @@ class VisualizerInterface(Interface):
     def render_mode(self) -> RenderMode:
         """Current render mode."""
         return self._ov_visualizer.render_mode
-
-    @render_mode.setter
-    def render_mode(self, value: RenderMode) -> None:
-        """Set render mode."""
-        self._ov_visualizer.render_mode = value
-
     # ------------------------------------------------------------------
     # Timeline Control (delegate to OVVisualizer)
     # ------------------------------------------------------------------
@@ -79,18 +77,6 @@ class VisualizerInterface(Interface):
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped."""
         return self._ov_visualizer.is_stopped()
-
-    def play(self) -> None:
-        """Start playing the simulation."""
-        self._ov_visualizer.play()
-
-    def pause(self) -> None:
-        """Pause the simulation."""
-        self._ov_visualizer.pause()
-
-    def stop(self) -> None:
-        """Stop the simulation."""
-        self._ov_visualizer.stop()
 
     # ------------------------------------------------------------------
     # Render Mode (delegate to OVVisualizer)
@@ -107,54 +93,13 @@ class VisualizerInterface(Interface):
         """
         self._ov_visualizer.set_render_mode(mode)
 
-    # ------------------------------------------------------------------
-    # Camera (delegate to OVVisualizer)
-    # ------------------------------------------------------------------
-
-    def set_camera_view(
-        self,
-        eye: tuple[float, float, float],
-        target: tuple[float, float, float],
-        camera_prim_path: str = "/OmniverseKit_Persp",
-    ):
-        """Set the location and target of the viewport camera in the stage.
-
-        Args:
-            eye: The location of the camera eye.
-            target: The location of the camera target.
-            camera_prim_path: The path to the camera primitive in the stage. Defaults to
-                "/OmniverseKit_Persp".
-        """
-        self._ov_visualizer.set_camera_view(eye, target, camera_prim_path)
-
-    # ------------------------------------------------------------------
-    # Interface Methods
-    # ------------------------------------------------------------------
-
-    def render(self, mode: RenderMode | None = None):
-        """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
-
-        This function is used to refresh the rendering components of the simulation. This includes updating the
-        view-ports, UI elements, and other extensions (besides physics simulation) that are running in the
-        background. The rendering components are refreshed based on the render mode.
-
-        Please see :class:`RenderMode` for more information on the different render modes.
-
-        Args:
-            mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
-        """
-        self._ov_visualizer.render(mode)
-
-    def reset(self, soft: bool = False) -> None:
-        """Reset visualizer (timeline control + warmup renders on hard reset).
-
-        Args:
-            soft: If True, skip timeline reset and warmup.
-        """
-        self._ov_visualizer.reset(soft)
 
     def forward(self) -> None:
-        """No-op for visualizer (rendering happens in render())."""
+        """Sync scene data and step all active visualizers.
+
+        Args:
+            dt: Time step in seconds (0.0 for kinematics-only).
+        """
         pass
 
     def step(self, render: bool = True) -> None:
@@ -181,6 +126,38 @@ class VisualizerInterface(Interface):
         if render:
             self.render()
 
+    def reset(self, soft: bool) -> None:
+        """Reset visualizers (warmup renders on hard reset)."""
+        self._ov_visualizer.reset(soft)
+
     def close(self) -> None:
-        """Clean up visualizer resources."""
+        """Close all visualizers and clean up."""
         self._ov_visualizer.close()
+
+    def play(self) -> None:
+        """Handle simulation start."""
+        self._ov_visualizer.play()
+
+    def stop(self) -> None:
+        """Handle simulation stop."""
+        self._ov_visualizer.stop()
+
+    def pause(self) -> None:
+        """Pause the simulation."""
+        self._ov_visualizer.pause()
+
+    def render(self, mode: RenderMode | None = None):
+        """Render the scene (OV mode only).
+
+        Args:
+            mode: Render mode to set, or None to keep current.
+
+        Returns:
+            True if rendered, False if not in OV mode.
+        """
+        self._ov_visualizer.render(mode)
+
+
+    def set_camera_view(self, eye: tuple, target: tuple) -> None:
+        """Set camera view on all visualizers that support it."""
+        self._ov_visualizer.set_camera_view(eye, target, "/OmniverseKit_Persp")
