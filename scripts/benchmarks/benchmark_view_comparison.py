@@ -67,7 +67,7 @@ import cProfile
 import time
 import torch
 
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sim.views import XformPrimView
@@ -128,7 +128,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
         num_prims = view.count
         view_name = "XformPrimView"
     else:  # physx
-        physics_sim_view = SimulationManager.get_physics_sim_view()
+        physics_sim_view = PhysxManager.get_physics_sim_view()
         view = physics_sim_view.create_rigid_body_view(pattern)
         num_prims = view.count
         view_name = "PhysX RigidBodyView"

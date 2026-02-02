@@ -24,7 +24,7 @@ from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim._impl.physics_backend import PhysicsBackend
-from isaaclab.sim.simulation_manager import SimulationManager
+from .physx_manager import PhysxManager
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -217,7 +217,7 @@ class PhysXBackend(PhysicsBackend):
         # Configure physics
         self._configure_simulation_dt()
         self._apply_physics_settings()
-        SimulationManager.initialize()
+        PhysxManager.initialize()
 
         # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
         # when in headless mode
@@ -244,7 +244,7 @@ class PhysXBackend(PhysicsBackend):
     @property
     def physics_sim_view(self) -> "omni.physics.tensors.SimulationView":
         """Physics simulation view with torch backend."""
-        return SimulationManager.get_physics_sim_view()
+        return PhysxManager.get_physics_sim_view()
 
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled."""
@@ -258,22 +258,22 @@ class PhysXBackend(PhysicsBackend):
         """
         if not soft:
             # initialize the physics simulation
-            if SimulationManager.get_physics_sim_view() is None:
-                SimulationManager.initialize_physics()
+            if PhysxManager.get_physics_sim_view() is None:
+                PhysxManager.initialize_physics()
 
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in self._physics_device:
             torch.cuda.set_device(self._physics_device)
 
         # enable kinematic rendering with fabric
-        physics_sim_view = SimulationManager.get_physics_sim_view()
+        physics_sim_view = PhysxManager.get_physics_sim_view()
         if physics_sim_view is not None:
             physics_sim_view._backend.initialize_kinematic_bodies()
 
     def forward(self) -> None:
         """Update articulation kinematics and fabric for rendering."""
         if self._fabric_iface is not None and self._update_fabric is not None:
-            physics_sim_view = SimulationManager.get_physics_sim_view()
+            physics_sim_view = PhysxManager.get_physics_sim_view()
             if physics_sim_view is not None and self._sim.is_playing():
                 # Update the articulations' link's poses before rendering
                 physics_sim_view.update_articulations_kinematic()
@@ -298,7 +298,7 @@ class PhysXBackend(PhysicsBackend):
     def close(self) -> None:
         """Clean up physics resources."""
         # clear the simulation manager state (notifies assets to cleanup)
-        SimulationManager.clear()
+        PhysxManager.clear()
         # detach the stage from physx
         if self._physx_sim_iface is not None:
             self._physx_sim_iface.detach_stage()
@@ -396,8 +396,8 @@ class PhysXBackend(PhysicsBackend):
 
         # Configure simulation manager backend
         # Isaac Lab always uses torch tensors for consistency, even on CPU
-        SimulationManager.set_backend("torch")
-        SimulationManager.set_physics_sim_device(self._physics_device)
+        PhysxManager.set_backend("torch")
+        PhysxManager.set_physics_sim_device(self._physics_device)
 
         # --------------------------
         # USDPhysics API settings

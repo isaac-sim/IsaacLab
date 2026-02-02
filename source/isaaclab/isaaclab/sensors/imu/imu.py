@@ -9,7 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -135,7 +135,7 @@ class Imu(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = PhysxManager.get_physics_sim_view()
         # check if the prim at path is a rigid prim
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:

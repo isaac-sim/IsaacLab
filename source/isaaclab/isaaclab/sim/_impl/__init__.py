@@ -8,9 +8,12 @@
 # from .newton_backend import NewtonBackend
 from .physics_backend import PhysicsBackend
 from .physx_backend import PhysXBackend
+from .physx_manager import PhysxManager, IsaacEvents
 
 __all__ = [
     # "NewtonBackend",
     "PhysicsBackend",
     "PhysXBackend",
+    "PhysxManager",
+    "IsaacEvents",
 ]

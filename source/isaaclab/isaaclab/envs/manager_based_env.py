@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import omni.physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
@@ -376,7 +376,7 @@ class ManagerBasedEnv:
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         if self.cfg.wait_for_textures and self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors"):
-            while SimulationManager.assets_loading():
+            while PhysxManager.assets_loading():
                 self.sim.render()
 
         # return observations

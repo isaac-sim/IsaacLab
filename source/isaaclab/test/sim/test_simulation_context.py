@@ -18,7 +18,7 @@ import pytest
 import weakref
 
 import omni.timeline
-from isaaclab.sim import IsaacEvents, SimulationManager
+from isaaclab.sim import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -764,7 +764,7 @@ def test_isaac_event_triggered_on_reset(event_type):
         callback_state["called"] = True
 
     # register callback for the event
-    callback_id = SimulationManager.register_callback(lambda event: on_event(event), event=event_type)
+    callback_id = PhysxManager.register_callback(lambda event: on_event(event), event=event_type)
 
     try:
         # verify callback hasn't been called yet
@@ -779,7 +779,7 @@ def test_isaac_event_triggered_on_reset(event_type):
     finally:
         # cleanup callback
         if callback_id is not None:
-            SimulationManager.deregister_callback(callback_id)
+            PhysxManager.deregister_callback(callback_id)
 
 
 @pytest.mark.isaacsim_ci
@@ -804,7 +804,7 @@ def test_isaac_event_prim_deletion():
             callback_state["deleted_path"] = event.payload.get("prim_path")
 
     # register callback for PRIM_DELETION event
-    callback_id = SimulationManager.register_callback(
+    callback_id = PhysxManager.register_callback(
         lambda event: on_prim_deletion(event), event=IsaacEvents.PRIM_DELETION
     )
 
@@ -816,7 +816,7 @@ def test_isaac_event_prim_deletion():
         sim_utils.delete_prim("/World/Cube")
 
         # trigger the event by dispatching it manually (since deletion might be handled differently)
-        SimulationManager._message_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/World/Cube"})  # type: ignore
+        PhysxManager._message_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/World/Cube"})  # type: ignore
 
         # verify callback was triggered
         assert callback_state["prim_deleted"]
@@ -824,7 +824,7 @@ def test_isaac_event_prim_deletion():
     finally:
         # cleanup callback
         if callback_id is not None:
-            SimulationManager.deregister_callback(callback_id)
+            PhysxManager.deregister_callback(callback_id)
 
 
 @pytest.mark.isaacsim_ci
@@ -840,7 +840,7 @@ def test_isaac_event_timeline_stop():
         callback_state["timeline_stop_called"] = True
 
     # register callback for TIMELINE_STOP event
-    callback_id = SimulationManager.register_callback(
+    callback_id = PhysxManager.register_callback(
         lambda event: on_timeline_stop(event), event=IsaacEvents.TIMELINE_STOP
     )
 
@@ -858,7 +858,7 @@ def test_isaac_event_timeline_stop():
         sim.stop()
 
         # dispatch the event manually
-        SimulationManager._message_bus.dispatch_event(IsaacEvents.TIMELINE_STOP.value, payload={})  # type: ignore
+        PhysxManager._message_bus.dispatch_event(IsaacEvents.TIMELINE_STOP.value, payload={})  # type: ignore
 
         # verify callback was triggered
         assert callback_state["timeline_stop_called"]
@@ -866,7 +866,7 @@ def test_isaac_event_timeline_stop():
     finally:
         # cleanup callback
         if callback_id is not None:
-            SimulationManager.deregister_callback(callback_id)
+            PhysxManager.deregister_callback(callback_id)
 
 
 @pytest.mark.isaacsim_ci
@@ -907,11 +907,11 @@ def test_isaac_event_callbacks_with_weakref():
     # register callbacks with weakref
     obj_ref = weakref.ref(tracker)
 
-    warmup_id = SimulationManager.register_callback(
+    warmup_id = PhysxManager.register_callback(
         lambda event, obj_ref=obj_ref: safe_callback("on_warmup", event, obj_ref),
         event=IsaacEvents.PHYSICS_WARMUP,
     )
-    ready_id = SimulationManager.register_callback(
+    ready_id = PhysxManager.register_callback(
         lambda event, obj_ref=obj_ref: safe_callback("on_ready", event, obj_ref), event=IsaacEvents.PHYSICS_READY
     )
 
@@ -938,9 +938,9 @@ def test_isaac_event_callbacks_with_weakref():
     finally:
         # cleanup callbacks
         if warmup_id is not None:
-            SimulationManager.deregister_callback(warmup_id)
+            PhysxManager.deregister_callback(warmup_id)
         if ready_id is not None:
-            SimulationManager.deregister_callback(ready_id)
+            PhysxManager.deregister_callback(ready_id)
 
 
 @pytest.mark.isaacsim_ci
@@ -966,9 +966,9 @@ def test_multiple_isaac_event_callbacks():
         callback_counts["callback3"] += 1
 
     # register multiple callbacks for PHYSICS_READY event
-    id1 = SimulationManager.register_callback(lambda event: callback1(event), event=IsaacEvents.PHYSICS_READY)
-    id2 = SimulationManager.register_callback(lambda event: callback2(event), event=IsaacEvents.PHYSICS_READY)
-    id3 = SimulationManager.register_callback(lambda event: callback3(event), event=IsaacEvents.PHYSICS_READY)
+    id1 = PhysxManager.register_callback(lambda event: callback1(event), event=IsaacEvents.PHYSICS_READY)
+    id2 = PhysxManager.register_callback(lambda event: callback2(event), event=IsaacEvents.PHYSICS_READY)
+    id3 = PhysxManager.register_callback(lambda event: callback3(event), event=IsaacEvents.PHYSICS_READY)
 
     try:
         # verify none have been called
@@ -985,11 +985,11 @@ def test_multiple_isaac_event_callbacks():
     finally:
         # cleanup all callbacks
         if id1 is not None:
-            SimulationManager.deregister_callback(id1)
+            PhysxManager.deregister_callback(id1)
         if id2 is not None:
-            SimulationManager.deregister_callback(id2)
+            PhysxManager.deregister_callback(id2)
         if id3 is not None:
-            SimulationManager.deregister_callback(id3)
+            PhysxManager.deregister_callback(id3)
 
 
 """
@@ -1016,7 +1016,7 @@ def test_exception_in_callback_on_reset():
             builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
 
     # register callback that will raise an exception
-    callback_id = SimulationManager.register_callback(
+    callback_id = PhysxManager.register_callback(
         lambda event: on_physics_ready_with_exception(event), event=IsaacEvents.PHYSICS_READY
     )
 
@@ -1031,7 +1031,7 @@ def test_exception_in_callback_on_reset():
     finally:
         # cleanup callback
         if callback_id is not None:
-            SimulationManager.deregister_callback(callback_id)
+            PhysxManager.deregister_callback(callback_id)
         # ensure exception is cleared
         builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
 

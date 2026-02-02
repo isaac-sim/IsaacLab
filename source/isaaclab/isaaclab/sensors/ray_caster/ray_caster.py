@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import omni
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -143,7 +143,7 @@ class RayCaster(SensorBase):
         super()._initialize_impl()
         # obtain global simulation view
 
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = PhysxManager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
             available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])

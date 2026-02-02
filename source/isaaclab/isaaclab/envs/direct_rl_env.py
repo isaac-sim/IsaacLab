@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 
 import omni.kit.app
 import omni.physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
@@ -320,7 +320,7 @@ class DirectRLEnv(gym.Env):
                 self.sim.render()
 
         if self.cfg.wait_for_textures and self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors"):
-            while SimulationManager.assets_loading():
+            while PhysxManager.assets_loading():
                 self.sim.render()
 
         # return observations

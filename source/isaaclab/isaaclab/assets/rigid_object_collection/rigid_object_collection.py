@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -594,7 +594,7 @@ class RigidObjectCollection(AssetBase):
         # clear object names list to prevent double counting on re-initialization
         self._object_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = PhysxManager.get_physics_sim_view()
         root_prim_path_exprs = []
         for name, rigid_object_cfg in self.cfg.rigid_objects.items():
             # obtain the first prim in the regex expression (all others are assumed to be a copy of this)

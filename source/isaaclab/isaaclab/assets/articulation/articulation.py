@@ -15,7 +15,7 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
-from isaaclab.sim.simulation_manager import SimulationManager
+from isaaclab.sim._impl.physx_manager import PhysxManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -1475,7 +1475,7 @@ class Articulation(AssetBase):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = PhysxManager.get_physics_sim_view()
 
         if self.cfg.articulation_root_prim_path is not None:
             # The articulation root prim path is specified explicitly, so we can just use this.

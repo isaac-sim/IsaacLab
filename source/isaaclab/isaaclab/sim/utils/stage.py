@@ -435,7 +435,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     import carb
     import omni.physx
     import omni.usd
-    from isaaclab.sim.simulation_manager import SimulationManager
+    from isaaclab.sim._impl.physx_manager import PhysxManager
 
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -468,7 +468,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
         )
 
     # disable stage open callback to avoid clearing callbacks
-    SimulationManager.enable_stage_open_callback(False)
+    PhysxManager.enable_stage_open_callback(False)
 
     # enable physics fabric
     SimulationContext.instance().carb_settings.set_bool("/physics/fabricEnabled", True)
@@ -481,4 +481,4 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     physx_sim_interface.attach_stage(stage_id)
 
     # re-enable stage open callback
-    SimulationManager.enable_stage_open_callback(True)
+    PhysxManager.enable_stage_open_callback(True)

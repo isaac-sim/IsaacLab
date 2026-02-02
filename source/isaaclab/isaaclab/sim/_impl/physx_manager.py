@@ -23,7 +23,7 @@ import omni.timeline
 import omni.usd
 from pxr import PhysxSchema
 
-__all__ = ["IsaacEvents", "SimulationManager"]
+__all__ = ["IsaacEvents", "PhysxManager"]
 
 
 class IsaacEvents(Enum):
@@ -39,7 +39,7 @@ class IsaacEvents(Enum):
     TIMELINE_STOP = "isaac.timeline_stop"
 
 
-class SimulationManager:
+class PhysxManager:
     """Manages physics simulation lifecycle and callbacks.
 
     This is a class-level (singleton-like) manager for the simulation.
@@ -69,7 +69,7 @@ class SimulationManager:
     _handles: dict = {}  # Named internal handles
 
     # Compatibility stub for Isaac Sim code that calls _simulation_manager_interface
-    class _SimulationManagerInterfaceStub:
+    class _PhysxManagerInterfaceStub:
         """Minimal stub for Isaac Sim compatibility."""
 
         @staticmethod
@@ -109,7 +109,7 @@ class SimulationManager:
         get_sample_range = staticmethod(lambda: None)
         log_statistics = staticmethod(lambda: None)
 
-    _simulation_manager_interface = _SimulationManagerInterfaceStub()
+    _simulation_manager_interface = _PhysxManagerInterfaceStub()
 
     # ------------------------------------------------------------------
     # Public API

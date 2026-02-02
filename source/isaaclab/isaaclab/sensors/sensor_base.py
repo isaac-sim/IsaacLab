@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline
-from isaaclab.sim import IsaacEvents, SimulationManager
+from isaaclab.sim import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.stage import get_current_stage
@@ -284,7 +284,7 @@ class SensorBase(ABC):
             order=10,
         )
         # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
+        self._prim_deletion_callback_id = PhysxManager.register_callback(
             lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
             event=IsaacEvents.PRIM_DELETION,
         )
@@ -333,7 +333,7 @@ class SensorBase(ABC):
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
         if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
+            PhysxManager.deregister_callback(self._prim_deletion_callback_id)
             self._prim_deletion_callback_id = None
         if self._initialize_handle:
             self._initialize_handle.unsubscribe()

@@ -170,7 +170,7 @@ class SimulationContext:
                 return
             # close visualizer (unsubscribes stop handle)
             cls._instance._visualizer.close()
-            # close physics interface (clears SimulationManager, detaches physx stage)
+            # close physics interface (clears PhysxManager, detaches physx stage)
             cls._instance._physics_interface.close()
             # detach the stage from the USD stage cache
             stage_cache = UsdUtils.StageCache.Get()

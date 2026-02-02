@@ -30,12 +30,12 @@ from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
-from .simulation_manager import SimulationManager, IsaacEvents  # noqa: F401, F403
+from ._impl.physx_manager import PhysxManager, IsaacEvents  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
 from .views import *  # noqa: F401, F403
 
-# Monkey-patch Isaac Sim's SimulationManager to use Isaac Lab's implementation
+# Monkey-patch Isaac Sim's PhysxManager to use Isaac Lab's implementation
 # This ensures all code (including Isaac Sim internals) uses our manager
 try:
     import isaacsim.core.simulation_manager as _isaacsim_sim_manager
@@ -49,9 +49,9 @@ try:
     _OriginalSimManager.enable_all_default_callbacks(False)
 
     # Replace the class in both the module and impl module
-    _isaacsim_sim_manager.SimulationManager = SimulationManager
+    _isaacsim_sim_manager.PhysxManager = PhysxManager
     _isaacsim_sim_manager.IsaacEvents = IsaacEvents
-    _isaacsim_sim_manager_impl.SimulationManager = SimulationManager
+    _isaacsim_sim_manager_impl.SimulationManager = PhysxManager
     _isaacsim_sim_manager_impl.IsaacEvents = IsaacEvents
 except ImportError:
     pass  # Isaac Sim extension not loaded yet, will be patched when available
