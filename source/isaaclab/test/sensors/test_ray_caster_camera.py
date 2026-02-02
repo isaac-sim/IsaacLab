@@ -36,9 +36,9 @@ from isaaclab.utils.timer import Timer
 
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
-QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
-QUAT_OPENGL = [0.33985113, 0.17591988, 0.42470818, 0.82047324]
-QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
+QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]
+QUAT_OPENGL = [0.17591988, 0.42470818, 0.82047324, 0.33985113]
+QUAT_WORLD = [-0.27984815, -0.1159169, 0.88047623, -0.3647052]
 
 DEBUG_PLOTS = False
 
@@ -55,7 +55,7 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=[
@@ -167,7 +167,7 @@ def test_depth_clipping(setup_sim):
     camera_cfg_zero = RayCasterCameraCfg(
         prim_path="/World/CameraZero",
         mesh_prim_paths=["/World/defaultGroundPlane"],
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.9914449, 0.0, 0.1305, 0.0), convention="world"),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.0, 0.1305, 0.0, 0.9914449), convention="world"),
         pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -313,7 +313,7 @@ def test_camera_init_intrinsic_matrix(setup_sim):
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsic_matrix,
@@ -516,7 +516,7 @@ def test_output_equal_to_usdcamera(setup_sim):
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
@@ -534,7 +534,7 @@ def test_output_equal_to_usdcamera(setup_sim):
         spawn=PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-4, 1.0e5)
         ),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
     )
     camera_usd = Camera(camera_cfg_usd)
 
@@ -602,7 +602,7 @@ def test_output_equal_to_usdcamera(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera_offset(setup_sim):
     sim, camera_cfg, dt = setup_sim
-    offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+    offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -681,12 +681,12 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     under an XForm prim that is translated and rotated from the world origin
     ."""
     sim, camera_cfg, dt = setup_sim
-    offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
+    offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
 
     # gf quat
     gf_quatf = Gf.Quatd()
-    gf_quatf.SetReal(QUAT_OPENGL[0])
-    gf_quatf.SetImaginary(tuple(QUAT_OPENGL[1:]))
+    gf_quatf.SetReal(QUAT_OPENGL[3])
+    gf_quatf.SetImaginary(tuple(QUAT_OPENGL[:3]))
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -779,7 +779,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
 
     sim, camera_cfg, dt = setup_sim
     # create cameras
-    offset_rot = (-0.1251, 0.3617, 0.8731, -0.3020)
+    offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
     offset_pos = (2.5, 2.5, 4.0)
     intrinsics = [380.0831, 0.0, 480.0, 0.0, 380.0831, 270.0, 0.0, 0.0, 1.0]
     sim_utils.create_prim("/World/Camera_warp", "Xform")
@@ -912,7 +912,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
         debug_vis=False,
         pattern_cfg=camera_pattern_cfg,
         data_types=["distance_to_camera"],

@@ -63,7 +63,7 @@ class ContactSensorData:
     """
 
     quat_w: torch.Tensor | None = None
-    """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.
+    """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
     Shape is (N, 4), where N is the number of sensors.
 

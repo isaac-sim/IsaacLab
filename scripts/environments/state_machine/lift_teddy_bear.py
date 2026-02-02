@@ -234,10 +234,6 @@ class PickAndLiftSm:
 
     def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
-        # convert all transformations from (w, x, y, z) to (x, y, z, w)
-        ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        object_pose = object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        des_object_pose = des_object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
 
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
@@ -263,10 +259,8 @@ class PickAndLiftSm:
             device=self.device,
         )
 
-        # convert transformations back to (w, x, y, z)
-        des_ee_pose = self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
         # convert to torch
-        return torch.cat([des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
+        return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
 def main():

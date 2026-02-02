@@ -107,7 +107,7 @@ class EnvCfg:
 @configclass
 class RobotDefaultStateCfg:
     pos = (0.0, 0.0, 0.0)  # type annotation missing on purpose (immutable)
-    rot: tuple = (1.0, 0.0, 0.0, 0.0)
+    rot: tuple = (0.0, 0.0, 0.0, 1.0)  # xyzw format
     dof_pos: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     dof_vel = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]  # type annotation missing on purpose (mutable)
 
@@ -217,7 +217,7 @@ class ChildADemoCfg(ParentDemoCfg):
 
     def __post_init__(self):
         self.b = 3  # change value of existing field
-        self.m.rot = (2.0, 0.0, 0.0, 0.0)  # change value of default
+        self.m.rot = (0.0, 0.0, 0.0, 2.0)  # change value of default (xyzw format)
         self.i = ["a", "b"]  # change value of existing field
 
 
@@ -401,7 +401,7 @@ basic_demo_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -413,7 +413,7 @@ basic_demo_cfg_change_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": {"eye": (2.0, 2.0, 2.0), "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -425,7 +425,7 @@ basic_demo_cfg_change_with_none_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -437,7 +437,7 @@ basic_demo_cfg_change_with_tuple_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -459,7 +459,7 @@ basic_demo_post_init_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -930,7 +930,7 @@ def test_config_inheritance():
     # check post init
     assert cfg_a.b == 3
     assert cfg_a.i == ["a", "b"]
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
 
 
 def test_config_inheritance_independence():
@@ -951,8 +951,8 @@ def test_config_inheritance_independence():
     assert cfg_b.b == 8
     assert cfg_a.c == RobotDefaultStateCfg()
     assert isinstance(cfg_b.c, type(MISSING))
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
-    assert cfg_b.m.rot == (1.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
+    assert cfg_b.m.rot == (0.0, 0.0, 0.0, 1.0)
     assert isinstance(cfg_a.j, type(MISSING))
     assert cfg_b.j == ["3", "4"]
     assert cfg_a.i == ["a", "b"]

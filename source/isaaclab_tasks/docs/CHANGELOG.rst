@@ -1,8 +1,8 @@
 Changelog
 ---------
 
-0.11.13 (2026-01-28)
-~~~~~~~~~~~~~~~~~~~~
+1.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
@@ -16,6 +16,15 @@ Changed
   * Inhand manipulation environments
   * Quadcopter environments
   * Shadow Hand environments
+
+
+0.12.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
 
 
 0.11.12 (2025-12-16)

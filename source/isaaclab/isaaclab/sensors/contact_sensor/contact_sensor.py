@@ -21,7 +21,6 @@ from pxr import PhysxSchema
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -392,7 +391,6 @@ class ContactSensor(SensorBase):
         # obtain the pose of the sensor origin
         if self.cfg.track_pose:
             pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
-            pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
         # obtain contact points

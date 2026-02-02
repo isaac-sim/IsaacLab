@@ -17,8 +17,6 @@ wp.config.quiet = True
 # initialize the warp module
 wp.init()
 
-from isaaclab.utils.math import convert_quat
-
 from . import kernels
 
 
@@ -206,7 +204,7 @@ def raycast_dynamic_meshes(
         ray_directions: The ray directions for each ray. Shape (B, N, 3).
         mesh_ids_wp: The warp mesh ids to ray-cast against. Length (B, M).
         mesh_positions_w: The world positions of the meshes. Shape (B, M, 3).
-        mesh_orientations_w: The world orientation as quaternion (wxyz) format. Shape (B, M, 4).
+        mesh_orientations_w: The world orientation as quaternion (x, y, z, w) format. Shape (B, M, 4).
         max_dist: The maximum distance to ray-cast. Defaults to 1e6.
         return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.
         return_normal: Whether to return the normal of the mesh face the ray hits. Defaults to False.
@@ -333,9 +331,8 @@ def raycast_dynamic_meshes(
             )
             mesh_quat_wp_w = wp.from_torch(quat_identity, dtype=wp.quat)
         else:
-            mesh_orientations_w = convert_quat(
-                mesh_orientations_w.to(dtype=torch.float32, device=torch_device), "xyzw"
-            ).contiguous()
+            # mesh orientations are already in xyzw format
+            mesh_orientations_w = mesh_orientations_w.to(dtype=torch.float32, device=torch_device).contiguous()
             mesh_quat_wp_w = wp.from_torch(mesh_orientations_w, dtype=wp.quat)
 
         # launch the warp kernel

@@ -151,7 +151,7 @@ class ManusVive(DeviceBase):
 
     def reset(self):
         """Reset cached joint and head poses."""
-        default_pose = np.array([0, 0, 0, 1, 0, 0, 0], dtype=np.float32)
+        default_pose = np.array([0, 0, 0, 0, 0, 0, 1], dtype=np.float32)
         self._previous_joint_poses_left = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
@@ -174,7 +174,7 @@ class ManusVive(DeviceBase):
                 - Right hand joint poses: Dictionary of 26 joints with position and orientation
                 - Head pose: Single 7-element array with position and orientation
 
-        Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
+        Each pose is represented as a 7-element array: [x, y, z, qx, qy, qz, qw]
         where the first 3 elements are position and the last 4 are quaternion orientation.
         """
         hand_tracking_data = self._manus_vive.get_all_device_data()["manus_gloves"]
@@ -193,7 +193,7 @@ class ManusVive(DeviceBase):
         """Calculate the head pose from OpenXR.
 
         Returns:
-            7-element numpy.ndarray [x, y, z, qw, qx, qy, qz].
+            7-element numpy.ndarray [x, y, z, qx, qy, qz, qw].
         """
         head_device = XRCore.get_singleton().get_input_device("/user/head")
         if head_device:
@@ -203,16 +203,16 @@ class ManusVive(DeviceBase):
             quati = quat.GetImaginary()
             quatw = quat.GetReal()
 
-            # Store in w, x, y, z order to match our convention
+            # Store in x, y, z, w order to match our convention
             self._previous_headpose = np.array(
                 [
                     position[0],
                     position[1],
                     position[2],
-                    quatw,
                     quati[0],
                     quati[1],
                     quati[2],
+                    quatw,
                 ]
             )
 
