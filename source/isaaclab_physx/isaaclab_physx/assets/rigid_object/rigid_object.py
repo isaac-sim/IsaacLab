@@ -288,9 +288,7 @@ class RigidObject(BaseRigidObject):
             )
             self.data.root_com_state_w[env_ids, :3] = expected_com_pos
             self.data.root_com_state_w[env_ids, 3:7] = expected_com_quat
-        # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self.data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
         self.root_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 

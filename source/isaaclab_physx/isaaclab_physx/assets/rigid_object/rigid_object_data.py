@@ -211,7 +211,6 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_transforms().clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
             self._root_link_pose_w.timestamp = self._sim_timestamp
@@ -415,7 +414,6 @@ class RigidObjectData(BaseRigidObjectData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_coms().to(self.device)
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose.view(-1, 1, 7)
             self._body_com_pose_b.timestamp = self._sim_timestamp

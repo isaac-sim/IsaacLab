@@ -478,7 +478,6 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_root_transforms().clone()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._root_link_pose_w.data = pose
             self._root_link_pose_w.timestamp = self._sim_timestamp
@@ -603,7 +602,6 @@ class ArticulationData(BaseArticulationData):
             self._physics_sim_view.update_articulations_kinematic()
             # read data from simulation
             poses = self._root_view.get_link_transforms().clone()
-            poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_link_pose_w.data = poses
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -731,7 +729,6 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_view.get_coms().to(self.device)
-            pose[..., 3:7] = math_utils.convert_quat(pose[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_com_pose_b.data = pose
             self._body_com_pose_b.timestamp = self._sim_timestamp
