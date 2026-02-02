@@ -36,6 +36,7 @@ class VisualizerInterface(Interface):
             sim_context: Parent simulation context.
         """
         super().__init__(sim_context)
+        self.dt = self._sim.cfg.dt * self._sim.cfg.render_interval
 
         # Create OV visualizer helper
         self._ov_visualizer = OVVisualizer(sim_context)
@@ -46,10 +47,6 @@ class VisualizerInterface(Interface):
     # ------------------------------------------------------------------
     # Properties (delegate to OVVisualizer)
     # ------------------------------------------------------------------
-    @property
-    def app(self):
-        """Omniverse Kit Application interface."""
-        return self._ov_visualizer.app
 
     @property
     def offscreen_render(self) -> bool:
