@@ -1702,15 +1702,23 @@ class RigidObjectData(BaseRigidObjectData):
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
         # -- root properties
-        self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())
+        if self._root_view.is_fixed_base:
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0, 0]
+        else:
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
+        if self._sim_bind_root_com_vel_w is not None:
+            if self._root_view.is_fixed_base:
+                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
+            else:
+                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(NewtonManager.get_state_0())
-        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(NewtonManager.get_state_0())
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", NewtonManager.get_model())
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", NewtonManager.get_model())
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())[:, 0]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(NewtonManager.get_state_0())[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(NewtonManager.get_state_0())[:, 0]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", NewtonManager.get_model())[:, 0]
+        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", NewtonManager.get_model())[:, 0]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())[:, 0]
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -1728,7 +1736,10 @@ class RigidObjectData(BaseRigidObjectData):
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
-            self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))
+            if self._root_view.is_fixed_base:
+                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0, 0]
+            else:
+                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0]
         else:
             logger.warning("Failed to get root com velocity. If the rigid object is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
@@ -1740,7 +1751,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._default_root_vel = wp.zeros((n_view,), dtype=wp.spatial_vectorf, device=self.device)
 
         # Initialize history for finite differencing
-        self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(NewtonManager.get_state_0()))
+        self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(NewtonManager.get_state_0()))[:, 0]
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame

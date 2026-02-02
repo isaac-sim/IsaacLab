@@ -290,10 +290,10 @@ class Articulation(BaseArticulation):
         """
         if self._has_implicit_actuators:
             self._root_view.set_attribute(
-                "joint_target_pos", NewtonManager.get_control(), self.data.actuator_position_target
+                "joint_target_pos", NewtonManager.get_control(), self._actuator_position_target_reshaped
             )
             self._root_view.set_attribute(
-                "joint_target_vel", NewtonManager.get_control(), self.data.actuator_velocity_target
+                "joint_target_vel", NewtonManager.get_control(), self._actuator_velocity_target_expanded
             )
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
@@ -2191,6 +2191,10 @@ class Articulation(BaseArticulation):
         self._temp_body_data_float: wp.array | None = None
         self._temp_body_data_vec3: wp.array | None = None
         self._temp_body_data_mat33: wp.array | None = None
+
+        # Expanded target buffers
+        self._actuator_position_target_reshaped = wp.array(ptr = self.data.actuator_position_target.ptr, shape = (self.num_instances, 1, self.num_joints), dtype=wp.float32, device=self.device)
+        self._actuator_velocity_target_expanded = wp.array(ptr = self.data.actuator_velocity_target.ptr, shape = (self.num_instances, 1, self.num_joints), dtype=wp.float32, device=self.device)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
