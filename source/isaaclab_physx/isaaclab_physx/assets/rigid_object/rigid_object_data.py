@@ -17,7 +17,6 @@ from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectD
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.math import (
     combine_frame_transforms,
-    convert_quat,
     normalize,
     quat_apply,
     quat_apply_inverse,

@@ -11,12 +11,11 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBuffer
-from isaaclab.utils.math import combine_frame_transforms, convert_quat, normalize, quat_apply, quat_apply_inverse
+from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_view import ArticulationView
