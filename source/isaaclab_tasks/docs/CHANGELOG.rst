@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+1.2.0 (2026-02-17)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-Reach-Rizon4s-ROS`` environments.
+
 1.1.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 
@@ -49,7 +57,6 @@ Fixed
   :class:`~isaaclab_tasks.direct.franka_cabinet.FrankaCabinetEnv`. The drawer joint
   index is now dynamically resolved using ``find_joints()`` at start, instead of assuming
   index 3, which caused incorrect rewards and termination conditions.
-
 
 0.11.12 (2025-12-16)
 ~~~~~~~~~~~~~~~~~~~~
