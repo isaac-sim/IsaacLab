@@ -447,11 +447,9 @@ class PhysxOVVisualizer(Visualizer):
 
     def is_running(self) -> bool:
         """Check if visualizer is still running."""
-        return self.is_playing()
-
-    def is_training_paused(self) -> bool:
-        """Check if training is paused (always False for OV)."""
-        return False
+        if self._timeline is None:
+            return False
+        return self._timeline.is_playing()
 
     def supports_markers(self) -> bool:
         """Supports markers via USD prims."""

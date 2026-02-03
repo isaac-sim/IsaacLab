@@ -18,10 +18,10 @@ import pytest
 import weakref
 
 import omni.timeline
-from isaaclab.sim import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.physics import PhysxManager, PhysxManagerCfg, IsaacEvents
 
 
 @pytest.fixture(autouse=True)
@@ -49,14 +49,20 @@ Basic Configuration Tests
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_init(device):
     """Test the simulation context initialization."""
-    cfg = SimulationCfg(physics_prim_path="/Physics/PhysX", render_interval=5, gravity=(0.0, -0.5, -0.5), device=device)
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+
+    physics_manager_cfg = PhysxManagerCfg(
+        physics_prim_path="/Physics/PhysX",
+        gravity=(0.0, -0.5, -0.5),
+        device=device,
+        physics_material=RigidBodyMaterialCfg(),
+    )
+    cfg = SimulationCfg(physics_manager_cfg=physics_manager_cfg, render_interval=5)
     # sim = SimulationContext(cfg)
     # TODO: Figure out why keyword argument doesn't work.
     # note: added a fix in Isaac Sim 2023.1 for this.
     sim = SimulationContext(cfg=cfg)
 
-    # verify app interface is valid
-    assert sim._visualizer.app is not None
     # verify stage is valid
     assert sim.stage is not None
     # verify device property
@@ -64,14 +70,19 @@ def test_init(device):
     # verify no RTX sensors are available
     assert not sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
-    # obtain physics scene api
-    physx_scene_api = sim._physx_scene_api  # type: ignore
-    physics_scene = sim._physics_scene  # type: ignore
+    # obtain physics scene from USD
+    from pxr import UsdPhysics
+    from pxr.PhysxSchema import PhysxSceneAPI
+
+    physics_scene_prim = sim.stage.GetPrimAtPath("/Physics/PhysX")
+    assert physics_scene_prim.IsValid()
+    physics_scene = UsdPhysics.Scene(physics_scene_prim)
+    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
 
     # check valid settings
     physics_hz = physx_scene_api.GetTimeStepsPerSecondAttr().Get()
     physics_dt = 1.0 / physics_hz
-    assert physics_dt == cfg.dt
+    assert physics_dt == cfg.physics_manager_cfg.dt
 
     # check valid paths
     assert sim.stage.GetPrimAtPath("/Physics/PhysX").IsValid()
@@ -82,7 +93,7 @@ def test_init(device):
         physics_scene.GetGravityMagnitudeAttr().Get(),
     )
     gravity = np.array(gravity_dir) * gravity_mag
-    np.testing.assert_almost_equal(gravity, cfg.gravity)
+    np.testing.assert_almost_equal(gravity, cfg.physics_manager_cfg.gravity)
 
 
 @pytest.mark.isaacsim_ci
@@ -197,7 +208,7 @@ Reset and Step Tests
 @pytest.mark.isaacsim_ci
 def test_reset():
     """Test simulation reset."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create a simple cube to test with
@@ -211,13 +222,13 @@ def test_reset():
     assert sim.is_playing()
 
     # check that physics sim view is created
-    assert sim._physics_backend.physics_sim_view is not None
+    assert sim._physics_interface.physics_sim_view is not None
 
 
 @pytest.mark.isaacsim_ci
 def test_reset_soft():
     """Test soft reset (without stopping simulation)."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create a simple cube
@@ -238,7 +249,7 @@ def test_reset_soft():
 @pytest.mark.isaacsim_ci
 def test_forward():
     """Test forward propagation for fabric updates."""
-    cfg = SimulationCfg(dt=0.01, use_fabric=True)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01, use_fabric=True))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -258,7 +269,7 @@ def test_forward():
 @pytest.mark.parametrize("render", [True, False])
 def test_step(render):
     """Test stepping simulation with and without rendering."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -278,7 +289,7 @@ def test_step(render):
 @pytest.mark.isaacsim_ci
 def test_render():
     """Test rendering simulation."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -335,7 +346,7 @@ def test_clear_stage():
     assert not sim.stage.GetPrimAtPath("/World/Cube1").IsValid()
     assert not sim.stage.GetPrimAtPath("/World/Cube2").IsValid()
     assert sim.stage.GetPrimAtPath("/World").IsValid()
-    assert sim.stage.GetPrimAtPath(sim.cfg.physics_manager_cfg.physics_prim_path).IsValid()
+    assert sim.stage.GetPrimAtPath(sim.cfg.physics_manager_cfg.physics_prim_path).IsValid()  # type: ignore[union-attr]
 
 
 """
@@ -347,13 +358,14 @@ Physics Configuration Tests
 @pytest.mark.parametrize("solver_type", [0, 1])  # 0=PGS, 1=TGS
 def test_solver_type(solver_type):
     """Test different solver types."""
-    from isaaclab.sim.simulation_cfg import PhysxCfg
+    from pxr.PhysxSchema import PhysxSceneAPI
 
-    cfg = SimulationCfg(physx=PhysxCfg(solver_type=solver_type))
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(solver_type=solver_type))
     sim = SimulationContext(cfg)
 
-    # obtain physics scene api
-    physx_scene_api = sim._physx_scene_api  # type: ignore
+    # obtain physics scene api from USD
+    physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_manager_cfg.physics_prim_path)
+    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
     # check solver type is set
     solver_type_str = "PGS" if solver_type == 0 else "TGS"
     assert physx_scene_api.GetSolverTypeAttr().Get() == solver_type_str
@@ -363,22 +375,25 @@ def test_solver_type(solver_type):
 @pytest.mark.parametrize("use_fabric", [True, False])
 def test_fabric_setting(use_fabric):
     """Test that fabric setting is properly set."""
-    cfg = SimulationCfg(use_fabric=use_fabric)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(use_fabric=use_fabric))
     sim = SimulationContext(cfg)
 
-    # check fabric is enabled
-    assert sim.carb_settings.get_as_bool("/isaaclab/fabric_enabled") == use_fabric
+    # check fabric is enabled via physics setting
+    assert sim.carb_settings.get_as_bool("/isaaclab/physics/fabric_enabled") == use_fabric
 
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("dt", [0.01, 0.02, 0.005])
 def test_physics_dt(dt):
     """Test that physics time step is properly configured."""
-    cfg = SimulationCfg(dt=dt)
+    from pxr.PhysxSchema import PhysxSceneAPI
+
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = SimulationContext(cfg)
 
-    # obtain physics scene api
-    physx_scene_api = sim._physx_scene_api  # type: ignore
+    # obtain physics scene api from USD
+    physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_manager_cfg.physics_prim_path)
+    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
     # check physics dt
     physics_hz = physx_scene_api.GetTimeStepsPerSecondAttr().Get()
     physics_dt = 1.0 / physics_hz
@@ -389,18 +404,21 @@ def test_physics_dt(dt):
 @pytest.mark.parametrize("gravity", [(0.0, 0.0, 0.0), (0.0, 0.0, -9.81), (0.5, 0.5, 0.5)])
 def test_custom_gravity(gravity):
     """Test that gravity can be properly set."""
-    cfg = SimulationCfg(gravity=gravity)
+    from pxr import UsdPhysics
+
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(gravity=gravity))
     sim = SimulationContext(cfg)
 
-    # obtain physics scene api
-    physics_scene = sim._physics_scene  # type: ignore
+    # obtain physics scene from USD
+    physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_manager_cfg.physics_prim_path)
+    physics_scene = UsdPhysics.Scene(physics_scene_prim)
 
     gravity_dir, gravity_mag = (
         physics_scene.GetGravityDirectionAttr().Get(),
         physics_scene.GetGravityMagnitudeAttr().Get(),
     )
-    gravity = np.array(gravity_dir) * gravity_mag
-    np.testing.assert_almost_equal(gravity, cfg.gravity, decimal=6)
+    actual_gravity = np.array(gravity_dir) * gravity_mag
+    np.testing.assert_almost_equal(actual_gravity, cfg.physics_manager_cfg.gravity, decimal=6)
 
 
 """
@@ -411,7 +429,7 @@ Callback Tests.
 @pytest.mark.isaacsim_ci
 def test_timeline_callbacks_on_play():
     """Test that timeline callbacks are triggered on play event."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create a simple scene
@@ -473,7 +491,7 @@ def test_timeline_callbacks_on_play():
 def test_timeline_callbacks_with_weakref():
     """Test that timeline callbacks work correctly with weak references (similar to asset_base.py)."""
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create a simple scene
@@ -560,7 +578,7 @@ def test_timeline_callbacks_with_weakref():
 @pytest.mark.isaacsim_ci
 def test_multiple_callbacks_on_same_event():
     """Test that multiple callbacks can be registered for the same event."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create tracking for multiple callbacks
@@ -612,7 +630,7 @@ def test_multiple_callbacks_on_same_event():
 @pytest.mark.isaacsim_ci
 def test_callback_execution_order():
     """Test that callbacks are executed in the correct order based on priority."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # track execution order
@@ -662,7 +680,7 @@ def test_callback_execution_order():
 @pytest.mark.isaacsim_ci
 def test_callback_unsubscribe():
     """Test that unsubscribing callbacks works correctly."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create callback counter
@@ -705,7 +723,7 @@ def test_callback_unsubscribe():
 @pytest.mark.isaacsim_ci
 def test_pause_event_callback():
     """Test that pause event callbacks are triggered correctly."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create callback tracker
@@ -749,7 +767,7 @@ Isaac Events Callback Tests.
 )
 def test_isaac_event_triggered_on_reset(event_type):
     """Test that Isaac events are triggered during reset."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -784,7 +802,7 @@ def test_isaac_event_triggered_on_reset(event_type):
 @pytest.mark.isaacsim_ci
 def test_isaac_event_prim_deletion():
     """Test that PRIM_DELETION Isaac event is triggered when a prim is deleted."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -829,7 +847,7 @@ def test_isaac_event_prim_deletion():
 @pytest.mark.isaacsim_ci
 def test_isaac_event_timeline_stop():
     """Test that TIMELINE_STOP Isaac event can be registered and triggered."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create callback tracker
@@ -871,7 +889,7 @@ def test_isaac_event_timeline_stop():
 @pytest.mark.isaacsim_ci
 def test_isaac_event_callbacks_with_weakref():
     """Test Isaac event callbacks with weak references (similar to asset_base.py pattern)."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -945,7 +963,7 @@ def test_isaac_event_callbacks_with_weakref():
 @pytest.mark.isaacsim_ci
 def test_multiple_isaac_event_callbacks():
     """Test that multiple callbacks can be registered for the same Isaac event."""
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -1000,7 +1018,7 @@ Exception Handling in Callbacks Tests.
 def test_exception_in_callback_on_reset():
     """Test that exceptions in callbacks during reset are properly captured and raised."""
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create simple scene
@@ -1039,7 +1057,7 @@ def test_exception_in_callback_on_reset():
 def test_exception_in_callback_on_play():
     """Test that exceptions in callbacks during play are properly captured and raised."""
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # create callback tracker
@@ -1081,7 +1099,7 @@ def test_exception_in_callback_on_play():
 def test_exception_in_callback_on_stop():
     """Test that exceptions in callbacks during stop are properly captured and raised."""
 
-    cfg = SimulationCfg(dt=0.01)
+    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
     # start the simulation first

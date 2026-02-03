@@ -51,6 +51,11 @@ class Visualizer(ABC):
         """Check if visualizer is still running (e.g., window not closed)."""
         pass
 
+    @abstractmethod
+    def is_stopped(self) -> bool:
+        """Check if visualizer is stopped (e.g., window closed)."""
+        pass
+
     def is_training_paused(self) -> bool:
         """Check if training is paused by visualizer controls."""
         return False

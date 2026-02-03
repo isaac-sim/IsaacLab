@@ -471,7 +471,7 @@ def attach_stage_to_usd_context(attaching_early: bool = False):
     PhysxManager.enable_stage_open_callback(False)
 
     # enable physics fabric
-    SimulationContext.instance().carb_settings.set_bool("/physics/fabricEnabled", True)
+    SimulationContext.instance().carb_settings.set_bool("/isaaclab/physics/fabric_enabled", True)
 
     # attach stage to usd context
     omni.usd.get_context().attach_stage_with_callback(stage_id)

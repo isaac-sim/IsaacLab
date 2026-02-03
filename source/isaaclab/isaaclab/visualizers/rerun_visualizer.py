@@ -268,6 +268,12 @@ class RerunVisualizer(Visualizer):
             return False
         return self._viewer.is_running()
 
+    def is_stopped(self) -> bool:
+        """Check if visualizer is stopped."""
+        if self._viewer is None:
+            return True
+        return False
+
     def is_training_paused(self) -> bool:
         """Check if training is paused.
 

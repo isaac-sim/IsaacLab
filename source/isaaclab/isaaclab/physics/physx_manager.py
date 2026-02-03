@@ -895,7 +895,7 @@ class PhysxManager(PhysicsManager):
             cls._fabric_iface = None
 
         # set carb settings for fabric
-        carb_settings.set_bool("/physics/fabricEnabled", cls._cfg.use_fabric)
+        carb_settings.set_bool("/isaaclab/physics/fabric_enabled", cls._cfg.use_fabric)
         carb_settings.set_bool("/physics/updateToUsd", not cls._cfg.use_fabric)
         carb_settings.set_bool("/physics/updateParticlesToUsd", not cls._cfg.use_fabric)
         carb_settings.set_bool("/physics/updateVelocitiesToUsd", not cls._cfg.use_fabric)

@@ -137,9 +137,9 @@ class VisualizerInterface(Interface):
         return True  # physics is always playing when there is no visualizer, basically headless mode
 
     def is_stopped(self) -> bool:
-        """Check whether the simulation is stopped."""
+        """Check whether the simulation is stopped (not paused)."""
         for viz in self.visualizers:
-            return not viz.is_running()
+            return viz.is_stopped()
         return False
 
     def forward(self) -> None:

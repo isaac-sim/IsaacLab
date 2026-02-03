@@ -372,6 +372,12 @@ class NewtonVisualizer(Visualizer):
             return False
         return self._viewer.is_running()
 
+    def is_stopped(self) -> bool:
+        """Check if visualizer window is closed."""
+        if not self._is_initialized or self._is_closed or self._viewer is None:
+            return True
+        return False
+
     def supports_markers(self) -> bool:
         """Newton visualizer does not have this feature yet."""
         return False
