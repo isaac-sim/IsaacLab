@@ -54,7 +54,7 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
                 ),
             ],
         )
-        # Disable visualization for the goal pose because the commands are generated wrt to the base frame
+
         self.commands.ee_pose.debug_vis = True
 
         # Incremental joint position action configuration
