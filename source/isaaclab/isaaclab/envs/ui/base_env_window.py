@@ -122,12 +122,20 @@ class BaseEnvWindow:
         with self.ui_window_elements["sim_frame"]:
             # create stack for controls
             self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
+            if not self.env.sim.carb_settings.get("/isaaclab/has_gui"):
+                if not self.env.sim.carb_settings.get_as_bool("/isaaclab/render/offscreen"):
+                    render_value = self.env.sim.RenderMode.NO_GUI_OR_RENDERING
+                else:
+                    render_value = self.env.sim.RenderMode.PARTIAL_RENDERING
+            else:
+                render_value = self.env.sim.RenderMode.FULL_RENDERING
+
             with self.ui_window_elements["sim_vstack"]:
                 # create rendering mode dropdown
                 render_mode_cfg = {
                     "label": "Rendering Mode",
                     "type": "dropdown",
-                    "default_val": self.env.sim.render_mode.value,
+                    "default_val": render_value,
                     "items": [member.name for member in self.env.sim.RenderMode if member.value >= 0],
                     "tooltip": "Select a rendering mode\n" + self.env.sim.RenderMode.__doc__,
                     "on_clicked_fn": lambda value: self.env.sim.set_render_mode(self.env.sim.RenderMode[value]),

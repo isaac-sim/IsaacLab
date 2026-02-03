@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable
 import omni.kit.app
 import omni.timeline
 from isaaclab.utils.version import get_isaac_sim_version
-from .visualizers import Visualizer
+from .visualizer import Visualizer
 
 if TYPE_CHECKING:
     import carb
@@ -447,12 +447,7 @@ class PhysxOVVisualizer(Visualizer):
 
     def is_running(self) -> bool:
         """Check if visualizer is still running."""
-        if self._app_iface is None:
-            return False
-        try:
-            return self._app_iface.is_running()
-        except Exception:
-            return False
+        return self.is_playing()
 
     def is_training_paused(self) -> bool:
         """Check if training is paused (always False for OV)."""

@@ -144,8 +144,7 @@ def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
     sim = SimulationContext()
     # check default render mode
-    assert sim.render_mode == sim.RenderMode.NO_GUI_OR_RENDERING
-    assert not sim.carb_settings.get("/isaaclab/has_gui")
+    assert not sim.carb_settings.get("/isaaclab/has_gui") and not bool(sim.carb_settings.get("/isaaclab/render/offscreen"))
 
 
 """

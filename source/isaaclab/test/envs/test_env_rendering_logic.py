@@ -174,7 +174,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
 
     # check that we are in partial rendering mode for the environment
     # this is enabled due to app launcher setting "enable_cameras=True"
-    assert env.sim.render_mode == SimulationContext.RenderMode.PARTIAL_RENDERING
+    assert env.sim.carb_settings.get("/isaaclab/has_gui") and bool(env.sim.carb_settings.get("/isaaclab/render/offscreen"))
 
     # add physics and render callbacks
     env.sim.add_physics_callback("physics_step", physics_cb)

@@ -67,14 +67,6 @@ class VisualizerInterface(Interface):
     def scene_data_provider(self) -> SceneDataProvider | None:
         return self._scene_data_provider
 
-    @property
-    def render_mode(self) -> RenderMode:
-        """Current render mode from the first PhysxOVVisualizer."""
-        for viz in self._visualizers:
-            if isinstance(viz, PhysxOVVisualizer):
-                return viz.render_mode
-        return RenderMode.NO_GUI_OR_RENDERING
-
     # -- Visualizer Initialization --
 
     def _create_default_visualizer_configs(self, requested: list[str]) -> list:
@@ -142,15 +134,13 @@ class VisualizerInterface(Interface):
     def is_playing(self) -> bool:
         """Check whether the simulation is playing."""
         for viz in self.visualizers:
-            if viz.is_playing():
-                return True
-        return False
+            return viz.is_running()
+        return True  # physics is always playing when there is no visualizer, basically headless mode
 
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped."""
         for viz in self.visualizers:
-            if viz.is_stopped():
-                return True
+            return not viz.is_running()
         return False
 
     def forward(self) -> None:
@@ -164,19 +154,6 @@ class VisualizerInterface(Interface):
 
         if not self._visualizers:
             return
-
-    def set_render_mode(self, mode: RenderMode):
-        """Change the current render mode of the simulation.
-
-        Please see :class:`RenderMode` for more information on the different render modes.
-
-        Args:
-            mode: The rendering mode. If different than current rendering mode,
-                the mode is changed to the new mode.
-        """
-        for viz in self._visualizers:
-            if isinstance(viz, PhysxOVVisualizer):
-                viz.set_render_mode(mode)
 
     def step(self, render: bool = True) -> None:
         """Step visualizers and optionally render.
@@ -205,8 +182,7 @@ class VisualizerInterface(Interface):
     def reset(self, soft: bool) -> None:
         """Reset visualizers (warmup renders on hard reset)."""
         for viz in self._visualizers:
-            if isinstance(viz, PhysxOVVisualizer):
-                viz.reset(soft)
+            viz.reset(soft)
 
     def close(self) -> None:
         """Close all visualizers and clean up."""
