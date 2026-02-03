@@ -39,7 +39,6 @@ def sim():
 
     # cleanup after test
     sim.stop()
-    sim.clear()
     sim.clear_instance()
 
 

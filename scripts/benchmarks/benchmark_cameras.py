@@ -754,7 +754,7 @@ def main():
         sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
-        sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+        sim._visualizer_interface.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
         scene_entities = design_scene(
             num_tiled_cams=args_cli.num_tiled_cameras,
             num_standard_cams=args_cli.num_standard_cameras,

@@ -215,7 +215,6 @@ def benchmark_xform_prim_view(
     timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
 
     # close simulation
-    sim.clear()
     sim.clear_instance()
 
     return timing_results, computed_results

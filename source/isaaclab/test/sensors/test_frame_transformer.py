@@ -78,7 +78,7 @@ def sim():
     # Load kit helper
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, device="cpu"))
     # Set main camera
-    sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
+    sim._visualizer_interface.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
     yield sim
     # Cleanup
     sim.clear_instance()

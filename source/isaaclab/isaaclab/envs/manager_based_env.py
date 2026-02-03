@@ -528,7 +528,6 @@ class ManagerBasedEnv:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()
                     self.sim.stop()
-                    self.sim.clear()
 
             self.sim.clear_instance()
 

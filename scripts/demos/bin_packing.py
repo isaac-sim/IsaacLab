@@ -331,7 +331,7 @@ def main() -> None:
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))
+    sim._visualizer_interface.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))
 
     # Design scene
     scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=False)

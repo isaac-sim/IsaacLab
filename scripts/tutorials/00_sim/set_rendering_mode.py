@@ -58,7 +58,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Pose camera in the hospital lobby area
-    sim.set_camera_view([-11, -0.5, 2], [0, 0, 0.5])
+    sim._visualizer_interface.set_camera_view([-11, -0.5, 2], [0, 0, 0.5])
 
     # Load hospital scene
     hospital_usd_path = f"{ISAAC_NUCLEUS_DIR}/Environments/Hospital/hospital.usd"

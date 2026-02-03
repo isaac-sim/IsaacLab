@@ -47,7 +47,6 @@ def test_setup_teardown():
 
     # Teardown: Cleanup simulation
     sim.stop()
-    sim.clear()
     sim.clear_instance()
 
 

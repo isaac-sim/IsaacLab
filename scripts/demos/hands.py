@@ -146,7 +146,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.2, 0.5])
+    sim._visualizer_interface.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.2, 0.5])
     # design scene
     scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)

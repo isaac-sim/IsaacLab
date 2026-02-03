@@ -180,8 +180,6 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     computed_results["world_orientations_after_set"] = orientations_after_set.clone()
 
     # close simulation
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
     return timing_results, computed_results

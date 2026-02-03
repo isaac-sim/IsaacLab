@@ -56,7 +56,7 @@ def main():
     sim_cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    sim._visualizer_interface.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Play the simulator
     sim.reset()

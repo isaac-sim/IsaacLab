@@ -115,7 +115,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
+    sim._visualizer_interface.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
 
     # design scene
     robots, origins = design_scene(sim)

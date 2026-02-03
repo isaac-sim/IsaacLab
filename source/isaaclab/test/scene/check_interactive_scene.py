@@ -82,7 +82,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(sim_utils.SimulationCfg(dt=0.005))
     # Set main camera
-    sim.set_camera_view(eye=[5, 5, 5], target=[0.0, 0.0, 0.0])
+    sim._visualizer_interface.set_camera_view(eye=[5, 5, 5], target=[0.0, 0.0, 0.0])
 
     # Spawn things into stage
     with Timer("Setup scene"):

@@ -180,7 +180,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
+    sim._visualizer_interface.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
     # Design scene by adding assets to it
     scene_entities, scene_origins = design_scene()

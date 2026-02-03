@@ -158,7 +158,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+    sim._visualizer_interface.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
     # design scene
     scene_cfg = ContactSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)

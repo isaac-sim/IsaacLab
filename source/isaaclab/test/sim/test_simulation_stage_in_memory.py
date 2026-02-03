@@ -39,7 +39,6 @@ def sim():
     yield sim
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()
-    sim.clear()
     sim.clear_instance()
     # Create a new stage in the USD context to ensure subsequent tests have a valid context stage
     sim_utils.create_new_stage()

@@ -238,7 +238,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.005)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=(8, 0, 4), target=(0.0, 0.0, 0.0))
+    sim._visualizer_interface.set_camera_view(eye=(8, 0, 4), target=(0.0, 0.0, 0.0))
     # design scene
     scene = InteractiveScene(SimpleSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
     # Play the simulator

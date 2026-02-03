@@ -39,7 +39,6 @@ def sim():
 
     # Teardown: Stop simulation
     sim.stop()
-    sim.clear()
     sim.clear_instance()
 
 

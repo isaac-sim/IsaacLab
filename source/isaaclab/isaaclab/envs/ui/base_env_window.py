@@ -131,7 +131,7 @@ class BaseEnvWindow:
             else:
                 render_value = RenderMode.FULL_RENDERING
 
-            for visualizer in self.env.sim._visualizer._visualizers:
+            for visualizer in self.env.sim._visualizer_interface._visualizers:
                 if hasattr(visualizer, "set_render_mode"):
                     set_render_mode_fn = lambda value: visualizer.set_render_mode(RenderMode[value])
 
@@ -461,7 +461,7 @@ class BaseEnvWindow:
         for _ in range(5):
             if omni.ui.Workspace.get_window(window_title):
                 break
-            await self.env.sim._visualizer.app.next_update_async()
+            await omni.kit.app.get_app().next_update_async()
 
         # dock next to properties window
         custom_window = omni.ui.Workspace.get_window(window_title)

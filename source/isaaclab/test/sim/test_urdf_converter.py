@@ -56,7 +56,6 @@ def sim_config():
     yield sim, config
     # Teardown
     sim.stop()
-    sim.clear()
     sim.clear_instance()
 
 

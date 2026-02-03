@@ -340,7 +340,7 @@ def test_clear_stage():
     assert sim.stage.GetPrimAtPath("/World/Cube2").IsValid()
 
     # clear the stage
-    sim.clear()
+    sim.clear_stage()
 
     # verify objects are removed but World and Physics remain
     assert not sim.stage.GetPrimAtPath("/World/Cube1").IsValid()

@@ -162,7 +162,7 @@ def main():
     # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
-    sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
+    sim._visualizer_interface.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
     # Design scene
     scene_cfg = NewRobotsSceneCfg(args_cli.num_envs, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)

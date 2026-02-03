@@ -34,7 +34,7 @@ def sim():
     yield sim
     # Cleanup
     sim.stop()
-    sim.clear()
+    ()
     sim.clear_instance()
 
 

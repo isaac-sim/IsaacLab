@@ -118,7 +118,7 @@ def env_and_cfg(request):
     right_eef_urdf_link_name = right_candidates[0]
 
     # Set up camera view
-    env.sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 1.0])
+    env.sim._visualizer_interface.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 1.0])
 
     # Create test parameters from test_cfg
     test_params = {

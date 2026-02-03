@@ -74,7 +74,6 @@ def setup_simulation():
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
     sim.stop()
-    sim.clear()
     sim.clear_instance()
 
 
