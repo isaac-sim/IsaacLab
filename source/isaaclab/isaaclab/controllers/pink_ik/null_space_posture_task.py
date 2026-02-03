@@ -29,7 +29,7 @@ class NullSpacePostureTask(Task):
 
     .. math::
 
-        \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+        \mathbf{e}(\mathbf{q}) = \mathbf{M} \cdot (\mathbf{q} - \mathbf{q}^*)
 
     where:
         - :math:`\mathbf{q}^*` is the target joint configuration
@@ -72,7 +72,7 @@ class NullSpacePostureTask(Task):
     .. math::
 
         \left\|
-            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q}^* - \mathbf{q})
+            \mathbf{N}(\mathbf{q}) \mathbf{v} + \mathbf{M} \cdot (\mathbf{q} - \mathbf{q}^*)
         \right\|_{W_{\text{posture}}}^2
 
     This formulation allows the robot to maintain a desired posture while respecting the constraints

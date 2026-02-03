@@ -222,7 +222,7 @@ class PinkIKController:
                 self.pink_configuration,
                 self.cfg.variable_input_tasks + self.cfg.fixed_input_tasks,
                 dt,
-                solver="daqp",
+                solver=self.cfg.qp_solver,
                 safety_break=self.cfg.fail_on_joint_limit_violation,
             )
             joint_angle_changes = velocity * dt
