@@ -275,7 +275,7 @@ class SimulationContext:
             camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
-        self._visualizer.set_camera_view(eye, target, camera_prim_path)
+        self._visualizer.set_camera_view(eye, target)
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -429,7 +429,7 @@ class SimulationContext:
             mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
         self._physics_interface.forward()
-        self._visualizer.render(mode)
+        self._visualizer.render()
 
     @classmethod
     def clear(cls):

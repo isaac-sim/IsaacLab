@@ -14,7 +14,7 @@ from typing import Any, Literal
 from isaaclab.utils import configclass
 
 from .spawners.materials import RigidBodyMaterialCfg
-
+from isaaclab.visualizers import VisualizerCfg
 
 @configclass
 class PhysxCfg:
@@ -436,3 +436,6 @@ class SimulationCfg:
     If :attr:`save_logs_to_file` is True, the logs will be saved to the directory specified by :attr:`log_dir`.
     If None, the logs will be saved to the temp directory.
     """
+
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    """The list of visualizer configurations. Default is None."""

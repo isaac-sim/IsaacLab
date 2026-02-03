@@ -7,23 +7,23 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
+from isaaclab.visualizers import Visualizer
+
 from .interface import Interface
-from .ov_visualizer import OVVisualizer, RenderMode
+from isaaclab.visualizers.physx_ov_visualizer import PhysxOVVisualizer, RenderMode
+from isaaclab.visualizers.physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
 
 if TYPE_CHECKING:
     from .simulation_context import SimulationContext
 
-# Re-export RenderMode for backwards compatibility
-__all__ = ["RenderMode", "VisualizerInterface"]
+logger = logging.getLogger(__name__)
 
 
 class VisualizerInterface(Interface):
     """Manages visualizer lifecycle and rendering for SimulationContext."""
-
-    # Expose RenderMode as class attribute for backwards compatibility
-    RenderMode = RenderMode
 
     def __init__(self, sim_context: "SimulationContext"):
         """Initialize visualizer interface.
@@ -33,10 +33,17 @@ class VisualizerInterface(Interface):
         """
         super().__init__(sim_context)
         self.dt = self._sim.cfg.dt * self._sim.cfg.render_interval
-        # Create OV visualizer helper
-        self._ov_visualizer = OVVisualizer(sim_context)
-        # Track previous playing state to detect transitions
+
+        # Visualizer state
+        visualizers = "omniverse"
+        self._visualizers_str = [v.strip() for v in visualizers.split(",") if v.strip()]
+        self._visualizers: list[Visualizer] = []
+        self._visualizer_step_counter = 0
+        self._scene_data_provider: SceneDataProvider | None = None
         self._was_playing = False
+
+        # Initialize visualizers immediately
+        self.initialize_visualizers()
 
     # -- Properties --
 
@@ -53,34 +60,110 @@ class VisualizerInterface(Interface):
         return self._sim.stage
 
     @property
-    def offscreen_render(self) -> bool:
-        """Whether offscreen rendering is enabled."""
-        return self._ov_visualizer.offscreen_render
+    def visualizers(self) -> list[Visualizer]:
+        return self._visualizers
 
     @property
-    def render_viewport(self) -> bool:
-        """Whether the default viewport should be rendered."""
-        return self._ov_visualizer.render_viewport
+    def scene_data_provider(self) -> SceneDataProvider | None:
+        return self._scene_data_provider
 
     @property
     def render_mode(self) -> RenderMode:
-        """Current render mode."""
-        return self._ov_visualizer.render_mode
-    # ------------------------------------------------------------------
-    # Timeline Control (delegate to OVVisualizer)
-    # ------------------------------------------------------------------
+        """Current render mode from the first PhysxOVVisualizer."""
+        for viz in self._visualizers:
+            if isinstance(viz, PhysxOVVisualizer):
+                return viz.render_mode
+        return RenderMode.NO_GUI_OR_RENDERING
+
+    # -- Visualizer Initialization --
+
+    def _create_default_visualizer_configs(self, requested: list[str]) -> list:
+        """Create default configs for requested visualizer types."""
+        configs = []
+        type_map = {"omniverse": PhysxOVVisualizerCfg}
+
+        for viz_type in requested:
+            if viz_type in type_map:
+                try:
+                    configs.append(type_map[viz_type]())
+                except Exception as e:
+                    logger.error(f"Failed to create default config for '{viz_type}': {e}")
+            else:
+                logger.warning(f"Unknown visualizer type '{viz_type}'. Valid: {list(type_map.keys())}")
+
+        return configs
+
+    def initialize_visualizers(self) -> None:
+        """Initialize visualizers based on --visualizer flag."""
+        if not self._visualizers_str:
+            if bool(self.settings.get("/isaaclab/visualizer")) or bool(self.settings.get("/isaaclab/render/offscreen")):
+                logger.info("No visualizers specified via --visualizer flag.")
+            return
+
+        # Get or create visualizer configs
+        cfg_list = self._sim.cfg.visualizer_cfgs
+        if cfg_list is None:
+            visualizer_cfgs = self._create_default_visualizer_configs(self._visualizers_str)
+        else:
+            visualizer_cfgs = cfg_list if isinstance(cfg_list, list) else [cfg_list]
+            visualizer_cfgs = [c for c in visualizer_cfgs if c.visualizer_type in self._visualizers_str]
+
+            if not visualizer_cfgs:
+                logger.info(f"Creating default configs for: {self._visualizers_str}")
+                visualizer_cfgs = self._create_default_visualizer_configs(self._visualizers_str)
+
+        if not visualizer_cfgs:
+            return
+
+        # Create scene data provider
+        self._scene_data_provider = None  # SceneDataProvider(visualizer_cfgs)
+
+        # Initialize each visualizer
+        for cfg in visualizer_cfgs:
+            try:
+                visualizer = cfg.create_visualizer()
+                scene_data = self._build_scene_data(cfg)
+                visualizer.initialize(scene_data)
+                self._visualizers.append(visualizer)
+                logger.info(f"Initialized: {type(visualizer).__name__} ({cfg.visualizer_type})")
+            except Exception as e:
+                logger.error(f"Failed to init '{cfg.visualizer_type}': {e}")
+
+    def _build_scene_data(self, cfg) -> dict:
+        """Build scene data dict for visualizer initialization."""
+        if cfg.visualizer_type in ("newton", "rerun"):
+            return {"scene_data_provider": self._scene_data_provider}
+        elif cfg.visualizer_type == "omniverse":
+            return {"usd_stage": self._sim.stage, "simulation_context": self._sim}
+        return {}
+
+    # -- Unified Interface Methods --
 
     def is_playing(self) -> bool:
         """Check whether the simulation is playing."""
-        return self._ov_visualizer.is_playing()
+        for viz in self.visualizers:
+            if viz.is_playing():
+                return True
+        return False
 
     def is_stopped(self) -> bool:
         """Check whether the simulation is stopped."""
-        return self._ov_visualizer.is_stopped()
+        for viz in self.visualizers:
+            if viz.is_stopped():
+                return True
+        return False
 
-    # ------------------------------------------------------------------
-    # Render Mode (delegate to OVVisualizer)
-    # ------------------------------------------------------------------
+    def forward(self) -> None:
+        """Sync scene data and step all active visualizers.
+
+        Args:
+            dt: Time step in seconds (0.0 for kinematics-only).
+        """
+        if self._scene_data_provider:
+            self._scene_data_provider.update()
+
+        if not self._visualizers:
+            return
 
     def set_render_mode(self, mode: RenderMode):
         """Change the current render mode of the simulation.
@@ -91,16 +174,9 @@ class VisualizerInterface(Interface):
             mode: The rendering mode. If different than current rendering mode,
                 the mode is changed to the new mode.
         """
-        self._ov_visualizer.set_render_mode(mode)
-
-
-    def forward(self) -> None:
-        """Sync scene data and step all active visualizers.
-
-        Args:
-            dt: Time step in seconds (0.0 for kinematics-only).
-        """
-        pass
+        for viz in self._visualizers:
+            if isinstance(viz, PhysxOVVisualizer):
+                viz.set_render_mode(mode)
 
     def step(self, render: bool = True) -> None:
         """Step visualizers and optionally render.
@@ -113,10 +189,10 @@ class VisualizerInterface(Interface):
             self.render()
             self._was_playing = False
 
-        # # Detect transition: was not playing → now playing (resume from pause)
+        # Detect transition: was not playing → now playing (resume from pause)
         is_playing = self.is_playing()
         if not self._was_playing and is_playing:
-            self.reset(soft=True) # TODO: it is currently buggy
+            self.reset(soft=True)
 
         # Update state tracking
         self._was_playing = is_playing
@@ -128,36 +204,77 @@ class VisualizerInterface(Interface):
 
     def reset(self, soft: bool) -> None:
         """Reset visualizers (warmup renders on hard reset)."""
-        self._ov_visualizer.reset(soft)
+        for viz in self._visualizers:
+            if isinstance(viz, PhysxOVVisualizer):
+                viz.reset(soft)
 
     def close(self) -> None:
         """Close all visualizers and clean up."""
-        self._ov_visualizer.close()
+        for viz in self._visualizers:
+            try:
+                viz.close()
+            except Exception as e:
+                logger.error(f"Error closing {type(viz).__name__}: {e}")
+
+        self._visualizers.clear()
+        logger.info("All visualizers closed")
 
     def play(self) -> None:
         """Handle simulation start."""
-        self._ov_visualizer.play()
+        for viz in self._visualizers:
+            viz.play()
 
     def stop(self) -> None:
         """Handle simulation stop."""
-        self._ov_visualizer.stop()
+        for viz in self._visualizers:
+            viz.stop()
 
     def pause(self) -> None:
         """Pause the simulation."""
-        self._ov_visualizer.pause()
+        for viz in self._visualizers:
+            viz.pause()
 
-    def render(self, mode: RenderMode | None = None):
-        """Render the scene (OV mode only).
+    def render(self) -> None:
+        """Render the scene.
 
         Args:
             mode: Render mode to set, or None to keep current.
-
-        Returns:
-            True if rendered, False if not in OV mode.
         """
-        self._ov_visualizer.render(mode)
+        self._visualizer_step_counter += 1
+        to_remove = []
 
+        for viz in self._visualizers:
+            try:
+                if not viz.is_running():
+                    to_remove.append(viz)
+                    continue
+
+                # Block while training paused
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0, state=None)
+
+                viz.step(self.get_rendering_dt() or self.dt, state=None)
+            except Exception as e:
+                logger.error(f"Error stepping {type(viz).__name__}: {e}")
+                to_remove.append(viz)
+
+        for viz in to_remove:
+            try:
+                viz.close()
+                self._visualizers.remove(viz)
+                logger.info(f"Removed: {type(viz).__name__}")
+            except Exception as e:
+                logger.error(f"Error closing visualizer: {e}")
+
+    def get_rendering_dt(self) -> float:
+        """Get rendering dt from visualizers, or fall back to physics dt."""
+        for viz in self._visualizers:
+            dt = viz.get_rendering_dt()
+            if dt is not None:
+                return dt
+        return self.dt
 
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view on all visualizers that support it."""
-        self._ov_visualizer.set_camera_view(eye, target, "/OmniverseKit_Persp")
+        for viz in self._visualizers:
+            viz.set_camera_view(eye, target)
