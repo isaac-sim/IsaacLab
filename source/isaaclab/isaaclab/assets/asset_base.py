@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -78,7 +78,7 @@ class AssetBase(ABC):
                 self.cfg.prim_path,
                 self.cfg.spawn,
                 translation=self.cfg.init_state.pos,
-                orientation=self.cfg.init_state.rot,
+                orientation=self.cfg.init_state.rot,  # xyzw format
             )
         # check that spawn was successful
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -714,12 +714,15 @@ class SimulationContext:
 
     def set_setting(self, name: str, value: Any):
         """Set simulation settings using the Carbonite SDK.
+
         .. note::
             If the input setting name does not exist, it will be created. If it does exist, the value will be
             overwritten. Please make sure to use the correct setting name.
+
             To understand the settings interface, please refer to the
             `Carbonite SDK <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/settings.html>`_
             documentation.
+
         Args:
             name: The name of the setting.
             value: The value of the setting.

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,8 +19,8 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
                 njmax=45,
                 nconmax=30,
                 ls_iterations=30,
-                cone="elliptic",
-                impratio=100,
+                cone="pyramidal",
+                impratio=1,
                 ls_parallel=True,
                 integrator="implicit",
             ),

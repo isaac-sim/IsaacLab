@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,10 +30,6 @@ from isaaclab.utils.math import (
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
-
-# import omni.usd
-# from isaacsim.core.prims import XFormPrim
-
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -122,18 +118,20 @@ class Camera(SensorBase):
 
         # spawn the asset
         if self.cfg.spawn is not None:
-            # compute the rotation offset
+            # compute the rotation offset (cfg.offset.rot is in xyzw format)
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
                 rot, origin=self.cfg.offset.convention, target="opengl"
             )
             rot_offset = rot_offset.squeeze(0).cpu().numpy()
+            # keep xyzw to match XFormPrim conventions
+            rot_offset_xyzw = (rot_offset[0], rot_offset[1], rot_offset[2], rot_offset[3])
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
             # spawn the asset
             self.cfg.spawn.func(
-                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
+                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset_xyzw
             )
         # check that spawn was successful
         matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
@@ -168,6 +166,7 @@ class Camera(SensorBase):
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
+            f"\trenderer type : {self.cfg.renderer_type}"
         )
 
     """
@@ -293,7 +292,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -364,6 +363,9 @@ class Camera(SensorBase):
         # Reset the frame count
         self._frame[env_ids] = 0
 
+        # Reset the renderer
+        self._renderer.reset()
+
     """
     Implementation.
     """
@@ -391,8 +393,7 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
         # Create a view for the sensor
-        self._view = XFormPrim(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -494,7 +495,7 @@ class Camera(SensorBase):
         else:
             # iterate over all the data types
             for name, annotators in self._rep_registry.items():
-                # iterate over all the annotators
+                # iterate over all the cameras
                 for index in env_ids:
                     # get the output
                     output = annotators[index].get_data()
@@ -504,6 +505,7 @@ class Camera(SensorBase):
                     self._data.output[name][index] = data
                     # add info to output
                     self._data.info[index][name] = info
+
                 # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
                 #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
                 #       larger than the clipping range in the output. We apply an additional clipping to ensure values
@@ -597,7 +599,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
@@ -605,9 +607,9 @@ class Camera(SensorBase):
 
         # get the poses from the view
         poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        self._data.pos_w[env_ids] = poses.to(device=self._device)
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            quat.to(device=self._device), origin="opengl", target="world"
         )
 
     def _create_annotator_data(self):

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.42 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with the locomotion environment where the walking direction was not correctly calculated.
+
+
 0.10.41 (2025-07-01)
 ~~~~~~~~~~~~~~~~~~~~
 

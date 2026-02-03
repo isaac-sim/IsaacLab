@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,7 +34,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
-        rot=(0.257551, 0.283045, 0.683330, -0.621782),
+        rot=(0.283045, 0.683330, -0.621782, 0.257551),  # x, y, z, w
         joint_pos={"^(?!thumb_joint_0).*": 0.0, "thumb_joint_0": 0.28},
     ),
     actuators={

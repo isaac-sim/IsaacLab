@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -140,7 +140,7 @@ def generate_articulation_cfg(
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(0.0, 0.0, 0.0),
                 joint_pos=({"RevoluteJoint": 1.5708}),
-                rot=(0.7071055, 0.7071081, 0, 0),
+                rot=(0.7071081, 0, 0, 0.7071055),  # x, y, z, w
             ),
         )
     elif articulation_type == "single_joint_explicit":

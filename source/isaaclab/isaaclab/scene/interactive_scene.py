@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -614,7 +614,7 @@ class InteractiveScene:
                         asset_cfg.prim_path,
                         asset_cfg.spawn,
                         translation=asset_cfg.init_state.pos,
-                        orientation=asset_cfg.init_state.rot,
+                        orientation=asset_cfg.init_state.rot,  # xyzw format
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)

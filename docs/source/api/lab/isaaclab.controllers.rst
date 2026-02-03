@@ -3,39 +3,8 @@
 
 .. automodule:: isaaclab.controllers
 
-  .. rubric:: Classes
+.. note::
 
-  .. autosummary::
-
-    DifferentialIKController
-    DifferentialIKControllerCfg
-    OperationalSpaceController
-    OperationalSpaceControllerCfg
-
-Differential Inverse Kinematics
--------------------------------
-
-.. autoclass:: DifferentialIKController
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: DifferentialIKControllerCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Operational Space controllers
------------------------------
-
-.. autoclass:: OperationalSpaceController
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: OperationalSpaceControllerCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
+    The controller classes (DifferentialIKController, OperationalSpaceController) are currently
+    not available in this build configuration. Please refer to the full Isaac Lab documentation
+    for controller-related APIs when running with Isaac Sim.

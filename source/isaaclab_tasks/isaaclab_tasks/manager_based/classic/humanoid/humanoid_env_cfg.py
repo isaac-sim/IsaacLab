@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -208,7 +208,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.newton_cfg.num_substeps = 2
-        self.sim.newton_cfg.solver_cfg.njmax = 80
+        self.sim.newton_cfg.solver_cfg.njmax = 100
         self.sim.newton_cfg.solver_cfg.nconmax = 25
         self.sim.newton_cfg.solver_cfg.ls_iterations = 15
         self.sim.newton_cfg.solver_cfg.ls_parallel = True

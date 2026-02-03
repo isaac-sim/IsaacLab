@@ -17,6 +17,7 @@ tabs 4
 
 # get source directory
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+export UV_INDEX="https://pypi.nvidia.com"
 export PIP_EXTRA_INDEX_URL="https://pypi.nvidia.com"
 export PIP_FIND_LINKS="https://py.mujoco.org/"
 
@@ -575,28 +576,11 @@ while [[ $# -gt 0 ]]; do
             begin_arm_install_sandbox
 
             # remove any Isaac Sim bundled numpy 1.X as we need numpy 2.X
-            ${python_exe} -m pip uninstall -y numpy
+            ${pip_uninstall_command} -y numpy >/dev/null 2>&1 || true
 
             # install pytorch (version based on arch)
             ensure_cuda_torch
 
-            # check if pytorch is installed and its version
-            # install pytorch with cuda 12.8 for blackwell support
-            if ${python_exe} -m pip list 2>/dev/null | grep -q "torch"; then
-                torch_version=$(${python_exe} -m pip show torch 2>/dev/null | grep "Version:" | awk '{print $2}')
-                echo "[INFO] Found PyTorch version ${torch_version} installed."
-                if [[ "${torch_version}" != "2.7.0+cu128" ]]; then
-                    echo "[INFO] Uninstalling PyTorch version ${torch_version}..."
-                    ${python_exe} -m pip uninstall -y torch torchvision torchaudio
-                    echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                    ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-                else
-                    echo "[INFO] PyTorch 2.7.0 is already installed."
-                fi
-            else
-                echo "[INFO] Installing PyTorch 2.7.0 with CUDA 12.8 support..."
-                ${python_exe} -m pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
-            fi
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
