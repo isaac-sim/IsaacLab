@@ -26,6 +26,13 @@ ISAACLAB_TASKS_METADATA = toml.load(os.path.join(ISAACLAB_TASKS_EXT_DIR, "config
 # Configure the module-level variables
 __version__ = ISAACLAB_TASKS_METADATA["package"]["version"]
 
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_tasks.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_tasks.*")
+
 ##
 # Register Gym environments.
 ##

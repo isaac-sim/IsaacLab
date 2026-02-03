@@ -6,3 +6,10 @@
 """Package containing implementation of Isaac Lab Mimic data generation."""
 
 __version__ = "1.0.0"
+
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_mimic.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_mimic.*")

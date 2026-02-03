@@ -17,3 +17,10 @@ the initialized environment instance to the wrapper constructor. However, since 
 expect different input and output data structures, their wrapper classes are not compatible with each other.
 Thus, they should always be used in conjunction with the respective learning framework.
 """
+
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_rl.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_rl.*")

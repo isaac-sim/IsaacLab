@@ -20,5 +20,12 @@ ISAACLAB_ASSETS_METADATA = toml.load(os.path.join(ISAACLAB_ASSETS_EXT_DIR, "conf
 # Configure the module-level variables
 __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_assets.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_assets.*")
+
 from .robots import *
 from .sensors import *

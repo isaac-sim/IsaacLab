@@ -18,5 +18,12 @@ ISAACLAB_PHYSX_METADATA = toml.load(os.path.join(ISAACLAB_PHYSX_EXT_DIR, "config
 # Configure the module-level variables
 __version__ = ISAACLAB_PHYSX_METADATA["package"]["version"]
 
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_physx.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_physx.*")
+
 # Import sensors module for auto-registration with factory
 from . import sensors  # noqa: F401, E402
