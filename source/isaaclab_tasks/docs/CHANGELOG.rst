@@ -41,6 +41,7 @@ Added
 * Added semantic segmentation to preset data types for the Cartpole Camera environment.
 * Added semantic segmentation to preset data types for the Shadow Hand environment.
 * Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
+* Added ``Isaac-Deploy-Reach-Rizon4s-ROS`` environments.
 
 1.5.13 (2026-03-18)
 ~~~~~~~~~~~~~~~~~~~
