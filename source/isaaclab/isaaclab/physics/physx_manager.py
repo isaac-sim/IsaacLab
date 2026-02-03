@@ -19,7 +19,7 @@ import weakref
 from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, ClassVar
 
 import carb
 import omni.kit
@@ -159,6 +159,8 @@ class AnimationRecorder:
 
         # Invoke pvd interface to create recording
         stage_filename = "baked_animation_recording.usda"
+        if self._physx_pvd_interface is None:
+            return False
         result = self._physx_pvd_interface.ovd_to_usd_over_with_layer_creation(
             input_ovd_path,
             stage_path,
@@ -217,47 +219,47 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    # Core interfaces (names must match Isaac Sim's expected attributes)
-    _timeline = omni.timeline.get_timeline_interface()
-    _message_bus = carb.eventdispatcher.get_eventdispatcher()
-    _physx_interface = omni.physx.get_physx_interface()
-    _physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    _carb_settings = carb.settings.get_settings()
+    # ==================== Omniverse Interfaces ====================
+    _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
+    _message_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
+    _physx_interface: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
+    _physx_sim_interface: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
+    _carb_settings: ClassVar[carb.settings.ISettings] = carb.settings.get_settings()
 
-    # State
-    _view: omni.physics.tensors.SimulationView | None = None
-    _view_warp: omni.physics.tensors.SimulationView | None = None
-    _backend: str = "torch"
-    _warmup_needed: bool = True
-    _view_created: bool = False
-    _assets_loaded: bool = True
+    # ==================== Simulation Views ====================
+    _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
+    _view_warp: ClassVar[omni.physics.tensors.SimulationView | None] = None
+    _backend: ClassVar[str] = "torch"
 
-    # Physics scenes (name must match Isaac Sim's expected attribute)
-    _physics_scene_apis: OrderedDict = OrderedDict()
+    # ==================== State Flags ====================
+    _warmup_needed: ClassVar[bool] = True
+    _view_created: ClassVar[bool] = False
+    _assets_loaded: ClassVar[bool] = True
 
-    # Callbacks: id -> subscription
-    _callbacks: dict = {}
-    _callback_id: int = 0
-    _handles: dict = {}  # Named internal handles
+    # ==================== Physics Scenes ====================
+    _physics_scene_apis: ClassVar[OrderedDict[str, PhysxSchema.PhysxSceneAPI]] = OrderedDict()
 
-    # Simulation context reference (for stage, carb_settings, logger access)
-    _sim: "SimulationContext | None" = None
+    # ==================== Callbacks ====================
+    _callbacks: ClassVar[dict[int, Any]] = {}
+    _callback_id: ClassVar[int] = 0
+    _handles: ClassVar[dict[str, Any]] = {}
 
-    # Manager configuration (contains all physics settings)
-    _cfg: "PhysxManagerCfg | None" = None
+    # ==================== Context & Configuration ====================
+    _sim: ClassVar["SimulationContext | None"] = None
+    _cfg: ClassVar["PhysxManagerCfg | None"] = None
 
-    # Device and fabric state
-    _physics_device: str = "cpu"
-    _fabric_iface = None
-    _update_fabric = None
-    _anim_recorder: AnimationRecorder | None = None
+    # ==================== Device & Fabric ====================
+    _physics_device: ClassVar[str] = "cpu"
+    _fabric_iface: ClassVar[Any] = None
+    _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
+    _anim_recorder: ClassVar[AnimationRecorder | None] = None
 
     # Compatibility stub for Isaac Sim code that calls _simulation_manager_interface
     class _PhysxManagerInterfaceStub:
-        """Minimal stub for Isaac Sim compatibility."""
+        """Minimal stub providing Isaac Sim compatibility interface."""
 
         @staticmethod
-        def reset():
+        def reset() -> None:
             pass
 
         @staticmethod
@@ -274,24 +276,9 @@ class PhysxManager(PhysicsManager):
             except Exception:
                 return False
 
-        # No-ops for unused methods
-        get_num_physics_steps = staticmethod(lambda: 0)
-        is_paused = staticmethod(lambda: False)
-        get_callback_iter = staticmethod(lambda: 0)
-        set_callback_iter = staticmethod(lambda v: None)
-        register_deletion_callback = staticmethod(lambda cb: None)
-        register_physics_scene_addition_callback = staticmethod(lambda cb: None)
-        deregister_callback = staticmethod(lambda id: False)
-        enable_usd_notice_handler = staticmethod(lambda f: None)
-        enable_fabric_usd_notice_handler = staticmethod(lambda s, f: None)
-        is_fabric_usd_notice_handler_enabled = staticmethod(lambda s: False)
-        get_sample_count = staticmethod(lambda: 0)
-        get_all_samples = staticmethod(lambda: [])
-        get_buffer_capacity = staticmethod(lambda: 1000)
-        get_current_time = staticmethod(lambda: carb.RationalTime(-1, 1))
-        get_simulation_time_at_time = staticmethod(lambda t: 0.0)
-        get_sample_range = staticmethod(lambda: None)
-        log_statistics = staticmethod(lambda: None)
+        def __getattr__(self, name: str) -> Callable[..., Any]:
+            """Return no-op callable for any undefined method."""
+            return lambda *args, **kwargs: None
 
     _simulation_manager_interface = _PhysxManagerInterfaceStub()
 
@@ -337,7 +324,7 @@ class PhysxManager(PhysicsManager):
         if not soft:
             # initialize the physics simulation
             if cls._view is None:
-                cls.initialize_physics()
+                cls._initialize_physics()
 
         # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
         if "cuda" in cls._physics_device:
@@ -380,7 +367,7 @@ class PhysxManager(PhysicsManager):
     def close(cls) -> None:
         """Clean up physics resources."""
         # clear the simulation manager state (notifies assets to cleanup)
-        cls.clear()
+        cls._clear()
         # detach the stage from physx
         if cls._physx_sim_interface is not None:
             cls._physx_sim_interface.detach_stage()
@@ -390,10 +377,10 @@ class PhysxManager(PhysicsManager):
         cls._anim_recorder = None
 
     @classmethod
-    def clear(cls) -> None:
-        """Clear all state and callbacks."""
+    def _clear(cls) -> None:
+        """Clear all state and callbacks (internal use only)."""
         # Notify assets to clean up (PRIM_DELETION with "/" = clear all)
-        cls.dispatch_prim_deletion("/")
+        cls._message_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
         # Properly unsubscribe handles before clearing
         # Timeline subscriptions are auto-cleaned by omni.timeline
         # Message bus observers just need to be deleted
@@ -416,8 +403,8 @@ class PhysxManager(PhysicsManager):
         cls._update_fabric = None
 
     @classmethod
-    def initialize_physics(cls) -> None:
-        """Warm-start physics and create simulation views."""
+    def _initialize_physics(cls) -> None:
+        """Warm-start physics and create simulation views (internal use only)."""
         if not cls._warmup_needed:
             return
         cls._physx_interface.force_load_physics_from_usd()
@@ -434,18 +421,6 @@ class PhysxManager(PhysicsManager):
         return cls._view
 
     @classmethod
-    def get_backend(cls) -> str:
-        """Get the tensor backend ("torch" or "warp")."""
-        return cls._backend
-
-    @classmethod
-    def set_backend(cls, backend: str) -> None:
-        """Set the tensor backend."""
-        if backend not in ("torch", "warp"):
-            raise ValueError(f"Backend must be 'torch' or 'warp', got '{backend}'")
-        cls._backend = backend
-
-    @classmethod
     def get_physics_dt(cls) -> float:
         """Get the physics timestep in seconds."""
         # Prefer config if available
@@ -460,13 +435,13 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def get_device(cls) -> str:
-        """Get the physics simulation device."""
+        """Get the physics simulation device (e.g., 'cuda:0' or 'cpu')."""
         return cls._physics_device
 
     @classmethod
-    def get_physics_sim_device(cls) -> str:
-        """Get the physics simulation device (alias for get_device)."""
-        return cls._physics_device
+    def _is_gpu_device(cls) -> bool:
+        """Check if configured for GPU physics."""
+        return cls._cfg is not None and "cuda" in cls._cfg.device
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -474,8 +449,8 @@ class PhysxManager(PhysicsManager):
         return cls._fabric_iface is not None
 
     @classmethod
-    def set_physics_sim_device(cls, device: str) -> None:
-        """Set the physics simulation device."""
+    def _set_physics_sim_device(cls, device: str) -> None:
+        """Set the physics simulation device (internal use only)."""
         if "cuda" in device:
             parts = device.split(":")
             device_id = int(parts[1]) if len(parts) > 1 else max(0, cls._carb_settings.get_as_int("/physics/cudaDevice"))
@@ -493,11 +468,6 @@ class PhysxManager(PhysicsManager):
     def assets_loading(cls) -> bool:
         """Check if assets are currently loading."""
         return not cls._assets_loaded
-
-    @classmethod
-    def dispatch_prim_deletion(cls, prim_path: str) -> None:
-        """Dispatch prim deletion event."""
-        cls._message_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": prim_path})
 
     # ------------------------------------------------------------------
     # Callback Registration
@@ -523,7 +493,9 @@ class PhysxManager(PhysicsManager):
         if hasattr(callback, "__self__"):
             obj_ref = weakref.proxy(callback.__self__)
             method_name = callback.__name__
-            cb = lambda e, o=obj_ref, m=method_name: getattr(o, m)(e)
+
+            def cb(e: Any, o: Any = obj_ref, m: str = method_name) -> Any:
+                return getattr(o, m)(e)
         else:
             cb = callback
 
@@ -590,7 +562,7 @@ class PhysxManager(PhysicsManager):
     def _on_play(cls, event: Any) -> None:
         """Handle timeline play."""
         if cls._carb_settings.get_as_bool("/app/player/playSimulations"):
-            cls.initialize_physics()
+            cls._initialize_physics()
 
     @classmethod
     def _on_stop(cls, event: Any) -> None:
@@ -636,9 +608,11 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
         cls._view = omni.physics.tensors.create_simulation_view(cls._backend, stage_id=stage_id)
-        cls._view.set_subspace_roots("/")
         cls._view_warp = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
-        cls._view_warp.set_subspace_roots("/")
+        if cls._view is not None:
+            cls._view.set_subspace_roots("/")
+        if cls._view_warp is not None:
+            cls._view_warp.set_subspace_roots("/")
 
         cls._physx_interface.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
@@ -653,16 +627,6 @@ class PhysxManager(PhysicsManager):
             for prim in stage.Traverse():
                 if prim.GetTypeName() == "PhysicsScene":
                     cls._physics_scene_apis[prim.GetPath().pathString] = PhysxSchema.PhysxSceneAPI.Apply(prim)
-
-    @classmethod
-    def _is_gpu_enabled(cls) -> bool:
-        """Check if GPU dynamics is enabled."""
-        if cls._physics_scene_apis:
-            api = list(cls._physics_scene_apis.values())[0]
-            bp = api.GetBroadphaseTypeAttr().Get()
-            gpu_dyn = api.GetEnableGPUDynamicsAttr().Get()
-            return bp == "GPU" and gpu_dyn
-        return False
 
     @classmethod
     def _set_gpu_dynamics(cls, enable: bool) -> None:
@@ -725,138 +689,135 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _apply_physics_settings(cls) -> None:
-        """Sets various carb physics settings."""
+        """Apply all physics configuration settings."""
         if cls._sim is None or cls._cfg is None:
             return
 
-        carb_settings = cls._sim.carb_settings
+        cls._apply_carb_settings()
+        cls._apply_device_settings()
+        cls._create_default_material()
+        cls._apply_physx_scene_settings()
+        cls._log_config_warnings()
 
-        # Get physics scene API from the physics interface
+    @classmethod
+    def _apply_carb_settings(cls) -> None:
+        """Apply Carbonite physics settings."""
+        if cls._sim is None:
+            return
+        settings = cls._sim.carb_settings
+
+        # Enable hydra scene-graph instancing for GUI rendering
+        settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+        # Use PhysX SDK dispatcher instead of carb tasking
+        settings.set_bool("/physics/physxDispatcher", True)
+        # Disable contact processing by default (enabled when contact sensors are created)
+        settings.set_bool("/physics/disableContactProcessing", True)
+        # Enable contact reporting for cylinder/cone shapes (not natively supported by PhysX)
+        settings.set_bool("/physics/collisionConeCustomGeometry", False)
+        settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
+        # Hide simulation output window
+        settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+
+    @classmethod
+    def _apply_device_settings(cls) -> None:
+        """Configure GPU/CPU device settings."""
+        if cls._sim is None or cls._cfg is None:
+            return
+        settings = cls._sim.carb_settings
+
+        if cls._is_gpu_device():
+            device_parts = cls._cfg.device.split(":")
+            if len(device_parts) == 1:
+                # "cuda" without ID - use carb setting or default to 0
+                device_id = max(0, settings.get_as_int("/physics/cudaDevice"))
+            else:
+                device_id = int(device_parts[1])
+
+            settings.set_int("/physics/cudaDevice", device_id)
+            settings.set_bool("/physics/suppressReadback", True)
+            cls._physics_device = f"cuda:{device_id}"
+        else:
+            settings.set_int("/physics/cudaDevice", -1)
+            settings.set_bool("/physics/suppressReadback", False)
+            cls._physics_device = "cpu"
+
+        cls._backend = "torch"
+        cls._set_physics_sim_device(cls._physics_device)
+
+    @classmethod
+    def _create_default_material(cls) -> None:
+        """Create and bind default physics material if configured."""
+        if cls._cfg is None or cls._cfg.physics_material is None:
+            return
+
+        material_path = f"{cls._cfg.physics_prim_path}/defaultMaterial"
+        cls._cfg.physics_material.func(material_path, cls._cfg.physics_material)
+        sim_utils.bind_physics_material(cls._cfg.physics_prim_path, material_path)
+
+    @classmethod
+    def _apply_physx_scene_settings(cls) -> None:
+        """Apply PhysX scene API settings."""
+        if cls._sim is None or cls._cfg is None:
+            return
+
         stage = cls._sim.stage
         physics_scene_prim = stage.GetPrimAtPath(cls._cfg.physics_prim_path)
         physx_scene_api = PhysxSchema.PhysxSceneAPI(physics_scene_prim)
 
-        # --------------------------
-        # Carb Physics API settings
-        # --------------------------
+        is_gpu = cls._is_gpu_device()
 
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        carb_settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        carb_settings.set_bool("/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx
-        # note: we disable it by default to avoid the overhead of contact processing when it isn't needed.
-        #   The physics flag gets enabled when a contact sensor is created.
-        # FIXME: From investigation, it seems this flag only affects CPU physics. For GPU physics, contacts
-        #  are always processed. The issue is reported to the PhysX team by @mmittal.
-        carb_settings.set_bool("/physics/disableContactProcessing", True)
-        # disable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
-        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/Geometry.html?highlight=capsule#geometry
-        carb_settings.set_bool("/physics/collisionConeCustomGeometry", False)
-        carb_settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        # hide the Simulation Settings window
-        carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        # Broadphase and GPU dynamics
+        physx_scene_api.CreateBroadphaseTypeAttr("GPU" if is_gpu else "MBP")
+        physx_scene_api.CreateEnableGPUDynamicsAttr(is_gpu)
 
-        # handle device settings
-        if "cuda" in cls._cfg.device:
-            parsed_device = cls._cfg.device.split(":")
-            if len(parsed_device) == 1:
-                # if users only specified "cuda", we check if carb settings provide a valid device id
-                # otherwise, we default to device id 0
-                device_id = carb_settings.get_as_int("/physics/cudaDevice")
-                if device_id < 0:
-                    carb_settings.set_int("/physics/cudaDevice", 0)
-                    device_id = 0
-            else:
-                # if users specified "cuda:N", we use the provided device id
-                device_id = int(parsed_device[1])
-                carb_settings.set_int("/physics/cudaDevice", device_id)
-            # suppress readback for GPU physics
-            carb_settings.set_bool("/physics/suppressReadback", True)
-            # save the device
-            cls._physics_device = f"cuda:{device_id}"
-        else:
-            # enable USD read/write operations for CPU physics
-            carb_settings.set_int("/physics/cudaDevice", -1)
-            carb_settings.set_bool("/physics/suppressReadback", False)
-            # save the device
-            cls._physics_device = "cpu"
-
-        # Configure simulation manager backend
-        # Isaac Lab always uses torch tensors for consistency, even on CPU
-        cls.set_backend("torch")
-        cls.set_physics_sim_device(cls._physics_device)
-
-        # --------------------------
-        # USDPhysics API settings
-        # --------------------------
-
-        # create the default physics material
-        # this material is used when no material is specified for a primitive
-        if cls._cfg.physics_material is not None:
-            material_path = f"{cls._cfg.physics_prim_path}/defaultMaterial"
-            cls._cfg.physics_material.func(material_path, cls._cfg.physics_material)
-            # bind the physics material to the scene
-            sim_utils.bind_physics_material(cls._cfg.physics_prim_path, material_path)
-
-        # --------------------------
-        # PhysX API settings
-        # --------------------------
-
-        # set broadphase type
-        broadphase_type = "GPU" if "cuda" in cls._cfg.device else "MBP"
-        physx_scene_api.CreateBroadphaseTypeAttr(broadphase_type)
-        # set gpu dynamics
-        enable_gpu_dynamics = "cuda" in cls._cfg.device
-        physx_scene_api.CreateEnableGPUDynamicsAttr(enable_gpu_dynamics)
-
-        # GPU-dynamics does not support CCD, so we disable it if it is enabled.
-        if enable_gpu_dynamics and cls._cfg.enable_ccd:
-            cls._cfg.enable_ccd = False
+        # CCD (disabled for GPU dynamics)
+        enable_ccd = cls._cfg.enable_ccd
+        if is_gpu and enable_ccd:
+            enable_ccd = False
             cls._sim.logger.warning(
-                "CCD is disabled when GPU dynamics is enabled. Please disable CCD in the PhysxManagerCfg to avoid this"
-                " warning."
+                "CCD is disabled when GPU dynamics is enabled. Disable CCD in PhysxManagerCfg to suppress this warning."
             )
-        physx_scene_api.CreateEnableCCDAttr(cls._cfg.enable_ccd)
+        physx_scene_api.CreateEnableCCDAttr(enable_ccd)
 
-        # set solver type
+        # Solver type
         solver_type = "PGS" if cls._cfg.solver_type == 0 else "TGS"
         physx_scene_api.CreateSolverTypeAttr(solver_type)
 
-        # set solve articulation contact last
+        # Articulation contact ordering
         attr = physx_scene_api.GetPrim().CreateAttribute(
             "physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool
         )
         attr.Set(cls._cfg.solve_articulation_contact_last)
 
-        # iterate over all the settings and set them
+        # Apply remaining settings from config
+        skip_keys = {
+            "solver_type", "enable_ccd", "solve_articulation_contact_last",
+            "dt", "device", "render_interval", "gravity",
+            "physics_prim_path", "use_fabric", "physics_material"
+        }
         for key, value in cls._cfg.to_dict().items():  # type: ignore
-            # Skip non-PhysX settings and already-handled settings
-            if key in ["solver_type", "enable_ccd", "solve_articulation_contact_last",
-                       "dt", "device", "render_interval", "gravity",
-                       "physics_prim_path", "use_fabric", "physics_material"]:
+            if key in skip_keys:
                 continue
             if key == "bounce_threshold_velocity":
                 key = "bounce_threshold"
             sim_utils.safe_set_attribute_on_usd_schema(physx_scene_api, key, value, camel_case=True)
 
-        # throw warnings for helpful guidance
+    @classmethod
+    def _log_config_warnings(cls) -> None:
+        """Log helpful configuration warnings."""
+        if cls._cfg is None or cls._sim is None:
+            return
+
         if cls._cfg.solver_type == 1 and not cls._cfg.enable_external_forces_every_iteration:
             logger.warning(
-                "The `enable_external_forces_every_iteration` parameter in PhysxManagerCfg is set to False. If you are"
-                " experiencing noisy velocities, consider enabling this flag. You may need to slightly increase the"
-                " number of velocity iterations (setting it to 1 or 2 rather than 0), together with this flag, to"
-                " improve the accuracy of velocity updates."
+                "enable_external_forces_every_iteration is False with TGS solver. "
+                "If experiencing noisy velocities, enable this flag and increase velocity iterations to 1-2."
             )
 
         if not cls._cfg.enable_stabilization and cls._cfg.dt > 0.0333:
             cls._sim.logger.warning(
-                "Large simulation step size (> 0.0333 seconds) is not recommended without enabling stabilization."
-                " Consider setting the `enable_stabilization` flag to True in PhysxManagerCfg, or reducing the"
-                " simulation step size if you run into physics issues."
+                "Large timestep (>0.0333s) without stabilization may cause physics issues. "
+                "Consider enabling enable_stabilization or reducing dt."
             )
 
     @classmethod
