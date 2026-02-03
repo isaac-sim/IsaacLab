@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Newton physics manager for Isaac Lab."""
+
 from __future__ import annotations
 
 import numpy as np
 import re
+from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
@@ -15,9 +18,15 @@ from newton.sensors import ContactSensor as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
-from isaaclab.physics.newton_manager_cfg import NewtonCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
+
+from .physics_manager import PhysicsManager
+
+if TYPE_CHECKING:
+    from isaaclab.sim.simulation_context import SimulationContext
+    from .newton_manager_cfg import NewtonManagerCfg
+    from .solvers_cfg import NewtonSolverCfg
 
 
 def flipped_match(x: str, y: str) -> re.Match | None:
@@ -35,7 +44,22 @@ def flipped_match(x: str, y: str) -> re.Match | None:
     return re.match(y, x)
 
 
-class NewtonManager:
+class NewtonManager(PhysicsManager):
+    """Newton physics manager for Isaac Lab.
+
+    This is a class-level (singleton-like) manager for the Newton simulation.
+    It handles solver configuration, physics stepping, and reset.
+
+    Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
+    """
+
+    # Simulation context reference
+    _sim: "SimulationContext | None" = None
+
+    # Manager configuration
+    _cfg: "NewtonManagerCfg | None" = None
+
+    # Newton-specific state
     _builder: ModelBuilder = None
     _model: Model = None
     _device: str = "cuda:0"
@@ -60,57 +84,127 @@ class NewtonManager:
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
-    _cfg: NewtonCfg = NewtonCfg()
     _solver_type: str = "mujoco_warp"
     _gravity_vector: tuple[float, float, float] = (0.0, 0.0, -9.81)
     _up_axis: str = "Z"
-    _num_envs: int = None
+    _num_envs: int | None = None
     _model_changes: set[int] = set()
+
+    # ------------------------------------------------------------------
+    # PhysicsManager Interface
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def initialize(cls, sim_context: "SimulationContext") -> None:
+        """Initialize the manager with simulation context.
+
+        Args:
+            sim_context: Parent simulation context.
+        """
+        cls._sim = sim_context
+        cls._cfg = sim_context.cfg.physics_manager_cfg  # type: ignore[assignment]
+
+        # Set simulation parameters from config
+        cls._dt = cls._cfg.dt
+        cls._device = cls._cfg.device
+        cls._gravity_vector = cls._cfg.gravity
+
+        # USD fabric sync only needed for OV rendering
+        if cls._sim is not None:
+            cls._clone_physics_only = "omniverse" not in cls._sim._visualizer_interface._visualizers_str  # type: ignore[union-attr]
+
+    @classmethod
+    def reset(cls, soft: bool = False) -> None:
+        """Reset physics simulation.
+
+        Args:
+            soft: If True, skip full reinitialization.
+        """
+        if not soft:
+            cls.start_simulation()
+            cls.initialize_solver()
+
+    @classmethod
+    def forward(cls) -> None:
+        """Update articulation kinematics without stepping physics."""
+        cls.forward_kinematics()
+
+    @classmethod
+    def step(cls) -> None:
+        """Step the physics simulation."""
+        if cls._sim is not None and cls._sim.is_playing():
+            cls._step_internal()
+
+    @classmethod
+    def close(cls) -> None:
+        """Clean up Newton physics resources."""
+        cls.clear()
+        cls._sim = None
+        cls._cfg = None
+
+    @classmethod
+    def get_physics_dt(cls) -> float:
+        """Get the physics timestep in seconds."""
+        return cls._dt
+
+    @classmethod
+    def get_device(cls) -> str:
+        """Get the physics simulation device."""
+        return cls._device
+
+    @classmethod
+    def get_physics_sim_view(cls):
+        """Get the physics simulation view (not applicable for Newton)."""
+        return None
+
+    @classmethod
+    def is_fabric_enabled(cls) -> bool:
+        """Check if fabric interface is enabled (not applicable for Newton)."""
+        return False
+
+    # ------------------------------------------------------------------
+    # Newton-specific API
+    # ------------------------------------------------------------------
 
     @classmethod
     def clear(cls):
-        NewtonManager._builder = None
-        NewtonManager._model = None
-        NewtonManager._solver = None
-        NewtonManager._state_0 = None
-        NewtonManager._state_1 = None
-        NewtonManager._state_temp = None
-        NewtonManager._control = None
-        NewtonManager._contacts = None
-        NewtonManager._needs_collision_pipeline = False
-        NewtonManager._collision_pipeline = None
-        NewtonManager._newton_contact_sensor = None
-        NewtonManager._report_contacts = False
-        NewtonManager._graph = None
-        NewtonManager._newton_stage_path = None
-        NewtonManager._sim_time = 0.0
-        NewtonManager._on_init_callbacks = []
-        NewtonManager._on_start_callbacks = []
-        NewtonManager._usdrt_stage = None
-        # Only create new config if not during Python shutdown
-        try:
-            NewtonManager._cfg = NewtonCfg()
-        except (ImportError, AttributeError, TypeError):
-            NewtonManager._cfg = None
-        NewtonManager._up_axis = "Z"
-        NewtonManager._first_call = True
-        NewtonManager._model_changes = set()
+        """Clear all state."""
+        cls._builder = None
+        cls._model = None
+        cls._solver = None
+        cls._state_0 = None
+        cls._state_1 = None
+        cls._state_temp = None
+        cls._control = None
+        cls._contacts = None
+        cls._needs_collision_pipeline = False
+        cls._collision_pipeline = None
+        cls._newton_contact_sensor = None
+        cls._report_contacts = False
+        cls._graph = None
+        cls._newton_stage_path = None
+        cls._sim_time = 0.0
+        cls._on_init_callbacks = []
+        cls._on_start_callbacks = []
+        cls._usdrt_stage = None
+        cls._up_axis = "Z"
+        cls._model_changes = set()
 
     @classmethod
     def set_builder(cls, builder):
-        NewtonManager._builder = builder
+        cls._builder = builder
 
     @classmethod
     def add_on_init_callback(cls, callback) -> None:
-        NewtonManager._on_init_callbacks.append(callback)
+        cls._on_init_callbacks.append(callback)
 
     @classmethod
     def add_on_start_callback(cls, callback) -> None:
-        NewtonManager._on_start_callbacks.append(callback)
+        cls._on_start_callbacks.append(callback)
 
     @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
-        NewtonManager._model_changes.add(change)
+        cls._model_changes.add(change)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -119,41 +213,41 @@ class NewtonManager:
         This function finalizes the model and initializes the simulation state.
         """
 
-        print(f"[INFO] Builder: {NewtonManager._builder}")
-        if NewtonManager._builder is None:
-            NewtonManager.instantiate_builder_from_stage()
+        print(f"[INFO] Builder: {cls._builder}")
+        if cls._builder is None:
+            cls.instantiate_builder_from_stage()
         print("[INFO] Running on init callbacks")
-        for callback in NewtonManager._on_init_callbacks:
+        for callback in cls._on_init_callbacks:
             callback()
-        print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
-        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
-        NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
+        print(f"[INFO] Finalizing model on device: {cls._device}")
+        cls._builder.gravity = np.array(cls._gravity_vector)[-1]
+        cls._builder.up_axis = Axis.from_string(cls._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
-            NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
-            NewtonManager._model.num_envs = NewtonManager._num_envs
-        NewtonManager._state_0 = NewtonManager._model.state()
-        NewtonManager._state_1 = NewtonManager._model.state()
-        NewtonManager._state_temp = NewtonManager._model.state()
-        NewtonManager._control = NewtonManager._model.control()
-        NewtonManager.forward_kinematics()
-        if NewtonManager._needs_collision_pipeline:
-            NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
-            NewtonManager._contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            cls._model = cls._builder.finalize(device=cls._device)
+            cls._model.num_envs = cls._num_envs
+        cls._state_0 = cls._model.state()
+        cls._state_1 = cls._model.state()
+        cls._state_temp = cls._model.state()
+        cls._control = cls._model.control()
+        cls.forward_kinematics()
+        if cls._needs_collision_pipeline:
+            cls._collision_pipeline = create_collision_pipeline(cls._model)
+            cls._contacts = cls._model.collide(
+                cls._state_0, collision_pipeline=cls._collision_pipeline
             )
         else:
-            NewtonManager._contacts = Contacts(0, 0)
+            cls._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
-        for callback in NewtonManager._on_start_callbacks:
+        for callback in cls._on_start_callbacks:
             callback()
-        if not NewtonManager._clone_physics_only:
+        if not cls._clone_physics_only:
             import usdrt
 
-            NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(NewtonManager._model.body_key):
-                prim = NewtonManager._usdrt_stage.GetPrimAtPath(prim_path)
-                prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                prim.GetAttribute(NewtonManager._newton_index_attr).Set(i)
+            cls._usdrt_stage = get_current_stage(fabric=True)
+            for i, prim_path in enumerate(cls._model.body_key):
+                prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
+                prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                prim.GetAttribute(cls._newton_index_attr).Set(i)
                 xformable_prim = usdrt.Rt.Xformable(prim)
                 if not xformable_prim.HasWorldXform():
                     xformable_prim.SetWorldXformFromUsd()
@@ -166,11 +260,16 @@ class NewtonManager:
         up_axis = UsdGeom.GetStageUpAxis(stage)
         builder = ModelBuilder(up_axis=up_axis)
         builder.add_usd(stage)
-        NewtonManager.set_builder(builder)
+        cls.set_builder(builder)
 
     @classmethod
-    def set_solver_settings(cls, newton_params: dict):
-        NewtonManager._cfg = NewtonCfg(**newton_params)
+    def set_solver_settings(cls, cfg: "NewtonManagerCfg") -> None:
+        """Set solver settings from config.
+
+        Args:
+            cfg: Newton manager configuration.
+        """
+        cls._cfg = cfg
 
     @classmethod
     def initialize_solver(cls):
@@ -185,27 +284,29 @@ class NewtonManager:
             simulation once to capture the graph. Hence, this function should only be called after everything else in
             the simulation is initialized.
         """
+        if cls._cfg is None:
+            return
+
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
-            NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
-            NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
-            print(NewtonManager._model.gravity)
-            NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
-            if isinstance(NewtonManager._solver, SolverMuJoCo):
-                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
-                    "use_mujoco_contacts", False
-                )
+            cls._num_substeps = cls._cfg.num_substeps
+            cls._solver_dt = cls._dt / cls._num_substeps
+            print(cls._model.gravity)
+            cls._solver = cls._get_solver(cls._model, cls._cfg.solver_cfg)
+            if isinstance(cls._solver, SolverMuJoCo):
+                use_mujoco_contacts = getattr(cls._cfg.solver_cfg, "use_mujoco_contacts", False)
+                cls._needs_collision_pipeline = not use_mujoco_contacts
             else:
-                NewtonManager._needs_collision_pipeline = True
+                cls._needs_collision_pipeline = True
 
         # Ensure we are using a CUDA enabled device
-        assert NewtonManager._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
+        assert cls._device.startswith("cuda"), "NewtonManager only supports CUDA enabled devices"
 
         # Capture the graph if CUDA is enabled
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:", enable=True, format="ms"):
-            if NewtonManager._cfg.use_cuda_graph:
+            if cls._cfg.use_cuda_graph:
                 with wp.ScopedCapture() as capture:
-                    NewtonManager.simulate()
-                NewtonManager._graph = capture.graph
+                    cls.simulate()
+                cls._graph = capture.graph
 
     @classmethod
     def simulate(cls) -> None:
@@ -215,56 +316,56 @@ class NewtonManager:
         may need to explicitly compute the collisions. This function also aggregates the contacts and evaluates the
         contact sensors. Finally, it performs the state swapping for Newton.
         """
-        state_0_dict = NewtonManager._state_0.__dict__
-        state_1_dict = NewtonManager._state_1.__dict__
-        state_temp_dict = NewtonManager._state_temp.__dict__
+        state_0_dict = cls._state_0.__dict__
+        state_1_dict = cls._state_1.__dict__
+        state_temp_dict = cls._state_temp.__dict__
         contacts = None
 
         # MJWarp computes its own collisions.
-        if NewtonManager._needs_collision_pipeline:
-            contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+        if cls._needs_collision_pipeline:
+            contacts = cls._model.collide(
+                cls._state_0, collision_pipeline=cls._collision_pipeline
             )
 
-        if NewtonManager._num_substeps % 2 == 0:
-            for i in range(NewtonManager._num_substeps):
-                NewtonManager._solver.step(
-                    NewtonManager._state_0,
-                    NewtonManager._state_1,
-                    NewtonManager._control,
+        if cls._num_substeps % 2 == 0:
+            for i in range(cls._num_substeps):
+                cls._solver.step(
+                    cls._state_0,
+                    cls._state_1,
+                    cls._control,
                     contacts,
-                    NewtonManager._solver_dt,
+                    cls._solver_dt,
                 )
-                NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-                NewtonManager._state_0.clear_forces()
+                cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+                cls._state_0.clear_forces()
         else:
-            for i in range(NewtonManager._num_substeps):
-                NewtonManager._solver.step(
-                    NewtonManager._state_0,
-                    NewtonManager._state_1,
-                    NewtonManager._control,
+            for i in range(cls._num_substeps):
+                cls._solver.step(
+                    cls._state_0,
+                    cls._state_1,
+                    cls._control,
                     contacts,
-                    NewtonManager._solver_dt,
+                    cls._solver_dt,
                 )
 
                 # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
-                if i < NewtonManager._num_substeps - 1 or not NewtonManager._cfg.use_cuda_graph:
+                if i < cls._num_substeps - 1 or not cls._cfg.use_cuda_graph:
                     # we can just swap the state references
-                    NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-                elif NewtonManager._cfg.use_cuda_graph:
+                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+                elif cls._cfg.use_cuda_graph:
                     # swap states by actually copying the state arrays to make sure the graph capture works
                     for key, value in state_0_dict.items():
-                        if isinstance(value, wp.array):
+                        if isinstance(value, wp.array):  # type: ignore[arg-type]
                             if key not in state_temp_dict:
                                 state_temp_dict[key] = wp.empty_like(value)
                             state_temp_dict[key].assign(value)
                             state_0_dict[key].assign(state_1_dict[key])
                             state_1_dict[key].assign(state_temp_dict[key])
-                NewtonManager._state_0.clear_forces()
+                cls._state_0.clear_forces()
 
-        if NewtonManager._report_contacts:
-            populate_contacts(NewtonManager._contacts, NewtonManager._solver)
-            NewtonManager._newton_contact_sensor.eval(NewtonManager._contacts)
+        if cls._report_contacts:
+            populate_contacts(cls._contacts, cls._solver)
+            cls._newton_contact_sensor.eval(cls._contacts)
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -273,35 +374,35 @@ class NewtonManager:
         Args:
             device (str): The device to use for the Newton simulation.
         """
-        NewtonManager._device = device
+        cls._device = device
 
     @classmethod
-    def step(cls) -> None:
-        """Steps the simulation.
+    def _step_internal(cls) -> None:
+        """Steps the simulation (internal).
 
         This function steps the simulation by the specified time step in the simulation configuration.
         """
-        if NewtonManager._model_changes:
-            for change in NewtonManager._model_changes:
-                NewtonManager._solver.notify_model_changed(change)
-            NewtonManager._model_changes = set()
+        if cls._model_changes:
+            for change in cls._model_changes:
+                cls._solver.notify_model_changed(change)
+            cls._model_changes = set()
 
-        if NewtonManager._cfg.use_cuda_graph:
-            wp.capture_launch(NewtonManager._graph)
+        if cls._cfg is not None and cls._cfg.use_cuda_graph:
+            wp.capture_launch(cls._graph)  # type: ignore[arg-type]
         else:
-            NewtonManager.simulate()
+            cls.simulate()
 
-        if NewtonManager._cfg.debug_mode:
-            convergence_data = NewtonManager.get_solver_convergence_steps()
+        if cls._cfg is not None and cls._cfg.debug_mode:
+            convergence_data = cls.get_solver_convergence_steps()
             # print(f"solver niter: {convergence_data}")
-            if convergence_data["max"] == NewtonManager._solver.mjw_model.opt.iterations:
+            if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
                 print("solver didn't converge!", convergence_data["max"])
 
-        NewtonManager._sim_time += NewtonManager._solver_dt * NewtonManager._num_substeps
+        cls._sim_time += cls._solver_dt * cls._num_substeps
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
-        niter = NewtonManager._solver.mjw_data.solver_niter.numpy()
+        niter = cls._solver.mjw_data.solver_niter.numpy()
         max_niter = np.max(niter)
         mean_niter = np.mean(niter)
         min_niter = np.min(niter)
@@ -315,31 +416,31 @@ class NewtonManager:
         Args:
             dt (float): The simulation time step.
         """
-        NewtonManager._dt = dt
+        cls._dt = dt
 
     @classmethod
     def get_model(cls):
-        return NewtonManager._model
+        return cls._model
 
     @classmethod
     def get_state_0(cls):
-        return NewtonManager._state_0
+        return cls._state_0
 
     @classmethod
     def get_state_1(cls):
-        return NewtonManager._state_1
+        return cls._state_1
 
     @classmethod
     def get_control(cls):
-        return NewtonManager._control
+        return cls._control
 
     @classmethod
     def get_dt(cls):
-        return NewtonManager._dt
+        return cls._dt
 
     @classmethod
     def get_solver_dt(cls):
-        return NewtonManager._solver_dt
+        return cls._solver_dt
 
     @classmethod
     def forward_kinematics(cls, mask: wp.array | None = None) -> None:
@@ -348,25 +449,40 @@ class NewtonManager:
         This function evaluates the forward kinematics for the selected articulations.
         """
         eval_fk(
-            NewtonManager._model,
-            NewtonManager._state_0.joint_q,
-            NewtonManager._state_0.joint_qd,
-            NewtonManager._state_0,
+            cls._model,
+            cls._state_0.joint_q,
+            cls._state_0.joint_qd,
+            cls._state_0,
             None,
         )
 
     @classmethod
-    def _get_solver(cls, model: Model, solver_cfg: dict) -> SolverBase:
-        NewtonManager._solver_type = solver_cfg.pop("solver_type")
+    def _get_solver(cls, model: Model, solver_cfg: "NewtonSolverCfg") -> SolverBase:
+        """Create and return the appropriate solver based on config.
 
-        if NewtonManager._solver_type == "mujoco_warp":
-            return SolverMuJoCo(model, **solver_cfg)
-        elif NewtonManager._solver_type == "xpbd":
-            return SolverXPBD(model, **solver_cfg)
-        elif NewtonManager._solver_type == "featherstone":
-            return SolverFeatherstone(model, **solver_cfg)
+        Args:
+            model: The Newton model.
+            solver_cfg: Solver configuration.
+
+        Returns:
+            The initialized solver.
+        """
+        # Convert config to dict if needed (configclass adds to_dict method)
+        if hasattr(solver_cfg, "to_dict"):
+            cfg_dict = solver_cfg.to_dict()  # type: ignore[union-attr]
         else:
-            raise ValueError(f"Invalid solver type: {NewtonManager._solver_type}")
+            cfg_dict = dict(solver_cfg) if isinstance(solver_cfg, dict) else {}  # type: ignore[arg-type]
+
+        cls._solver_type = cfg_dict.pop("solver_type", "mujoco_warp")
+
+        if cls._solver_type == "mujoco_warp":
+            return SolverMuJoCo(model, **cfg_dict)
+        elif cls._solver_type == "xpbd":
+            return SolverXPBD(model, **cfg_dict)
+        elif cls._solver_type == "featherstone":
+            return SolverFeatherstone(model, **cfg_dict)
+        else:
+            raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
     @classmethod
     def add_contact_sensor(
@@ -421,8 +537,8 @@ class NewtonManager:
                         f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
                     )
 
-        NewtonManager._newton_contact_sensor = NewtonContactSensor(
-            NewtonManager._model,
+        cls._newton_contact_sensor = NewtonContactSensor(
+            cls._model,
             sensing_obj_bodies=body_names_expr,
             sensing_obj_shapes=shape_names_expr,
             counterpart_bodies=contact_partners_body_expr,
@@ -432,4 +548,4 @@ class NewtonManager:
             prune_noncolliding=prune_noncolliding,
             verbose=verbose,
         )
-        NewtonManager._report_contacts = True
+        cls._report_contacts = True
