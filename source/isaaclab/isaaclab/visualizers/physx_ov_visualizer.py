@@ -737,7 +737,7 @@ class PhysxOVVisualizer(Visualizer):
 
         # compute rendering frequency
         render_interval = max(cfg.render_interval, 1)
-        rendering_hz = int(1.0 / (cfg.dt * render_interval))
+        rendering_hz = int(1.0 / (cfg.physics_manager_cfg.dt * render_interval))
 
         # If rate limiting is enabled, set the rendering rate to the specified value
         # Otherwise run the app as fast as possible and do not specify the target rate
@@ -756,7 +756,7 @@ class PhysxOVVisualizer(Visualizer):
             import omni.kit.loop._loop as omni_loop
 
             _loop_runner = omni_loop.acquire_loop_interface()
-            _loop_runner.set_manual_step_size(cfg.dt * render_interval)
+            _loop_runner.set_manual_step_size(cfg.physics_manager_cfg.dt * render_interval)
             _loop_runner.set_manual_mode(True)
         except Exception:
             logger.warning(

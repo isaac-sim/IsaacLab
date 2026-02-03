@@ -204,7 +204,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1 / 200  # 200Hz
+        self.sim.physics_manager_cfg.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
 
         # Set the URDF and mesh paths for the IK controller

@@ -192,13 +192,13 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 4  # env decimation -> 50 Hz control
         # simulation settings
-        self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
+        self.sim.physics_manager_cfg.dt = 0.005  # simulation timestep -> 200 Hz physics
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.device = args_cli.device
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
-            self.scene.height_scanner.update_period = self.decimation * self.sim.dt  # 50 Hz
+            self.scene.height_scanner.update_period = self.decimation * self.sim.physics_manager_cfg.dt  # 50 Hz
 
 
 def main():

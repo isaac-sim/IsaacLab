@@ -31,7 +31,7 @@ class VisualizerInterface(Interface):
             sim_context: Parent simulation context.
         """
         super().__init__(sim_context)
-        self.dt = self._sim.cfg.dt * self._sim.cfg.render_interval
+        self.dt = self._sim.cfg.physics_manager_cfg.dt * self._sim.cfg.render_interval
 
         # Visualizer state
         visualizers = "omniverse"

@@ -293,7 +293,7 @@ def main():
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
     # create state machine
-    open_sm = OpenDrawerSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+    open_sm = OpenDrawerSm(env_cfg.sim.physics_manager_cfg.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
     while simulation_app.is_running():
         # run everything in inference mode

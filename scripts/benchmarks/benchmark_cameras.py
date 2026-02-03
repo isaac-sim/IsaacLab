@@ -509,7 +509,7 @@ def inject_cameras_into_task(
     """Loads the task, sticks cameras into the config, and creates the environment."""
     cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     cfg.sim.device = args_cli.device
-    cfg.sim.use_fabric = args_cli.use_fabric
+    cfg.sim.physics_manager_cfg.use_fabric = args_cli.use_fabric
     scene_cfg = cfg.scene
 
     num_envs = int(num_cams / num_cameras_per_env)

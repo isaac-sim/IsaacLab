@@ -125,7 +125,7 @@ def test_initialization(num_cubes, device):
             # perform rendering
             sim.step()
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -157,7 +157,7 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
             # perform rendering
             sim.step()
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
             # check that the object is kinematic
             default_root_state = cube_object.data.default_root_state.clone()
             default_root_state[:, :3] += origins
@@ -276,7 +276,7 @@ def test_external_force_buffer(device):
             sim.step()
 
             # update buffers
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
@@ -331,7 +331,7 @@ def test_external_force_on_single_body(num_cubes, device):
                 sim.step()
 
                 # update buffers
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # First object should still be at the same Z position (1.0)
             torch.testing.assert_close(
@@ -397,7 +397,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
                 sim.step()
 
                 # update buffers
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # The first object should be rotating around it's X axis
             assert torch.all(torch.abs(cube_object.data.root_ang_vel_b[0::2, 0]) > 0.1)
@@ -469,7 +469,7 @@ def test_set_rigid_object_state(num_cubes, device):
                         value = getattr(cube_object.data, key)
                         torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
-                    cube_object.update(sim.cfg.dt)
+                    cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -490,7 +490,7 @@ def test_reset_rigid_object(num_cubes, device):
             sim.step()
 
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # Move the object to a random position
             root_state = cube_object.data.default_root_state.clone()
@@ -541,7 +541,7 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         # perform rendering
         sim.step()
         # update object
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
         # Get material properties
         materials_to_check = cube_object.root_physx_view.get_material_properties()
@@ -595,7 +595,7 @@ def test_rigid_body_no_friction(num_cubes, device):
             # perform rendering
             sim.step()
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # Non-deterministic when on GPU, so we use different tolerances
             if device == "cuda:0":
@@ -652,10 +652,10 @@ def test_rigid_body_with_static_friction(num_cubes, device):
         # let everything settle
         for _ in range(100):
             sim.step()
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
         cube_object.write_root_velocity_to_sim(torch.zeros((num_cubes, 6), device=sim.device))
         cube_mass = cube_object.root_physx_view.get_masses()
-        gravity_magnitude = abs(sim.cfg.gravity[2])
+        gravity_magnitude = abs(sim.cfg.physics_manager_cfg.gravity[2])
         # 2 cases: force applied is below and above mu
         # below mu: block should not move as the force applied is <= mu
         # above mu: block should move as the force applied is > mu
@@ -682,7 +682,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                 cube_object.write_data_to_sim()
                 sim.step()
                 # update object
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
                 if force == "below_mu":
                     # Assert that the block has not moved
                     torch.testing.assert_close(cube_object.data.root_pos_w, initial_root_pos, rtol=2e-3, atol=2e-3)
@@ -750,7 +750,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 sim.step()
 
                 # update object
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
                 curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2].clone()
 
                 if expected_collision_type == "inelastic":
@@ -804,7 +804,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         # perform rendering
         sim.step()
         # update object
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
         masses_to_check = cube_object.root_physx_view.get_masses()
 
@@ -842,7 +842,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
             # perform rendering
             sim.step()
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # Expected gravity value is the acceleration of the body
             gravity = torch.zeros(num_cubes, 1, 6, device=device)
@@ -895,7 +895,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
             # perform rendering
             sim.step()
             # update object
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             # get state properties
             root_state_w = cube_object.data.root_state_w
@@ -1001,7 +1001,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
             # perform step
             sim.step()
             # update buffers
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             if state_location == "com":
                 if i % 2 == 0:
@@ -1063,7 +1063,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         # perform step
         sim.step()
         # update buffers
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
         if state_location == "com":
             cube_object.write_root_com_state_to_sim(rand_state)

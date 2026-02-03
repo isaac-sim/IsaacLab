@@ -297,7 +297,7 @@ def main():
     object_local_grasp_position = torch.tensor([0.02, -0.08, 0.0], device=env.unwrapped.device)
 
     # create state machine
-    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+    pick_sm = PickAndLiftSm(env_cfg.sim.physics_manager_cfg.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
     while simulation_app.is_running():
         # run everything in inference mode

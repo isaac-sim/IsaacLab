@@ -301,7 +301,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 2
         # simulation settings
-        self.sim.dt = 0.01
+        self.sim.physics_manager_cfg.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device

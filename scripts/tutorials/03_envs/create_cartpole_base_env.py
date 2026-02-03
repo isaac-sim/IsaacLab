@@ -132,7 +132,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
-        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+        self.sim.physics_manager_cfg.dt = 0.005  # sim step every 5ms: 200Hz
 
 
 def main():

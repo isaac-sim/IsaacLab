@@ -252,7 +252,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -310,7 +310,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -367,7 +367,7 @@ def test_initialization_fixed_base(sim, num_articulations, device):
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # check that the root is at the correct state - its default state as it is fixed base
         default_root_state = articulation.data.default_root_state.clone()
@@ -431,7 +431,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # check that the root is at the correct state - its default state as it is fixed base
         default_root_state = articulation.data.default_root_state.clone()
@@ -491,7 +491,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -544,7 +544,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # check that the root is at the correct state - its default state as it is fixed base
         default_root_state = articulation.data.default_root_state.clone()
@@ -603,7 +603,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -861,7 +861,7 @@ def test_external_force_buffer(sim, num_articulations, device):
         sim.step()
 
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -917,7 +917,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
             # perform step
             sim.step()
             # update buffers
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
         # check condition that the articulations have fallen down
         for i in range(num_articulations):
             assert articulation.data.root_pos_w[i, 2].item() < 0.2
@@ -984,7 +984,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             # perform step
             sim.step()
             # update buffers
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
         # check condition that the articulations have fallen down
         for i in range(num_articulations):
             assert articulation.data.root_pos_w[i, 2].item() < 0.2
@@ -1042,7 +1042,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
             # perform step
             sim.step()
             # update buffers
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
         # check condition
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
@@ -1108,7 +1108,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             # perform step
             sim.step()
             # update buffers
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
         # check condition
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
@@ -1523,7 +1523,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
     # reset dof state
     joint_pos = articulation.data.default_joint_pos
@@ -1537,7 +1537,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
     # Check that current joint position is not the same as default joint position, meaning
     # the articulation moved. We can't check that it reached its desired joint position as the gains
@@ -1597,7 +1597,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # get state properties
         root_state_w = articulation.data.root_state_w
@@ -1717,7 +1717,7 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         if state_location == "com":
             if i % 2 == 0:
@@ -1778,7 +1778,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # check shape
         assert articulation.data.body_incoming_joint_wrench_b.shape == (num_articulations, articulation.num_bodies, 6)
@@ -1789,7 +1789,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     quat_w = articulation.data.body_quat_w
 
     mass_link2 = mass[:, 1].view(num_articulations, -1)
-    gravity = torch.tensor(sim.cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
+    gravity = torch.tensor(sim.cfg.physics_manager_cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
 
     # NOTE: the com and link pose for single joint are colocated
     weight_vector_w = mass_link2 * gravity
@@ -1988,7 +1988,7 @@ def test_spatial_tendons(sim, num_articulations, device):
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])
@@ -2008,7 +2008,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
     # apply action to the articulation
     dynamic_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
@@ -2030,7 +2030,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # perform step
         sim.step()
         # update buffers
-        articulation.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
 
     if get_isaac_sim_version().major >= 5:
         friction_props_from_sim = articulation.root_physx_view.get_dof_friction_properties()
@@ -2053,7 +2053,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # Warm up a few steps to populate buffers
         for _ in range(100):
             sim.step()
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         # New random coefficients
         dynamic_friction_2 = torch.rand(num_articulations, articulation.num_joints, device=device)
@@ -2074,7 +2074,7 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # Step to let sim ingest new params and refresh data buffers
         for _ in range(100):
             sim.step()
-            articulation.update(sim.cfg.dt)
+            articulation.update(sim.cfg.physics_manager_cfg.dt)
 
         friction_props_from_sim_2 = articulation.root_physx_view.get_dof_friction_properties()
         joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]

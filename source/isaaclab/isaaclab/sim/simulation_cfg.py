@@ -168,9 +168,6 @@ class RenderCfg:
 class SimulationCfg:
     """Configuration for simulation physics."""
 
-    physics_prim_path: str = "/physicsScene"
-    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
-
     device: str = "cuda:0"
     """The device to run the simulation on. Default is ``"cuda:0"``.
 
@@ -181,17 +178,8 @@ class SimulationCfg:
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
-    dt: float = 1.0 / 60.0
-    """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
-
     render_interval: int = 1
     """The number of physics simulation steps per rendering step. Default is 1."""
-
-    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
-    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81).
-
-    If set to (0.0, 0.0, 0.0), gravity is disabled.
-    """
 
     enable_scene_query_support: bool = False
     """Enable/disable scene query support for collision shapes. Default is False.
@@ -206,26 +194,6 @@ class SimulationCfg:
     Note:
         This flag is overridden to True inside the :class:`SimulationContext` class when running the simulation
         with the GUI enabled. This is to allow certain GUI features to work properly.
-    """
-
-    use_fabric: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
-
-    When running the simulation, updates in the states in the scene is normally synchronized with USD.
-    This leads to an overhead in reading the data and does not scale well with massive parallelization.
-    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
-
-    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
-    of primitives in the scene.
-
-    Note:
-        When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
-        updates, please set this flag to :obj:`False`.
-
-        When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.
-        Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,
-        the renderer will not be able to render any updates in the simulation, although simulation will still be
-        running under the hood.
     """
 
     physics_manager_cfg: PhysicsManagerCfg = PhysxManagerCfg()

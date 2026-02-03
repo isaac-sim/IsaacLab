@@ -66,7 +66,7 @@ class ManagerBasedEnv:
     The environment steps forward in time at a fixed time-step. The physics simulation is decimated at a
     lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
     independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of simulation steps per environment step)
-    and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step) parameters. Based on these parameters, the
+    and the :attr:`ManagerBasedEnvCfg.sim.physics_manager_cfg.dt` (physics time-step) parameters. Based on these parameters, the
     environment time-step is computed as the product of the two. The two time-steps can be obtained by
     querying the :attr:`physics_dt` and the :attr:`step_dt` properties respectively.
     """
@@ -221,7 +221,7 @@ class ManagerBasedEnv:
 
         This is the lowest time-decimation at which the simulation is happening.
         """
-        return self.cfg.sim.dt
+        return self.cfg.sim.physics_manager_cfg.dt
 
     @property
     def step_dt(self) -> float:
@@ -229,7 +229,7 @@ class ManagerBasedEnv:
 
         This is the time-step at which the environment steps forward.
         """
-        return self.cfg.sim.dt * self.cfg.decimation
+        return self.cfg.sim.physics_manager_cfg.dt * self.cfg.decimation
 
     @property
     def device(self):
@@ -445,7 +445,7 @@ class ManagerBasedEnv:
         The environment steps forward at a fixed time-step, while the physics simulation is
         decimated at a lower time-step. This is to ensure that the simulation is stable. These two
         time-steps can be configured independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).
+        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.physics_manager_cfg.dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
         Args:

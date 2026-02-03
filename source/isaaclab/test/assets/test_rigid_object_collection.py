@@ -131,7 +131,7 @@ def test_initialization(sim, num_envs, num_cubes, device):
     # Simulate physics
     for _ in range(2):
         sim.step()
-        object_collection.update(sim.cfg.dt)
+        object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -193,7 +193,7 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
     # Simulate physics
     for _ in range(2):
         sim.step()
-        object_collection.update(sim.cfg.dt)
+        object_collection.update(sim.cfg.physics_manager_cfg.dt)
         # check that the object is kinematic
         default_object_state = object_collection.data.default_object_state.clone()
         default_object_state[..., :3] += origins.unsqueeze(1)
@@ -268,7 +268,7 @@ def test_external_force_buffer(sim, device):
         # apply action to the object collection
         object_collection.write_data_to_sim()
         sim.step()
-        object_collection.update(sim.cfg.dt)
+        object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -307,7 +307,7 @@ def test_external_force_on_single_body(sim, num_envs, num_cubes, device):
             # step sim
             sim.step()
             # update object collection
-            object_collection.update(sim.cfg.dt)
+            object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
         # First object should still be at the same Z position (1.0)
         torch.testing.assert_close(
@@ -364,7 +364,7 @@ def test_external_force_on_single_body_at_position(sim, num_envs, num_cubes, dev
             # step sim
             sim.step()
             # update object collection
-            object_collection.update(sim.cfg.dt)
+            object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
         # First object should be rotating around it's X axis
         assert torch.all(object_collection.data.object_ang_vel_b[:, 0::2, 0] > 0.1)
@@ -434,7 +434,7 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
                     value = getattr(object_collection.data, key)
                     torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
-                object_collection.update(sim.cfg.dt)
+                object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_envs", [1, 4])
@@ -477,7 +477,7 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
         # spin the object around Z axis (com)
         cube_object.write_object_velocity_to_sim(spin_twist.repeat(num_envs, num_cubes, 1))
         sim.step()
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
         # get state properties
         object_state_w = cube_object.data.object_state_w
@@ -570,7 +570,7 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
     object_ids = object_ids.to(device)
     for i in range(10):
         sim.step()
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
         if state_location == "com":
             if i % 2 == 0:
@@ -599,7 +599,7 @@ def test_reset_object_collection(sim, num_envs, num_cubes, device):
 
     for i in range(5):
         sim.step()
-        object_collection.update(sim.cfg.dt)
+        object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
         # Move the object to a random position
         object_state = object_collection.data.default_object_state.clone()
@@ -640,7 +640,7 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 
     # Perform simulation
     sim.step()
-    object_collection.update(sim.cfg.dt)
+    object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
     # Get material properties
     materials_to_check = object_collection.root_physx_view.get_material_properties()
@@ -670,7 +670,7 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
     # Perform simulation
     for _ in range(2):
         sim.step()
-        object_collection.update(sim.cfg.dt)
+        object_collection.update(sim.cfg.physics_manager_cfg.dt)
 
         # Expected gravity value is the acceleration of the body
         gravity = torch.zeros(num_envs, num_cubes, 6, device=device)
@@ -724,7 +724,7 @@ def test_write_object_state_functions_data_consistency(
     env_ids = env_ids.to(device)
     object_ids = object_ids.to(device)
     sim.step()
-    cube_object.update(sim.cfg.dt)
+    cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
     object_link_to_com_pos, object_link_to_com_quat = subtract_frame_transforms(
         cube_object.data.object_link_state_w[..., :3].view(-1, 3),

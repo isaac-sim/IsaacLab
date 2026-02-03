@@ -148,7 +148,7 @@ def parse_env_cfg(
     cfg.sim.device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
-        cfg.sim.use_fabric = use_fabric
+        cfg.sim.physics_manager_cfg.use_fabric = use_fabric
     # number of environments
     if num_envs is not None:
         cfg.scene.num_envs = num_envs

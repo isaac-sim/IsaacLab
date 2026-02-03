@@ -335,7 +335,7 @@ def test_clear_stage():
     assert not sim.stage.GetPrimAtPath("/World/Cube1").IsValid()
     assert not sim.stage.GetPrimAtPath("/World/Cube2").IsValid()
     assert sim.stage.GetPrimAtPath("/World").IsValid()
-    assert sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path).IsValid()
+    assert sim.stage.GetPrimAtPath(sim.cfg.physics_manager_cfg.physics_prim_path).IsValid()
 
 
 """

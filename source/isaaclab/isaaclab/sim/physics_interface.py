@@ -40,11 +40,13 @@ class PhysicsInterface(Interface):
         """
         super().__init__(sim_context)
 
-        self.physics_prim_path = self._sim.cfg.physics_prim_path
+        # Get config reference
+        self._cfg = self._sim.cfg.physics_manager_cfg
+        self.physics_prim_path = self._cfg.physics_prim_path
         self.backend = "torch"
 
         # Get the physics manager class from config
-        self.physics_manager: type[PhysicsManager] = self._sim.cfg.physics_manager_cfg.create_manager()
+        self.physics_manager: type[PhysicsManager] = self._cfg.create_manager()
 
         # Initialize USD physics scene
         self._init_usd_physics_scene()
@@ -59,7 +61,7 @@ class PhysicsInterface(Interface):
     @property
     def rendering_dt(self) -> float:
         """Rendering timestep."""
-        return self._sim.cfg.dt * self._sim.cfg.render_interval
+        return self._cfg.dt * self._cfg.render_interval
 
     @property
     def device(self) -> str:
@@ -90,13 +92,13 @@ class PhysicsInterface(Interface):
                     sim_utils.delete_prim(prim.GetPath().pathString, stage=stage)
 
             # Create a new physics scene
-            if stage.GetPrimAtPath(self._sim.cfg.physics_prim_path).IsValid():
-                raise RuntimeError(f"A prim already exists at path '{self._sim.cfg.physics_prim_path}'.")
+            if stage.GetPrimAtPath(self._cfg.physics_prim_path).IsValid():
+                raise RuntimeError(f"A prim already exists at path '{self._cfg.physics_prim_path}'.")
 
-            physics_scene = UsdPhysics.Scene.Define(stage, self._sim.cfg.physics_prim_path)
+            physics_scene = UsdPhysics.Scene.Define(stage, self._cfg.physics_prim_path)
 
             # Pre-create gravity tensor to avoid torch heap corruption issues (torch 2.1+)
-            gravity = torch.tensor(self._sim.cfg.gravity, dtype=torch.float32, device=self._sim.cfg.device)
+            gravity = torch.tensor(self._cfg.gravity, dtype=torch.float32, device=self._cfg.device)
             gravity_magnitude = torch.norm(gravity).item()
 
             # Avoid division by zero

@@ -230,12 +230,12 @@ class SimulationContext:
         Returns:
             The physics time step of the simulation.
         """
-        return self.cfg.dt
+        return self.cfg.physics_manager_cfg.dt
 
     @property
     def physics_prim_path(self) -> str:
         """The path to the physics scene prim."""
-        return self.cfg.physics_prim_path
+        return self.cfg.physics_manager_cfg.physics_prim_path
 
     def get_rendering_dt(self) -> float:
         """Returns the rendering time step of the simulation.
@@ -243,7 +243,7 @@ class SimulationContext:
         Returns:
             The rendering time step of the simulation.
         """
-        return self.cfg.dt * self.cfg.render_interval
+        return self.cfg.physics_manager_cfg.dt * self.cfg.render_interval
 
     """
     Operations - Utilities.
@@ -496,17 +496,12 @@ def build_simulation_context(
             sim_utils.create_new_stage()
 
         if sim_cfg is None:
-            # Construct one and overwrite the dt, gravity, and device
-            sim_cfg = SimulationCfg(dt=dt)
+            # Construct one and overwrite the dt, gravity, and device in physics_manager_cfg
+            from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 
-            # Set up gravity
-            if gravity_enabled:
-                sim_cfg.gravity = (0.0, 0.0, -9.81)
-            else:
-                sim_cfg.gravity = (0.0, 0.0, 0.0)
-
-            # Set device
-            sim_cfg.device = device
+            gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
+            physics_manager_cfg = PhysxManagerCfg(dt=dt, device=device, gravity=gravity)
+            sim_cfg = SimulationCfg(physics_manager_cfg=physics_manager_cfg)
 
         # Construct simulation context
         sim = SimulationContext(sim_cfg)

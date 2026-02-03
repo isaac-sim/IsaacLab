@@ -73,7 +73,7 @@ def main():
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
     robot_mass = robot.root_physx_view.get_masses().sum()
-    gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
+    gravity = torch.tensor(sim.cfg.physics_manager_cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
     print("[INFO]: Setup complete...")

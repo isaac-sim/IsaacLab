@@ -135,17 +135,17 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
 
-        self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
+        self.sim.physics_manager_cfg.dt = LOW_LEVEL_ENV_CFG.sim.physics_manager_cfg.dt
         self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
         self.decimation = LOW_LEVEL_ENV_CFG.decimation * 10
         self.episode_length_s = self.commands.pose_command.resampling_time_range[1]
 
         if self.scene.height_scanner is not None:
             self.scene.height_scanner.update_period = (
-                self.actions.pre_trained_policy_action.low_level_decimation * self.sim.dt
+                self.actions.pre_trained_policy_action.low_level_decimation * self.sim.physics_manager_cfg.dt
             )
         if self.scene.contact_forces is not None:
-            self.scene.contact_forces.update_period = self.sim.dt
+            self.scene.contact_forces.update_period = self.sim.physics_manager_cfg.dt
 
 
 class NavigationEnvCfg_PLAY(NavigationEnvCfg):

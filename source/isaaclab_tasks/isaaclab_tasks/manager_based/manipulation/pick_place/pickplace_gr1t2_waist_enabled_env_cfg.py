@@ -51,7 +51,7 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1 / 120  # 120Hz
+        self.sim.physics_manager_cfg.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
 
         # Add waist joint to pink_ik_cfg

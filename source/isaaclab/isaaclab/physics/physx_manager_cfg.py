@@ -15,24 +15,53 @@ from .physics_manager_cfg import PhysicsManagerCfg
 
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
+    from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
 
 @configclass
 class PhysxManagerCfg(PhysicsManagerCfg):
     """Configuration for PhysX physics manager.
 
-    This configuration includes all PhysX solver settings. For more information,
+    This configuration includes all PhysX-specific settings including solver
+    parameters, scene configuration, and GPU buffer sizes. For more information,
     see the `PhysX 5 SDK documentation`_.
 
     PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default,
-    but can be disabled by setting the :attr:`~SimulationCfg.device` to ``cpu`` in
-    :class:`SimulationCfg`. Unlike CPU PhysX, the GPU simulation feature is unable
-    to dynamically grow all the buffers. Therefore, it is necessary to provide a
-    reasonable estimate of the buffer sizes for GPU features. If insufficient buffer
-    sizes are provided, the simulation will fail with errors and lead to adverse
-    behaviors. The buffer sizes can be adjusted through the ``gpu_*`` parameters.
+    but can be disabled by setting :attr:`device` to ``cpu``. Unlike CPU PhysX, the
+    GPU simulation feature is unable to dynamically grow all the buffers. Therefore,
+    it is necessary to provide a reasonable estimate of the buffer sizes for GPU
+    features. If insufficient buffer sizes are provided, the simulation will fail
+    with errors and lead to adverse behaviors. The buffer sizes can be adjusted
+    through the ``gpu_*`` parameters.
 
     .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxSceneDesc.html
+    """
+
+    # ------------------------------------------------------------------
+    # PhysX Scene Settings
+    # ------------------------------------------------------------------
+
+    physics_prim_path: str = "/physicsScene"
+    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
+
+    use_fabric: bool = True
+    """Enable/disable reading of physics buffers directly. Default is True.
+
+    When running the simulation, updates in the states in the scene is normally synchronized with USD.
+    This leads to an overhead in reading the data and does not scale well with massive parallelization.
+    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
+
+    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
+    of primitives in the scene.
+    """
+
+    physics_material: "RigidBodyMaterialCfg | None" = None
+    """Default physics material settings for rigid bodies. Default is None (uses RigidBodyMaterialCfg defaults).
+
+    The physics engine defaults to this physics material for all the rigid body prims that do not have any
+    physics material specified on them.
+
+    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
     # ------------------------------------------------------------------

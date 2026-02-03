@@ -365,7 +365,7 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1 / 120  # 120Hz
+        self.sim.physics_manager_cfg.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
 
         # Convert USD to URDF and change revolute joints to fixed

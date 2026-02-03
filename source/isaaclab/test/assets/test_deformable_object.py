@@ -133,7 +133,7 @@ def test_initialization(sim, num_cubes, material_path):
     # Simulate physics
     for _ in range(2):
         sim.step()
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
     # Check sim data
     assert cube_object.data.sim_element_quat_w.shape == (num_cubes, cube_object.max_sim_elements_per_body, 4)
@@ -200,7 +200,7 @@ def test_initialization_with_kinematic_enabled(sim, num_cubes):
     # Simulate physics
     for _ in range(2):
         sim.step()
-        cube_object.update(sim.cfg.dt)
+        cube_object.update(sim.cfg.physics_manager_cfg.dt)
         default_nodal_state_w = cube_object.data.default_nodal_state_w.clone()
         torch.testing.assert_close(cube_object.data.nodal_state_w, default_nodal_state_w)
 
@@ -254,7 +254,7 @@ def test_set_nodal_state(sim, num_cubes):
                 torch.testing.assert_close(cube_object.data.nodal_state_w, nodal_state, rtol=1e-5, atol=1e-5)
 
                 sim.step()
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -300,7 +300,7 @@ def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, r
 
             for _ in range(50):
                 sim.step()
-                cube_object.update(sim.cfg.dt)
+                cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             torch.testing.assert_close(cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5)
 
@@ -331,7 +331,7 @@ def test_set_kinematic_targets(sim, num_cubes):
 
         for _ in range(20):
             sim.step()
-            cube_object.update(sim.cfg.dt)
+            cube_object.update(sim.cfg.physics_manager_cfg.dt)
 
             torch.testing.assert_close(
                 cube_object.data.nodal_pos_w[0], nodal_kinematic_targets[0, :, :3], rtol=1e-5, atol=1e-5

@@ -193,7 +193,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         assert num_physics_steps == (i + 1) * env.cfg.decimation, "Physics steps mismatch"
         # check that we have simulated physics for the correct amount of time
         physics_time, _ = get_physics_stats()
-        assert abs(physics_time - num_physics_steps * env.cfg.sim.dt) < 1e-6, "Physics time mismatch"
+        assert abs(physics_time - num_physics_steps * env.cfg.sim.physics_manager_cfg.dt) < 1e-6, "Physics time mismatch"
 
         # check that we have completed the correct number of rendering steps
         _, num_render_steps = get_render_stats()
@@ -201,7 +201,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         # check that we have rendered for the correct amount of time
         render_time, _ = get_render_stats()
         assert (
-            abs(render_time - num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval) < 1e-6
+            abs(render_time - num_render_steps * env.cfg.sim.physics_manager_cfg.dt * env.cfg.sim.render_interval) < 1e-6
         ), "Render time mismatch"
 
     # close the environment

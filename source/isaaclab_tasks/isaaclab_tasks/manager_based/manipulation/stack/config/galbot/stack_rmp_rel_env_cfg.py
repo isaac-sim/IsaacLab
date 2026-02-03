@@ -59,7 +59,7 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
         )
 
         # Set the simulation parameters
-        self.sim.dt = 1 / 60
+        self.sim.physics_manager_cfg.dt = 1 / 60
         self.sim.render_interval = 6
 
         self.decimation = 3
@@ -126,7 +126,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             use_relative_mode=self.use_relative_mode,
         )
         # Set the simulation parameters
-        self.sim.dt = 1 / 120
+        self.sim.physics_manager_cfg.dt = 1 / 120
         self.sim.render_interval = 6
 
         self.decimation = 6

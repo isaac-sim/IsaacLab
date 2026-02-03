@@ -126,7 +126,7 @@ def test_camera_init(setup_sim_camera):
         # perform rendering
         sim.step()
         # update camera
-        camera.update(sim.cfg.dt)
+        camera.update(sim.cfg.physics_manager_cfg.dt)
         # check image data
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)

@@ -189,7 +189,7 @@ class FrankaCabinetEnv(DirectRLEnv):
 
             return torch.tensor([px, py, pz, qw, qx, qy, qz], device=device)
 
-        self.dt = self.cfg.sim.dt * self.cfg.decimation
+        self.dt = self.cfg.sim.physics_manager_cfg.dt * self.cfg.decimation
 
         # create auxiliary variables for computing applied action, observations and rewards
         self.robot_dof_lower_limits = self._robot.data.soft_joint_pos_limits[0, :, 0].to(device=self.device)

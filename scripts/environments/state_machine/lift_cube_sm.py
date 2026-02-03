@@ -276,7 +276,7 @@ def main():
     desired_orientation[:, 1] = 1.0
     # create state machine
     pick_sm = PickAndLiftSm(
-        env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
+        env_cfg.sim.physics_manager_cfg.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
     )
 
     while simulation_app.is_running():

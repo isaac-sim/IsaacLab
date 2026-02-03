@@ -196,8 +196,8 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
         # perform rendering
         sim.step()
         # update articulation
-        articulation.update(sim.cfg.dt)
-        surface_gripper.update(sim.cfg.dt)
+        articulation.update(sim.cfg.physics_manager_cfg.dt)
+        surface_gripper.update(sim.cfg.physics_manager_cfg.dt)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

@@ -102,7 +102,7 @@ class LocomotionEnv(DirectRLEnv):
             self.basis_vec1,
             self.potentials,
             self.prev_potentials,
-            self.cfg.sim.dt,
+            self.cfg.sim.physics_manager_cfg.dt,
         )
 
     def _get_observations(self) -> dict:
@@ -169,7 +169,7 @@ class LocomotionEnv(DirectRLEnv):
 
         to_target = self.targets[env_ids] - default_root_state[:, :3]
         to_target[:, 2] = 0.0
-        self.potentials[env_ids] = -torch.norm(to_target, p=2, dim=-1) / self.cfg.sim.dt
+        self.potentials[env_ids] = -torch.norm(to_target, p=2, dim=-1) / self.cfg.sim.physics_manager_cfg.dt
 
         self._compute_intermediate_values()
 

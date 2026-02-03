@@ -422,7 +422,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.is_finite_horizon = True
 
         # simulation settings
-        self.sim.dt = 1 / 120
+        self.sim.physics_manager_cfg.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
         self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01

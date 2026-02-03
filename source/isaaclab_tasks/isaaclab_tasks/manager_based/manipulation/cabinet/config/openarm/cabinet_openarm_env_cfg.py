@@ -275,7 +275,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (-2.0, 2.0, 2.0)
         self.viewer.lookat = (0.8, 0.0, 0.5)
         # simulation settings
-        self.sim.dt = 1 / 60  # 60Hz
+        self.sim.physics_manager_cfg.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
         self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
         self.sim.physics_manager_cfg.friction_correlation_distance = 0.00625

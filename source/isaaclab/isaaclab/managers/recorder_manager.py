@@ -437,7 +437,7 @@ class RecorderManager(ManagerBase):
             # Add basic episode metadata
             ep_meta = dict()
             ep_meta["sim_args"] = {
-                "dt": self._env.cfg.sim.dt,
+                "dt": self._env.cfg.sim.physics_manager_cfg.dt,
                 "decimation": self._env.cfg.decimation,
                 "render_interval": self._env.cfg.sim.render_interval,
                 "num_envs": self._env.cfg.scene.num_envs,

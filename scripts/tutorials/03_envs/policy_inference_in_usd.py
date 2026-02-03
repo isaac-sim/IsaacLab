@@ -69,7 +69,7 @@ def main():
     )
     env_cfg.sim.device = args_cli.device
     if args_cli.device == "cpu":
-        env_cfg.sim.use_fabric = False
+        env_cfg.sim.physics_manager_cfg.use_fabric = False
 
     # create environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
