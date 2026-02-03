@@ -22,3 +22,10 @@ ISAACLAB_CONTRIB_METADATA = toml.load(os.path.join(ISAACLAB_CONTRIB_EXT_DIR, "co
 
 # Configure the module-level variables
 __version__ = ISAACLAB_CONTRIB_METADATA["package"]["version"]
+
+# Configure deprecation warnings to show only once per session (regardless of call site)
+# This prevents repeated warnings when deprecated properties are accessed from multiple locations
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=r"isaaclab_contrib.*")
+warnings.filterwarnings("once", category=FutureWarning, module=r"isaaclab_contrib.*")
