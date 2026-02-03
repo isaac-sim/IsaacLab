@@ -129,10 +129,10 @@ class NewtonManager:
         for callback in NewtonManager._on_init_callbacks:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
-        NewtonManager._builder.gravity = np.array(NewtonManager._gravity_vector)[-1]
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
+            NewtonManager._model.set_gravity(NewtonManager._gravity_vector)
             NewtonManager._model.num_envs = NewtonManager._num_envs
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
@@ -191,7 +191,6 @@ class NewtonManager:
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
-            print(NewtonManager._model.gravity)
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
             if isinstance(NewtonManager._solver, SolverMuJoCo):
                 NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(

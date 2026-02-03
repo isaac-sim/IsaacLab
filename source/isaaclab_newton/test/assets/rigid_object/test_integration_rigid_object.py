@@ -559,11 +559,11 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 
         # Set material properties
         num_shapes_per_body = cube_object.num_shapes_per_body
-        shape_material_mu = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 1.0
-        shape_material_rolling_friction = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 2.0
-        shape_material_torsional_friction = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 3.0
-        shape_material_ke = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 4.0
-        shape_material_kd = torch.zeros(num_cubes, num_shapes_per_body[0], device=sim.device) + 5.0
+        shape_material_mu = torch.zeros(num_cubes, 1, num_shapes_per_body[0], device=sim.device) + 1.0
+        shape_material_rolling_friction = torch.zeros(num_cubes, 1, num_shapes_per_body[0], device=sim.device) + 2.0
+        shape_material_torsional_friction = torch.zeros(num_cubes, 1, num_shapes_per_body[0], device=sim.device) + 3.0
+        shape_material_ke = torch.zeros(num_cubes, 1, num_shapes_per_body[0], device=sim.device) + 4.0
+        shape_material_kd = torch.zeros(num_cubes, 1, num_shapes_per_body[0], device=sim.device) + 5.0
 
         # Add friction to cube
         cube_object.root_view.set_attribute("shape_material_mu", NewtonManager.get_model(), shape_material_mu)
