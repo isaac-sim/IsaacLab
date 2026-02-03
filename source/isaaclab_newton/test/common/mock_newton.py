@@ -172,7 +172,9 @@ class MockNewtonArticulationView:
         # Initialize default attributes
         self._attributes: dict = {}
         self._attributes["body_com"] = wp.zeros((self._count, 1, self._link_count), dtype=wp.vec3f, device=self._device)
-        self._attributes["body_mass"] = wp.zeros((self._count, 1, self._link_count), dtype=wp.float32, device=self._device)
+        self._attributes["body_mass"] = wp.zeros(
+            (self._count, 1, self._link_count), dtype=wp.float32, device=self._device
+        )
         self._attributes["body_inertia"] = wp.zeros(
             (self._count, 1, self._link_count), dtype=wp.mat33f, device=self._device
         )

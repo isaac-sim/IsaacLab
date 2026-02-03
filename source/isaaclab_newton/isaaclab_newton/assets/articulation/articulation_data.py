@@ -2175,8 +2175,6 @@ class ArticulationData(BaseArticulationData):
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
         # Short-hand for the number of instances, number of links, and number of joints.
-        n_view = self._root_view.count
-        n_link = self._root_view.link_count
         n_dof = self._root_view.joint_dof_count
 
         # -- root properties
@@ -2201,12 +2199,24 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())[:, 0]
         # -- joint properties
         if n_dof > 0:
-            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute("joint_limit_lower", NewtonManager.get_model())[:, 0]
-            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute("joint_limit_upper", NewtonManager.get_model())[:, 0]
-            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute("joint_target_ke", NewtonManager.get_model())[:, 0]
-            self._sim_bind_joint_damping_sim = self._root_view.get_attribute("joint_target_kd", NewtonManager.get_model())[:, 0]
-            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", NewtonManager.get_model())[:, 0]
-            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute("joint_friction", NewtonManager.get_model())[:, 0]
+            self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
+                "joint_limit_lower", NewtonManager.get_model()
+            )[:, 0]
+            self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute(
+                "joint_limit_upper", NewtonManager.get_model()
+            )[:, 0]
+            self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute(
+                "joint_target_ke", NewtonManager.get_model()
+            )[:, 0]
+            self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
+                "joint_target_kd", NewtonManager.get_model()
+            )[:, 0]
+            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", NewtonManager.get_model())[
+                :, 0
+            ]
+            self._sim_bind_joint_friction_coeff = self._root_view.get_attribute(
+                "joint_friction", NewtonManager.get_model()
+            )[:, 0]
             self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute(
                 "joint_velocity_limit", NewtonManager.get_model()
             )[:, 0]
@@ -2231,7 +2241,6 @@ class ArticulationData(BaseArticulationData):
         else:
             raise ValueError("Number of joints is not supported.")
 
-
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
 
@@ -2252,9 +2261,13 @@ class ArticulationData(BaseArticulationData):
         # available, so we use zeros.
         if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
             if self._root_view.is_fixed_base:
-                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0, 0]
+                self._previous_root_com_vel = wp.clone(
+                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                )[:, 0, 0]
             else:
-                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0]
+                self._previous_root_com_vel = wp.clone(
+                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                )[:, 0]
         else:
             logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)

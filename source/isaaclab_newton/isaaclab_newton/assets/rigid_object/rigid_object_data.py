@@ -1737,9 +1737,13 @@ class RigidObjectData(BaseRigidObjectData):
         # available, so we use zeros.
         if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
             if self._root_view.is_fixed_base:
-                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0, 0]
+                self._previous_root_com_vel = wp.clone(
+                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                )[:, 0, 0]
             else:
-                self._previous_root_com_vel = wp.clone(self._root_view.get_root_velocities(NewtonManager.get_state_0()))[:, 0]
+                self._previous_root_com_vel = wp.clone(
+                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                )[:, 0]
         else:
             logger.warning("Failed to get root com velocity. If the rigid object is fixed, this is expected.")
             self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)

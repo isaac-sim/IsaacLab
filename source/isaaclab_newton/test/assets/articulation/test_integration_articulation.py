@@ -11,6 +11,7 @@ import torch
 
 import pytest
 import warp as wp
+from newton import ModelBuilder
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -24,9 +25,9 @@ from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from newton import ModelBuilder
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
 ##
 # Pre-defined configs
 ##
@@ -197,7 +198,7 @@ def generate_articulation(
         NewtonManager._num_envs = num_articulations
 
     NewtonManager.add_on_init_callback(set_builder)
-    
+
     return articulation, translations
 
 

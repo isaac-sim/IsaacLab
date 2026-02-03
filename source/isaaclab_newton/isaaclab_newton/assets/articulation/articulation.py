@@ -2193,8 +2193,18 @@ class Articulation(BaseArticulation):
         self._temp_body_data_mat33: wp.array | None = None
 
         # Expanded target buffers
-        self._actuator_position_target_reshaped = wp.array(ptr = self.data.actuator_position_target.ptr, shape = (self.num_instances, 1, self.num_joints), dtype=wp.float32, device=self.device)
-        self._actuator_velocity_target_expanded = wp.array(ptr = self.data.actuator_velocity_target.ptr, shape = (self.num_instances, 1, self.num_joints), dtype=wp.float32, device=self.device)
+        self._actuator_position_target_reshaped = wp.array(
+            ptr=self.data.actuator_position_target.ptr,
+            shape=(self.num_instances, 1, self.num_joints),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        self._actuator_velocity_target_expanded = wp.array(
+            ptr=self.data.actuator_velocity_target.ptr,
+            shape=(self.num_instances, 1, self.num_joints),
+            dtype=wp.float32,
+            device=self.device,
+        )
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
@@ -2410,7 +2420,9 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(self._root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))[:, 0]
+        joint_max_vel = wp.to_torch(self._root_view.get_attribute("joint_velocity_limit", NewtonManager.get_model()))[
+            :, 0
+        ]
         out_of_range = torch.abs(wp.to_torch(self.data.default_joint_vel)) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:

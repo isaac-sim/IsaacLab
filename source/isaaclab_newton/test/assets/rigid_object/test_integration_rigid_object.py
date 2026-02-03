@@ -13,6 +13,7 @@ from typing import Literal
 import pytest
 import warp as wp
 from flaky import flaky
+from newton import ModelBuilder
 from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
@@ -22,6 +23,7 @@ from isaaclab.sim import build_simulation_context
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners import materials
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import (
     combine_frame_transforms,
@@ -32,8 +34,6 @@ from isaaclab.utils.math import (
     quat_rotate,
     random_orientation,
 )
-from newton import ModelBuilder
-from isaaclab.sim.utils.stage import get_current_stage
 
 # FIXME: That should not be happening.
 # Need to create stage in memory to avoid weird leaks when running consecutive tests...
@@ -106,7 +106,6 @@ def generate_cubes_scene(
         NewtonManager._num_envs = num_cubes
 
     NewtonManager.add_on_init_callback(set_builder)
-    
 
     return cube_object, origins
 
