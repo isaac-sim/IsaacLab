@@ -323,14 +323,14 @@ class EventCfg:
     # and gradually introducing full gravity (hard) — the agent learns more smoothly.
     # This removes the need for a special "Lift" reward (often required to push the
     # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
-    variable_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="reset",
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-            "operation": "abs",
-        },
-    )
+    # variable_gravity = EventTerm(
+    #     func=mdp.randomize_physics_scene_gravity,
+    #     mode="reset",
+    #     params={
+    #         "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+    #         "operation": "abs",
+    #     },
+    # )
 
 
 @configclass
@@ -417,7 +417,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg | None = CurriculumCfg()
+    curriculum: CurriculumCfg | None = None
 
     def __post_init__(self):
         """Post initialization."""
