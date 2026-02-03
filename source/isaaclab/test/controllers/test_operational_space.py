@@ -103,9 +103,9 @@ def sim():
     )
     ee_goal_abs_quad_set_b = torch.tensor(
         [
-            [0.707, 0.0, 0.707, 0.0],
-            [0.707, 0.707, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.707, 0.0, 0.707],
+            [0.707, 0.0, 0.0, 0.707],
+            [1.0, 0.0, 0.0, 0.0],
         ],
         device=sim.device,
     )
@@ -149,19 +149,21 @@ def sim():
         ],
         device=sim.device,
     )
+    # Format: [x, y, z, qx, qy, qz, qw, force_x, force_y, force_z, torque_x, torque_y, torque_z]
     ee_goal_hybrid_set_b = torch.tensor(
         [
-            [0.6, 0.2, 0.5, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.6, -0.29, 0.6, 0.0, 0.707, 0.0, 0.707, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.6, 0.1, 0.8, 0.0, 0.5774, 0.0, 0.8165, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.6, 0.2, 0.5, 0.707, 0.0, 0.707, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.6, -0.29, 0.6, 0.707, 0.0, 0.707, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.6, 0.1, 0.8, 0.5774, 0.0, 0.8165, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ],
         device=sim.device,
     )
+    # Format: [x, y, z, qx, qy, qz, qw] - quaternions converted from wxyz to xyzw format
     ee_goal_pose_set_tilted_b = torch.tensor(
         [
-            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.6, 0.15, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.6, -0.3, 0.3, 0.92387953, 0.0, 0.38268343, 0.0],
+            [0.8, 0.0, 0.5, 0.92387953, 0.0, 0.38268343, 0.0],
         ],
         device=sim.device,
     )
@@ -176,7 +178,7 @@ def sim():
 
     # Define goals for the arm [xyz]
     target_abs_pos_set_b = ee_goal_abs_pos_set_b.clone()
-    # Define goals for the arm [xyz + quat_wxyz]
+    # Define goals for the arm [xyz + quat_xyzw]
     target_abs_pose_set_b = torch.cat([ee_goal_abs_pos_set_b, ee_goal_abs_quad_set_b], dim=-1)
     # Define goals for the arm [xyz]
     target_rel_pos_set = ee_goal_rel_pos_set.clone()
@@ -184,15 +186,15 @@ def sim():
     target_rel_pose_set_b = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_axisangle_set], dim=-1)
     # Define goals for the arm [force_xyz + torque_xyz]
     target_abs_wrench_set = ee_goal_abs_wrench_set_b.clone()
-    # Define goals for the arm [xyz + quat_wxyz] and variable kp [kp_xyz + kp_rot_xyz]
+    # Define goals for the arm [xyz + quat_xyzw] and variable kp [kp_xyz + kp_rot_xyz]
     target_abs_pose_variable_kp_set = torch.cat([target_abs_pose_set_b, kp_set], dim=-1)
-    # Define goals for the arm [xyz + quat_wxyz] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
+    # Define goals for the arm [xyz + quat_xyzw] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
     target_abs_pose_variable_set = torch.cat([target_abs_pose_set_b, kp_set, d_ratio_set], dim=-1)
-    # Define goals for the arm pose [xyz + quat_wxyz] and wrench [force_xyz + torque_xyz]
+    # Define goals for the arm pose [xyz + quat_xyzw] and wrench [force_xyz + torque_xyz]
     target_hybrid_set_b = ee_goal_hybrid_set_b.clone()
     # Define goals for the arm pose, and wrench, and kp
     target_hybrid_variable_kp_set = torch.cat([target_hybrid_set_b, kp_set], dim=-1)
-    # Define goals for the arm pose [xyz + quat_wxyz] in root and and wrench [force_xyz + torque_xyz] in task frame
+    # Define goals for the arm pose [xyz + quat_xyzw] in root and and wrench [force_xyz + torque_xyz] in task frame
     target_hybrid_set_tilted = torch.cat([ee_goal_pose_set_tilted_b, ee_goal_wrench_set_tilted_task], dim=-1)
 
     # Reference frame for targets
@@ -559,19 +561,19 @@ def test_franka_wrench_abs_open_loop(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
-        orientation=(0.9848, 0.0, -0.1736, 0.0),
+        orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
         "/World/envs/env_.*/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
-        orientation=(0.707, 0.707, 0.0, 0.0),
+        orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
         "/World/envs/env_.*/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
-        orientation=(0.707, 0.0, 0.707, 0.0),
+        orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",
@@ -640,19 +642,19 @@ def test_franka_wrench_abs_closed_loop(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(0.2, 0.0, 0.93),
-        orientation=(0.9848, 0.0, -0.1736, 0.0),
+        orientation=(0.0, -0.1736, 0.0, 0.9848),
     )
     obstacle_spawn_cfg.func(
         "/World/envs/env_.*/obstacle2",
         obstacle_spawn_cfg,
         translation=(0.2, 0.35, 0.7),
-        orientation=(0.707, 0.707, 0.0, 0.0),
+        orientation=(0.707, 0.0, 0.0, 0.707),
     )
     obstacle_spawn_cfg.func(
         "/World/envs/env_.*/obstacle3",
         obstacle_spawn_cfg,
         translation=(0.55, 0.0, 0.7),
-        orientation=(0.707, 0.0, 0.707, 0.0),
+        orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",
@@ -729,7 +731,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
-        orientation=(0.707, 0.0, 0.707, 0.0),
+        orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",
@@ -805,7 +807,7 @@ def test_franka_hybrid_variable_kp_impedance(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
-        orientation=(0.707, 0.0, 0.707, 0.0),
+        orientation=(0.0, 0.707, 0.0, 0.707),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",
@@ -983,7 +985,7 @@ def test_franka_taskframe_hybrid(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
-        orientation=(0.9238795325, 0.0, -0.3826834324, 0.0),
+        orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",
@@ -1212,7 +1214,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         "/World/envs/env_.*/obstacle1",
         obstacle_spawn_cfg,
         translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
-        orientation=(0.9238795325, 0.0, -0.3826834324, 0.0),
+        orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
     )
     contact_forces_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/obstacle.*",

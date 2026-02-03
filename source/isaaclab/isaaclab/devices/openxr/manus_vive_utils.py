@@ -69,7 +69,7 @@ class ManusViveIntegration:
         self.manus = _manus_vive_integration.manus_tracker
         self.vive_tracker = _manus_vive_integration.vive_tracker
         self.device_status = _manus_vive_integration.device_status
-        self.default_pose = {"position": [0, 0, 0], "orientation": [1, 0, 0, 0]}
+        self.default_pose = {"position": [0, 0, 0], "orientation": [0, 0, 0, 1]}
         # 90-degree ccw rotation on Y-axis and 90-degree ccw rotation on Z-axis
         self.rot_adjust = Gf.Matrix3d().SetRotate(Gf.Quatd(0.5, Gf.Vec3d(-0.5, 0.5, 0.5)))
         self.scene_T_lighthouse_static = None
@@ -91,14 +91,14 @@ class ManusViveIntegration:
                 'manus_gloves': {
                     '{left/right}_{joint_index}': {
                         'position': [x, y, z],
-                        'orientation': [w, x, y, z]
+                        'orientation': [x, y, z, w]
                     },
                     ...
                 },
                 'vive_trackers': {
                     '{vive_tracker_id}': {
                         'position': [x, y, z],
-                        'orientation': [w, x, y, z]
+                        'orientation': [x, y, z, w]
                     },
                     ...
                 }
@@ -255,6 +255,8 @@ class ManusViveIntegration:
     def _transform_vive_data(self, device_data: dict) -> dict:
         """Transform Vive tracker poses to scene coordinates.
 
+        The returned data is in xyzw format.
+
         Args:
             device_data: raw vive tracker poses, with device id as keys.
 
@@ -290,6 +292,8 @@ class ManusViveIntegration:
 
     def _transform_manus_data(self, manus_data: dict, scene_T_wrist: dict) -> dict:
         """Transform Manus glove joints from wrist-relative to scene coordinates.
+
+        The returned data is in xyzw format.
 
         Args:
             manus_data: Raw Manus joint pose dictionary, wrist-relative.
@@ -463,6 +467,10 @@ def get_vive_wrist_ids(vive_data: dict) -> tuple[str, str]:
 def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
     """Convert a pose dictionary to a 4x4 transform matrix.
 
+    pose is a dictionary with 'position' and 'orientation' fields.
+    position is a tuple of 3 floats.
+    orientation is a tuple of 4 floats. (x, y, z, w)
+
     Args:
         pose: The pose with 'position' and 'orientation' fields.
 
@@ -470,7 +478,8 @@ def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
         A 4x4 transform representing the pose.
     """
     pos, ori = pose["position"], pose["orientation"]
-    quat = Gf.Quatd(ori[0], Gf.Vec3d(ori[1], ori[2], ori[3]))
+    # ori is (x, y, z, w) - Gf.Quatd takes (real, imaginary_vec)
+    quat = Gf.Quatd(ori[3], Gf.Vec3d(ori[0], ori[1], ori[2]))
     rot = Gf.Matrix3d().SetRotate(quat)
     trans = Gf.Vec3d(pos[0], pos[1], pos[2])
     return Gf.Matrix4d(rot, trans)
@@ -478,6 +487,10 @@ def pose_to_matrix(pose: dict) -> Gf.Matrix4d:
 
 def matrix_to_pose(matrix: Gf.Matrix4d) -> dict:
     """Convert a 4x4 transform matrix to a pose dictionary.
+
+    pose is a dictionary with 'position' and 'orientation' fields.
+    position is a tuple of 3 floats.
+    orientation is a tuple of 4 floats. (x, y, z, w)
 
     Args:
         matrix: The 4x4 transform matrix to convert.
@@ -490,7 +503,7 @@ def matrix_to_pose(matrix: Gf.Matrix4d) -> dict:
     quat = rot.GetQuat()
     return {
         "position": [pos[0], pos[1], pos[2]],
-        "orientation": [quat.GetReal(), quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2]],
+        "orientation": [quat.GetImaginary()[0], quat.GetImaginary()[1], quat.GetImaginary()[2], quat.GetReal()],
     }
 
 

@@ -219,7 +219,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._reshape_view_to_data(self._root_view.get_transforms().clone())
-            pose[..., 3:7] = convert_quat(pose[..., 3:7], to="wxyz")
             # set the buffer data and timestamp
             self._body_link_pose_w.data = pose
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -344,7 +343,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # obtain the coms
             poses = self._root_view.get_coms().to(self.device)
-            poses[:, 3:7] = convert_quat(poses[:, 3:7], to="wxyz")
             # read data from simulation
             self._body_com_pose_b.data = self._reshape_view_to_data(poses)
             self._body_com_pose_b.timestamp = self._sim_timestamp
@@ -542,6 +540,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Body properties
         self._body_mass = self._root_view.get_masses().to(self.device).clone()
         self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+
+        # -- Default mass and inertia (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
 
     """
     Properties for backwards compatibility.
@@ -996,19 +998,29 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def default_mass(self) -> torch.Tensor:
-        """Removed: Default mass is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_mass' has been removed. Default values are no longer stored. "
-            "Please use 'body_mass' to get the current mass values from the simulation."
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_mass is None:
+            self._default_mass = self.body_mass.clone()
+        return self._default_mass
 
     @property
     def default_inertia(self) -> torch.Tensor:
-        """Removed: Default inertia is no longer stored."""
-        raise RuntimeError(
-            "The property 'default_inertia' has been removed. Default values are no longer stored. "
-            "Please use 'body_inertia' to get the current inertia values from the simulation."
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        if self._default_inertia is None:
+            self._default_inertia = self.body_inertia.clone()
+        return self._default_inertia
 
     """
     Helpers.

@@ -358,9 +358,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data.body_com_state_w[env_ids[:, None], body_ids, :3] = com_pos
             self.data.body_com_state_w[env_ids[:, None], body_ids, 3:7] = com_quat
 
-        # convert the quaternion from wxyz to xyzw
         poses_xyzw = self.data.body_link_pose_w.clone()
-        poses_xyzw[..., 3:] = math_utils.convert_quat(poses_xyzw[..., 3:], to="xyzw")
 
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids)

@@ -22,7 +22,7 @@ class BaseContactSensorData(ABC):
     @property
     @abstractmethod
     def pose_w(self) -> torch.Tensor | None:
-        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         raise NotImplementedError
 
     @property
@@ -37,7 +37,7 @@ class BaseContactSensorData(ABC):
     @property
     @abstractmethod
     def quat_w(self) -> torch.Tensor | None:
-        """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.
+        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
         Shape is (N, 4). None if :attr:`ContactSensorCfg.track_pose` is False.
         """

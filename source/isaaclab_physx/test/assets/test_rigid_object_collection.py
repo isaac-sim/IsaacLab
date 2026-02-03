@@ -199,6 +199,8 @@ def test_initialization_with_kinematic_enabled(sim, num_envs, num_cubes, device)
         # check that the object is kinematic
         default_object_state = object_collection.data.default_object_state.clone()
         default_object_state[..., :3] += origins.unsqueeze(1)
+        print(object_collection.data.object_link_state_w)
+        print(default_object_state)
         torch.testing.assert_close(object_collection.data.object_link_state_w, default_object_state)
 
 

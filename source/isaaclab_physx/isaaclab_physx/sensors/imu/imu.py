@@ -200,7 +200,6 @@ class Imu(BaseImu):
             env_ids = slice(None)
         # world pose of the rigid source (ancestor) from the PhysX view
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        quat_w = quat_w.roll(1, dims=-1)
 
         # sensor pose in world: apply composed offset
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])

@@ -97,7 +97,7 @@ def test_raycast_multi_cubes(raycast_setup):
         return_normal=True,
         return_face_id=True,
         mesh_positions_w=torch.tensor([[[0, 0, 0], [0, 2, 0]]], dtype=torch.float32, device=device),
-        mesh_orientations_w=torch.tensor([[[1, 0, 0, 0], [1, 0, 0, 0]]], dtype=torch.float32, device=device),
+        mesh_orientations_w=torch.tensor([[[0, 0, 0, 1], [0, 0, 0, 1]]], dtype=torch.float32, device=device),
         return_mesh_id=True,
     )
 

@@ -182,7 +182,7 @@ class RayCasterCamera(RayCaster):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -413,7 +413,7 @@ class RayCasterCamera(RayCaster):
             :meth:`obtain_world_pose_from_view`.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
 
 
         """
@@ -441,7 +441,7 @@ class RayCasterCamera(RayCaster):
                 )
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z) in "world" convention.
+            A tuple of the position (in meters) and quaternion (x, y, z, w) in "world" convention.
         """
 
         # deprecation

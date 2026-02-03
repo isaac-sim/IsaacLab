@@ -288,9 +288,7 @@ class RigidObject(BaseRigidObject):
             )
             self.data.root_com_state_w[env_ids, :3] = expected_com_pos
             self.data.root_com_state_w[env_ids, 3:7] = expected_com_quat
-        # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self.data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
         self.root_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
@@ -458,14 +456,11 @@ class RigidObject(BaseRigidObject):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
+        # Body IDs are always all bodies for a single rigid object.
+        body_ids = slice(None)
         # convert lists to tensors for proper indexing
         if isinstance(physx_env_ids, list):
             physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
         # set into internal buffers
         # body_com_pose_b shape is (N, B, 7) where [:,:,:3] is position and [:,:,3:7] is quaternion
         # coms input shape is (N, B, 3) - only setting the position part

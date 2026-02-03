@@ -62,7 +62,7 @@ def spawn_from_usd(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -104,7 +104,7 @@ def spawn_from_urdf(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the generated USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -147,7 +147,7 @@ def spawn_from_mjcf(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the generated USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
 
     Returns:
@@ -184,7 +184,7 @@ def spawn_ground_plane(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -286,7 +286,7 @@ def _spawn_from_usd_file(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the generated USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the generated USD file is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -389,7 +389,7 @@ def spawn_from_usd_with_compliant_contact_material(
         cfg: The configuration instance containing the USD file path and physics material settings.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the USD file is used.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case the orientation specified in the USD file is used.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 

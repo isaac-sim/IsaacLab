@@ -141,7 +141,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
             joint_pos={".*": 0.0},
         )
     )
@@ -193,7 +193,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
             mass_props=sim_utils.MassPropertiesCfg(density=567.0),
             semantic_tags=[("class", "cube")],
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
     )
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(

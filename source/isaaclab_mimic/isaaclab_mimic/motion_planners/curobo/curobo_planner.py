@@ -1017,7 +1017,7 @@ class CuroboPlanner(MotionPlannerBase):
             position = torch.tensor([0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device)
         if quaternion is None:
             quaternion = torch.tensor(
-                [1.0, 0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device
+                [0.0, 0.0, 0.0, 1.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device
             )
 
         # Convert to tensors if needed

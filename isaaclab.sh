@@ -12,8 +12,8 @@
 # Exits if error occurs
 set -e
 
-# Set tab-spaces
-tabs 4
+# Set tab-spaces (ignore errors in non-interactive terminals)
+tabs 4 2>/dev/null || true
 
 # get source directory
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -232,8 +232,8 @@ extract_isaacsim_exe() {
 
 # find pip command based on virtualization
 extract_pip_command() {
-    # detect if we're in a uv environment
-    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+    # detect if we're in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
         pip_command="uv pip install"
     else
         # retrieve the python executable
@@ -245,8 +245,8 @@ extract_pip_command() {
 }
 
 extract_pip_uninstall_command() {
-    # detect if we're in a uv environment
-    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+    # detect if we're in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
         pip_uninstall_command="uv pip uninstall"
     else
         # retrieve the python executable
@@ -453,6 +453,14 @@ setup_uv_env() {
     local env_name="$1"
     local python_path="$2"
 
+    # check if already in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
+        echo "[INFO] Detected active uv environment at: ${VIRTUAL_ENV}"
+        echo "[INFO] You can directly install Isaac Lab using: ./isaaclab.sh -i"
+        echo "[INFO] If you want to create a new environment instead, deactivate the current one first."
+        return 0
+    fi
+
     # check uv is installed
     if ! command -v uv &>/dev/null; then
         echo "[ERROR] uv could not be found. Please install uv and try again."
@@ -529,7 +537,8 @@ print_help () {
     echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] [-u] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
-    echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies. Default is 'all'."
+    echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies."
+    echo -e "\t                     Can be used in any active conda/uv environment. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
@@ -538,8 +547,16 @@ print_help () {
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-n, --new            Create a new external project or internal task from template."
-    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
-    echo -e "\t-u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-c, --conda [NAME]   Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-u, --uv [NAME]      Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\nExamples:"
+    echo -e "\t# Install in an existing uv environment:"
+    echo -e "\t  source /path/to/your/env/bin/activate"
+    echo -e "\t  ./isaaclab.sh -i"
+    echo -e "\n\t# Create and setup a new uv environment:"
+    echo -e "\t  ./isaaclab.sh -u my_env"
+    echo -e "\t  source my_env/bin/activate"
+    echo -e "\t  ./isaaclab.sh -i"
     echo -e "\n" >&2
 }
 
@@ -567,6 +584,16 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             pip_command=$(extract_pip_command)
             pip_uninstall_command=$(extract_pip_uninstall_command)
+
+            # show which environment is being used
+            if [ -n "${VIRTUAL_ENV}" ]; then
+                echo "[INFO] Using uv/venv environment: ${VIRTUAL_ENV}"
+            elif [ -n "${CONDA_PREFIX}" ]; then
+                echo "[INFO] Using conda environment: ${CONDA_PREFIX}"
+            else
+                echo "[INFO] Using Isaac Sim Python or system Python"
+            fi
+            echo "[INFO] Python executable: ${python_exe}"
 
             # if on ARM arch, temporarily clear LD_PRELOAD
             # LD_PRELOAD is restored below, after installation
@@ -649,8 +676,22 @@ while [[ $# -gt 0 ]]; do
                 uv_env_name=$2
                 shift # past argument
             fi
+            # determine python version based on Isaac Sim version with fallback
+            if is_isaacsim_version_4_5 2>/dev/null; then
+                python_version="3.10"
+                echo "[INFO] Detected Isaac Sim 4.5 → Using Python version: ${python_version}"
+            else
+                python_version="3.11"
+                # Check if we can detect Isaac Sim 5.0+
+                if command -v python &>/dev/null && python -c "import isaacsim" 2>/dev/null; then
+                    echo "[INFO] Detected Isaac Sim 5.0+ → Using Python version: ${python_version}"
+                else
+                    echo "[INFO] Isaac Sim not detected. Defaulting to Python version: ${python_version}"
+                    echo "[INFO] Note: Python 3.11 works with Isaac Sim 5.0+. Use Python 3.10 for Isaac Sim 4.5."
+                fi
+            fi
             # setup the uv environment for Isaac Lab
-            setup_uv_env ${uv_env_name}
+            setup_uv_env ${uv_env_name} ${python_version}
             shift # past argument
             ;;
         -f|--format)

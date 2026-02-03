@@ -38,7 +38,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -121,7 +121,7 @@ def test_depth_clipping_max(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -161,7 +161,7 @@ def test_depth_clipping_none(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -205,7 +205,7 @@ def test_depth_clipping_zero(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -1391,7 +1391,7 @@ def test_all_annotators_instanceable(setup_camera, device):
             "Xform",
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             translation=(0.0, i, 5.0),
-            orientation=(1.0, 0.0, 0.0, 0.0),
+            orientation=(0.0, 0.0, 0.0, 1.0),
             scale=(5.0, 5.0, 5.0),
         )
         prim = stage.GetPrimAtPath(f"/World/Cube_{i}")

@@ -86,7 +86,7 @@ class SceneCfg(InteractiveSceneCfg):
             activate_contact_sensors=True,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.9238795325, 0.0, -0.3826834324, 0.0)
+            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.0, -0.3826834324, 0.0, 0.9238795325)
         ),
     )
 
@@ -144,12 +144,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
-    # Define targets for the arm
+    # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(
         [
-            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.6, 0.15, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
+            [0.6, -0.3, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
+            [0.8, 0.0, 0.5, 0.0, 0.38268343, 0.0, 0.92387953],
         ],
         device=sim.device,
     )

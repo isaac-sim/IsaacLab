@@ -30,12 +30,12 @@ class FrameTransformerData(BaseFrameTransformerData):
 
     @property
     def target_quat_source(self) -> torch.Tensor:
-        """Orientation of target frame(s) relative to source frame (w, x, y, z). Shape is (N, M, 4)."""
+        """Orientation of target frame(s) relative to source frame (x, y, z, w). Shape is (N, M, 4)."""
         return self._target_quat_source
 
     @property
     def target_pose_w(self) -> torch.Tensor:
-        """Pose of target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in wxyz order."""
+        """Pose of target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in xyzw order."""
         return torch.cat([self._target_pos_w, self._target_quat_w], dim=-1)
 
     @property
@@ -45,12 +45,12 @@ class FrameTransformerData(BaseFrameTransformerData):
 
     @property
     def target_quat_w(self) -> torch.Tensor:
-        """Orientation of target frame(s) after offset in world frame (w, x, y, z). Shape is (N, M, 4)."""
+        """Orientation of target frame(s) after offset in world frame (x, y, z, w). Shape is (N, M, 4)."""
         return self._target_quat_w
 
     @property
     def source_pose_w(self) -> torch.Tensor:
-        """Pose of source frame after offset in world frame. Shape is (N, 7). Quaternion in wxyz order."""
+        """Pose of source frame after offset in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         return torch.cat([self._source_pos_w, self._source_quat_w], dim=-1)
 
     @property
@@ -60,7 +60,7 @@ class FrameTransformerData(BaseFrameTransformerData):
 
     @property
     def source_quat_w(self) -> torch.Tensor:
-        """Orientation of source frame after offset in world frame (w, x, y, z). Shape is (N, 4)."""
+        """Orientation of source frame after offset in world frame (x, y, z, w). Shape is (N, 4)."""
         return self._source_quat_w
 
     def create_buffers(
