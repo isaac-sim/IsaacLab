@@ -18,86 +18,50 @@ Example:
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
 import argparse
-import sys
+
+from isaaclab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(
+    description="Micro-benchmarking framework for RigidObjectData class.",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
+parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
+parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
+parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
+parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args = parser.parse_args()
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True, args=args)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import warnings
-from types import ModuleType
 from unittest.mock import MagicMock
 
 import torch
-import warp as wp
 
-# Initialize Warp first
-wp.init()
+# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
+# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
+# but there's no actual physics scene when running benchmarks
+_mock_physics_sim_view = MagicMock()
+_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
+from isaacsim.core.simulation_manager import SimulationManager
 
-# =============================================================================
-# Mock Setup - Must happen BEFORE importing RigidObjectData
-# =============================================================================
+SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-
-# Mock BaseRigidObjectData - this is just an abstract class, so we provide an empty one
-# to avoid importing the whole isaaclab.assets package
-class BaseRigidObjectData:
-    """Mock base class to avoid importing isaaclab.assets (which has many dependencies)."""
-
-    def __init__(self, root_view, device: str):
-        self.device = device
-
-
-# Create mock module for isaaclab.assets.rigid_object.base_rigid_object_data
-mock_base_module = ModuleType("isaaclab.assets.rigid_object.base_rigid_object_data")
-mock_base_module.BaseRigidObjectData = BaseRigidObjectData
-sys.modules["isaaclab.assets.rigid_object.base_rigid_object_data"] = mock_base_module
-
-# Mock pxr (USD library - not available in headless docker, used by isaaclab.utils.mesh)
-sys.modules["pxr"] = MagicMock()
-sys.modules["pxr.Usd"] = MagicMock()
-sys.modules["pxr.UsdGeom"] = MagicMock()
-
-
-class MockPhysicsSimView:
-    """Simple mock for the physics simulation view."""
-
-    def get_gravity(self):
-        """Return gravity as a tuple of 3 floats."""
-        return (0.0, 0.0, -9.81)
-
-
-class MockSimulationManager:
-    """Simple mock for SimulationManager."""
-
-    @staticmethod
-    def get_physics_sim_view():
-        return MockPhysicsSimView()
-
-
-# Mock isaacsim.core.simulation_manager
-mock_sim_manager_module = ModuleType("isaacsim.core.simulation_manager")
-mock_sim_manager_module.SimulationManager = MockSimulationManager
-sys.modules["isaacsim"] = ModuleType("isaacsim")
-sys.modules["isaacsim.core"] = ModuleType("isaacsim.core")
-sys.modules["isaacsim.core.simulation_manager"] = mock_sim_manager_module
-
-# Now we can directly import RigidObjectData
-import importlib.util
-from pathlib import Path
-
-benchmark_dir = Path(__file__).resolve().parent
-rigid_object_data_path = (
-    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "rigid_object" / "rigid_object_data.py"
-)
-
-spec = importlib.util.spec_from_file_location(
-    "isaaclab_physx.assets.rigid_object.rigid_object_data", rigid_object_data_path
-)
-rigid_object_data_module = importlib.util.module_from_spec(spec)
-sys.modules["isaaclab_physx.assets.rigid_object.rigid_object_data"] = rigid_object_data_module
-spec.loader.exec_module(rigid_object_data_module)
-RigidObjectData = rigid_object_data_module.RigidObjectData
-
-# Import shared utilities from common module
-# Import mock classes from PhysX test utilities
+from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 from isaaclab.test.benchmark import (
@@ -313,19 +277,6 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
 
 def main():
     """Main entry point for the benchmarking script."""
-    parser = argparse.ArgumentParser(
-        description="Micro-benchmarking framework for RigidObjectData class.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
-    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
-    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
-    parser.add_argument("--device", type=str, default="cuda:0", help="Device")
-    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-    parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
-
-    args = parser.parse_args()
-
     config = BenchmarkConfig(
         num_iterations=args.num_iterations,
         warmup_steps=args.warmup_steps,
@@ -351,6 +302,9 @@ def main():
     if not args.no_csv:
         csv_filename = json_filename.replace(".json", ".csv")
         export_results_csv(results, csv_filename)
+
+    # Close the simulation app
+    simulation_app.close()
 
 
 if __name__ == "__main__":

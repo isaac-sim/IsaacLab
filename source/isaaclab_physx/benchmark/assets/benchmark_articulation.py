@@ -23,214 +23,56 @@ Example:
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
 import argparse
-import sys
+
+from isaaclab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Benchmark Articulation methods (PhysX backend).")
+parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
+parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
+parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
+parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
+parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
+parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
+parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
+parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args = parser.parse_args()
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True, args=args)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
+import logging
 import warnings
-from types import ModuleType
 from unittest.mock import MagicMock
 
 import torch
+
+# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
+# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
+# but there's no actual physics scene when running benchmarks
+_mock_physics_sim_view = MagicMock()
+_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+
+from isaacsim.core.simulation_manager import SimulationManager
+
+SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 import warp as wp
 
-# Initialize Warp
-wp.init()
-
-
-# =============================================================================
-# Mock Setup - Must happen BEFORE importing Articulation
-# =============================================================================
-
-
-class MockPhysicsSimView:
-    """Simple mock for the physics simulation view."""
-
-    def get_gravity(self):
-        return (0.0, 0.0, -9.81)
-
-    def update_articulations_kinematic(self):
-        pass
-
-
-class MockSimulationManager:
-    """Simple mock for SimulationManager."""
-
-    @staticmethod
-    def get_physics_sim_view():
-        return MockPhysicsSimView()
-
-
-# Mock isaacsim.core.simulation_manager
-mock_sim_manager_module = ModuleType("isaacsim.core.simulation_manager")
-mock_sim_manager_module.SimulationManager = MockSimulationManager
-sys.modules["isaacsim"] = ModuleType("isaacsim")
-sys.modules["isaacsim.core"] = ModuleType("isaacsim.core")
-sys.modules["isaacsim.core.simulation_manager"] = mock_sim_manager_module
-
-# Mock pxr (USD library)
-sys.modules["pxr"] = MagicMock()
-sys.modules["pxr.Usd"] = MagicMock()
-sys.modules["pxr.UsdGeom"] = MagicMock()
-sys.modules["pxr.UsdPhysics"] = MagicMock()
-sys.modules["pxr.PhysxSchema"] = MagicMock()
-
-# Mock omni module hierarchy (must be ModuleType for proper package behavior)
-omni_mocks = [
-    "omni",
-    "omni.kit",
-    "omni.kit.app",
-    "omni.kit.commands",
-    "omni.usd",
-    "omni.client",
-    "omni.timeline",
-    "omni.physx",
-    "omni.physx.scripts",
-    "omni.physx.scripts.utils",
-    "omni.physics",
-    "omni.physics.tensors",
-    "omni.physics.tensors.impl",
-    "omni.physics.tensors.impl.api",
-]
-for mod_name in omni_mocks:
-    mock = MagicMock()
-    mock.__name__ = mod_name
-    mock.__path__ = []
-    mock.__package__ = mod_name
-    sys.modules[mod_name] = mock
-
-# Mock carb (needed by isaaclab.utils.assets)
-mock_carb = MagicMock()
-mock_carb.settings.get_settings.return_value.get.return_value = "/mock/path"
-sys.modules["carb"] = mock_carb
-
-# Mock isaaclab.sim module hierarchy (to avoid importing converters)
-sim_mock = MagicMock()
-sim_mock.find_first_matching_prim = MagicMock()
-sim_mock.get_all_matching_child_prims = MagicMock(return_value=[])
-sys.modules["isaaclab.sim"] = sim_mock
-sys.modules["isaaclab.sim.utils"] = MagicMock()
-sys.modules["isaaclab.sim.utils.stage"] = MagicMock()
-sys.modules["isaaclab.sim.utils.queries"] = MagicMock()
-sys.modules["isaaclab.sim.converters"] = MagicMock()
-
-# Mock prettytable
-sys.modules["prettytable"] = MagicMock()
-
-# Mock WrenchComposer - import from mock_interfaces and patch into the module
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
-
-mock_wrench_module = ModuleType("isaaclab.utils.wrench_composer")
-mock_wrench_module.WrenchComposer = MockWrenchComposer
-sys.modules["isaaclab.utils.wrench_composer"] = mock_wrench_module
-
-
-# Mock base classes to avoid importing full isaaclab.assets package
-class BaseArticulation:
-    """Mock base class."""
-
-    @property
-    def device(self) -> str:
-        return self._device
-
-
-class BaseArticulationData:
-    """Mock base class."""
-
-    def __init__(self, root_view, device: str):
-        self.device = device
-
-
-mock_base_articulation = ModuleType("isaaclab.assets.articulation.base_articulation")
-mock_base_articulation.BaseArticulation = BaseArticulation
-sys.modules["isaaclab.assets.articulation.base_articulation"] = mock_base_articulation
-
-mock_base_articulation_data = ModuleType("isaaclab.assets.articulation.base_articulation_data")
-mock_base_articulation_data.BaseArticulationData = BaseArticulationData
-sys.modules["isaaclab.assets.articulation.base_articulation_data"] = mock_base_articulation_data
-
-# Mock ArticulationCfg
-mock_cfg_module = ModuleType("isaaclab.assets.articulation.articulation_cfg")
-
-
-class ArticulationCfg:
-    """Mock ArticulationCfg for testing."""
-
-    def __init__(
-        self, prim_path: str = "/World/Robot", soft_joint_pos_limit_factor: float = 1.0, actuators: dict = None
-    ):
-        self.prim_path = prim_path
-        self.soft_joint_pos_limit_factor = soft_joint_pos_limit_factor
-        self.actuators = actuators or {}
-
-
-mock_cfg_module.ArticulationCfg = ArticulationCfg
-sys.modules["isaaclab.assets.articulation.articulation_cfg"] = mock_cfg_module
-
-# Mock actuators module
-mock_actuators = ModuleType("isaaclab.actuators")
-mock_actuators.ActuatorBase = MagicMock()
-mock_actuators.ActuatorBaseCfg = MagicMock()
-mock_actuators.ImplicitActuator = MagicMock()
-sys.modules["isaaclab.actuators"] = mock_actuators
-
-# Mock utils modules - need to include all string functions used by isaaclab.utils.dict
-mock_string_utils = ModuleType("isaaclab.utils.string")
-mock_string_utils.resolve_matching_names = MagicMock(return_value=([], []))
-mock_string_utils.callable_to_string = MagicMock(return_value="")
-mock_string_utils.string_to_callable = MagicMock(return_value=None)
-mock_string_utils.string_to_slice = MagicMock(return_value=slice(None))
-sys.modules["isaaclab.utils.string"] = mock_string_utils
-
-mock_types = ModuleType("isaaclab.utils.types")
-mock_types.ArticulationActions = MagicMock()
-sys.modules["isaaclab.utils.types"] = mock_types
-
-mock_version = ModuleType("isaaclab.utils.version")
-
-
-# Create a proper version tuple class that has .major, .minor, .patch attributes
-class VersionTuple:
-    def __init__(self, major, minor, patch):
-        self.major = major
-        self.minor = minor
-        self.patch = patch
-
-    def __iter__(self):
-        return iter((self.major, self.minor, self.patch))
-
-
-mock_version.get_isaac_sim_version = MagicMock(return_value=VersionTuple(4, 5, 0))
-sys.modules["isaaclab.utils.version"] = mock_version
-
-# Now import via importlib to bypass __init__.py
-import importlib.util
-from pathlib import Path
-
-benchmark_dir = Path(__file__).resolve().parent
-
-# Load ArticulationData
-articulation_data_path = (
-    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
-)
-spec = importlib.util.spec_from_file_location(
-    "isaaclab_physx.assets.articulation.articulation_data", articulation_data_path
-)
-articulation_data_module = importlib.util.module_from_spec(spec)
-sys.modules["isaaclab_physx.assets.articulation.articulation_data"] = articulation_data_module
-spec.loader.exec_module(articulation_data_module)
-ArticulationData = articulation_data_module.ArticulationData
-
-# Load Articulation
-articulation_path = benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation.py"
-spec = importlib.util.spec_from_file_location("isaaclab_physx.assets.articulation.articulation", articulation_path)
-articulation_module = importlib.util.module_from_spec(spec)
-sys.modules["isaaclab_physx.assets.articulation.articulation"] = articulation_module
-spec.loader.exec_module(articulation_module)
-Articulation = articulation_module.Articulation
-
-# Import shared utilities from common module
-# Import mock classes from PhysX test utilities
+from isaaclab_physx.assets.articulation.articulation import Articulation
+from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
 
+from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.benchmark import (
     BenchmarkConfig,
     MethodBenchmark,
@@ -245,14 +87,13 @@ from isaaclab.test.benchmark import (
     print_hardware_info,
     print_results,
 )
+from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Also suppress logging warnings (the body_acc_w deprecation warnings use logging)
-import logging
-
 logging.getLogger("isaaclab_physx").setLevel(logging.ERROR)
 logging.getLogger("isaaclab").setLevel(logging.ERROR)
 
@@ -1094,20 +935,8 @@ def run_benchmark(config: BenchmarkConfig):
     return results
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Benchmark Articulation methods (PhysX backend).")
-    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
-    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
-    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
-    parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
-    parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
-    parser.add_argument("--device", type=str, default="cuda:0", help="Device")
-    parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
-    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-    parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
-
-    args = parser.parse_args()
-
+def main():
+    """Main entry point for the benchmarking script."""
     config = BenchmarkConfig(
         num_iterations=args.num_iterations,
         warmup_steps=args.warmup_steps,
@@ -1134,3 +963,10 @@ if __name__ == "__main__":
     if not args.no_csv:
         csv_filename = json_filename.replace(".json", ".csv")
         export_results_csv(results, csv_filename)
+
+    # Close the simulation app
+    simulation_app.close()
+
+
+if __name__ == "__main__":
+    main()
