@@ -21,10 +21,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.logger import configure_logging
 from isaaclab.utils.version import get_isaac_sim_version
 
-from .physics_interface import PhysicsInterface
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .visualizer_interface import VisualizerInterface
+from .interface.physics_interface import PhysicsInterface
+from .interface.visualizer_interface import VisualizerInterface
 
 logger = logging.getLogger(__name__)
 
