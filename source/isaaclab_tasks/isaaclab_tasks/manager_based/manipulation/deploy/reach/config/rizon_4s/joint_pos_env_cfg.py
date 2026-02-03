@@ -63,8 +63,8 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
         )
         # override command generator body
         # end-effector is along z-direction for Rizon 4s
-        self.target_pos_centre = (0.5, 0.0, 0.4)
-        self.target_pos_range = (0.25, 0.25, 0.15)
+        self.target_pos_centre = (0.4, 0.0, 0.4)
+        self.target_pos_range = (0.4, 0.4, 0.35)
         self.commands.ee_pose.body_name = "flange"
         self.commands.ee_pose.ranges.pos_x = (
             self.target_pos_centre[0] - self.target_pos_range[0],
@@ -80,7 +80,7 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
         )
 
         self.target_rot_centre = (math.pi, 0.0, 0.0)  # end-effector facing down
-        self.target_rot_range = (math.pi / 6, math.pi / 6, math.pi)
+        self.target_rot_range = (math.pi / 2, math.pi / 2, math.pi)
         self.commands.ee_pose.ranges.roll = (
             self.target_rot_centre[0] - self.target_rot_range[0],
             self.target_rot_centre[0] + self.target_rot_range[0],
