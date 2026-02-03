@@ -14,8 +14,7 @@ import torch
 from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics.physx_backend import PhysXBackend
-from isaaclab.physics.physics_backend import PhysicsBackend
+from isaaclab.physics.physics_manager import PhysicsManager
 from .interface import Interface
 
 if TYPE_CHECKING:
@@ -25,16 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 class PhysicsInterface(Interface):
-    """Manages USD physics scene and delegates to physics backends.
+    """Manages USD physics scene and delegates to PhysicsManager.
 
     This interface handles:
     - USD physics scene creation and configuration
     - Gravity, timestep, and unit settings
-    - Delegating lifecycle operations to registered backends
+    - Delegating lifecycle operations to the physics manager
     """
 
     def __init__(self, sim_context: "SimulationContext"):
-        """Initialize physics scene and backends.
+        """Initialize physics scene and physics manager.
 
         Args:
             sim_context: Parent simulation context.
@@ -43,19 +42,19 @@ class PhysicsInterface(Interface):
 
         self.physics_prim_path = self._sim.cfg.physics_prim_path
         self.backend = "torch"
+
+        # Get the physics manager class from config
+        self.physics_manager: type[PhysicsManager] = self._sim.cfg.physics_manager_cfg.create_manager()
+
         # Initialize USD physics scene
         self._init_usd_physics_scene()
-        self._backends: list[PhysicsBackend] = [PhysXBackend(sim_context)]
-
-    @property
-    def backends(self) -> list[PhysicsBackend]:
-        """List of active physics backends."""
-        return self._backends
+        # Initialize the physics manager
+        self.physics_manager.initialize(sim_context)
 
     @property
     def physics_dt(self) -> float:
         """Physics timestep."""
-        return self._sim.cfg.dt
+        return self.physics_manager.get_physics_dt()
 
     @property
     def rendering_dt(self) -> float:
@@ -65,7 +64,16 @@ class PhysicsInterface(Interface):
     @property
     def device(self) -> str:
         """Device used for physics simulation."""
-        return self._sim.cfg.device
+        return self.physics_manager.get_device()
+
+    @property
+    def physics_sim_view(self):
+        """Physics simulation view with torch backend."""
+        return self.physics_manager.get_physics_sim_view()
+
+    def is_fabric_enabled(self) -> bool:
+        """Returns whether the fabric interface is enabled."""
+        return self.physics_manager.is_fabric_enabled()
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -88,7 +96,7 @@ class PhysicsInterface(Interface):
             physics_scene = UsdPhysics.Scene.Define(stage, self._sim.cfg.physics_prim_path)
 
             # Pre-create gravity tensor to avoid torch heap corruption issues (torch 2.1+)
-            gravity = torch.tensor(self._sim.cfg.gravity, dtype=torch.float32, device=self.device)
+            gravity = torch.tensor(self._sim.cfg.gravity, dtype=torch.float32, device=self._sim.cfg.device)
             gravity_magnitude = torch.norm(gravity).item()
 
             # Avoid division by zero
@@ -101,30 +109,25 @@ class PhysicsInterface(Interface):
             physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
 
     def reset(self, soft: bool = False) -> None:
-        """Reset all physics backends.
+        """Reset physics simulation.
 
         Args:
             soft: If True, skip full reinitialization.
         """
-        for backend in self._backends:
-            backend.reset(soft)
+        self.physics_manager.reset(soft)
 
     def forward(self) -> None:
-        """Update articulation kinematics on all backends."""
-        for backend in self._backends:
-            backend.forward()
+        """Update articulation kinematics for rendering."""
+        self.physics_manager.forward()
 
     def step(self, render: bool = True) -> None:
-        """Step all physics backends (physics only).
+        """Step physics simulation (physics only).
 
         Args:
             render: Unused, kept for interface compatibility.
         """
-        for backend in self._backends:
-            backend.step()
+        self.physics_manager.step()
 
     def close(self) -> None:
-        """Clean up all physics backends."""
-        for backend in self._backends:
-            backend.close()
-        self._backends.clear()
+        """Clean up physics resources."""
+        self.physics_manager.close()

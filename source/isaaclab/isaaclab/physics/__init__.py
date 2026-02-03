@@ -6,14 +6,16 @@
 """Implementation backends for simulation interfaces."""
 
 # from .newton_backend import NewtonBackend
-from .physics_backend import PhysicsBackend
-from .physx_backend import PhysXBackend
+from .physics_manager import PhysicsManager
+from .physics_manager_cfg import PhysicsManagerCfg
 from .physx_manager import PhysxManager, IsaacEvents
+from .physx_manager_cfg import PhysxManagerCfg
 
 __all__ = [
     # "NewtonBackend",
-    "PhysicsBackend",
-    "PhysXBackend",
+    "PhysicsManager",
+    "PhysicsManagerCfg",
     "PhysxManager",
+    "PhysxManagerCfg",
     "IsaacEvents",
 ]

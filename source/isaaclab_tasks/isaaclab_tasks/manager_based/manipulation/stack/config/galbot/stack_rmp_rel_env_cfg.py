@@ -133,7 +133,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
         self.episode_length_s = 30.0
 
         # Enable CCD to avoid tunneling
-        self.sim.physx.enable_ccd = True
+        self.sim.physics_manager_cfg.enable_ccd = True
 
         self.teleop_devices = DevicesCfg(
             devices={

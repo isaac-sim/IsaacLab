@@ -424,9 +424,9 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
+        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
+        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
+        self.sim.physics_manager_cfg.gpu_max_rigid_patch_count = 4 * 5 * 2**15
 
         if self.curriculum is not None:
             self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
