@@ -1,6 +1,201 @@
 Changelog
 ---------
 
+2.1.0 (2026-02-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sensors.contact_sensor.BaseContactSensor` and
+  :class:`~isaaclab.sensors.contact_sensor.BaseContactSensorData` abstract base classes that define
+  the interface for contact sensors. These classes provide a backend-agnostic API for contact sensing.
+* Added :class:`~isaaclab.sensors.imu.BaseImu` and :class:`~isaaclab.sensors.imu.BaseImuData` abstract
+  base classes that define the interface for IMU sensors. These classes provide a backend-agnostic
+  API for inertial measurement.
+* Added :class:`~isaaclab.sensors.frame_transformer.BaseFrameTransformer` and
+  :class:`~isaaclab.sensors.frame_transformer.BaseFrameTransformerData` abstract base classes that
+  define the interface for frame transformer sensors. These classes provide a backend-agnostic API
+  for coordinate frame transformations.
+
+Changed
+^^^^^^^
+
+* Refactored the sensor classes (:class:`~isaaclab.sensors.ContactSensor`,
+  :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.FrameTransformer`) to follow the
+  multi-backend architecture. The classes now act as factory wrappers that instantiate the
+  appropriate backend-specific implementation (PhysX by default).
+* Refactored the sensor data classes (:class:`~isaaclab.sensors.ContactSensorData`,
+  :class:`~isaaclab.sensors.ImuData`, :class:`~isaaclab.sensors.FrameTransformerData`) to use the
+  factory pattern for backend-specific instantiation.
+* Moved PhysX-specific sensor tests to the ``isaaclab_physx`` package:
+
+  * ``test_contact_sensor.py`` → ``isaaclab_physx/test/sensors/``
+  * ``test_imu.py`` → ``isaaclab_physx/test/sensors/``
+  * ``test_frame_transformer.py`` → ``isaaclab_physx/test/sensors/``
+
+
+2.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.assets.BaseArticulation` and :class:`~isaaclab.assets.BaseArticulationData`
+  abstract base classes that define the interface for articulation assets. These classes provide
+  a backend-agnostic API for articulation operations.
+* Added :class:`~isaaclab.assets.BaseRigidObject` and :class:`~isaaclab.assets.BaseRigidObjectData`
+  abstract base classes that define the interface for rigid object assets. These classes provide
+  a backend-agnostic API for rigid object operations.
+* Added :class:`~isaaclab.assets.BaseRigidObjectCollection` and :class:`~isaaclab.assets.BaseRigidObjectCollectionData`
+  abstract base classes that define the interface for rigid object collection assets. These classes
+  provide a backend-agnostic API for managing collections of rigid objects.
+* Added :mod:`~isaaclab.utils.backend_utils` module with utilities for managing simulation backends.
+
+Changed
+^^^^^^^
+
+* Refactored the asset classes to follow a multi-backend architecture. The core :mod:`isaaclab.assets`
+  module now provides abstract base classes that define the interface, while backend-specific
+  implementations are provided in separate packages (e.g., ``isaaclab_physx``).
+* The concrete :class:`~isaaclab.assets.Articulation`, :class:`~isaaclab.assets.RigidObject`,
+  and :class:`~isaaclab.assets.RigidObjectCollection` classes in the ``isaaclab`` package
+  now inherit from their respective base classes, and using the backend-specific implementations provided
+  in the ``isaaclab_physx`` package, provide the default PhysX-based implementation.
+* Moved :class:`DeformableObject`, :class:`DeformableObjectCfg`, and :class:`DeformableObjectData`
+  to the ``isaaclab_physx`` package since deformable bodies are specific to PhysX simulation.
+* Moved :class:`SurfaceGripper` and :class:`SurfaceGripperCfg` to the ``isaaclab_physx`` package
+  since surface grippers rely on PhysX-specific contact APIs.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``root_physx_view`` property on :class:`~isaaclab.assets.Articulation`,
+  :class:`~isaaclab.assets.RigidObject`, and :class:`~isaaclab.assets.RigidObjectCollection`
+  in favor of the backend-agnostic ``root_view`` property.
+
+* Deprecated the ``object_*`` naming convention in :class:`~isaaclab.assets.RigidObjectCollection`
+  and :class:`~isaaclab.assets.RigidObjectCollectionData` in favor of ``body_*``:
+
+  **RigidObjectCollection methods:**
+
+  * ``write_object_state_to_sim()`` → use ``write_body_state_to_sim()``
+  * ``write_object_link_state_to_sim()`` → use ``write_body_link_state_to_sim()``
+  * ``write_object_pose_to_sim()`` → use ``write_body_pose_to_sim()``
+  * ``write_object_link_pose_to_sim()`` → use ``write_body_link_pose_to_sim()``
+  * ``write_object_com_pose_to_sim()`` → use ``write_body_com_pose_to_sim()``
+  * ``write_object_velocity_to_sim()`` → use ``write_body_com_velocity_to_sim()``
+  * ``write_object_com_velocity_to_sim()`` → use ``write_body_com_velocity_to_sim()``
+  * ``write_object_link_velocity_to_sim()`` → use ``write_body_link_velocity_to_sim()``
+  * ``find_objects()`` → use ``find_bodies()``
+
+  **RigidObjectCollectionData properties:**
+
+  * ``default_object_state`` → use ``default_body_state``
+  * ``object_names`` → use ``body_names``
+  * ``object_pose_w``, ``object_pos_w``, ``object_quat_w`` → use ``body_pose_w``, ``body_pos_w``, ``body_quat_w``
+  * ``object_vel_w``, ``object_lin_vel_w``, ``object_ang_vel_w`` → use ``body_vel_w``, ``body_lin_vel_w``, ``body_ang_vel_w``
+  * ``object_acc_w``, ``object_lin_acc_w``, ``object_ang_acc_w`` → use ``body_acc_w``, ``body_lin_acc_w``, ``body_ang_acc_w``
+  * And all other ``object_*`` properties (see :ref:`migrating-to-isaaclab-3-0` for complete list).
+
+Migration
+^^^^^^^^^
+
+* See :ref:`migrating-to-isaaclab-3-0` for detailed migration instructions.
+
+1.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a tool to find hard-coded quaternions in the codebase and help user convert them to the new XYZW ordering.
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.54.3 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.timer.Timer.get_timer_statistics` to get the statistics of the elapsed time of a timer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.utils.timer.Timer` class to use the online Welford's algorithm to compute the mean and standard deviation of the elapsed time.
+
+
+0.54.2 (2026-01-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved :mod:`isaaclab.sensors.tacsl_sensor` to :mod:`isaaclab_contrib.sensors.tacsl_sensor` module,
+  since it is not completely ready for release yet.
+
+
+0.54.1 (2026-01-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added test suite for ray caster patterns with comprehensive parameterized tests.
+
+Fixed
+^^^^^
+
+* Fixed incorrect horizontal angle calculation in :func:`~isaaclab.sensors.ray_caster.patterns.patterns.lidar_pattern`
+  that caused the actual angular resolution to differ from the requested resolution.
+
+
+0.54.0 (2026-01-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Fabric backend support to :class:`~isaaclab.sim.views.XformPrimView` for GPU-accelerated
+  batch transform operations on all Boundable prims using Warp kernels.
+* Added :mod:`~isaaclab.sim.utils.fabric_utils` module with Warp kernels for efficient Fabric matrix operations.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.camera.Camera` to use Fabric backend for faster pose queries.
+
+
+0.53.2 (2026-01-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.assets.utils.wrench_composer.WrenchComposer` to compose forces and torques at the body's center of mass frame.
+* Added :meth:`~isaaclab.assets.Articulation.instantaneous_wrench_composer` to add or set instantaneous external wrenches to the articulation.
+* Added :meth:`~isaaclab.assets.Articulation.permanent_wrench_composer` to add or set permanent external wrenches to the articulation.
+* Added :meth:`~isaaclab.assets.RigidObject.instantaneous_wrench_composer` to add or set instantaneous external wrenches to the rigid object.
+* Added :meth:`~isaaclab.assets.RigidObject.permanent_wrench_composer` to add or set permanent external wrenches to the rigid object.
+* Added :meth:`~isaaclab.assets.RigidObjectCollection.instantaneous_wrench_composer` to add or set instantaneous external wrenches to the rigid object collection.
+* Added :meth:`~isaaclab.assets.RigidObjectCollection.permanent_wrench_composer` to add or set permanent external wrenches to the rigid object collection.
+* Added unit tests for the wrench composer.
+* Added kernels for the wrench composer in the :mod:`isaaclab.utils.warp.kernels` module.
+
+Changed
+^^^^^^^
+
+* Deprecated :meth:`~isaaclab.assets.Articulation.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.Articulation.permanent_wrench_composer.set_forces_and_torques`.
+* Deprecated :meth:`~isaaclab.assets.RigidObject.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObject.permanent_wrench_composer.set_forces_and_torques`.
+* Deprecated :meth:`~isaaclab.assets.RigidObjectCollection.set_external_force_and_torque`  in favor of :meth:`~isaaclab.assets.RigidObjectCollection.permanent_wrench_composer.set_forces_and_torques`.
+* Modified the tests of the articulation, rigid object, and rigid object collection to use the new permanent and instantaneous external wrench functions and test them.
+
 0.53.1 (2026-01-08)
 ~~~~~~~~~~~~~~~~~~~
 

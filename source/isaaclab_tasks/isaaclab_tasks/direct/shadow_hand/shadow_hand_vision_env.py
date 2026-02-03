@@ -29,7 +29,7 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"),
         data_types=["rgb", "depth", "semantic_segmentation"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -149,7 +149,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         image_obs = self._compute_image_observations()
         obs = torch.cat((state_obs, image_obs), dim=-1)
         # asymmetric critic states
-        self.fingertip_force_sensors = self.hand.root_physx_view.get_link_incoming_joint_force()[:, self.finger_bodies]
+        self.fingertip_force_sensors = self.hand.root_view.get_link_incoming_joint_force()[:, self.finger_bodies]
         state = self._compute_states()
 
         observations = {"policy": obs, "critic": state}

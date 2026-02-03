@@ -41,7 +41,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
@@ -51,7 +51,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     sorting_scale = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/SortingScale",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.22236, 0.56, 0.9859], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.22236, 0.56, 0.9859], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_scale.usd",
             scale=(1.0, 1.0, 1.0),
@@ -61,7 +61,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     sorting_bowl = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/SortingBowl",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.02779, 0.43007, 0.9860], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[0.02779, 0.43007, 0.9860], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bowl_yellow.usd",
             scale=(1.0, 1.0, 1.5),
@@ -72,7 +72,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     sorting_beaker = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/SortingBeaker",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9861], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9861], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_beaker_red.usd",
             scale=(0.45, 0.45, 1.3),
@@ -82,7 +82,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     factory_nut = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/FactoryNut",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9995], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.13739, 0.45793, 0.9995], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/factory_m16_nut_green.usd",
             scale=(0.5, 0.5, 0.5),
@@ -93,7 +93,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     black_sorting_bin = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/BlackSortingBin",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.32688, 0.46793, 0.98634], rot=[1.0, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.32688, 0.46793, 0.98634], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
             scale=(0.75, 1.0, 1.0),
@@ -105,7 +105,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
-            rot=(0.7071, 0, 0, 0.7071),
+            rot=(0.0, 0.0, 0.7071, 0.7071),
             joint_pos={
                 # right-arm
                 "right_shoulder_pitch_joint": 0.0,
@@ -166,7 +166,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(-0.19848, 0.9801, 0.0, 0.0), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.0, 0.9801, 0.0, -0.19848), convention="ros"),
     )
 
     # Ground plane
@@ -299,7 +299,7 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     # OpenXR hand tracking has 26 joints per hand
@@ -318,15 +318,15 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
                 0.2536,
                 1.0953,
                 0.5,
-                0.5,
                 -0.5,
+                0.5,
                 0.5,
                 0.22878,
                 0.2536,
                 1.0953,
                 0.5,
-                0.5,
                 -0.5,
+                0.5,
                 0.5,
                 0.0,
                 0.0,

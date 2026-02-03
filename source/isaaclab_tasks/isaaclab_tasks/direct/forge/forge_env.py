@@ -85,22 +85,20 @@ class ForgeEnv(FactoryEnv):
         rot_diff_quat = torch_utils.quat_mul(
             self.noisy_fingertip_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
         )
-        rot_diff_quat *= torch.sign(rot_diff_quat[:, 0]).unsqueeze(-1)
+        rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
         self.ee_angvel_fd[:, 0:2] = 0.0
         self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
 
         # Update and smooth force values.
-        self.force_sensor_world = self._robot.root_physx_view.get_link_incoming_joint_force()[
-            :, self.force_sensor_body_idx
-        ]
+        self.force_sensor_world = self._robot.root_view.get_link_incoming_joint_force()[:, self.force_sensor_body_idx]
 
         alpha = self.cfg.ft_smoothing_factor
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth
 
         self.force_sensor_smooth = torch.zeros_like(self.force_sensor_world)
-        identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+        identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         self.force_sensor_smooth[:, :3], self.force_sensor_smooth[:, 3:6] = forge_utils.change_FT_frame(
             self.force_sensor_world_smooth[:, 0:3],
             self.force_sensor_world_smooth[:, 3:6],

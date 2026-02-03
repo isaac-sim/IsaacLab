@@ -211,7 +211,7 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.13, 0.0, -0.15), rot=(-0.70614, 0.03701, 0.03701, -0.70614), convention="ros"
+                pos=(0.13, 0.0, -0.15), rot=(0.03701, 0.03701, -0.70614, -0.70614), convention="ros"
             ),
         )
 
@@ -226,7 +226,7 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), rot=(0.35355, -0.61237, -0.61237, 0.35355), convention="ros"
+                pos=(1.0, 0.0, 0.4), rot=(-0.61237, -0.61237, 0.35355, 0.35355), convention="ros"
             ),
         )
 

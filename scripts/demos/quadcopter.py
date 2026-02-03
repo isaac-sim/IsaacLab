@@ -72,7 +72,7 @@ def main():
 
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
-    robot_mass = robot.root_physx_view.get_masses().sum()
+    robot_mass = robot.root_view.get_masses().sum()
     gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
@@ -101,7 +101,11 @@ def main():
         forces = torch.zeros(robot.num_instances, 4, 3, device=sim.device)
         torques = torch.zeros_like(forces)
         forces[..., 2] = robot_mass * gravity / 4.0
-        robot.set_external_force_and_torque(forces, torques, body_ids=prop_body_ids)
+        robot.permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            body_ids=prop_body_ids,
+        )
         robot.write_data_to_sim()
         # perform step
         sim.step()

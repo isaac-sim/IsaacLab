@@ -171,9 +171,7 @@ def reset_object_collections(
 
         # Compose new orientations by applying the sampled euler noise in quaternion space.
         orientations_delta = math_utils.quat_from_euler_xyz(samples[..., 3], samples[..., 4], samples[..., 5])
-        orientations = math_utils.convert_quat(orientations, to="wxyz")
         orientations = math_utils.quat_mul(orientations, orientations_delta)
-        orientations = math_utils.convert_quat(orientations, to="xyzw")
 
     # velocities
     new_velocities = sel_view_states[:, 7:13]
@@ -188,8 +186,8 @@ def reset_object_collections(
     view_states[view_ids, :7] = torch.concat((positions, orientations), dim=-1)
     view_states[view_ids, 7:] = new_velocities
 
-    rigid_object_collection.root_physx_view.set_transforms(view_states[:, :7], indices=view_ids)
-    rigid_object_collection.root_physx_view.set_velocities(view_states[:, 7:], indices=view_ids)
+    rigid_object_collection.root_view.set_transforms(view_states[:, :7], indices=view_ids)
+    rigid_object_collection.root_view.set_velocities(view_states[:, 7:], indices=view_ids)
 
 
 def build_grocery_defaults(
@@ -239,7 +237,7 @@ def build_grocery_defaults(
     grid_y, grid_x = torch.meshgrid(y, x, indexing="ij")
     grid_z = CACHE_HEIGHT * torch.ones_like(grid_x)
     # We can then create the poses for the cached groceries.
-    ref_quat = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(num_x_objects * num_y_objects, 1)
+    ref_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(num_x_objects * num_y_objects, 1)
     positions = torch.stack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten()), dim=-1)
     poses = torch.cat((positions, ref_quat), dim=-1)
     # Duplicate across environments, cap at max_num_objects
@@ -301,8 +299,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
                 reset_object_collections(scene, "groceries", spawn_w, view_indices[groceries_mask.view(-1)], noise=True)
                 # Vary the mass and gravity settings so cached objects stay parked.
                 random_masses = torch.rand(groceries.num_instances * num_objects, device=device) * 0.2 + 0.2
-                groceries.root_physx_view.set_masses(random_masses.cpu(), view_indices.cpu())
-                groceries.root_physx_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
+                groceries.root_view.set_masses(random_masses.cpu(), view_indices.cpu())
+                groceries.root_view.set_disable_gravities((~groceries_mask).cpu(), indices=view_indices.cpu())
                 scene.reset()
 
         # Write data to sim

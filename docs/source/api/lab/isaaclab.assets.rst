@@ -18,9 +18,6 @@
     Articulation
     ArticulationData
     ArticulationCfg
-    DeformableObject
-    DeformableObjectData
-    DeformableObjectCfg
 
 .. currentmodule:: isaaclab.assets
 
@@ -89,26 +86,6 @@ Articulation
     :exclude-members: __init__
 
 .. autoclass:: ArticulationCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-Deformable Object
------------------
-
-.. autoclass:: DeformableObject
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: DeformableObjectData
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__
-
-.. autoclass:: DeformableObjectCfg
     :members:
     :inherited-members:
     :show-inheritance:

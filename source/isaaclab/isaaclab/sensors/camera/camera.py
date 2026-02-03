@@ -306,7 +306,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -403,8 +403,10 @@ class Camera(SensorBase):
 
         # Initialize parent class
         super()._initialize_impl()
-        # Create a view for the sensor
-        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
+        self._view = XformPrimView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -575,7 +577,7 @@ class Camera(SensorBase):
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
 
-        Note:
+        .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """
@@ -609,7 +611,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
