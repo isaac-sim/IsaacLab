@@ -8,7 +8,7 @@ import torch
 import weakref
 
 import omni.physics.tensors.impl.api as physx
-from isaaclab.sim._impl.physx_manager import PhysxManager
+from isaaclab.physics.physx_manager import PhysxManager
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.buffers import TimestampedBuffer

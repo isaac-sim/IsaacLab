@@ -30,7 +30,7 @@ from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
-from ._impl.physx_manager import PhysxManager, IsaacEvents  # noqa: F401, F403
+from isaaclab.physics.physx_manager import PhysxManager, IsaacEvents  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
 from .views import *  # noqa: F401, F403

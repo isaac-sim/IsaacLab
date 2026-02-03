@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import omni.physx
-from isaaclab.sim._impl.physx_manager import PhysxManager
+from isaaclab.physics.physx_manager import PhysxManager
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene

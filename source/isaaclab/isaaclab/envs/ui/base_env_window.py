@@ -19,6 +19,7 @@ from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
+from isaaclab.visualizers.ov_visualizer import RenderMode
 
 if TYPE_CHECKING:
     import omni.ui
@@ -124,11 +125,15 @@ class BaseEnvWindow:
             self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
             if not self.env.sim.carb_settings.get("/isaaclab/has_gui"):
                 if not self.env.sim.carb_settings.get_as_bool("/isaaclab/render/offscreen"):
-                    render_value = self.env.sim.RenderMode.NO_GUI_OR_RENDERING
+                    render_value = RenderMode.NO_GUI_OR_RENDERING
                 else:
-                    render_value = self.env.sim.RenderMode.PARTIAL_RENDERING
+                    render_value = RenderMode.PARTIAL_RENDERING
             else:
-                render_value = self.env.sim.RenderMode.FULL_RENDERING
+                render_value = RenderMode.FULL_RENDERING
+
+            for visualizer in self.env.sim._visualizer._visualizers:
+                if hasattr(visualizer, "set_render_mode"):
+                    set_render_mode_fn = lambda value: visualizer.set_render_mode(RenderMode[value])
 
             with self.ui_window_elements["sim_vstack"]:
                 # create rendering mode dropdown
@@ -136,9 +141,9 @@ class BaseEnvWindow:
                     "label": "Rendering Mode",
                     "type": "dropdown",
                     "default_val": render_value,
-                    "items": [member.name for member in self.env.sim.RenderMode if member.value >= 0],
-                    "tooltip": "Select a rendering mode\n" + self.env.sim.RenderMode.__doc__,
-                    "on_clicked_fn": lambda value: self.env.sim.set_render_mode(self.env.sim.RenderMode[value]),
+                    "items": [member.name for member in RenderMode if member.value >= 0],
+                    "tooltip": "Select a rendering mode\n" + RenderMode.__doc__,
+                    "on_clicked_fn": lambda value: set_render_mode_fn(RenderMode[value]),
                 }
                 self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
                     **render_mode_cfg

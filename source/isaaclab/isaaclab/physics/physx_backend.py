@@ -23,7 +23,7 @@ import omni.physics.tensors
 from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim._impl.physics_backend import PhysicsBackend
+from .physics_backend import PhysicsBackend
 from .physx_manager import PhysxManager
 
 if TYPE_CHECKING:

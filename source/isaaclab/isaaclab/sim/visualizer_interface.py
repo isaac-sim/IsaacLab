@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from isaaclab.visualizers import Visualizer
 
 from .interface import Interface
-from isaaclab.visualizers.physx_ov_visualizer import PhysxOVVisualizer, RenderMode
 from isaaclab.visualizers.physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
 
 if TYPE_CHECKING:

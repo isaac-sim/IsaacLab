@@ -292,11 +292,11 @@ class PhysxOVVisualizer(Visualizer):
         # Store the default render mode
         if self.cfg.default_render_mode is not None:
             self.render_mode = self.cfg.default_render_mode
-        elif not self._sim.carb_settings.get("/isaaclab/has_gui") and not self._offscreen_render:
+        elif not has_gui and not self._offscreen_render:
             # set default render mode
             # note: this is the terminal state: cannot exit from this render mode
             self.render_mode = RenderMode.NO_GUI_OR_RENDERING
-        elif not self._sim.carb_settings.get("/isaaclab/has_gui") and self._offscreen_render:
+        elif not has_gui and self._offscreen_render:
             # set default render mode
             # note: this is the terminal state: cannot exit from this render mode
             self.render_mode = RenderMode.PARTIAL_RENDERING

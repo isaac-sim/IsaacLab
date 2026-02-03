@@ -14,8 +14,8 @@ import torch
 from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from ._impl.physx_backend import PhysXBackend
-from ._impl.physics_backend import PhysicsBackend
+from isaaclab.physics.physx_backend import PhysXBackend
+from isaaclab.physics.physics_backend import PhysicsBackend
 from .interface import Interface
 
 if TYPE_CHECKING:

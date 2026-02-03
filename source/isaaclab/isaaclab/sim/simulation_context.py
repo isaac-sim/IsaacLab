@@ -24,7 +24,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 from .physics_interface import PhysicsInterface
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .visualizer_interface import RenderMode, VisualizerInterface
+from .visualizer_interface import VisualizerInterface
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,6 @@ class SimulationContext:
 
     _is_initialized: ClassVar[bool] = False
     """Whether the simulation context is initialized."""
-
-    # Expose RenderMode as class attribute for backwards compatibility
-    RenderMode = RenderMode
 
     def __init__(self, cfg: SimulationCfg | None = None):
         """Creates a simulation context to control the simulator.
@@ -200,11 +197,6 @@ class SimulationContext:
         """
         return self._physics_interface.device
 
-    @property
-    def render_mode(self) -> RenderMode:
-        """Current render mode."""
-        return self._visualizer.render_mode
-
     """
     Operations - Simulation Information.
     """
@@ -276,25 +268,6 @@ class SimulationContext:
                 "/OmniverseKit_Persp".
         """
         self._visualizer.set_camera_view(eye, target)
-
-    def set_render_mode(self, mode: RenderMode):
-        """Change the current render mode of the simulation.
-
-        Please see :class:`RenderMode` for more information on the different render modes.
-
-        .. note::
-            When no GUI is available (locally or livestreamed), we do not need to choose whether the viewport
-            needs to render or not (since there is no GUI). Thus, in this case, calling the function will not
-            change the render mode.
-
-        Args:
-            mode: The rendering mode. If different than SimulationContext's rendering mode,
-                SimulationContext's mode is changed to the new mode.
-
-        Raises:
-            ValueError: If the input mode is not supported.
-        """
-        self._visualizer.set_render_mode(mode)
 
     def set_setting(self, name: str, value: Any):
         """Set simulation settings using the Carbonite SDK.
@@ -466,6 +439,7 @@ class SimulationContext:
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
             raise exception_to_raise
+
 
 @contextmanager
 def build_simulation_context(
