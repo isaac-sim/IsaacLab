@@ -12,6 +12,9 @@ helper modules (like mock_interface.py) can be imported by test files.
 import sys
 from pathlib import Path
 
-# Add test subdirectories to path so local modules can be imported
+# Add test directory and subdirectories to path so local modules can be imported
 test_dir = Path(__file__).parent
-sys.path.insert(0, str(test_dir / "assets" / "articulation_data"))
+sys.path.insert(0, str(test_dir))
+sys.path.insert(0, str(test_dir / "common"))
+sys.path.insert(0, str(test_dir / "assets" / "articulation"))
+sys.path.insert(0, str(test_dir / "assets" / "rigid_object"))

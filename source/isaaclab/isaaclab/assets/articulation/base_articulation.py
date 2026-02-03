@@ -18,6 +18,8 @@ import warp as wp
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
+    from isaaclab.utils.wrench_composer import WrenchComposer
+
     from .articulation_cfg import ArticulationCfg
     from .articulation_data import ArticulationData
 
@@ -176,12 +178,33 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
+    @property
+    @abstractmethod
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer for the articulation."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer for the articulation."""
+        raise NotImplementedError()
+
     """
     Operations.
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
+        """Reset the articulation.
+
+        Note: If both env_ids and env_mask are provided, then env_mask will be used. For performance reasons, it is
+        recommended to use the env_mask instead of env_ids.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -831,6 +854,8 @@ class BaseArticulation(AssetBase):
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         joint_mask: torch.Tensor | wp.array | None = None,
@@ -860,6 +885,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
             joint_mask: The joint mask. Shape is (num_joints).
@@ -871,6 +898,17 @@ class BaseArticulation(AssetBase):
     def write_joint_dynamic_friction_coefficient_to_sim(
         self,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+        joint_mask: torch.Tensor | wp.array | None = None,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_joint_viscous_friction_coefficient_to_sim(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         joint_mask: torch.Tensor | wp.array | None = None,

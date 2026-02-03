@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.utils.wrench_composer import WrenchComposer
+
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -99,12 +101,33 @@ class BaseRigidObject(AssetBase):
         """
         raise NotImplementedError()
 
+    @property
+    @abstractmethod
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        """Instantaneous wrench composer for the rigid object."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        """Permanent wrench composer for the rigid object."""
+        raise NotImplementedError()
+
     """
     Operations.
     """
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None, mask: wp.array | torch.Tensor | None = None):
+        """Reset the rigid object.
+
+        Note: If both env_ids and env_mask are provided, then env_mask will be used. For performance reasons, it is
+        recommended to use the env_mask instead of env_ids.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. Shape is (num_instances,).
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -402,12 +425,32 @@ class BaseRigidObject(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ):
-        """Set masses of all bodies in the simulation world frame.
+        """Set masses of all bodies.
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            body_mask: The body mask. Shape is (num_bodies).
+            env_mask: The environment mask. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_coms(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Set center of mass positions of all bodies.
+
+        Args:
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None (all environments).
             body_mask: The body mask. Shape is (num_bodies).
             env_mask: The environment mask. Shape is (num_instances,).
         """
@@ -422,7 +465,7 @@ class BaseRigidObject(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ):
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies.
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).

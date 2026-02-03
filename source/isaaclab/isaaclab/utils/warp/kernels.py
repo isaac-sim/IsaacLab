@@ -131,3 +131,163 @@ wp.overload(
     reshape_tiled_image,
     {"tiled_image_buffer": wp.array(dtype=wp.float32), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
 )
+
+
+##
+# Wrench Composer
+##
+
+
+@wp.func
+def cast_to_com_frame(position: wp.vec3f, com_pose_w: wp.transformf, is_global: bool) -> wp.vec3f:
+    """Casts a position to the com frame of the body. In Newton, the com frame and the link frame are aligned.
+
+    Args:
+        position: The position to cast.
+        com_pose_w: The com pose in the world frame.
+        is_global: Whether the position is in the global frame.
+
+    Returns:
+        The position in the com frame of the body.
+    """
+    if is_global:
+        return position - wp.transform_get_translation(com_pose_w)
+    else:
+        return position
+
+
+@wp.func
+def cast_force_to_com_frame(force: wp.vec3f, com_pose_w: wp.transformf, is_global: bool) -> wp.vec3f:
+    """Casts a force to the com frame of the body. In Newton, the com frame and the link frame are aligned.
+
+    Args:
+        force: The force to cast.
+        com_pose_w: The com pose in the world frame.
+        is_global: Whether the force is applied in the global frame.
+    Returns:
+        The force in the com frame of the body.
+    """
+    if is_global:
+        return wp.quat_rotate_inv(wp.transform_get_rotation(com_pose_w), force)
+    else:
+        return force
+
+
+@wp.func
+def cast_torque_to_com_frame(torque: wp.vec3f, com_pose_w: wp.transformf, is_global: bool) -> wp.vec3f:
+    """Casts a torque to the com frame of the body. In Newton, the com frame and the link frame are aligned.
+
+    Args:
+        torque: The torque to cast.
+        com_pose_w: The com pose in the world frame.
+        is_global: Whether the torque is applied in the global frame.
+
+    Returns:
+        The torque in the com frame of the body.
+    """
+    if is_global:
+        return wp.quat_rotate_inv(wp.transform_get_rotation(com_pose_w), torque)
+    else:
+        return torque
+
+
+@wp.kernel
+def add_forces_and_torques_at_position(
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    positions: wp.array2d(dtype=wp.vec3f),
+    com_poses: wp.array2d(dtype=wp.transformf),
+    composed_forces_b: wp.array2d(dtype=wp.vec3f),
+    composed_torques_b: wp.array2d(dtype=wp.vec3f),
+    is_global: bool,
+):
+    """Adds forces and torques to the composed force and torque at the user-provided positions.
+    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the
+    com frame of the body. When is_global is True, the user-provided positions are the global positions of the force
+    application.
+
+    Args:
+        env_mask: The environment mask.
+        body_mask: The body mask.
+        forces: The forces.
+        torques: The torques.
+        positions: The positions.
+        com_poses: The com poses.
+        composed_forces_b: The composed forces.
+        composed_torques_b: The composed torques.
+        is_global: Whether the forces and torques are applied in the global frame.
+    """
+    # get the thread id
+    tid_env, tid_body = wp.tid()
+
+    if env_mask[tid_env] and body_mask[tid_body]:
+        # add the forces to the composed force, if the positions are provided, also adds a torque to the composed torque.
+        if forces:
+            # add the forces to the composed force
+            composed_forces_b[tid_env, tid_body] += cast_force_to_com_frame(
+                forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+            )
+            # if there is a position offset, add a torque to the composed torque.
+            if positions:
+                composed_torques_b[tid_env, tid_body] += wp.cross(
+                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                    cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                )
+        if torques:
+            composed_torques_b[tid_env, tid_body] += cast_torque_to_com_frame(
+                torques[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+            )
+
+
+@wp.kernel
+def set_forces_and_torques_at_position(
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    positions: wp.array2d(dtype=wp.vec3f),
+    com_poses: wp.array2d(dtype=wp.transformf),
+    composed_forces_b: wp.array2d(dtype=wp.vec3f),
+    composed_torques_b: wp.array2d(dtype=wp.vec3f),
+    is_global: bool,
+):
+    """Sets forces and torques to the composed force and torque at the user-provided positions.
+    When is_global is False, the user-provided positions are offsetting the application of the force relatively
+    to the com frame of the body. When is_global is True, the user-provided positions are the global positions
+    of the force application.
+
+    Args:
+        env_mask: The environment mask.
+        body_mask: The body mask.
+        forces: The forces.
+        torques: The torques.
+        positions: The positions.
+        com_poses: The com poses.
+        composed_forces_b: The composed forces.
+        composed_torques_b: The composed torques.
+        is_global: Whether the forces and torques are applied in the global frame.
+    """
+    # get the thread id
+    tid_env, tid_body = wp.tid()
+
+    if env_mask[tid_env] and body_mask[tid_body]:
+        # set the torques to the composed torque
+        if torques:
+            composed_torques_b[tid_env, tid_body] = cast_torque_to_com_frame(
+                torques[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+            )
+        # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque
+        # from the force at that position.
+        if forces:
+            # set the forces to the composed force
+            composed_forces_b[tid_env, tid_body] = cast_force_to_com_frame(
+                forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global
+            )
+            # if there is a position offset, set the torque from the force at that position.
+            if positions:
+                composed_torques_b[tid_env, tid_body] = wp.cross(
+                    cast_to_com_frame(positions[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                    cast_force_to_com_frame(forces[tid_env, tid_body], com_poses[tid_env, tid_body], is_global),
+                )
