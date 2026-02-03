@@ -30,6 +30,7 @@ class OVSceneDataProvider:
         self._body_key_index_map: dict[str, int] = {}
         self._view_body_index_map: dict[str, list[int]] = {}
 
+        # Determine which visualizers need Newton state sync
         self._has_newton_visualizer = False
         self._has_rerun_visualizer = False
         self._has_ov_visualizer = False
@@ -43,6 +44,9 @@ class OVSceneDataProvider:
                 elif viz_type == "omniverse":
                     self._has_ov_visualizer = True
 
+        # Explicit mode flag for Newton synchronization
+        self._needs_newton_sync = self._has_newton_visualizer or self._has_rerun_visualizer
+
         self._metadata = {
             "physics_backend": "omni",
             "num_envs": self._get_num_envs(),
@@ -54,14 +58,16 @@ class OVSceneDataProvider:
         self._newton_model = None
         self._newton_state = None
         self._rigid_body_paths: list[str] = []
+        self._articulation_paths: list[str] = []
         self._set_body_q_kernel = None
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
 
-        if self._has_newton_visualizer or self._has_rerun_visualizer:
+        # Initialize Newton pipeline only if needed for visualization
+        if self._needs_newton_sync:
             self._build_newton_model_from_usd()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
-        elif self._has_ov_visualizer:
+        else:
             logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
     def _get_num_envs(self) -> int:
@@ -102,6 +108,7 @@ class OVSceneDataProvider:
             return
 
     def _build_newton_model_from_usd(self) -> None:
+        """Build Newton model from USD and extract scene structure."""
         try:
             from newton import ModelBuilder
 
@@ -109,7 +116,10 @@ class OVSceneDataProvider:
             builder.add_usd(self._stage)
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
+
+            # Extract scene structure from Newton model (single source of truth)
             self._rigid_body_paths = list(self._newton_model.body_key)
+            self._articulation_paths = list(self._newton_model.articulation_key)
 
             self._xform_views.clear()
             self._body_key_index_map = {path: i for i, path in enumerate(self._rigid_body_paths)}
@@ -125,12 +135,18 @@ class OVSceneDataProvider:
             self._newton_model = None
             self._newton_state = None
             self._rigid_body_paths = []
+            self._articulation_paths = []
 
     def _setup_rigid_body_view(self) -> None:
+        """Create PhysX RigidBodyView from Newton's body paths.
+
+        Uses body paths extracted from Newton model to create PhysX tensor API view
+        for reading rigid body transforms.
+        """
         if not self._rigid_body_paths:
             return
         try:
-            paths_to_use = self._wildcard_env_paths(list(self._rigid_body_paths))
+            paths_to_use = self._wildcard_env_paths(self._rigid_body_paths)
             self._rigid_body_view = self._physics_sim_view.create_rigid_body_view(paths_to_use)
             self._cache_view_index_map(self._rigid_body_view, "rigid_body_view")
         except Exception as exc:
@@ -138,21 +154,11 @@ class OVSceneDataProvider:
             self._rigid_body_view = None
 
     def _setup_articulation_view(self) -> None:
+        """Create PhysX ArticulationView from Newton's articulation paths."""
+        if not self._articulation_paths:
+            return
         try:
-            from pxr import UsdPhysics
-
-            from isaaclab.sim.utils import get_all_matching_child_prims
-
-            root_prims = get_all_matching_child_prims(
-                "/World",
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-                stage=self._stage,
-                traverse_instance_prims=True,
-            )
-            if not root_prims:
-                return
-
-            paths_to_use = self._wildcard_env_paths([prim.GetPath().pathString for prim in root_prims])
+            paths_to_use = self._wildcard_env_paths(self._articulation_paths)
             exprs = [path.replace(".*", "*") for path in paths_to_use]
             self._articulation_view = self._physics_sim_view.create_articulation_view(
                 exprs if len(exprs) > 1 else exprs[0]
@@ -163,15 +169,15 @@ class OVSceneDataProvider:
             self._articulation_view = None
 
     def _get_view_world_poses(self, view):
+        """Read world poses from PhysX tensor API view (ArticulationView or RigidBodyView).
+
+        Tries multiple method names for compatibility across PhysX API versions.
+        Returns (positions, orientations) tuple or (None, None) if unavailable.
+        """
         if view is None:
             return None, None
 
-        method_names = (
-            "get_world_poses",
-            "get_world_transforms",
-            "get_transforms",
-            "get_poses",
-        )
+        method_names = ("get_world_poses", "get_world_transforms", "get_transforms", "get_poses")
 
         for name in method_names:
             method = getattr(view, name, None)
@@ -182,9 +188,11 @@ class OVSceneDataProvider:
             except Exception:
                 continue
 
+            # Handle tuple return: (positions, orientations)
             if isinstance(result, tuple) and len(result) == 2:
                 return result
 
+            # Handle packed array: [..., 7] -> split into pos and quat
             try:
                 if hasattr(result, "shape") and result.shape[-1] == 7:
                     positions = result[..., :3]
@@ -196,25 +204,29 @@ class OVSceneDataProvider:
         return None, None
 
     def _cache_view_index_map(self, view, key: str) -> None:
+        """Map PhysX view indices to Newton body_key ordering."""
         prim_paths = getattr(view, "prim_paths", None)
         if not prim_paths or not self._rigid_body_paths:
             return
 
         def split_env(path: str) -> tuple[int | None, str]:
+            """Extract environment ID and relative path from prim path."""
             match = re.search(r"/World/envs/env_(\d+)(/.*)", path)
             return (int(match.group(1)), match.group(2)) if match else (None, path)
 
+        # Build map: (env_id, relative_path) -> view_index
         view_map: dict[tuple[int | None, str], int] = {}
         for view_idx, path in enumerate(prim_paths):
             env_id, rel = split_env(path)
             view_map[(env_id, rel)] = view_idx
 
+        # Build reordering: newton_body_index -> view_index
         order: list[int | None] = [None] * len(self._rigid_body_paths)
         for body_idx, path in enumerate(self._rigid_body_paths):
             env_id, rel = split_env(path)
             view_idx = view_map.get((env_id, rel))
             if view_idx is None:
-                view_idx = view_map.get((None, rel))
+                view_idx = view_map.get((None, rel))  # Try without env_id
             order[body_idx] = view_idx
 
         if all(idx is not None for idx in order):
@@ -245,30 +257,116 @@ class OVSceneDataProvider:
 
         return None, None
 
-    def _get_xform_world_poses(self):
-        if not self._rigid_body_paths:
-            return None, None
-        try:
-            import torch
+    def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
+        """Read poses from a PhysX view and write uncovered bodies to output tensors."""
+        import torch
 
-            from isaaclab.sim.views import XformPrimView
+        if view is None:
+            return 0
 
-            positions = []
-            orientations = []
-            for path in self._rigid_body_paths:
-                view = self._xform_views.get(path)
-                if view is None:
-                    view = XformPrimView(path, device=self._device, stage=self._stage, validate_xform_ops=False)
-                    self._xform_views[path] = view
-                pos, quat = view.get_world_poses()
-                positions.append(pos)
-                orientations.append(quat)
-            return (torch.cat(positions, dim=0), torch.cat(orientations, dim=0)) if positions else (None, None)
-        except Exception as exc:
-            logger.debug(f"[SceneDataProvider] Failed to read XformPrimView poses: {exc}")
-            return None, None
+        pos, quat = self._get_view_world_poses(view)
+        if pos is None or quat is None:
+            return 0
+
+        order = self._view_body_index_map.get(view_key)
+        if not order:
+            return 0
+
+        pos = pos.to(device=self._device, dtype=torch.float32)
+        quat = quat.to(device=self._device, dtype=torch.float32)
+
+        count = 0
+        for newton_idx, view_idx in enumerate(order):
+            if view_idx is not None and not covered[newton_idx]:
+                positions[newton_idx] = pos[view_idx]
+                orientations[newton_idx] = quat[view_idx]
+                covered[newton_idx] = True
+                count += 1
+
+        return count
+
+    def _apply_xform_poses(self, positions: Any, orientations: Any, covered: Any, xform_mask: Any) -> int:
+        """Use XformPrimView fallback for remaining uncovered bodies."""
+        import torch
+
+        from isaaclab.sim.views import XformPrimView
+
+        uncovered = torch.where(~covered)[0].cpu().tolist()
+        if not uncovered:
+            return 0
+
+        count = 0
+        for idx in uncovered:
+            path = self._rigid_body_paths[idx]
+            try:
+                if path not in self._xform_views:
+                    self._xform_views[path] = XformPrimView(
+                        path, device=self._device, stage=self._stage, validate_xform_ops=False
+                    )
+
+                pos, quat = self._xform_views[path].get_world_poses()
+                if pos is not None and quat is not None:
+                    positions[idx] = pos.to(device=self._device, dtype=torch.float32).squeeze()
+                    orientations[idx] = quat.to(device=self._device, dtype=torch.float32).squeeze()
+                    covered[idx] = True
+                    xform_mask[idx] = True
+                    count += 1
+            except Exception:
+                continue
+
+        return count
+
+    def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
+        """Convert XformPrimView quaternions from wxyz to xyzw where needed."""
+        if not xform_mask.any():
+            return orientations
+
+        import torch
+
+        from isaaclab.utils.math import convert_quat
+
+        orientations_xyzw = orientations.clone()
+        xform_indices = torch.where(xform_mask)[0]
+        if len(xform_indices) > 0:
+            orientations_xyzw[xform_indices] = convert_quat(orientations[xform_indices], to="xyzw")
+        return orientations_xyzw
+
+    def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:
+        """Merge pose data from ArticulationView, RigidBodyView, and XformPrimView."""
+        if self._newton_state is None or not self._rigid_body_paths:
+            return None
+
+        import torch
+
+        num_bodies = len(self._rigid_body_paths)
+        if num_bodies != self._newton_state.body_q.shape[0]:
+            logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
+            return None
+
+        positions = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
+        orientations = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
+        covered = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+        xform_mask = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
+
+        artic = self._apply_view_poses(self._articulation_view, "articulation_view", positions, orientations, covered)
+        rigid = self._apply_view_poses(self._rigid_body_view, "rigid_body_view", positions, orientations, covered)
+        xform = self._apply_xform_poses(positions, orientations, covered, xform_mask)
+
+        if not covered.all():
+            logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
+            return None
+
+        active = sum([artic > 0, rigid > 0, xform > 0])
+        source = (
+            "merged"
+            if active > 1
+            else ("articulation_view" if artic else "rigid_body_view" if rigid else "xform_view" if xform else "none")
+        )
+
+        return positions, orientations, source, xform_mask
 
     def _get_set_body_q_kernel(self):
+        """Get or create the Warp kernel for writing transforms to Newton state."""
         if self._set_body_q_kernel is not None:
             return self._set_body_q_kernel
         try:
@@ -290,64 +388,27 @@ class OVSceneDataProvider:
             return None
 
     def update(self) -> None:
-        """Sync PhysX transforms to Newton state if Newton/Rerun visualizers are active."""
-        if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return  # OV visualizer only - USD auto-synced by omni.physics
+        """Sync PhysX transforms to Newton state for visualization."""
+        if not self._needs_newton_sync or self._newton_state is None:
+            return
+
         self._refresh_newton_model_if_needed()
-        if self._newton_state is None:
-            return
-        if self._rigid_body_view is None and self._articulation_view is None and not self._rigid_body_paths:
-            return
 
         try:
-            import torch
             import warp as wp
 
-            from isaaclab.utils.math import convert_quat
-
-            expected_count = self._newton_state.body_q.shape[0]
-            pose_sources = (
-                ("articulation_view", lambda: self._get_view_world_poses(self._articulation_view)),
-                ("rigid_body_view", lambda: self._get_view_world_poses(self._rigid_body_view)),
-                ("xform_view", self._get_xform_world_poses),
-            )
-            positions = orientations = None
-            source_view = "none"
-            for name, getter in pose_sources:
-                positions, orientations = getter()
-                if positions is not None and orientations is not None:
-                    count = positions.reshape(-1, 3).shape[0]
-                    if count == expected_count:
-                        source_view = name
-                        break
-            if positions is None or orientations is None:
+            result = self._read_poses_from_best_source()
+            if result is None:
                 return
-            order = self._view_body_index_map.get(source_view)
-            if order:
-                positions = positions[order]
-                orientations = orientations[order]
 
-            positions = positions.reshape(-1, 3).to(dtype=torch.float32, device=self._device)
-            orientations = orientations.reshape(-1, 4).to(dtype=torch.float32, device=self._device)
-            # NOTE: PhysX tensor views return quats in xyzw, while XformPrimView returns wxyz.
-            # Convert only when needed to avoid scrambling orientations.
-            if source_view == "xform_view":
-                orientations_xyzw = convert_quat(orientations, to="xyzw")
-            else:
-                orientations_xyzw = orientations
+            positions, orientations, _, xform_mask = result
+            orientations_xyzw = self._convert_xform_quats(orientations.reshape(-1, 4), xform_mask)
 
-            positions_wp = wp.from_torch(positions, dtype=wp.vec3)
+            positions_wp = wp.from_torch(positions.reshape(-1, 3), dtype=wp.vec3)
             orientations_wp = wp.from_torch(orientations_xyzw, dtype=wp.quatf)
 
             set_body_q = self._get_set_body_q_kernel()
-            if set_body_q is None:
-                return
-
-            if positions_wp.shape[0] != expected_count:
-                logger.warning(
-                    f"[SceneDataProvider] Body count mismatch for Newton sync: "
-                    f"poses={positions_wp.shape[0]}, state={expected_count}, source={source_view}"
-                )
+            if set_body_q is None or positions_wp.shape[0] != self._newton_state.body_q.shape[0]:
                 return
 
             wp.launch(
@@ -358,44 +419,32 @@ class OVSceneDataProvider:
             )
 
         except Exception as exc:
-            logger.debug(f"[SceneDataProvider] Failed to sync Omni transforms to Newton state: {exc}")
+            logger.debug(f"Failed to sync transforms to Newton: {exc}")
 
     def get_newton_model(self) -> Any | None:
-        """ADAPTED: Newton Model built from USD (only if Newton/Rerun visualizers active)."""
-        if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return None
-        return self._newton_model
+        return self._newton_model if self._needs_newton_sync else None
 
     def get_newton_state(self) -> Any | None:
-        """ADAPTED: Newton State synced from PhysX (only if Newton/Rerun visualizers active)."""
-        if not (self._has_newton_visualizer or self._has_rerun_visualizer):
-            return None
-        return self._newton_state
+        return self._newton_state if self._needs_newton_sync else None
 
     def get_usd_stage(self) -> Any:
-        """NATIVE: USD stage."""
         return self._stage
 
     def get_mesh_data(self) -> dict[str, Any] | None:
-        """NATIVE: Extract mesh data from USD stage (future work)."""
         return None
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
 
     def get_transforms(self) -> dict[str, Any] | None:
-        if self._rigid_body_view is None and self._articulation_view is None:
-            return None
         try:
-            for getter in (
-                lambda: self._get_view_world_poses(self._articulation_view),
-                lambda: self._get_view_world_poses(self._rigid_body_view),
-                self._get_xform_world_poses,
-            ):
-                positions, orientations = getter()
-                if positions is not None and orientations is not None:
-                    return {"positions": positions, "orientations": orientations}
-            return None
+            result = self._read_poses_from_best_source()
+            if result is None:
+                return None
+
+            positions, orientations, _, xform_mask = result
+            orientations_xyzw = self._convert_xform_quats(orientations, xform_mask)
+            return {"positions": positions, "orientations": orientations_xyzw}
         except Exception:
             return None
 
