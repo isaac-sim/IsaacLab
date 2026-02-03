@@ -89,3 +89,19 @@ class Visualizer(ABC):
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view position. No-op by default."""
         pass
+
+    def reset(self, soft: bool = False) -> None:
+        """Reset visualizer state. No-op by default."""
+        pass
+
+    def play(self) -> None:
+        """Handle simulation play/start. No-op by default."""
+        pass
+
+    def pause(self) -> None:
+        """Handle simulation pause. No-op by default."""
+        pass
+
+    def stop(self) -> None:
+        """Handle simulation stop. No-op by default."""
+        pass

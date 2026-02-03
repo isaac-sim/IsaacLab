@@ -57,7 +57,7 @@ class RenderMode(enum.IntEnum):
 
 
 class OVVisualizer(Visualizer):
-    """Omniverse visualizer managing viewport/rendering for PhysX workflow.
+    """Omniverse visualizer managing viewport/rendering.
 
     This class extends the base :class:`Visualizer` and handles:
     - Viewport context and window management
@@ -65,7 +65,6 @@ class OVVisualizer(Visualizer):
     - Camera view setup
     - Render settings from configuration
     - Throttled rendering for UI responsiveness
-    - Timeline control (play/pause/stop)
 
     Lifecycle: __init__(cfg) -> initialize(scene_data) -> step() (repeated) -> close()
     """
@@ -83,7 +82,6 @@ class OVVisualizer(Visualizer):
         self._simulation_context = None
         self._simulation_app = None
         self._simulation_app_running = False
-        self._timeline = None
 
         # Viewport state
         self._viewport_context = None
