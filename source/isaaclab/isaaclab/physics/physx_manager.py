@@ -441,7 +441,7 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def _is_gpu_device(cls) -> bool:
         """Check if configured for GPU physics."""
-        return cls._cfg is not None and "cuda" in cls._cfg.device
+        return cls._sim is not None and "cuda" in cls._sim.device
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -720,13 +720,14 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _apply_device_settings(cls) -> None:
-        """Configure GPU/CPU device settings."""
-        if cls._sim is None or cls._cfg is None:
+        """Configure GPU/CPU device settings based on SimulationContext.device."""
+        if cls._sim is None:
             return
         settings = cls._sim.carb_settings
+        device = cls._sim.device  # Device comes from SimulationContext
 
         if cls._is_gpu_device():
-            device_parts = cls._cfg.device.split(":")
+            device_parts = device.split(":")
             if len(device_parts) == 1:
                 # "cuda" without ID - use carb setting or default to 0
                 device_id = max(0, settings.get_as_int("/physics/cudaDevice"))

@@ -60,6 +60,10 @@ class Interface(ABC):
         """Handle simulation start."""
         pass
 
+    def pause(self) -> None:
+        """Handle simulation pause."""
+        pass
+
     def stop(self) -> None:
         """Handle simulation stop."""
         pass

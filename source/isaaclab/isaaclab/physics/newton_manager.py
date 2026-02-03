@@ -104,9 +104,9 @@ class NewtonManager(PhysicsManager):
         cls._sim = sim_context
         cls._cfg = sim_context.cfg.physics_manager_cfg  # type: ignore[assignment]
 
-        # Set simulation parameters from config
+        # Set simulation parameters from config (device comes from sim_context, not cfg)
         cls._dt = cls._cfg.dt
-        cls._device = cls._cfg.device
+        cls._device = sim_context.device
         cls._gravity_vector = cls._cfg.gravity
 
         # USD fabric sync only needed for OV rendering

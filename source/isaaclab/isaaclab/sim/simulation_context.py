@@ -99,7 +99,7 @@ class SimulationContext:
 
             # get existing stage or create new one in memory
             stage_cache = UsdUtils.StageCache.Get()
-            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []
+            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
             self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
 
             # Cache stage in USD cache
@@ -122,9 +122,11 @@ class SimulationContext:
             ]
 
             # define a global variable to store the exceptions raised in the callback stack
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore[attr-defined]
 
+            # Simulation state: playing, paused, or stopped
             self._is_playing = False
+            self._is_stopped = True
             self._initialized = True
 
     def _call_interfaces(self, method: str, **kwargs) -> None:
@@ -158,6 +160,7 @@ class SimulationContext:
         """
         self._call_interfaces("reset", soft=soft)
         self._is_playing = True
+        self._is_stopped = False
 
     def step(self, render: bool = True) -> None:
         """Step physics, update visualizers, and optionally render.
@@ -168,26 +171,30 @@ class SimulationContext:
         self._call_interfaces("step", render=render)
 
     def is_playing(self) -> bool:
-        """Returns True if simulation is playing."""
+        """Returns True if simulation is playing (not paused or stopped)."""
         return self._is_playing
 
     def is_stopped(self) -> bool:
-        """Returns True if simulation is stopped."""
-        return not self._is_playing
+        """Returns True if simulation is stopped (not just paused)."""
+        return self._is_stopped
 
     def play(self) -> None:
-        """Start the simulation."""
+        """Start or resume the simulation."""
         self._call_interfaces("play")
         self._is_playing = True
+        self._is_stopped = False
 
     def pause(self) -> None:
-        """Pause the simulation."""
+        """Pause the simulation (can be resumed with play)."""
         self._call_interfaces("pause")
+        self._is_playing = False
+        # Note: _is_stopped remains False - paused is different from stopped
 
     def stop(self) -> None:
-        """Stop the simulation."""
+        """Stop the simulation completely."""
         self._call_interfaces("stop")
         self._is_playing = False
+        self._is_stopped = True
 
     def render(self, mode: int | None = None) -> None:
         """Refresh rendering components (viewports, UI).

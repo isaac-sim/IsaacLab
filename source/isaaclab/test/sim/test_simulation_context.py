@@ -34,9 +34,6 @@ def test_setup_teardown():
     # Yield for the test
     yield
 
-    # Teardown: Clear the simulation context after each test
-    if SimulationContext.instance() is not None:
-        SimulationContext.clear()
     SimulationContext.clear_instance()
 
 
@@ -54,10 +51,9 @@ def test_init(device):
     physics_manager_cfg = PhysxManagerCfg(
         physics_prim_path="/Physics/PhysX",
         gravity=(0.0, -0.5, -0.5),
-        device=device,
         physics_material=RigidBodyMaterialCfg(),
     )
-    cfg = SimulationCfg(physics_manager_cfg=physics_manager_cfg, render_interval=5)
+    cfg = SimulationCfg(device=device, physics_manager_cfg=physics_manager_cfg, render_interval=5)
     # sim = SimulationContext(cfg)
     # TODO: Figure out why keyword argument doesn't work.
     # note: added a fix in Isaac Sim 2023.1 for this.
