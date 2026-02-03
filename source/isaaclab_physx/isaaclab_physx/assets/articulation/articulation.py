@@ -425,9 +425,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w.data is not None:
             self.data.root_state_w[env_ids, :7] = self.data.root_link_pose_w[env_ids]
 
-        # convert root quaternion from wxyz to xyzw
         root_poses_xyzw = self.data.root_link_pose_w.clone()
-        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
 
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._body_link_pose_w.timestamp = -1.0
