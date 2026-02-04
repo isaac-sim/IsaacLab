@@ -54,8 +54,8 @@ class CameraManager:
         self.render_context = render_context
         for name in self.scene.sensors:
             camera_fovs = wp.array([20.0] * self.num_cameras, dtype=wp.float32)
-            self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(camera_fovs)
-            self.camera_data[name].color_image = render_context.create_color_image_output()
+            self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(self.camera_data[name].width, self.camera_data[name].height, camera_fovs)
+            self.camera_data[name].color_image = render_context.create_color_image_output(self.camera_data[name].width, self.camera_data[name].height, self.num_cameras)
     
     def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
         position, orientation = isaaclab_sim.resolve_prim_pose(prim)
@@ -69,8 +69,8 @@ class CameraManager:
     def get_camera_transforms(self, camera_data: CameraData) -> wp.array(dtype=wp.transformf):
         camera_transforms = []
         for prim in camera_data.prims:
-            camera_transforms.append([self.__resolve_camera_transform(prim)])
-        return wp.array(camera_transforms, dtype=wp.transformf)
+            camera_transforms.append(self.__resolve_camera_transform(prim))
+        return wp.array([camera_transforms], dtype=wp.transformf)
     
     def save_images(self, filename: str):
         if self.render_context is None:
@@ -85,7 +85,7 @@ class CameraManager:
 
 
 class NewtonWarpRenderer:
-    def __init__(self, scene: InteractiveScene, width: int, height: int):
+    def __init__(self, scene: InteractiveScene):
         self.scene = scene
 
         builder = newton.ModelBuilder()
@@ -103,7 +103,7 @@ class NewtonWarpRenderer:
         self.body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
 
         self.camera_manager = CameraManager(scene)
-        self.sensor = newton.sensors.SensorTiledCamera(self.model, self.camera_manager.num_cameras, width, height)
+        self.sensor = newton.sensors.SensorTiledCamera(self.model)
         self.camera_manager.create_outputs(self.sensor.render_context)
 
     def __build_mapping(self):

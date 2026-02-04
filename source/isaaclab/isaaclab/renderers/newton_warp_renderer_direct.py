@@ -56,7 +56,7 @@ class NewtonWarpRendererDirect:
         master_prim: Usd.Prim | None = None
         prims: list[tuple[int, Usd.Prim]] = field(default_factory=lambda: [])
 
-    def __init__(self, scene: InteractiveScene, width: int, height: int):
+    def __init__(self, scene: InteractiveScene):
         self.prim_data: dict[str, NewtonWarpRendererDirect.PrimData] = {}
         self.num_worlds = self.__collect_prims(isaaclab_sim.get_current_stage())
 
@@ -87,7 +87,7 @@ class NewtonWarpRendererDirect:
 
         self.camera_manager = CameraManager(scene)
 
-        self.render_context = SensorTiledCamera.RenderContext(width, height, self.num_worlds, self.camera_manager.num_cameras)
+        self.render_context = SensorTiledCamera.RenderContext(self.num_worlds)
         self.render_context.num_shapes_total = len(shape_transforms)
         self.render_context.num_shapes_enabled = self.render_context.num_shapes_total
         self.render_context.mesh_ids = wp.array([mesh.id for mesh in self.__warp_meshes], dtype=wp.uint64)

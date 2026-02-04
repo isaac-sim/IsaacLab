@@ -40,7 +40,7 @@ with measure_time("Imports time"):
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils import configclass
     from isaaclab_assets import ANYMAL_D_CFG
-    from isaaclab.renderers import NewtonWarpRendererDirect as NewtonWarpRenderer
+    from isaaclab.renderers import NewtonWarpRenderer as NewtonWarpRenderer
 
 
 @configclass
@@ -104,7 +104,7 @@ def main():
         )
         scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg)
 
-        renderer = NewtonWarpRenderer(scene, 400, 400)
+        renderer = NewtonWarpRenderer(scene)
 
         # stage = isaaclab_sim.get_current_stage()
         # stage.Export("/home/dhasenbring/development/isaac/IsaacLab/stage.usda")
