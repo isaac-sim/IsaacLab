@@ -31,6 +31,8 @@ from isaaclab.devices.openxr import XrCfg
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 
@@ -78,8 +80,10 @@ class EmptyEnvCfg(ManagerBasedEnvCfg):
         """Post initialization."""
         self.decimation = 5
         self.episode_length_s = 30.0
-        self.sim.physics_manager_cfg.dt = 0.01  # 100Hz
-        self.sim.render_interval = 2
+        self.sim = SimulationCfg(
+            render_interval=2,
+            physics_manager_cfg=PhysxManagerCfg(dt=0.01),  # 100Hz
+        )
 
 
 @pytest.fixture

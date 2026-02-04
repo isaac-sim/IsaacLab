@@ -12,6 +12,7 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -29,7 +30,10 @@ class AntEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(
+        render_interval=decimation,
+        physics_manager_cfg=PhysxManagerCfg(dt=1 / 120),
+    )
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

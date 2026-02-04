@@ -18,6 +18,7 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -203,8 +204,8 @@ def setup_sim():
     # Create a new stage
     sim_utils.create_new_stage()
     # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.001)
-    sim_cfg.physx.solver_type = 0  # 0: PGS, 1: TGS --> use PGS for more accurate results
+    # use PGS for more accurate results (solver_type: 0: PGS, 1: TGS)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.001, solver_type=0))
     sim = sim_utils.SimulationContext(sim_cfg)
     # construct scene
     scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)

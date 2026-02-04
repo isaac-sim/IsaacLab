@@ -13,6 +13,7 @@ and the contents of ``isaac_lab_tutorial_env_cfg.py``.  You should see something
   from isaaclab.assets import ArticulationCfg
   from isaaclab.envs import DirectRLEnvCfg
   from isaaclab.scene import InteractiveSceneCfg
+  from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
   from isaaclab.sim import SimulationCfg
   from isaaclab.utils import configclass
 
@@ -26,7 +27,7 @@ and the contents of ``isaac_lab_tutorial_env_cfg.py``.  You should see something
       .
 
       # simulation
-      sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=2)
+      sim: SimulationCfg = SimulationCfg(render_interval=2, physics_manager_cfg=PhysxManagerCfg(dt=1 / 120))
 
       # robot(s)
       robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

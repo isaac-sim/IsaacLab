@@ -21,6 +21,7 @@ from collections import namedtuple
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.managers import (
     ManagerTermBase,
     ObservationGroupCfg,
@@ -107,7 +108,7 @@ def setup_env():
     num_envs = 20
     device = "cuda:0"
     # set up sim
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim_cfg = sim_utils.SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
     # create dummy environment
     env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(

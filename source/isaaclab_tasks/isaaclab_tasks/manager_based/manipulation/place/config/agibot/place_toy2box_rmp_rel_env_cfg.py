@@ -7,6 +7,8 @@ import os
 from dataclasses import MISSING
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -190,13 +192,15 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
 
-        self.sim.render_interval = self.decimation
-
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
-        self.sim.physics_manager_cfg.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physics_manager_cfg.gpu_total_aggregate_pairs_capacity = 16 * 1024
-        self.sim.physics_manager_cfg.friction_correlation_distance = 0.00625
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                bounce_threshold_velocity=0.01,
+                gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+                gpu_total_aggregate_pairs_capacity=16 * 1024,
+                friction_correlation_distance=0.00625,
+            ),
+        )
 
         # set viewer to see the whole scene
         self.viewer.eye = [1.5, -1.0, 1.5]
@@ -339,8 +343,16 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         )
 
         # Set the simulation parameters
-        self.sim.physics_manager_cfg.dt = 1 / 60
-        self.sim.render_interval = 6
+        self.sim = SimulationCfg(
+            render_interval=6,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=1 / 60,
+                bounce_threshold_velocity=0.01,
+                gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+                gpu_total_aggregate_pairs_capacity=16 * 1024,
+                friction_correlation_distance=0.00625,
+            ),
+        )
 
         self.decimation = 3
         self.episode_length_s = 30.0

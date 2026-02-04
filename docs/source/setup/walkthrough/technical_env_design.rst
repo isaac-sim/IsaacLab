@@ -57,6 +57,7 @@ replace its contents with the following
   from isaaclab.assets import ArticulationCfg
   from isaaclab.envs import DirectRLEnvCfg
   from isaaclab.scene import InteractiveSceneCfg
+  from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
   from isaaclab.sim import SimulationCfg
   from isaaclab.utils import configclass
 
@@ -70,7 +71,7 @@ replace its contents with the following
       observation_space = 3
       state_space = 0
       # simulation
-      sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+      sim: SimulationCfg = SimulationCfg(render_interval=decimation, physics_manager_cfg=PhysxManagerCfg(dt=1 / 120))
       # robot(s)
       robot_cfg: ArticulationCfg = JETBOT_CONFIG.replace(prim_path="/World/envs/env_.*/Robot")
       # scene

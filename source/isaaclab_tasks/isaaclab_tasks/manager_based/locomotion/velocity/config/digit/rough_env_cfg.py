@@ -10,6 +10,8 @@ from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JO
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.physics import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
@@ -218,7 +220,15 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.decimation = 4
-        self.sim.physics_manager_cfg.dt = 0.005
+        # Override simulation settings with updated dt
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=0.005,
+                physics_material=self.scene.terrain.physics_material,
+                gpu_max_rigid_patch_count=10 * 2**15,
+            ),
+        )
 
         # Scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

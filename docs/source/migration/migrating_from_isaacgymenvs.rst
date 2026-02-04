@@ -555,8 +555,9 @@ Task Config
 | # used to create the object                            | @configclass                                                        |
 | name: Cartpole                                         | class CartpoleEnvCfg(DirectRLEnvCfg):                               |
 |                                                        |                                                                     |
-| physics_engine: ${..physics_engine}                    |     # simulation                                                    |
-|                                                        |     sim: SimulationCfg = SimulationCfg(dt=1 / 120)                  |
+| physics_engine: ${..physics_engine}                    |     # simulation (PhysxManagerCfg import needed)                    |
+|                                                        |     sim: SimulationCfg = SimulationCfg(                             |
+|                                                        |         physics_manager_cfg=PhysxManagerCfg(dt=1 / 120))            |
 | # if given, will override the device setting in gym.   |     # robot                                                         |
 | env:                                                   |     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(              |
 |   numEnvs: ${resolve_default:512,${...num_envs}}       |         prim_path="/World/envs/env_.*/Robot")                       |

@@ -486,8 +486,9 @@ Task config in Isaac Lab can be split into the main task configuration class and
 | # used to create the object                                     | @configclass                                                    |
 |                                                                 | class CartpoleEnvCfg(DirectRLEnvCfg):                           |
 | name: Cartpole                                                  |                                                                 |
-|                                                                 |     # simulation                                                |
-| physics_engine: ${..physics_engine}                             |     sim: SimulationCfg = SimulationCfg(dt=1 / 120)              |
+|                                                                 |     # simulation (PhysxManagerCfg import needed)                |
+| physics_engine: ${..physics_engine}                             |     sim: SimulationCfg = SimulationCfg(                         |
+|                                                                 |         physics_manager_cfg=PhysxManagerCfg(dt=1 / 120))        |
 |                                                                 |     # robot                                                     |
 | # if given, will override the device setting in gym.            |     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(          |
 | env:                                                            |         prim_path="/World/envs/env_.*/Robot")                   |

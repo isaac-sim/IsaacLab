@@ -31,6 +31,8 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
@@ -118,10 +120,11 @@ def get_empty_base_env_cfg(device: str = "cuda", num_envs: int = 1, env_spacing:
             # step settings
             self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
             # simulation settings
-            self.sim.physics_manager_cfg.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
+            self.sim = SimulationCfg(
+                device=device,
+                render_interval=self.decimation,  # render every 4 sim steps
+                physics_manager_cfg=PhysxManagerCfg(dt=0.005),  # sim step every 5ms: 200Hz
+            )
 
     return EmptyEnvCfg()
 

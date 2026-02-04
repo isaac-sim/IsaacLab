@@ -39,6 +39,7 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
@@ -52,7 +53,7 @@ def main():
     """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.005))
+    sim = SimulationContext(sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
     sim._visualizer_interface.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
 

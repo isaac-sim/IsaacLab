@@ -12,6 +12,8 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -328,8 +330,10 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.sim.render_interval = self.decimation
         self.episode_length_s = 24.0
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1.0 / 60.0
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(dt=1.0 / 60.0),
+        )

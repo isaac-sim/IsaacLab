@@ -7,6 +7,8 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -200,16 +202,19 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
+    # Simulation settings
+    decimation = 2
+    sim: SimulationCfg = SimulationCfg(
+        render_interval=decimation,
+        physics_manager_cfg=PhysxManagerCfg(dt=1.0 / 60.0),
+    )
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
         self.viewer.eye = (3.5, 3.5, 3.5)
-        # simulation settings
-        self.sim.physics_manager_cfg.dt = 1.0 / 60.0
 
         self.teleop_devices = DevicesCfg(
             devices={

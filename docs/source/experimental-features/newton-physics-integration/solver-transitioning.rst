@@ -12,12 +12,11 @@ What does require change is the way that some solver-specific settings are confi
 Tuning these parameters can have a significant impact on both simulation performance and behaviour.
 
 For now, we will show an example of setting these parameters to help provide a feel for these changes.
-Note that the :class:`~isaaclab.sim.NewtonCfg` replaces the :class:`~isaaclab.sim.PhysxCfg` and is used to set everything related to the physical simulation parameters except for the ``dt``:
+Note that the :class:`~isaaclab.physics.NewtonManagerCfg` replaces the :class:`~isaaclab.physics.PhysxManagerCfg` and is used to set everything related to the physical simulation parameters including the ``dt``:
 
 .. code-block:: python
 
-    from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-    from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
+    from isaaclab.physics.newton_manager_cfg import NewtonManagerCfg, MJWarpSolverCfg
 
     solver_cfg = MJWarpSolverCfg(
         nefc_per_env=35,
@@ -26,12 +25,13 @@ Note that the :class:`~isaaclab.sim.NewtonCfg` replaces the :class:`~isaaclab.si
         ls_parallel=True,
         impratio=1,
     )
-    newton_cfg = NewtonCfg(
+    newton_manager_cfg = NewtonManagerCfg(
+        dt=1 / 120,
         solver_cfg=solver_cfg,
         num_substeps=1,
         debug_mode=False,
     )
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
+    sim: SimulationCfg = SimulationCfg(render_interval=decimation, physics_manager_cfg=newton_manager_cfg)
 
 
 Here is a very brief explanation of some of the key parameters above:

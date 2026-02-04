@@ -26,6 +26,7 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg
@@ -122,7 +123,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim._visualizer_interface.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

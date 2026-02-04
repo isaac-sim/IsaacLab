@@ -23,6 +23,8 @@ from isaacsim.core.utils.extensions import enable_extension
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs.ui import ManagerBasedRLEnvWindow
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 enable_extension("isaacsim.gui.components")
@@ -64,10 +66,11 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
             # step settings
             self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
             # simulation settings
-            self.sim.physics_manager_cfg.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
+            self.sim = SimulationCfg(
+                device=device,
+                render_interval=self.decimation,  # render every 4 sim steps
+                physics_manager_cfg=PhysxManagerCfg(dt=0.005),  # sim step every 5ms: 200Hz
+            )
             # episode length
             self.episode_length_s = 5.0
 

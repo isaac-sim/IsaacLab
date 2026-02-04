@@ -27,6 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
@@ -451,7 +452,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
+    sim_cfg = SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=sim_dt, gravity=grav_dir))
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -504,7 +505,7 @@ def test_invalid_prim_paths_config(setup_simulation):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(dt=sim_dt, device=device)
+    sim_cfg = SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=sim_dt))
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -538,7 +539,7 @@ def test_invalid_max_contact_points_config(setup_simulation):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(dt=sim_dt, device=device)
+    sim_cfg = SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=sim_dt))
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 

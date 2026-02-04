@@ -7,6 +7,8 @@ import tempfile
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.devices.device_base import DevicesCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -51,8 +53,10 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120  # 120Hz
-        self.sim.render_interval = 2
+        self.sim = SimulationCfg(
+            render_interval=2,
+            physics_manager_cfg=PhysxManagerCfg(dt=1 / 120),  # 120Hz
+        )
 
         # Add waist joint to pink_ik_cfg
         waist_joint_names = ["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"]

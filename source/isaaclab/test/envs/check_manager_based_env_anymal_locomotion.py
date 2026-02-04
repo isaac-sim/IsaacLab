@@ -46,6 +46,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR, check_file_path, read_file
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -203,7 +205,9 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.005
+        self.sim = SimulationCfg(
+            physics_manager_cfg=PhysxManagerCfg(dt=0.005),
+        )
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:

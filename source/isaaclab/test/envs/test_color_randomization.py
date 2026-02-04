@@ -29,6 +29,8 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.version import get_isaac_sim_version
 
@@ -131,7 +133,9 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.005  # sim step every 5ms: 200Hz
+        self.sim = SimulationCfg(
+            physics_manager_cfg=PhysxManagerCfg(dt=0.005),  # sim step every 5ms: 200Hz
+        )
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])

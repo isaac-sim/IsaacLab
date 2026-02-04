@@ -11,6 +11,8 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -275,7 +277,11 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (-2.0, 2.0, 2.0)
         self.viewer.lookat = (0.8, 0.0, 0.5)
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 60  # 60Hz
-        self.sim.render_interval = self.decimation
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
-        self.sim.physics_manager_cfg.friction_correlation_distance = 0.00625
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=1 / 60,  # 60Hz
+                bounce_threshold_velocity=0.01,
+                friction_correlation_distance=0.00625,
+            ),
+        )

@@ -6,6 +6,8 @@
 import math
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -135,8 +137,12 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
 
-        self.sim.physics_manager_cfg.dt = LOW_LEVEL_ENV_CFG.sim.physics_manager_cfg.dt
-        self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
+        self.sim = SimulationCfg(
+            render_interval=LOW_LEVEL_ENV_CFG.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=LOW_LEVEL_ENV_CFG.sim.physics_manager_cfg.dt,
+            ),
+        )
         self.decimation = LOW_LEVEL_ENV_CFG.decimation * 10
         self.episode_length_s = self.commands.pose_command.resampling_time_range[1]
 

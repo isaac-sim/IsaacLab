@@ -8,6 +8,8 @@ import os
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.device_base import DeviceBase, DevicesCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3RelRetargeterCfg
@@ -59,8 +61,10 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
         )
 
         # Set the simulation parameters
-        self.sim.physics_manager_cfg.dt = 1 / 60
-        self.sim.render_interval = 6
+        self.sim = SimulationCfg(
+            render_interval=6,
+            physics_manager_cfg=PhysxManagerCfg(dt=1 / 60),
+        )
 
         self.decimation = 3
         self.episode_length_s = 30.0
@@ -126,14 +130,16 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
             use_relative_mode=self.use_relative_mode,
         )
         # Set the simulation parameters
-        self.sim.physics_manager_cfg.dt = 1 / 120
-        self.sim.render_interval = 6
+        self.sim = SimulationCfg(
+            render_interval=6,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=1 / 120,
+                enable_ccd=True,  # Enable CCD to avoid tunneling
+            ),
+        )
 
         self.decimation = 6
         self.episode_length_s = 30.0
-
-        # Enable CCD to avoid tunneling
-        self.sim.physics_manager_cfg.enable_ccd = True
 
         self.teleop_devices = DevicesCfg(
             devices={

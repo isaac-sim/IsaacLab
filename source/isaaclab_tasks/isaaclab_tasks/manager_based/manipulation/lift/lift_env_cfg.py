@@ -7,6 +7,8 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -205,18 +207,21 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
+    # Simulation settings
+    decimation = 2
+    sim: SimulationCfg = SimulationCfg(
+        render_interval=decimation,
+        physics_manager_cfg=PhysxManagerCfg(
+            dt=0.01,  # 100Hz
+            bounce_threshold_velocity=0.01,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=16 * 1024,
+            friction_correlation_distance=0.00625,
+        ),
+    )
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 2
         self.episode_length_s = 5.0
-        # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.01  # 100Hz
-        self.sim.render_interval = self.decimation
-
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
-        self.sim.physics_manager_cfg.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physics_manager_cfg.gpu_total_aggregate_pairs_capacity = 16 * 1024
-        self.sim.physics_manager_cfg.friction_correlation_distance = 0.00625

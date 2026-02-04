@@ -12,6 +12,8 @@ from pink.tasks import FrameTask
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -365,8 +367,10 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 6
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120  # 120Hz
-        self.sim.render_interval = 2
+        self.sim = SimulationCfg(
+            render_interval=2,
+            physics_manager_cfg=PhysxManagerCfg(dt=1 / 120),  # 120Hz
+        )
 
         # Convert USD to URDF and change revolute joints to fixed
         temp_urdf_output_path, temp_urdf_meshes_output_path = ControllerUtils.convert_usd_to_urdf(

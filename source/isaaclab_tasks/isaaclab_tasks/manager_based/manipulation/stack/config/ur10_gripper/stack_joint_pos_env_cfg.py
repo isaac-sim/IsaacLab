@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -129,8 +131,10 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.01  # 100Hz
-        self.sim.render_interval = 5
+        self.sim = SimulationCfg(
+            render_interval=5,
+            physics_manager_cfg=PhysxManagerCfg(dt=0.01),  # 100Hz
+        )
 
 
 @configclass

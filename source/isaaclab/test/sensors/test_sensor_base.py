@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.utils import configclass
 
@@ -94,7 +95,7 @@ def create_dummy_sensor(request, device):
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim_cfg = sim_utils.SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # create sensor

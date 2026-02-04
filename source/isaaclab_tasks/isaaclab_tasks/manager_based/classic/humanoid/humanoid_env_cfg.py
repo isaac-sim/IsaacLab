@@ -5,6 +5,9 @@
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -212,10 +215,15 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 16.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120.0
-        self.sim.render_interval = self.decimation
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
-        # default friction material
-        self.sim.physics_material.static_friction = 1.0
-        self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.restitution = 0.0
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=1 / 120.0,
+                bounce_threshold_velocity=0.2,
+                physics_material=RigidBodyMaterialCfg(
+                    static_friction=1.0,
+                    dynamic_friction=1.0,
+                    restitution=0.0,
+                ),
+            ),
+        )

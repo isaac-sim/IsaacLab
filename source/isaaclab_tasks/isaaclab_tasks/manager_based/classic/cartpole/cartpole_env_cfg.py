@@ -7,6 +7,8 @@ import math
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -167,6 +169,12 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # Simulation settings
+    decimation = 2
+    sim: SimulationCfg = SimulationCfg(
+        render_interval=decimation,
+        physics_manager_cfg=PhysxManagerCfg(dt=1 / 120),
+    )
 
     # Post initialization
     def __post_init__(self) -> None:
@@ -176,6 +184,3 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 5
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
-        # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120
-        self.sim.render_interval = self.decimation

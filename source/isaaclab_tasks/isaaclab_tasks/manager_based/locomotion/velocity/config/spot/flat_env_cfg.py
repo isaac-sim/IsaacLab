@@ -5,6 +5,9 @@
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.envs import ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -317,12 +320,18 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.decimation = 10  # 50 Hz
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.002  # 500 Hz
-        self.sim.render_interval = self.decimation
-        self.sim.physics_material.static_friction = 1.0
-        self.sim.physics_material.dynamic_friction = 1.0
-        self.sim.physics_material.friction_combine_mode = "multiply"
-        self.sim.physics_material.restitution_combine_mode = "multiply"
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=0.002,  # 500 Hz
+                physics_material=RigidBodyMaterialCfg(
+                    static_friction=1.0,
+                    dynamic_friction=1.0,
+                    friction_combine_mode="multiply",
+                    restitution_combine_mode="multiply",
+                ),
+            ),
+        )
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         self.scene.contact_forces.update_period = self.sim.physics_manager_cfg.dt

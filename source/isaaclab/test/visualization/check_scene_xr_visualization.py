@@ -40,6 +40,7 @@ from typing import Any
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager, XRVisualization, update_instruction
@@ -235,7 +236,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim._visualizer_interface.set_camera_view(eye=(8, 0, 4), target=(0.0, 0.0, 0.0))

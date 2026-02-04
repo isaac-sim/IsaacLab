@@ -263,8 +263,8 @@ this configuration class for the :ref:`cartpole environment <tutorial-create-dir
         observation_space = 4
         state_space = 0
 
-        # simulation
-        sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+        # simulation (requires: from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg)
+        sim: SimulationCfg = SimulationCfg(render_interval=decimation, physics_manager_cfg=PhysxManagerCfg(dt=1 / 120))
 
         # robot
         robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

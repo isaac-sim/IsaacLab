@@ -17,6 +17,7 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from isaaclab.sim import SimulationCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
@@ -29,7 +30,10 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     action_scale = 100.0  # [N]
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(
+        render_interval=decimation,
+        physics_manager_cfg=PhysxManagerCfg(dt=1 / 120),
+    )
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

@@ -18,6 +18,7 @@ import scipy.spatial.transform as tf
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -76,7 +77,7 @@ def sim():
     # Create a new stage
     sim_utils.create_new_stage()
     # Load kit helper
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, device="cpu"))
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
     sim._visualizer_interface.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
     yield sim

@@ -63,6 +63,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 ##
@@ -301,10 +303,14 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 2
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.01
-        self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.render_interval = 2  # render interval should be a multiple of decimation
-        self.sim.device = args_cli.device
+        self.sim = SimulationCfg(
+            device=args_cli.device,
+            render_interval=2,  # render interval should be a multiple of decimation
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=0.01,
+                physics_material=self.scene.terrain.physics_material,
+            ),
+        )
         # viewer settings
         self.viewer.eye = (5.0, 5.0, 5.0)
         self.viewer.lookat = (0.0, 0.0, 2.0)

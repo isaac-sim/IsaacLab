@@ -72,6 +72,7 @@ enable_extension("isaacsim.core.experimental.prims")
 from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
 
 
@@ -99,7 +100,7 @@ def benchmark_xform_prim_view(
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=args_cli.device))
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.01)))
     stage = sim_utils.get_current_stage()
 
     print(f"  Time taken to create simulation context: {time.perf_counter() - start_time} seconds")

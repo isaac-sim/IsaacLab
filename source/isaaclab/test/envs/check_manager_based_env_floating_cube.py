@@ -43,6 +43,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 ##
@@ -225,8 +227,12 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 2
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.01
-        self.sim.physics_material = self.scene.terrain.physics_material
+        self.sim = SimulationCfg(
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=0.01,
+                physics_material=self.scene.terrain.physics_material,
+            ),
+        )
 
 
 def main():

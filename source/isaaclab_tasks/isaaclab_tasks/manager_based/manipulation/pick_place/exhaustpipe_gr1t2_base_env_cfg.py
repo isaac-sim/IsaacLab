@@ -9,6 +9,8 @@ from dataclasses import MISSING
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -320,8 +322,10 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 5
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 100
-        self.sim.render_interval = 2
+        self.sim = SimulationCfg(
+            render_interval=2,
+            physics_manager_cfg=PhysxManagerCfg(dt=1 / 100),
+        )
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3

@@ -40,6 +40,7 @@ import random
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -275,7 +276,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim._visualizer_interface.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])

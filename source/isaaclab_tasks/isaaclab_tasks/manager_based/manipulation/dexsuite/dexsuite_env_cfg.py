@@ -15,7 +15,8 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SphereCfg
+from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SimulationCfg, SphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -422,11 +423,14 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.is_finite_horizon = True
 
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120
-        self.sim.render_interval = self.decimation
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.2
-        self.sim.physics_manager_cfg.bounce_threshold_velocity = 0.01
-        self.sim.physics_manager_cfg.gpu_max_rigid_patch_count = 4 * 5 * 2**15
+        self.sim = SimulationCfg(
+            render_interval=self.decimation,
+            physics_manager_cfg=PhysxManagerCfg(
+                dt=1 / 120,
+                bounce_threshold_velocity=0.01,
+                gpu_max_rigid_patch_count=4 * 5 * 2**15,
+            ),
+        )
 
         if self.curriculum is not None:
             self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
