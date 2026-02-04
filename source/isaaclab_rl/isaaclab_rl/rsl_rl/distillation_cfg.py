@@ -63,3 +63,65 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlDistillationAlgorithmCfg = MISSING
     """The algorithm configuration."""
+
+    policy: RslRlDistillationStudentTeacherCfg = MISSING
+    """The policy configuration.
+
+    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `student` and `teacher` model configurations
+    instead.
+    """
+
+
+@configclass
+class RslRlDistillationStudentTeacherCfg:
+    """Configuration for the distillation student-teacher networks.
+
+    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
+    """
+
+    class_name: str = "StudentTeacher"
+    """The policy class name. Default is StudentTeacher."""
+
+    init_noise_std: float = MISSING
+    """The initial noise standard deviation for the student policy."""
+
+    noise_std_type: Literal["scalar", "log"] = "scalar"
+    """The type of noise standard deviation for the policy. Default is scalar."""
+
+    student_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the student network."""
+
+    teacher_obs_normalization: bool = MISSING
+    """Whether to normalize the observation for the teacher network."""
+
+    student_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the student network."""
+
+    teacher_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the teacher network."""
+
+    activation: str = MISSING
+    """The activation function for the student and teacher networks."""
+
+
+@configclass
+class RslRlDistillationStudentTeacherRecurrentCfg(RslRlDistillationStudentTeacherCfg):
+    """Configuration for the distillation student-teacher recurrent networks.
+
+    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.
+    """
+
+    class_name: str = "StudentTeacherRecurrent"
+    """The policy class name. Default is StudentTeacherRecurrent."""
+
+    rnn_type: str = MISSING
+    """The type of the RNN network. Either "lstm" or "gru"."""
+
+    rnn_hidden_dim: int = MISSING
+    """The hidden dimension of the RNN network."""
+
+    rnn_num_layers: int = MISSING
+    """The number of layers of the RNN network."""
+
+    teacher_recurrent: bool = MISSING
+    """Whether the teacher network is recurrent too."""

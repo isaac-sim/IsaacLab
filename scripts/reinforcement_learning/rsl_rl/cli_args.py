@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import argparse
 import random
+from dataclasses import MISSING
+from packaging import version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -89,5 +91,181 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
     if agent_cfg.logger in {"wandb", "neptune"} and args_cli.log_project_name:
         agent_cfg.wandb_project = args_cli.log_project_name
         agent_cfg.neptune_project = args_cli.log_project_name
+
+    return agent_cfg
+
+
+def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_version) -> RslRlBaseRunnerCfg:
+    """Handle deprecated configurations for RSL-RL."""
+
+    # Handle configurations for rsl-rl < 4.0.0
+    if version.parse(installed_version) < version.parse("4.0.0"):
+        # handle deprecated obs_normalization argument
+        if hasattr(agent_cfg, "empirical_normalization") and not isinstance(
+            agent_cfg.empirical_normalization, type(MISSING)
+        ):
+            print(
+                "[WARNING]: The `empirical_normalization` parameter is deprecated. Please set `actor_obs_normalization`"
+                " and `critic_obs_normalization` as part of the `policy` configuration instead."
+            )
+            if isinstance(agent_cfg.policy.actor_obs_normalization, type(MISSING)):
+                agent_cfg.policy.actor_obs_normalization = agent_cfg.empirical_normalization
+            if isinstance(agent_cfg.policy.critic_obs_normalization, type(MISSING)):
+                agent_cfg.policy.critic_obs_normalization = agent_cfg.empirical_normalization
+            agent_cfg.empirical_normalization = MISSING
+
+        # warn about model configurations only used in rsl-rl >= 4.0.0
+        if hasattr(agent_cfg, "actor") and not isinstance(agent_cfg.actor, type(MISSING)):
+            print(
+                "[WARNING]: The `actor` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
+                " or use the `policy` configuration for rsl-rl < 4.0.0."
+            )
+            agent_cfg.actor = MISSING
+        if hasattr(agent_cfg, "critic") and not isinstance(agent_cfg.critic, type(MISSING)):
+            print(
+                "[WARNING]: The `critic` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
+                " or use the `policy` configuration for rsl-rl < 4.0.0."
+            )
+            agent_cfg.critic = MISSING
+        if hasattr(agent_cfg, "student") and not isinstance(agent_cfg.student, type(MISSING)):
+            print(
+                "[WARNING]: The `student` model configuration is only used for rsl-rl >= 4.0.0. Consider updating"
+                " rsl-rl or use the `policy` configuration for rsl-rl < 4.0.0."
+            )
+            agent_cfg.student = MISSING
+        if hasattr(agent_cfg, "teacher") and not isinstance(agent_cfg.teacher, type(MISSING)):
+            print(
+                "[WARNING]: The `teacher` model configuration is only used for rsl-rl >= 4.0.0. Consider updating"
+                " rsl-rl or use the `policy` configuration for rsl-rl < 4.0.0."
+            )
+            agent_cfg.teacher = MISSING
+
+    # Handle deprecated configurations for rsl-rl >= 4.0.0
+    else:
+        if hasattr(agent_cfg, "policy") and not isinstance(agent_cfg.policy, type(MISSING)):
+            print(
+                "[WARNING]: The `policy` configuration is deprecated for rsl-rl >= 4.0.0. Please use, e.g., `actor` and"
+                " `critic` model configurations instead."
+            )
+            # handle deprecated obs_normalization argument
+            if hasattr(agent_cfg, "empirical_normalization") and not isinstance(
+                agent_cfg.empirical_normalization, type(MISSING)
+            ):
+                print(
+                    "[WARNING]: The `empirical_normalization` parameter is deprecated. Please set"
+                    " `actor_obs_normalization` and `critic_obs_normalization` as part of the `policy` configuration"
+                    " instead."
+                )
+                if isinstance(agent_cfg.policy.actor_obs_normalization, type(MISSING)):
+                    agent_cfg.policy.actor_obs_normalization = agent_cfg.empirical_normalization
+                if isinstance(agent_cfg.policy.critic_obs_normalization, type(MISSING)):
+                    agent_cfg.policy.critic_obs_normalization = agent_cfg.empirical_normalization
+                agent_cfg.empirical_normalization = MISSING
+
+            # import relevant config classes
+            from isaaclab_rl.rsl_rl import (
+                RslRlDistillationStudentTeacherCfg,
+                RslRlDistillationStudentTeacherRecurrentCfg,
+                RslRlMLPModelCfg,
+                RslRlPpoActorCriticCfg,
+                RslRlPpoActorCriticRecurrentCfg,
+                RslRlRNNModelCfg,
+            )
+
+            # set actor model configuration if missing
+            if hasattr(agent_cfg, "actor") and isinstance(agent_cfg.actor, type(MISSING)):
+                print("[WARNING]: The `policy` configuration is used to infer the `actor` model configuration.")
+                if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
+                    agent_cfg.actor = RslRlMLPModelCfg(
+                        hidden_dims=agent_cfg.policy.actor_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.actor_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=agent_cfg.policy.init_noise_std,
+                        noise_std_type=agent_cfg.policy.noise_std_type,
+                        state_dependent_std=agent_cfg.policy.state_dependent_std,
+                    )
+                elif type(agent_cfg.policy) is RslRlPpoActorCriticRecurrentCfg:
+                    agent_cfg.actor = RslRlRNNModelCfg(
+                        hidden_dims=agent_cfg.policy.actor_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.actor_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=agent_cfg.policy.init_noise_std,
+                        noise_std_type=agent_cfg.policy.noise_std_type,
+                        state_dependent_std=agent_cfg.policy.state_dependent_std,
+                        rnn_type=agent_cfg.policy.rnn_type,
+                        rnn_hidden_dim=agent_cfg.policy.rnn_hidden_dim,
+                        rnn_num_layers=agent_cfg.policy.rnn_num_layers,
+                    )
+            # set critic model configuration if missing
+            if hasattr(agent_cfg, "critic") and isinstance(agent_cfg.critic, type(MISSING)):
+                print("[WARNING]: The `policy` configuration is used to infer the `critic` model configuration.")
+                if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
+                    agent_cfg.critic = RslRlMLPModelCfg(
+                        hidden_dims=agent_cfg.policy.critic_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.critic_obs_normalization,
+                        stochastic=False,
+                    )
+                elif type(agent_cfg.policy) is RslRlPpoActorCriticRecurrentCfg:
+                    agent_cfg.critic = RslRlRNNModelCfg(
+                        hidden_dims=agent_cfg.policy.critic_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.critic_obs_normalization,
+                        stochastic=False,
+                        rnn_type=agent_cfg.policy.rnn_type,
+                        rnn_hidden_dim=agent_cfg.policy.rnn_hidden_dim,
+                        rnn_num_layers=agent_cfg.policy.rnn_num_layers,
+                    )
+            # set student model configuration if missing
+            if hasattr(agent_cfg, "student") and isinstance(agent_cfg.student, type(MISSING)):
+                print("[WARNING]: The `policy` configuration is used to infer the `student` model configuration.")
+                if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
+                    agent_cfg.student = RslRlMLPModelCfg(
+                        hidden_dims=agent_cfg.policy.student_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.student_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=agent_cfg.policy.init_noise_std,
+                        noise_std_type=agent_cfg.policy.noise_std_type,
+                    )
+                elif type(agent_cfg.policy) is RslRlDistillationStudentTeacherRecurrentCfg:
+                    agent_cfg.student = RslRlRNNModelCfg(
+                        hidden_dims=agent_cfg.policy.student_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.student_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=agent_cfg.policy.init_noise_std,
+                        noise_std_type=agent_cfg.policy.noise_std_type,
+                        rnn_type=agent_cfg.policy.rnn_type,
+                        rnn_hidden_dim=agent_cfg.policy.rnn_hidden_dim,
+                        rnn_num_layers=agent_cfg.policy.rnn_num_layers,
+                    )
+            # set teacher model configuration if missing
+            if hasattr(agent_cfg, "teacher") and isinstance(agent_cfg.teacher, type(MISSING)):
+                print("[WARNING]: The `policy` configuration is used to infer the `teacher` model configuration.")
+                if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
+                    agent_cfg.teacher = RslRlMLPModelCfg(
+                        hidden_dims=agent_cfg.policy.teacher_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.teacher_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=0.0,
+                    )
+                elif type(agent_cfg.policy) is RslRlDistillationStudentTeacherRecurrentCfg:
+                    agent_cfg.teacher = RslRlRNNModelCfg(
+                        hidden_dims=agent_cfg.policy.teacher_hidden_dims,
+                        activation=agent_cfg.policy.activation,
+                        obs_normalization=agent_cfg.policy.teacher_obs_normalization,
+                        stochastic=True,
+                        init_noise_std=0.0,
+                        rnn_type=agent_cfg.policy.rnn_type,
+                        rnn_hidden_dim=agent_cfg.policy.rnn_hidden_dim,
+                        rnn_num_layers=agent_cfg.policy.rnn_num_layers,
+                    )
+
+            # remove deprecated policy configuration
+            agent_cfg.policy = MISSING
 
     return agent_cfg
