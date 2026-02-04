@@ -158,10 +158,17 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
         scale[0] = array_scales[index, 0]
         scale[1] = array_scales[index, 1]
         scale[2] = array_scales[index, 2]
-    # set transform matrix (need transpose for column-major ordering)
-    # Using transform_compose as wp.matrix() is deprecated
-    fabric_matrices[fabric_index] = wp.mat44d(  # type: ignore[arg-type]
-        wp.transpose(wp.transform_compose(position, rotation, scale))  # type: ignore[arg-type]
+    # compose and set transform matrix (transpose for column-major ordering)
+    rot = wp.quat_to_matrix(rotation)  # type: ignore[arg-type]
+    m00, m01, m02 = rot[0, 0] * scale[0], rot[0, 1] * scale[1], rot[0, 2] * scale[2]
+    m10, m11, m12 = rot[1, 0] * scale[0], rot[1, 1] * scale[1], rot[1, 2] * scale[2]
+    m20, m21, m22 = rot[2, 0] * scale[0], rot[2, 1] * scale[1], rot[2, 2] * scale[2]
+    fabric_matrices[fabric_index] = wp.mat44d(
+        wp.transpose(
+            wp.mat44f(  # type: ignore[arg-type]
+                m00, m01, m02, position[0], m10, m11, m12, position[1], m20, m21, m22, position[2], 0.0, 0.0, 0.0, 1.0
+            )
+        )
     )
 
 
