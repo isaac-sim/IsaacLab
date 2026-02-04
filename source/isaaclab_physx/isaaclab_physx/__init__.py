@@ -17,6 +17,3 @@ ISAACLAB_PHYSX_METADATA = toml.load(os.path.join(ISAACLAB_PHYSX_EXT_DIR, "config
 
 # Configure the module-level variables
 __version__ = ISAACLAB_PHYSX_METADATA["package"]["version"]
-
-# Import sensors module for auto-registration with factory
-from . import sensors  # noqa: F401, E402

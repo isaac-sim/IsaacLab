@@ -1,7 +1,56 @@
 Changelog
 ---------
 
-1.0.0 (2026-01-28)
+0.1.3 (2026-02-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_physx.benchmark` module containing performance micro-benchmarks for
+  PhysX asset classes. Includes:
+
+  * ``benchmark_articulation.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.Articulation` including root state, joint state,
+    joint parameters, and body property operations.
+  * ``benchmark_articulation_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.ArticulationData` covering root link/COM properties,
+    joint properties, and body link/COM properties.
+  * ``benchmark_rigid_object.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.RigidObject` including root state and body property operations.
+  * ``benchmark_rigid_object_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.RigidObjectData`.
+  * ``benchmark_rigid_object_collection.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.RigidObjectCollection` including body state, pose,
+    velocity, and property operations.
+  * ``benchmark_rigid_object_collection_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.RigidObjectCollectionData`.
+
+  All benchmarks support configurable iterations, warmup steps, instance counts, multiple
+  input modes (torch list, torch tensor), and output to JSON/CSV formats with hardware
+  information capture.
+
+
+0.1.2 (2026-02-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_physx.test.mock_interfaces` module providing mock PhysX view implementations
+  for unit testing without requiring Isaac Sim. Includes:
+
+  * :class:`MockRigidBodyView`: Mock for ``physx.RigidBodyView`` with transforms, velocities,
+    accelerations, and mass properties.
+  * :class:`MockArticulationView`: Mock for ``physx.ArticulationView`` with root/link states,
+    DOF properties, and joint control.
+  * :class:`MockRigidContactView`: Mock for ``physx.RigidContactView`` with contact forces,
+    positions, normals, and friction data.
+  * Factory functions including pre-configured quadruped and humanoid views.
+  * Patching utilities and decorators for easy test injection.
+
+
+0.1.0 (2026-01-28)
 ~~~~~~~~~~~~~~~~~~
 
 Added

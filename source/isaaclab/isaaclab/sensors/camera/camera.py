@@ -151,6 +151,7 @@ class Camera(SensorBase):
                 logger.warning(
                     "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
                 )
+<<<<<<< HEAD
             if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
                 logger.warning(
                     "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
@@ -161,6 +162,8 @@ class Camera(SensorBase):
         simple_shading_mode = self._resolve_simple_shading_mode()
         if simple_shading_mode is not None:
             carb_settings_iface.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+=======
+>>>>>>> develop
 
         # spawn the asset
         if self.cfg.spawn is not None:

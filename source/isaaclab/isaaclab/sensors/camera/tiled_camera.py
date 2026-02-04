@@ -377,11 +377,14 @@ class TiledCamera(Camera):
             data_dict["albedo"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
             ).contiguous()
+<<<<<<< HEAD
         for data_type in self.SIMPLE_SHADING_MODES:
             if data_type in self.cfg.data_types:
                 data_dict[data_type] = torch.zeros(
                     (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
                 ).contiguous()
+=======
+>>>>>>> develop
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32

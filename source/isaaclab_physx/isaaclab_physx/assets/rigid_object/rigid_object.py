@@ -428,15 +428,14 @@ class RigidObject(BaseRigidObject):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
-        self.data.body_mass[env_ids, body_ids] = masses
+        # _body_mass shape from view is (N, 1), masses input shape is (N, B) where B=1 for RigidObject
+        self.data._body_mass[env_ids] = masses.reshape(-1, 1)
         # set into simulation
-        self.root_view.set_masses(self.data.body_mass.cpu(), indices=physx_env_ids.cpu())
+        self.root_view.set_masses(self.data._body_mass.cpu(), indices=physx_env_ids.cpu())
 
     def set_coms(
         self,
@@ -457,15 +456,18 @@ class RigidObject(BaseRigidObject):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
+        # Body IDs are always all bodies for a single rigid object.
+        body_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
-        self.data.body_com_pose_b[env_ids, body_ids] = coms
+        # body_com_pose_b shape is (N, B, 7) where [:,:,:3] is position and [:,:,3:7] is quaternion
+        # coms input shape is (N, B, 3) - only setting the position part
+        self.data.body_com_pose_b[env_ids, body_ids, :3] = coms
         # set into simulation
-        self.root_view.set_coms(self.data.body_com_pose_b.cpu(), indices=physx_env_ids.cpu())
+        # RigidBodyView expects (N, 7) but body_com_pose_b is (N, 1, 7), squeeze the body dim
+        self.root_view.set_coms(self.data.body_com_pose_b.squeeze(1).cpu(), indices=physx_env_ids.cpu())
 
     def set_inertias(
         self,
@@ -485,15 +487,15 @@ class RigidObject(BaseRigidObject):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
-        self.data.body_inertia[env_ids, body_ids] = inertias
+        # _body_inertia shape from view is (N, 9) - flattened 3x3 matrices
+        # inertias input shape is (N, B, 3, 3) where B=1 for RigidObject, flatten to (N, 9)
+        self.data._body_inertia[env_ids] = inertias.reshape(-1, 9)
         # set into simulation
-        self.root_view.set_inertias(self.data.body_inertia.cpu(), indices=physx_env_ids.cpu())
+        self.root_view.set_inertias(self.data._body_inertia.cpu(), indices=physx_env_ids.cpu())
 
     def set_external_force_and_torque(
         self,

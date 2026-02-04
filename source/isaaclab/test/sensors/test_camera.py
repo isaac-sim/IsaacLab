@@ -827,7 +827,209 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     """Test camera resolution is correctly set for simple shading only."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = [data_type]
+    camera_cfg.data_types = [
+        "rgb",
+        "rgba",
+        "albedo",
+        "depth",
+        "distance_to_camera",
+        "distance_to_image_plane",
+        "normals",
+        "motion_vectors",
+        "semantic_segmentation",
+        "instance_segmentation_fast",
+        "instance_id_segmentation_fast",
+    ]
+    camera_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.colorize_instance_segmentation = True
+    camera_cfg.colorize_semantic_segmentation = True
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
+    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
+    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["rgb"].shape == hw_3c_shape
+    assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
+    assert output["depth"].shape == hw_1c_shape
+    assert output["distance_to_camera"].shape == hw_1c_shape
+    assert output["distance_to_image_plane"].shape == hw_1c_shape
+    assert output["normals"].shape == hw_3c_shape
+    assert output["motion_vectors"].shape == hw_2c_shape
+    assert output["semantic_segmentation"].shape == hw_4c_shape
+    assert output["instance_segmentation_fast"].shape == hw_4c_shape
+    assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
+
+    # access image data and compare dtype
+    output = camera.data.output
+    assert output["rgb"].dtype == torch.uint8
+    assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
+    assert output["depth"].dtype == torch.float
+    assert output["distance_to_camera"].dtype == torch.float
+    assert output["distance_to_image_plane"].dtype == torch.float
+    assert output["normals"].dtype == torch.float
+    assert output["motion_vectors"].dtype == torch.float
+    assert output["semantic_segmentation"].dtype == torch.uint8
+    assert output["instance_segmentation_fast"].dtype == torch.uint8
+    assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+
+
+def test_camera_resolution_no_colorize(setup_sim_camera):
+    """Test camera resolution is correctly set for all types with no colorization enabled."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = [
+        "rgb",
+        "rgba",
+        "albedo",
+        "depth",
+        "distance_to_camera",
+        "distance_to_image_plane",
+        "normals",
+        "motion_vectors",
+        "semantic_segmentation",
+        "instance_segmentation_fast",
+        "instance_id_segmentation_fast",
+    ]
+    camera_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.colorize_instance_segmentation = False
+    camera_cfg.colorize_semantic_segmentation = False
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(12):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
+    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
+    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["rgb"].shape == hw_3c_shape
+    assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
+    assert output["depth"].shape == hw_1c_shape
+    assert output["distance_to_camera"].shape == hw_1c_shape
+    assert output["distance_to_image_plane"].shape == hw_1c_shape
+    assert output["normals"].shape == hw_3c_shape
+    assert output["motion_vectors"].shape == hw_2c_shape
+    assert output["semantic_segmentation"].shape == hw_1c_shape
+    assert output["instance_segmentation_fast"].shape == hw_1c_shape
+    assert output["instance_id_segmentation_fast"].shape == hw_1c_shape
+
+    # access image data and compare dtype
+    output = camera.data.output
+    assert output["rgb"].dtype == torch.uint8
+    assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
+    assert output["depth"].dtype == torch.float
+    assert output["distance_to_camera"].dtype == torch.float
+    assert output["distance_to_image_plane"].dtype == torch.float
+    assert output["normals"].dtype == torch.float
+    assert output["motion_vectors"].dtype == torch.float
+    assert output["semantic_segmentation"].dtype == torch.int32
+    assert output["instance_segmentation_fast"].dtype == torch.int32
+    assert output["instance_id_segmentation_fast"].dtype == torch.int32
+
+
+def test_camera_large_resolution_all_colorize(setup_sim_camera):
+    """Test camera resolution is correctly set for all types with colorization enabled."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = [
+        "rgb",
+        "rgba",
+        "albedo",
+        "depth",
+        "distance_to_camera",
+        "distance_to_image_plane",
+        "normals",
+        "motion_vectors",
+        "semantic_segmentation",
+        "instance_segmentation_fast",
+        "instance_id_segmentation_fast",
+    ]
+    camera_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.colorize_instance_segmentation = True
+    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.width = 512
+    camera_cfg.height = 512
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
+    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
+    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["rgb"].shape == hw_3c_shape
+    assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
+    assert output["depth"].shape == hw_1c_shape
+    assert output["distance_to_camera"].shape == hw_1c_shape
+    assert output["distance_to_image_plane"].shape == hw_1c_shape
+    assert output["normals"].shape == hw_3c_shape
+    assert output["motion_vectors"].shape == hw_2c_shape
+    assert output["semantic_segmentation"].shape == hw_4c_shape
+    assert output["instance_segmentation_fast"].shape == hw_4c_shape
+    assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
+
+    # access image data and compare dtype
+    output = camera.data.output
+    assert output["rgb"].dtype == torch.uint8
+    assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
+    assert output["depth"].dtype == torch.float
+    assert output["distance_to_camera"].dtype == torch.float
+    assert output["distance_to_image_plane"].dtype == torch.float
+    assert output["normals"].dtype == torch.float
+    assert output["motion_vectors"].dtype == torch.float
+    assert output["semantic_segmentation"].dtype == torch.uint8
+    assert output["instance_segmentation_fast"].dtype == torch.uint8
+    assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+
+
+def test_camera_resolution_rgb_only(setup_sim_camera):
+    """Test camera resolution is correctly set for RGB only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = ["rgb"]
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -848,6 +1050,33 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     assert output[data_type].shape == hw_3c_shape
     # access image data and compare dtype
     assert output[data_type].dtype == torch.uint8
+
+
+def test_camera_resolution_albedo_only(setup_sim_camera):
+    """Test camera resolution is correctly set for albedo only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = ["albedo"]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["albedo"].shape == hw_4c_shape
+    # access image data and compare dtype
+    assert output["albedo"].dtype == torch.uint8
 
 
 def test_camera_resolution_depth_only(setup_sim_camera):
