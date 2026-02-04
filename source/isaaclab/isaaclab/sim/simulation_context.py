@@ -107,6 +107,9 @@ class SimulationContext:
             if stage_id < 0:
                 stage_cache.Insert(self.stage)  # type: ignore[union-attr]
 
+            # Set as current stage in thread-local context for get_current_stage()
+            stage_utils._context.stage = self.stage
+
             # Acquire settings interface and create helper
             self.carb_settings = carb.settings.get_settings()
             self._settings_helper = SettingsHelper(self.carb_settings)
@@ -239,6 +242,10 @@ class SimulationContext:
         stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
         if stage_id > 0:
             stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
+
+        # Clear thread-local stage context
+        if hasattr(stage_utils._context, "stage"):
+            delattr(stage_utils._context, "stage")
 
         # Clear instance
         cls._instance._initialized = False
