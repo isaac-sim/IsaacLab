@@ -272,10 +272,11 @@ install_isaaclab_extension() {
 }
 
 # Resolve Torch-bundled libgomp and prepend to LD_PRELOAD, once per shell session
+# Also preload conda's libstdc++ on Ubuntu 22.04 to provide CXXABI_1.3.15 required by conda ICU libraries
 write_torch_gomp_hooks() {
   mkdir -p "${CONDA_PREFIX}/etc/conda/activate.d" "${CONDA_PREFIX}/etc/conda/deactivate.d"
 
-  # activation: resolve Torch's libgomp via this env's Python and prepend to LD_PRELOAD
+  # activation: resolve Torch's libgomp and conda's libstdc++ via this env's Python and prepend to LD_PRELOAD
   cat > "${CONDA_PREFIX}/etc/conda/activate.d/torch_gomp.sh" <<'EOS'
 # Resolve Torch-bundled libgomp and prepend to LD_PRELOAD (quiet + idempotent)
 : "${_IL_PREV_LD_PRELOAD:=${LD_PRELOAD-}}"
@@ -298,6 +299,26 @@ if [ -n "$__gomp" ] && [ -r "$__gomp" ]; then
   esac
 fi
 unset __gomp
+
+# WAR for Ubuntu 22.04: Preload conda's libstdc++ to provide CXXABI_1.3.15
+# required by conda-forge ICU libraries (libicui18n.so.78). The system libstdc++
+# on Ubuntu 22.04 (GCC 11) only provides up to CXXABI_1.3.13, but the conda-forge
+# Python 3.12 ICU libraries require CXXABI_1.3.15 (GCC 14+).
+# Ubuntu 24.04+ has a newer system libstdc++ and doesn't need this workaround.
+__libstdcxx="$CONDA_PREFIX/lib/libstdc++.so.6"
+if [ -r "$__libstdcxx" ]; then
+  # Check if system libstdc++ lacks CXXABI_1.3.15 (Ubuntu 22.04 case)
+  # Resolve symlink and use explicit regex pattern to avoid shell quoting issues
+  __sys_libstdcxx=$(readlink -f /lib/x86_64-linux-gnu/libstdc++.so.6 2>/dev/null || echo "/lib/x86_64-linux-gnu/libstdc++.so.6")
+  if [ -r "$__sys_libstdcxx" ] && ! strings "$__sys_libstdcxx" 2>/dev/null | grep -qE 'CXXABI_1\.3\.15'; then
+    case ":${LD_PRELOAD:-}:" in
+      *":$__libstdcxx:"*) : ;;  # already present
+      *) export LD_PRELOAD="$__libstdcxx${LD_PRELOAD:+:$LD_PRELOAD}";;
+    esac
+  fi
+  unset __sys_libstdcxx
+fi
+unset __libstdcxx
 EOS
 
   # deactivation: restore original LD_PRELOAD
