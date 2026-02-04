@@ -151,12 +151,12 @@ class SimulationContext(_SimulationContext):
             if not self._initial_stage.GetPrimAtPath(physics_scene_path).IsValid():
                 UsdPhysics.Scene.Define(self._initial_stage, physics_scene_path)
                 PhysxSchema.PhysxSceneAPI.Apply(self._initial_stage.GetPrimAtPath(physics_scene_path))
-            # # some core APIs still query the USD context stage, so make sure it has a physics scene too
-            # context_stage = omni.usd.get_context().get_stage()
-            # if context_stage is not None and context_stage != self._initial_stage:
-            #     if not context_stage.GetPrimAtPath(physics_scene_path).IsValid():
-            #         UsdPhysics.Scene.Define(context_stage, physics_scene_path)
-            #         PhysxSchema.PhysxSceneAPI.Apply(context_stage.GetPrimAtPath(physics_scene_path))
+            # some core APIs still query the USD context stage, so make sure it has a physics scene too
+            context_stage = omni.usd.get_context().get_stage()
+            if context_stage is not None and context_stage != self._initial_stage:
+                if not context_stage.GetPrimAtPath(physics_scene_path).IsValid():
+                    UsdPhysics.Scene.Define(context_stage, physics_scene_path)
+                    PhysxSchema.PhysxSceneAPI.Apply(context_stage.GetPrimAtPath(physics_scene_path))
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
         # cache stage if it is not already cached
