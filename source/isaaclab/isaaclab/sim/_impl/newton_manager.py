@@ -12,7 +12,7 @@ import re
 import warp as wp
 from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.examples import create_collision_pipeline
-from newton.sensors import ContactSensor as NewtonContactSensor
+from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
