@@ -27,8 +27,8 @@ class Visualizer(ABC):
         self._is_closed = False
 
     @abstractmethod
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize visualizer with scene data (model, state, usd_stage, etc.)."""
+    def initialize(self, scene_data_provider: Any) -> None:
+        """Initialize visualizer with a scene data provider."""
         raise NotImplementedError
 
     @abstractmethod

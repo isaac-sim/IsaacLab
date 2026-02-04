@@ -568,16 +568,7 @@ class SimulationContext(_SimulationContext):
         for viz_cfg in visualizer_cfgs:
             try:
                 visualizer = viz_cfg.create_visualizer()
-                scene_data: dict[str, Any] = {"scene_data_provider": self._scene_data_provider}
-
-                # OV visualizer gets USD stage
-                if viz_cfg.visualizer_type == "omniverse":
-                    if self._scene_data_provider:
-                        scene_data["usd_stage"] = self._scene_data_provider.get_usd_stage()
-                    else:
-                        scene_data["usd_stage"] = self.stage
-
-                visualizer.initialize(scene_data)
+                visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
                 logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
             except Exception as exc:

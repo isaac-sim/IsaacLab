@@ -17,9 +17,11 @@ logger = logging.getLogger(__name__)
 class OVSceneDataProvider:
     """Scene data provider for Omni PhysX backend."""
 
-    def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
+    def __init__(
+        self, visualizer_cfgs: list[Any] | None, stage, simulation_context, force_newton_sync: bool = False
+    ) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
-        from pxr import UsdGeom
+        from pxr import Usd, UsdGeom
 
         self._stage = stage
         self._simulation_context = simulation_context
@@ -45,7 +47,7 @@ class OVSceneDataProvider:
                     self._has_ov_visualizer = True
 
         # Explicit mode flag for Newton synchronization
-        self._needs_newton_sync = self._has_newton_visualizer or self._has_rerun_visualizer
+        self._needs_newton_sync = self._has_newton_visualizer or self._has_rerun_visualizer or force_newton_sync
 
         self._metadata = {
             "physics_backend": "omni",
@@ -57,6 +59,8 @@ class OVSceneDataProvider:
         self._device = getattr(self._simulation_context, "device", "cuda:0")
         self._newton_model = None
         self._newton_state = None
+        self._camera_data_cache: dict[str, Any] | None = None
+        self._mesh_data_cache: dict[str, Any] | None = None
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
         self._set_body_q_kernel = None
@@ -107,6 +111,18 @@ class OVSceneDataProvider:
             self._setup_articulation_view()
             return
 
+    def _ensure_physics_views(self) -> None:
+        if self._physics_sim_view is None:
+            from isaacsim.core.simulation_manager import SimulationManager
+
+            self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        if self._physics_sim_view is None:
+            return
+        if self._rigid_body_view is None:
+            self._setup_rigid_body_view()
+        if self._articulation_view is None:
+            self._setup_articulation_view()
+
     def _build_newton_model_from_usd(self) -> None:
         """Build Newton model from USD and extract scene structure."""
         try:
@@ -143,6 +159,8 @@ class OVSceneDataProvider:
         Uses body paths extracted from Newton model to create PhysX tensor API view
         for reading rigid body transforms.
         """
+        if self._physics_sim_view is None:
+            return
         if not self._rigid_body_paths:
             return
         try:
@@ -155,6 +173,8 @@ class OVSceneDataProvider:
 
     def _setup_articulation_view(self) -> None:
         """Create PhysX ArticulationView from Newton's articulation paths."""
+        if self._physics_sim_view is None:
+            return
         if not self._articulation_paths:
             return
         try:
@@ -393,6 +413,7 @@ class OVSceneDataProvider:
             return
 
         self._refresh_newton_model_if_needed()
+        self._ensure_physics_views()
 
         try:
             import warp as wp
@@ -431,7 +452,94 @@ class OVSceneDataProvider:
         return self._stage
 
     def get_mesh_data(self) -> dict[str, Any] | None:
-        return None
+        if self._stage is None:
+            return None
+        if self._mesh_data_cache is None:
+            from .scene_data_provider import SceneDataProvider
+
+            self._mesh_data_cache = SceneDataProvider._collect_mesh_data(self._stage)
+        return dict(self._mesh_data_cache)
+
+    def get_camera_data(self) -> dict[str, Any] | None:
+        if self._stage is None:
+            return None
+        if self._camera_data_cache is None:
+            self._camera_data_cache = self._collect_camera_data(self._stage)
+        return dict(self._camera_data_cache)
+
+    def get_camera_transforms(self) -> dict[str, Any] | None:
+        if self._stage is None:
+            return None
+        camera_data = self.get_camera_data()
+        if not camera_data:
+            return None
+        return self._collect_camera_transforms(self._stage, camera_data)
+
+    @staticmethod
+    def _collect_camera_data(stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)"):
+        from pxr import Usd, UsdGeom
+
+        env_pattern = re.compile(env_regex)
+        shared_paths: list[str] = []
+        instances: dict[str, list[tuple[int, str]]] = {}
+        num_envs = -1
+
+        stage_prims: list = [stage.GetPseudoRoot()]
+        while stage_prims:
+            prim = stage_prims.pop(0)
+            prim_path = prim.GetPath().pathString
+
+            world_id = 0
+            template_path = prim_path
+            if match := env_pattern.match(prim_path):
+                world_id = int(match.group("id"))
+                template_path = match.group("root") + "%d" + match.group("path")
+                if world_id > num_envs:
+                    num_envs = world_id
+
+            imageable = UsdGeom.Imageable(prim)
+            if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
+                continue
+
+            if prim.IsA(UsdGeom.Camera):
+                if template_path not in instances:
+                    instances[template_path] = []
+                instances[template_path].append((world_id, prim_path))
+                if template_path not in shared_paths:
+                    shared_paths.append(template_path)
+
+            if child_prims := prim.GetFilteredChildren(Usd.TraverseInstanceProxies()):
+                stage_prims.extend(child_prims)
+
+        return {"shared_paths": shared_paths, "instances": instances, "num_envs": num_envs + 1}
+
+    @staticmethod
+    def _collect_camera_transforms(stage, camera_data: dict[str, Any]):
+        import isaaclab.sim as isaaclab_sim
+
+        shared_paths = camera_data.get("shared_paths") or []
+        instances = camera_data.get("instances") or {}
+        num_envs = camera_data.get("num_envs", 0)
+
+        positions: list[list[list[float] | None]] = []
+        orientations: list[list[list[float] | None]] = []
+
+        for template_path in shared_paths:
+            per_world_pos: list[list[float] | None] = [None] * num_envs
+            per_world_ori: list[list[float] | None] = [None] * num_envs
+            for world_id, prim_path in instances.get(template_path, []):
+                if world_id < 0 or world_id >= num_envs:
+                    continue
+                prim = stage.GetPrimAtPath(prim_path)
+                if not prim.IsValid():
+                    continue
+                pos, ori = isaaclab_sim.resolve_prim_pose(prim)
+                per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
+                per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
+            positions.append(per_world_pos)
+            orientations.append(per_world_ori)
+
+        return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)

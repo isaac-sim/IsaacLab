@@ -20,9 +20,12 @@ class NewtonSceneDataProvider:
     Adapted (future): USD stage (would need Newton→USD sync for OV visualizer)
     """
 
-    def __init__(self, visualizer_cfgs: list[Any] | None) -> None:
+    def __init__(self, visualizer_cfgs: list[Any] | None, stage=None) -> None:
         self._has_ov_visualizer = False
         self._metadata: dict[str, Any] = {}
+        self._stage = stage
+        self._camera_data_cache: dict[str, Any] | None = None
+        self._mesh_data_cache: dict[str, Any] | None = None
 
         if visualizer_cfgs:
             for cfg in visualizer_cfgs:
@@ -64,8 +67,8 @@ class NewtonSceneDataProvider:
             return None
 
     def get_usd_stage(self) -> None:
-        """UNAVAILABLE: Newton backend doesn't provide USD (future: Newton→USD sync)."""
-        return
+        """Stage handle (if provided) for USD queries."""
+        return self._stage
 
     def get_metadata(self) -> dict[str, Any]:
         return dict(self._metadata)
@@ -95,5 +98,93 @@ class NewtonSceneDataProvider:
             return None
 
     def get_mesh_data(self) -> dict[str, Any] | None:
-        """ADAPTED: Extract mesh data from Newton shapes (future work)."""
-        return None
+        if self._stage is None:
+            return None
+        if self._mesh_data_cache is None:
+            from .scene_data_provider import SceneDataProvider
+
+            self._mesh_data_cache = SceneDataProvider._collect_mesh_data(self._stage)
+        return dict(self._mesh_data_cache)
+
+    def get_camera_data(self) -> dict[str, Any] | None:
+        if self._stage is None:
+            return None
+        if self._camera_data_cache is None:
+            self._camera_data_cache = self._collect_camera_data(self._stage)
+        return dict(self._camera_data_cache)
+
+    def get_camera_transforms(self) -> dict[str, Any] | None:
+        if self._stage is None:
+            return None
+        camera_data = self.get_camera_data()
+        if not camera_data:
+            return None
+        return self._collect_camera_transforms(self._stage, camera_data)
+
+
+    @staticmethod
+    def _collect_camera_data(stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)"):
+        from pxr import Usd, UsdGeom
+        import re
+
+        env_pattern = re.compile(env_regex)
+        shared_paths: list[str] = []
+        instances: dict[str, list[tuple[int, str]]] = {}
+        num_envs = -1
+
+        stage_prims: list = [stage.GetPseudoRoot()]
+        while stage_prims:
+            prim = stage_prims.pop(0)
+            prim_path = prim.GetPath().pathString
+
+            world_id = 0
+            template_path = prim_path
+            if match := env_pattern.match(prim_path):
+                world_id = int(match.group("id"))
+                template_path = match.group("root") + "%d" + match.group("path")
+                if world_id > num_envs:
+                    num_envs = world_id
+
+            imageable = UsdGeom.Imageable(prim)
+            if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
+                continue
+
+            if prim.IsA(UsdGeom.Camera):
+                if template_path not in instances:
+                    instances[template_path] = []
+                instances[template_path].append((world_id, prim_path))
+                if template_path not in shared_paths:
+                    shared_paths.append(template_path)
+
+            if child_prims := prim.GetFilteredChildren(Usd.TraverseInstanceProxies()):
+                stage_prims.extend(child_prims)
+
+        return {"shared_paths": shared_paths, "instances": instances, "num_envs": num_envs + 1}
+
+    @staticmethod
+    def _collect_camera_transforms(stage, camera_data: dict[str, Any]):
+        import isaaclab.sim as isaaclab_sim
+
+        shared_paths = camera_data.get("shared_paths") or []
+        instances = camera_data.get("instances") or {}
+        num_envs = camera_data.get("num_envs", 0)
+
+        positions: list[list[list[float] | None]] = []
+        orientations: list[list[list[float] | None]] = []
+
+        for template_path in shared_paths:
+            per_world_pos: list[list[float] | None] = [None] * num_envs
+            per_world_ori: list[list[float] | None] = [None] * num_envs
+            for world_id, prim_path in instances.get(template_path, []):
+                if world_id < 0 or world_id >= num_envs:
+                    continue
+                prim = stage.GetPrimAtPath(prim_path)
+                if not prim.IsValid():
+                    continue
+                pos, ori = isaaclab_sim.resolve_prim_pose(prim)
+                per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
+                per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
+            positions.append(per_world_pos)
+            orientations.append(per_world_ori)
+
+        return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}

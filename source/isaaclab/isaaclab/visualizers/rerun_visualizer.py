@@ -71,15 +71,15 @@ class RerunVisualizer(Visualizer):
         self._sim_time = 0.0
         self._scene_data_provider = None
 
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
+    def initialize(self, scene_data_provider: Any) -> None:
         if self._is_initialized:
             logger.warning("[RerunVisualizer] Already initialized.")
             return
 
-        if not scene_data or "scene_data_provider" not in scene_data:
-            raise RuntimeError("Rerun visualizer requires scene_data_provider.")
+        if scene_data_provider is None:
+            raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data["scene_data_provider"]
+        self._scene_data_provider = scene_data_provider
         self._model = self._scene_data_provider.get_newton_model()
         self._state = self._scene_data_provider.get_newton_state()
         metadata = self._scene_data_provider.get_metadata()

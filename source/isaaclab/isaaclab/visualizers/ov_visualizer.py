@@ -33,13 +33,16 @@ class OVVisualizer(Visualizer):
         self._sim_time = 0.0
         self._step_counter = 0
 
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
+    def initialize(self, scene_data_provider: Any) -> None:
         if self._is_initialized:
             logger.warning("[OVVisualizer] Already initialized.")
             return
 
-        usd_stage = scene_data["usd_stage"]
-        scene_data_provider = scene_data["scene_data_provider"]
+        if scene_data_provider is None:
+            raise RuntimeError("[OVVisualizer] Requires a scene_data_provider.")
+        usd_stage = scene_data_provider.get_usd_stage()
+        if usd_stage is None:
+            raise RuntimeError("[OVVisualizer] USD stage not available from scene_data_provider.")
         metadata = scene_data_provider.get_metadata()
 
         self._ensure_simulation_app()
