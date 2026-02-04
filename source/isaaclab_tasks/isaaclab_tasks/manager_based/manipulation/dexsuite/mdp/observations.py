@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
@@ -37,9 +36,7 @@ def object_pos_b(
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return quat_apply_inverse(
-        wp.to_torch(robot.data.root_quat_w), wp.to_torch(object.data.root_pos_w) - wp.to_torch(robot.data.root_pos_w)
-    )
+    return quat_apply_inverse(robot.data.root_quat_w, object.data.root_pos_w - robot.data.root_pos_w)
 
 
 def object_quat_b(
@@ -59,7 +56,7 @@ def object_quat_b(
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return quat_mul(quat_inv(wp.to_torch(robot.data.root_quat_w)), wp.to_torch(object.data.root_quat_w))
+    return quat_mul(quat_inv(robot.data.root_quat_w), object.data.root_quat_w)
 
 
 def body_state_b(
@@ -83,18 +80,14 @@ def body_state_b(
     body_asset: Articulation = env.scene[body_asset_cfg.name]
     base_asset: Articulation = env.scene[base_asset_cfg.name]
     # get world pose of bodies
-    body_pos_w = wp.to_torch(body_asset.data.body_pos_w)[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_quat_w = wp.to_torch(body_asset.data.body_quat_w)[:, body_asset_cfg.body_ids].view(-1, 4)
-    body_lin_vel_w = wp.to_torch(body_asset.data.body_lin_vel_w)[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_ang_vel_w = wp.to_torch(body_asset.data.body_ang_vel_w)[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_pos_w = body_asset.data.body_pos_w[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_quat_w = body_asset.data.body_quat_w[:, body_asset_cfg.body_ids].view(-1, 4)
+    body_lin_vel_w = body_asset.data.body_lin_vel_w[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_ang_vel_w = body_asset.data.body_ang_vel_w[:, body_asset_cfg.body_ids].view(-1, 3)
     num_bodies = int(body_pos_w.shape[0] / env.num_envs)
     # get world pose of base frame
-    root_pos_w = (
-        wp.to_torch(base_asset.data.root_link_pos_w).unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
-    )
-    root_quat_w = (
-        wp.to_torch(base_asset.data.root_link_quat_w).unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
-    )
+    root_pos_w = base_asset.data.root_link_pos_w.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
+    root_quat_w = base_asset.data.root_link_quat_w.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
     # transform from world body pose to local body pose
     body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
     body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
@@ -169,11 +162,11 @@ class object_point_cloud_b(ManagerTermBase):
         Returns:
             Tensor of shape ``(num_envs, num_points, 3)`` or flattened if requested.
         """
-        ref_pos_w = wp.to_torch(self.ref_asset.data.root_pos_w).unsqueeze(1).repeat(1, num_points, 1)
-        ref_quat_w = wp.to_torch(self.ref_asset.data.root_quat_w).unsqueeze(1).repeat(1, num_points, 1)
+        ref_pos_w = self.ref_asset.data.root_pos_w.unsqueeze(1).repeat(1, num_points, 1)
+        ref_quat_w = self.ref_asset.data.root_quat_w.unsqueeze(1).repeat(1, num_points, 1)
 
-        object_pos_w = wp.to_torch(self.object.data.root_pos_w).unsqueeze(1).repeat(1, num_points, 1)
-        object_quat_w = wp.to_torch(self.object.data.root_quat_w).unsqueeze(1).repeat(1, num_points, 1)
+        object_pos_w = self.object.data.root_pos_w.unsqueeze(1).repeat(1, num_points, 1)
+        object_quat_w = self.object.data.root_quat_w.unsqueeze(1).repeat(1, num_points, 1)
         # apply rotation + translation
         self.points_w = quat_apply(object_quat_w, self.points_local) + object_pos_w
         if visualize:
@@ -198,11 +191,68 @@ def fingers_contact_force_b(
         Tensor of shape ``(num_envs, 3 * num_sensors)`` with forces stacked horizontally as
         ``[fx, fy, fz]`` per sensor.
     """
-    force_w = [
-        wp.to_torch(env.scene.sensors[name].data.force_matrix_w).view(env.num_envs, 3) for name in contact_sensor_names
-    ]
+    force_w = [env.scene.sensors[name].data.force_matrix_w.view(env.num_envs, 3) for name in contact_sensor_names]
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
-    root_link_quat_w = wp.to_torch(robot.data.root_link_quat_w)
-    forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
-    return forces_b
+    forces_b = quat_apply_inverse(robot.data.root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
+    return forces_b.view(env.num_envs, -1)
+
+
+class vision_camera(ManagerTermBase):
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
+        self.sensor: TiledCamera = env.scene.sensors[sensor_cfg.name]
+        self.sensor_type = self.sensor.cfg.data_types[0]
+        self.norm_fn = self._depth_norm if self.sensor_type == "distance_to_image_plane" else self._rgb_norm
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
+    ) -> torch.Tensor:  # obtain the input image
+        images = self.sensor.data.output[self.sensor_type]
+        torch.nan_to_num_(images, nan=1e6)
+        if normalize:
+            images = self.norm_fn(images)
+            images = images.permute(0, 3, 1, 2).contiguous()
+        return images
+
+    def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
+        images = images.float() / 255.0
+        mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
+        images -= mean_tensor
+        return images
+
+    def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
+        images = torch.tanh(images / 2) * 2
+        images -= torch.mean(images, dim=(1, 2), keepdim=True)
+        return images
+
+    def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
+        import numpy as np
+        from matplotlib import cm
+
+        from PIL import Image
+
+        a = images.detach().cpu().numpy()
+        n, h, w, c = a.shape
+        s = int(np.ceil(np.sqrt(n)))
+        canvas = np.full((s * h, s * w, 3), 255, np.uint8)
+        turbo = cm.get_cmap("turbo")
+        for i in range(n):
+            r, col = divmod(i, s)
+            img = a[i]
+            if c == 1:
+                d = img[..., 0]
+                d = (d - d.min()) / (np.ptp(d) + 1e-8)
+                rgb = (turbo(d)[..., :3] * 255).astype(np.uint8)
+            else:
+                x = img if img.max() > 1 else img * 255
+                rgb = np.clip(x, 0, 255).astype(np.uint8)
+            canvas[r * h : (r + 1) * h, col * w : (col + 1) * w] = rgb
+        Image.fromarray(canvas).save(save_path)
+
+
+def time_left(env: ManagerBasedRLEnv):
+    time_left_frac = 1 - env.episode_length_buf / env.max_episode_length
+    return time_left_frac.view(env.num_envs, -1)

@@ -5,26 +5,30 @@
 
 from isaaclab.utils import configclass
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlActorCriticCNNCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
 
 @configclass
-class DexsuiteKukaAllegroPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class DexsuiteKukaAllegroPPOCNNRunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
     max_iterations = 15000
     save_interval = 250
-    empirical_normalization = True
-    experiment_name = "dexsuite_kuka_allegro"
-    obs_groups = {
-        "policy": ["policy", "proprio", "perception"],
-        "critic": ["policy", "proprio", "perception"]
-    }
-    policy = RslRlPpoActorCriticCfg(
+    experiment_name = "dexsuite_kuka_allegro_single_camera"
+    obs_groups = {"policy": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]}
+    policy = RslRlActorCriticCNNCfg(
         init_noise_std=1.0,
         actor_obs_normalization=True,
         critic_obs_normalization=True,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
+        actor_cnn_cfg=RslRlActorCriticCNNCfg.CNNCfg(
+            output_channels=[16, 32, 64],
+            kernel_size=[3, 3, 3],
+            activation="elu",
+            max_pool=[True, True, True],
+            norm="batch",
+            global_pool="avg",
+        ),
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
