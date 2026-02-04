@@ -111,9 +111,7 @@ class CircularBuffer:
         # reset is needed on next update to fill entire buffer with initial data
         self._need_reset = True
         if self._buffer is not None:
-            # set buffer at batch_id reset indices to 0.0 so that the buffer()
-            # getter returns the cleared circular buffer after reset.
-            self._buffer[:, batch_ids, :] = 0.0
+            self._buffer[:, batch_ids].zero_()
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -144,10 +142,11 @@ class CircularBuffer:
         if self._need_reset:
             is_first_push = self._num_pushes == 0
             if is_first_push.any().item():
-                self._buffer[:, is_first_push] = data[is_first_push]
-            else:
-                # mark all the batches to be available
-                self._need_reset = False
+                expanded_mask = is_first_push[None, :, None].expand_as(self._buffer)
+                expanded_data = data[None].expand_as(self._buffer)
+                torch.where(expanded_mask, expanded_data, self._buffer, out=self._buffer)
+            # mark all the batches to be available
+            self._need_reset = False
         # increment number of number of pushes for all batches
         self._num_pushes += 1
 
