@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+3.0.1 (2026-02-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+* Fixed :file:`isaaclab.sh` to use libstdc++ CXXABI_1.3.15 from conda for systems that lack that version (e.g., Ubuntu 22.04).
+
+
 3.0.0 (2026-02-02)
 ~~~~~~~~~~~~~~~~~~
 
