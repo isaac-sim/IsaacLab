@@ -1,10 +1,21 @@
 Changelog
 ---------
 
+3.0.2 (2026-02-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed: Removed exact version pinning for URDF assetimporter extension that is incompatible with Isaac Sim 6.0.
+^^^^^
+
+
 3.0.1 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
+
 ^^^^^
 * Fixed :file:`isaaclab.sh` to use libstdc++ CXXABI_1.3.15 from conda for systems that lack that version (e.g., Ubuntu 22.04).
 
