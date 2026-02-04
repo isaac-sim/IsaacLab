@@ -436,7 +436,7 @@ class FrameTransformer(SensorBase):
         # Bind with Newton:
         self._warp_views = {}
         for key in self._warp_view_body_id:
-            view = NewtonManager._views[key].get_link_transforms(NewtonManager.get_state_0())
+            view = NewtonManager._views[key].get_link_transforms(NewtonManager.get_state_0())[:, 0]
             if len(view.shape) == 1:
                 view = view.reshape((-1, 1))
             self._warp_views[key] = view
