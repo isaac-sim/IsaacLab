@@ -10,12 +10,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
 from .physics_manager_cfg import PhysicsManagerCfg
+from .physx_manager import PhysxManager
 
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
-    from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
 
 @configclass
@@ -41,6 +42,9 @@ class PhysxManagerCfg(PhysicsManagerCfg):
     # PhysX Scene Settings
     # ------------------------------------------------------------------
 
+    class_type: type[PhysicsManager] = PhysxManager
+    """The class type of the PhysxManager."""
+
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
@@ -55,7 +59,7 @@ class PhysxManagerCfg(PhysicsManagerCfg):
     of primitives in the scene.
     """
 
-    physics_material: "RigidBodyMaterialCfg | None" = None
+    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
     """Default physics material settings for rigid bodies. Default is None (uses RigidBodyMaterialCfg defaults).
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
@@ -229,16 +233,3 @@ class PhysxManagerCfg(PhysicsManagerCfg):
 
     gpu_max_particle_contacts: int = 2**20
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
-
-    # ------------------------------------------------------------------
-    # Factory Method
-    # ------------------------------------------------------------------
-
-    def create_manager(self) -> type["PhysicsManager"]:
-        """Create and return the PhysxManager class.
-
-        Returns:
-            The PhysxManager class.
-        """
-        from .physx_manager import PhysxManager
-        return PhysxManager

@@ -13,7 +13,6 @@ from typing import Any, Literal  # Literal used by RenderCfg
 
 from isaaclab.utils import configclass
 
-from .spawners.materials import RigidBodyMaterialCfg
 from isaaclab.physics.physics_manager_cfg import PhysicsManagerCfg
 from isaaclab.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.visualizers import VisualizerCfg
@@ -201,15 +200,6 @@ class SimulationCfg:
 
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
-    """
-
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().
-
-    The physics engine defaults to this physics material for all the rigid body prims that do not have any
-    physics material specified on them.
-
-    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
     render: RenderCfg = RenderCfg()

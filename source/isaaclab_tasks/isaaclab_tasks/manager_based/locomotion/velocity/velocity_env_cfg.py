@@ -22,13 +22,14 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.physics import PhysxManagerCfg
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 
 ##
 # Pre-defined configs
 ##
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 
 
 ##
@@ -307,11 +308,13 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 4
         self.episode_length_s = 20.0
+        self.render_interval = self.decimation
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.005
-        self.sim.render_interval = self.decimation
-        self.sim.physics_material = self.scene.terrain.physics_material
-        self.sim.physics_manager_cfg.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physics_manager_cfg = PhysxManagerCfg(
+            dt=0.005,
+            physics_material=self.scene.terrain.physics_material,
+            gpu_max_rigid_patch_count=10 * 2**15,
+        )
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:

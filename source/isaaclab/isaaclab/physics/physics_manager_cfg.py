@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
-
+from dataclasses import MISSING
+from .physics_manager import PhysicsManager
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
 
@@ -28,6 +29,8 @@ class PhysicsManagerCfg:
     # Common Simulation Parameters
     # ------------------------------------------------------------------
 
+    class_type: type[PhysicsManager] = MISSING
+
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
@@ -43,18 +46,3 @@ class PhysicsManagerCfg:
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
-
-    # ------------------------------------------------------------------
-    # Factory Method
-    # ------------------------------------------------------------------
-
-    def create_manager(self) -> type["PhysicsManager"]:
-        """Create and return the physics manager class for this configuration.
-
-        Returns:
-            The physics manager class (not an instance).
-
-        Raises:
-            NotImplementedError: If not overridden by subclass.
-        """
-        raise NotImplementedError("Subclasses must implement create_manager()")

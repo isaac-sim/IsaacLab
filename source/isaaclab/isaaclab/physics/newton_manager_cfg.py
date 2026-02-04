@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from isaaclab.utils import configclass
 
 from .physics_manager_cfg import PhysicsManagerCfg
-
+from .newton_manager import NewtonManager
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
 
@@ -195,6 +195,9 @@ class NewtonManagerCfg(PhysicsManagerCfg):
     This configuration includes Newton-specific simulation settings and solver configuration.
     """
 
+    class_type: type[PhysicsManager] = NewtonManager
+    """The class type of the NewtonManager."""
+
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
@@ -210,15 +213,3 @@ class NewtonManagerCfg(PhysicsManagerCfg):
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Solver configuration. Default is MJWarpSolverCfg()."""
 
-    # ------------------------------------------------------------------
-    # Factory Method
-    # ------------------------------------------------------------------
-
-    def create_manager(self) -> type["PhysicsManager"]:
-        """Create and return the NewtonManager class.
-
-        Returns:
-            The NewtonManager class.
-        """
-        from .newton_manager import NewtonManager
-        return NewtonManager

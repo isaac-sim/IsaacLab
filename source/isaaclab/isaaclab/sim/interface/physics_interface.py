@@ -46,7 +46,7 @@ class PhysicsInterface(Interface):
         self.backend = "torch"
 
         # Get the physics manager class from config
-        self.physics_manager: type[PhysicsManager] = self._cfg.create_manager()
+        self.physics_manager: type[PhysicsManager] = self._cfg.class_type
 
         # Initialize USD physics scene
         self._init_usd_physics_scene()

@@ -775,7 +775,7 @@ class PhysxManager(PhysicsManager):
         enable_ccd = cls._cfg.enable_ccd
         if is_gpu and enable_ccd:
             enable_ccd = False
-            cls._sim.logger.warning(
+            logger.warning(
                 "CCD is disabled when GPU dynamics is enabled. Disable CCD in PhysxManagerCfg to suppress this warning."
             )
         physx_scene_api.CreateEnableCCDAttr(enable_ccd)
@@ -794,7 +794,7 @@ class PhysxManager(PhysicsManager):
         skip_keys = {
             "solver_type", "enable_ccd", "solve_articulation_contact_last",
             "dt", "device", "render_interval", "gravity",
-            "physics_prim_path", "use_fabric", "physics_material"
+            "physics_prim_path", "use_fabric", "physics_material", "class_type"
         }
         for key, value in cls._cfg.to_dict().items():  # type: ignore
             if key in skip_keys:
@@ -816,7 +816,7 @@ class PhysxManager(PhysicsManager):
             )
 
         if not cls._cfg.enable_stabilization and cls._cfg.dt > 0.0333:
-            cls._sim.logger.warning(
+            logger.warning(
                 "Large timestep (>0.0333s) without stabilization may cause physics issues. "
                 "Consider enabling enable_stabilization or reducing dt."
             )
