@@ -16,23 +16,7 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = [
-    # generic
-    "numpy<2",
-    "torch>=2.7",
-    "prettytable==3.3.0",
-    "toml",
-    "warp-lang",
-    # testing
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flatdict==4.0.1",
-    "flaky",
-    "packaging",
-]
-
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
+INSTALL_REQUIRES = []
 
 # Installation operation
 setup(
@@ -45,17 +29,16 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    python_requires=">=3.10",
+    python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab_physx"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )
