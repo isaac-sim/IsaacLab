@@ -40,7 +40,7 @@ with measure_time("Imports time"):
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils import configclass
     from isaaclab_assets import ANYMAL_D_CFG
-    from isaaclab.renderers import NewtonWarpRenderer
+    from isaaclab.renderers import NewtonWarpRendererDirect as NewtonWarpRenderer
 
 
 @configclass
@@ -79,9 +79,9 @@ def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, 
         scene.update(sim.get_physics_dt())
 
         renderer.update()
-        renderer.render()
+        renderer.render_all()
         if save_images:
-            renderer.save_image(f"warp_renderer/rgb.{step:04d}.png")
+            renderer.camera_manager.save_images(f"__warp_renderer/%s_rgb.{step:04d}.png")
 
 def main():
     with measure_time("Simulation Context creation time"):

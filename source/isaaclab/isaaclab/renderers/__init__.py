@@ -1,1 +1,2 @@
 from .newton_warp_renderer import NewtonWarpRenderer
+from .newton_warp_renderer_direct import NewtonWarpRendererDirect
