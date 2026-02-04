@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed: Removed exact version pinning for URDF assetimporter extension that is incompatible with Isaac Sim 6.0.
+* Fixed: Removed exact version pinning for URDF asset importer extension that is incompatible with Isaac Sim 6.0.
 ^^^^^
 
 
