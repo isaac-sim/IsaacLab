@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
+# from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
     import omni.ui

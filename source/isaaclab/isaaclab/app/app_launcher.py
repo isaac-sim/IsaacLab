@@ -29,11 +29,11 @@ from .settings_manager import get_settings_manager, initialize_carb_settings
 _SIMULATION_APP_AVAILABLE = False
 _SimulationApp = None
 
-with contextlib.suppress(ModuleNotFoundError):
-    import isaacsim  # noqa: F401
-    from isaacsim import SimulationApp as _SimulationApp
+# with contextlib.suppress(ModuleNotFoundError):
+#     import isaacsim  # noqa: F401
+#     from isaacsim import SimulationApp as _SimulationApp
 
-    _SIMULATION_APP_AVAILABLE = True
+#     _SIMULATION_APP_AVAILABLE = True
 
 # import logger
 logger = logging.getLogger(__name__)
