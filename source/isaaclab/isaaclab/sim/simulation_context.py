@@ -145,6 +145,18 @@ class SimulationContext(_SimulationContext):
         # create stage in memory if requested
         if self.cfg.create_stage_in_memory:
             self._initial_stage = sim_utils.create_new_stage_in_memory()
+            # ensure a physics scene exists on the in-memory stage
+            # the core SimulationContext expects the prim to be present when a stage is provided
+            physics_scene_path = Sdf.Path(self.cfg.physics_prim_path)
+            if not self._initial_stage.GetPrimAtPath(physics_scene_path).IsValid():
+                UsdPhysics.Scene.Define(self._initial_stage, physics_scene_path)
+                PhysxSchema.PhysxSceneAPI.Apply(self._initial_stage.GetPrimAtPath(physics_scene_path))
+            # # some core APIs still query the USD context stage, so make sure it has a physics scene too
+            # context_stage = omni.usd.get_context().get_stage()
+            # if context_stage is not None and context_stage != self._initial_stage:
+            #     if not context_stage.GetPrimAtPath(physics_scene_path).IsValid():
+            #         UsdPhysics.Scene.Define(context_stage, physics_scene_path)
+            #         PhysxSchema.PhysxSceneAPI.Apply(context_stage.GetPrimAtPath(physics_scene_path))
         else:
             self._initial_stage = omni.usd.get_context().get_stage()
         # cache stage if it is not already cached
