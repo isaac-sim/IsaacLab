@@ -37,7 +37,6 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type="newton_warp",
     )
 
     def __post_init__(self):
@@ -65,8 +64,6 @@ class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type="newton_warp",
-        update_latest_camera_pose=True,
     )
 
     def __post_init__(self):
@@ -173,6 +170,7 @@ duo_camera_variants = {
 class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
     scene = KukaAllegroSingleTiledCameraSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
     observations: KukaAllegroSingleCameraObservationsCfg = KukaAllegroSingleCameraObservationsCfg()
+    variants: dict = {}
 
     def __post_init__(self: kuka_allegro_dexsuite.DexsuiteKukaAllegroLiftEnvCfg):
         super().__post_init__()
@@ -183,6 +181,7 @@ class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg)
 class KukaAllegroDuoCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
     scene = KukaAllegroDuoTiledCameraSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
     observations: KukaAllegroDuoCameraObservationsCfg = KukaAllegroDuoCameraObservationsCfg()
+    variants: dict = {}
 
     def __post_init__(self: kuka_allegro_dexsuite.DexsuiteKukaAllegroLiftEnvCfg):
         super().__post_init__()
