@@ -303,12 +303,13 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
 def _process_mutable_types(cls):
     """Initialize all mutable elements through :obj:`dataclasses.Field` to avoid unnecessary complaints.
 
-    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects every time a new
-    class instance is created. If a member has a mutable type and it is created without specifying the `field(default_factory=...)`,
-    then Python throws an error requiring the usage of `default_factory`.
+    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects
+    every time a new class instance is created. If a member has a mutable type and it is created without
+    specifying the `field(default_factory=...)`, then Python throws an error requiring the usage of `default_factory`.
 
-    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict. This misses the
-    use-case where the type is class itself. Thus, the code silently carries a bug with it which can lead to undesirable effects.
+    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict.
+    This misses the use-case where the type is class itself. Thus, the code silently carries a bug with it which
+    can lead to undesirable effects.
 
     This function deals with this issue
 

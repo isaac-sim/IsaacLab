@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Launch Isaac Sim Simulator first."""
 
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+# Import pinocchio in the main script to force the use of the dependencies installed
+# by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
@@ -258,7 +259,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         error = null_space_task.compute_error(robot_configuration)
 
         # Only controlled joints should have non-zero error
-        # Joint indices: waist_yaw_joint=0, waist_pitch_joint=1, waist_roll_joint=2, left_shoulder_pitch_joint=3, left_shoulder_roll_joint=4, etc.
+        # Joint indices:
+        # waist_yaw_joint=0, waist_pitch_joint=1, waist_roll_joint=2, left_shoulder_pitch_joint=3,
+        # left_shoulder_roll_joint=4, etc.
         expected_error = np.zeros(num_joints)
         for i in joint_indexes:
             expected_error[i] = current_config[i]

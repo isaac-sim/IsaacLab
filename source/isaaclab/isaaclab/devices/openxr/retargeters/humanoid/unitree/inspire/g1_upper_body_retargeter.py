@@ -17,7 +17,8 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 
-# This import exception is suppressed because g1_dex_retargeting_utils depends on pinocchio which is not available on windows
+# This import exception is suppressed because g1_dex_retargeting_utils
+# depends on pinocchio which is not available on Windows.
 with contextlib.suppress(Exception):
     from .g1_dex_retargeting_utils import UnitreeG1DexRetargeting
 
@@ -26,7 +27,8 @@ class UnitreeG1Retargeter(RetargeterBase):
     """Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands.
 
     This retargeter maps hand tracking data from OpenXR to joint commands for the GR1T2 robot's hands.
-    It handles both left and right hands, converting poses of the hands in OpenXR format joint angles for the GR1T2 robot's hands.
+    It handles both left and right hands, converting poses of the hands in OpenXR format joint angles
+    for the GR1T2 robot's hands.
     """
 
     def __init__(

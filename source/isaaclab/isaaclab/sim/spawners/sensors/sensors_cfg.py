@@ -117,8 +117,8 @@ class PinholeCameraCfg(SpawnerCfg):
             0 & 0 & 1
             \\end{bmatrix},
 
-        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
-        principle point offsets along x and y direction respectively.
+        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and
+        :math:`c_y` are the principle point offsets along x and y direction respectively.
 
         Args:
             intrinsic_matrix: Intrinsic matrix of the camera in row-major format.

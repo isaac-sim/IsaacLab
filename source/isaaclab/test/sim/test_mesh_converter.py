@@ -20,10 +20,10 @@ import tempfile
 import pytest
 
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -66,7 +66,7 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim
     # stop simulation
     sim.stop()
@@ -152,7 +152,10 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
 
 
 def test_no_change(assets):
-    """Call conversion twice on the same input asset. This should not generate a new USD file if the hash is the same."""
+    """Call conversion twice on the same input asset.
+
+    This should not generate a new USD file if the hash is the same.
+    """
     # create an initial USD file from asset
     mesh_config = MeshConverterCfg(asset_path=assets["obj"])
     mesh_converter = MeshConverter(mesh_config)

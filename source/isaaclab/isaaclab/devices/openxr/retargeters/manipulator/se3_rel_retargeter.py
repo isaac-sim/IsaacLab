@@ -43,8 +43,10 @@ class Se3RelRetargeter(RetargeterBase):
             use_wrist_position: If True, use wrist position instead of pinch position (midpoint between fingers)
             delta_pos_scale_factor: Amplification factor for position changes (higher = larger robot movements)
             delta_rot_scale_factor: Amplification factor for rotation changes (higher = larger robot rotations)
-            alpha_pos: Position smoothing parameter (0-1); higher values track more closely to input, lower values smooth more
-            alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input, lower values smooth more
+            alpha_pos: Position smoothing parameter (0-1); higher values track more closely to input,
+                lower values smooth more
+            alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input,
+                lower values smooth more
             enable_visualization: If True, show a visual marker representing the target end-effector pose
             device: The device to place the returned tensor on ('cpu' or 'cuda')
         """

@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-We modified parts of the environment—such as the target’s position and orientation, as well as certain object properties—to better suit the smaller robot.
+We modified parts of the environment, such as the target's position and orientation,
+as well as certain object properties, to better suit the smaller robot.
 """
 
 from dataclasses import MISSING

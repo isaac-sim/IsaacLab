@@ -136,7 +136,8 @@ class _SoftDTWCUDA(Function):
 
         # Run the CUDA kernel.
         # Set CUDA's grid size to be equal to the batch size (every CUDA block processes one sample pair)
-        # Set the CUDA block size to be equal to the length of the longer sequence (equal to the size of the largest diagonal)
+        # Set the CUDA block size to be equal to the length of the longer sequence
+        # (equal to the size of the largest diagonal)
         compute_softdtw_cuda[B, threads_per_block](
             cuda.as_cuda_array(D.detach()), gamma.item(), bandwidth.item(), N, M, n_passes, cuda.as_cuda_array(R)
         )
@@ -283,15 +284,19 @@ class SoftDTW(torch.nn.Module):
     """
 
     def __init__(self, use_cuda, device, gamma=1.0, normalize=False, bandwidth=None, dist_func=None):
-        """
-        Initializes a new instance using the supplied parameters
-        :param use_cuda: Flag indicating whether the CUDA implementation should be used
-        :param device: device to run the soft dtw computation
-        :param gamma: sDTW's gamma parameter
-        :param normalize: Flag indicating whether to perform normalization
-                          (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
-        :param bandwidth: Sakoe-Chiba bandwidth for pruning. Passing 'None' will disable pruning.
-        :param dist_func: Optional point-wise distance function to use. If 'None', then a default Euclidean distance function will be used.
+        """Initializes a new instance using the supplied parameters
+
+        Args:
+
+            use_cuda: Whether to use the CUDA implementation.
+            device: The device to run the SoftDTW computation.
+            gamma: The SoftDTW's gamma parameter. Default is 1.0.
+            normalize: Whether to perform normalization. Default is False.
+                (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
+            bandwidth: Sakoe-Chiba bandwidth for pruning. Default is None, which disables pruning.
+                If provided, must be a float.
+            dist_func: The point-wise distance function to use. Default is None, which
+                uses a default Euclidean distance function.
         """
         super().__init__()
         self.normalize = normalize
@@ -422,9 +427,9 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
         assert torch.allclose(forward_cpu, forward_gpu.cpu())
         assert torch.allclose(backward_cpu, backward_gpu.cpu(), atol=tol_backward)
 
-        if (
-            i > 0
-        ):  # Ignore the first time we run, in case this is a cold start (because timings are off at a cold start of the script)
+        # Ignore the first time we run, in case this is a cold start
+        # (because timings are off at a cold start of the script)
+        if i > 0:
             times_cpu += [t_cpu]
             times_gpu += [t_gpu]
 

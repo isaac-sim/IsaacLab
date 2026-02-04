@@ -39,7 +39,8 @@ class PinkIKController:
     Multiple tasks are resolved through weighted optimization, formulating a quadratic program that minimizes
     weighted task errors while respecting joint velocity limits.
 
-    It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired joint configurations.
+    It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired
+    joint configurations.
 
     Reference:
         Pink IK Solver: https://github.com/stephane-caron/pink

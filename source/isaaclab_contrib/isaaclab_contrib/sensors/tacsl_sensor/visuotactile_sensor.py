@@ -23,8 +23,9 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+
+from .visuotactile_render import GelsightRender
+from .visuotactile_sensor_data import VisuoTactileSensorData
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
@@ -48,7 +49,8 @@ class VisuoTactileSensor(SensorBase):
         processes them through the tac-sl GelSight renderer to produce realistic tactile images.
 
         Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
-        then applies penalty-based spring-damper models (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
+        then applies penalty-based spring-damper models
+        (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
         to compute normal and shear forces at discrete tactile points.
 
     **Example Usage:**

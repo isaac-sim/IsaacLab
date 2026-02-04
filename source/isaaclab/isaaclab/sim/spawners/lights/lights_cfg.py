@@ -129,10 +129,12 @@ class DomeLightCfg(LightCfg):
 
     Valid values are:
 
-    * ``"automatic"``: Tries to determine the layout from the file itself. For example, Renderman texture files embed an explicit parameterization.
+    * ``"automatic"``: Tries to determine the layout from the file itself. For example, Renderman texture files
+      embed an explicit parameterization.
     * ``"latlong"``: Latitude as X, longitude as Y.
     * ``"mirroredBall"``: An image of the environment reflected in a sphere, using an implicitly orthogonal projection.
-    * ``"angular"``: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better sampling at the edges.
+    * ``"angular"``: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better
+      sampling at the edges.
     * ``"cubeMapVerticalCross"``: A cube map with faces laid out as a vertical cross.
     """
 

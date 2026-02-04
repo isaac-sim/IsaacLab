@@ -212,7 +212,8 @@ class DeformableObject(AssetBase):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
-        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
+        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation
+        frame.
 
         Note:
             The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.

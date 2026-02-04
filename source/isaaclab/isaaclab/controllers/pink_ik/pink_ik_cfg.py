@@ -20,18 +20,26 @@ class PinkIKControllerCfg:
     """
 
     urdf_path: str | None = None
-    """Path to the robot's URDF file. This file is used by Pinocchio's `robot_wrapper.BuildFromURDF` to load the robot model."""
+    """Path to the robot's URDF file. This file is used by Pinocchio's ``robot_wrapper.BuildFromURDF``
+    to load the robot model.
+    """
 
     mesh_path: str | None = None
-    """Path to the mesh files associated with the robot. These files are also loaded by Pinocchio's `robot_wrapper.BuildFromURDF`."""
+    """Path to the mesh files associated with the robot. These files are also loaded by Pinocchio's
+    ``robot_wrapper.BuildFromURDF``.
+    """
 
     num_hand_joints: int = 0
-    """The number of hand joints in the robot. The action space for the controller contains the pose_dim(7)*num_controlled_frames + num_hand_joints.
-    The last num_hand_joints values of the action are the hand joint angles."""
+    """The number of hand joints in the robot.
+
+    The action space for the controller contains the ``pose_dim(7) * num_controlled_frames + num_hand_joints``.
+    The last ``num_hand_joints`` values of the action are the hand joint angles.
+    """
 
     variable_input_tasks: list[FrameTask] = MISSING
-    """
-    A list of tasks for the Pink IK controller. These tasks are controllable by the env action.
+    """A list of tasks for the Pink IK controller.
+
+    These tasks are controllable by the environment action.
 
     These tasks can be used to control the pose of a frame or the angles of joints.
     For more details, visit: https://github.com/stephane-caron/pink
@@ -46,12 +54,18 @@ class PinkIKControllerCfg:
     """
 
     joint_names: list[str] | None = None
-    """A list of joint names in the USD asset controlled by the Pink IK controller. This is required because the joint naming conventions differ between USD and URDF files.
-    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+    """A list of joint names in the USD asset controlled by the Pink IK controller.
+
+    This is required because the joint naming conventions differ between USD and URDF files. This value is
+    currently designed to be automatically populated by the action term in a manager based environment.
+    """
 
     all_joint_names: list[str] | None = None
-    """A list of joint names in the USD asset. This is required because the joint naming conventions differ between USD and URDF files.
-    This value is currently designed to be automatically populated by the action term in a manager based environment."""
+    """A list of joint names in the USD asset.
+
+    This is required because the joint naming conventions differ between USD and URDF files. This value is
+    currently designed to be automatically populated by the action term in a manager based environment.
+    """
 
     articulation_name: str = "robot"
     """The name of the articulation USD asset in the scene."""
@@ -63,9 +77,13 @@ class PinkIKControllerCfg:
     """Show warning if IK solver fails to find a solution."""
 
     fail_on_joint_limit_violation: bool = True
-    """If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization. PinkIKController
-    will handle the error by setting the last joint positions. If False, the solver will ignore joint limit violations and return the
-    closest solution found."""
+    """Whether to fail on joint limit violation.
+
+    If True, the Pink IK solver will fail and raise an error if any joint limit is violated during optimization.
+    The PinkIKController will handle the error by setting the last joint positions.
+
+    If False, the solver will ignore joint limit violations and return the closest solution found.
+    """
 
     xr_enabled: bool = False
     """If True, the Pink IK controller will send information to the XRVisualization."""

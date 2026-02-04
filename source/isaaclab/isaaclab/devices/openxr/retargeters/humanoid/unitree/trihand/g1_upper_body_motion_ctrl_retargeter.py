@@ -58,7 +58,11 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
         Returns:
             Tensor: [left_wrist(7), right_wrist(7), hand_joints(14)]
-            hand_joints order: [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1), right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
+            hand_joints order:
+                [
+                    left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1),
+                    right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)
+                ]
         """
 
         # Get controller data
@@ -79,7 +83,9 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         # Negate left hand joints for proper mirroring
         left_hand_joints = -left_hand_joints
 
-        # Combine joints in the expected order: [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1), right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
+        # Combine joints in the expected order:
+        #   [left_proximal(3), right_proximal(3), left_distal(2), left_thumb_middle(1),
+        #    right_distal(2), right_thumb_middle(1), left_thumb_tip(1), right_thumb_tip(1)]
         all_hand_joints = np.array(
             [
                 left_hand_joints[3],  # left_index_proximal
@@ -154,9 +160,12 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         trigger = inputs[DeviceBase.MotionControllerInputIndex.TRIGGER.value]  # 0.0 to 1.0 (analog)
         squeeze = inputs[DeviceBase.MotionControllerInputIndex.SQUEEZE.value]  # 0.0 to 1.0 (analog)
 
-        # Grasping logic: If trigger is pressed, we grasp with index and thumb. If squeeze is pressed, we grasp with middle and thumb.
-        # If both are pressed, we grasp with index, middle, and thumb.
-        # The thumb rotates towards the direction of the pressing finger. If both are pressed, the thumb stays in the middle.
+        # Grasping logic:
+        #   If trigger is pressed, we grasp with index and thumb.
+        #   If squeeze is pressed, we grasp with middle and thumb.
+        #   If both are pressed, we grasp with index, middle, and thumb.
+        # The thumb rotates towards the direction of the pressing finger.
+        #   If both are pressed, the thumb stays in the middle.
 
         thumb_button = max(trigger, squeeze)
 
@@ -164,8 +173,10 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         # Thumb joints (3 joints) - controlled by A button (digital)
         thumb_angle = -thumb_button  # Max 1 radian ≈ 57°
 
-        # Thumb rotation: If trigger is pressed, we rotate the thumb toward the index finger. If squeeze is pressed, we rotate the thumb toward the middle finger.
-        # If both are pressed, the thumb stays between the index and middle fingers.
+        # Thumb rotation:
+        #   If trigger is pressed, we rotate the thumb toward the index finger.
+        #   If squeeze is pressed, we rotate the thumb toward the middle finger.
+        #   If both are pressed, the thumb stays between the index and middle fingers.
         # Trigger pushes toward +0.5, squeeze pushes toward -0.5
         # trigger=1,squeeze=0 → 0.5; trigger=0,squeeze=1 → -0.5; both=1 → 0
         thumb_rotation = 0.5 * trigger - 0.5 * squeeze

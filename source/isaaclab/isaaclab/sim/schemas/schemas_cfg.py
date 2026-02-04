@@ -656,7 +656,8 @@ class SDFMeshPropertiesCfg(MeshCollisionPropertiesCfg):
     Range: [0, 1] Units: dimensionless
     """
     sdf_resolution: int | None = None
-    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh, divided by the resolution.
+    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh,
+    divided by the resolution.
 
     Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large
     memory consumption, and slower cooking and simulation performance.

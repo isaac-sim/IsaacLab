@@ -254,9 +254,9 @@ def random_grid_terrain(
     """Generate a terrain with cells of random heights and fixed width.
 
     The terrain is generated in the x-y plane and has a height of 1.0. It is then divided into a grid of the
-    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value uniformly
-    sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified width
-    :obj:`cfg.platform_width` is generated.
+    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value
+    uniformly sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified
+    width :obj:`cfg.platform_width` is generated.
 
     If :obj:`cfg.holes` is True, the terrain will have randomized grid cells only along the plane extending
     from the platform (like a plus sign). The remaining area remains empty and no border will be added.

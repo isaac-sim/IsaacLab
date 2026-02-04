@@ -409,7 +409,8 @@ class RayCasterCamera(RayCaster):
         """Obtains the pose of the view the camera is attached to in the world frame.
 
         .. deprecated v2.3.1:
-            This function will be removed in a future release in favor of implementation :meth:`obtain_world_pose_from_view`.
+            This function will be removed in a future release in favor of implementation
+            :meth:`obtain_world_pose_from_view`.
 
         Returns:
             A tuple of the position (in meters) and quaternion (w, x, y, z).

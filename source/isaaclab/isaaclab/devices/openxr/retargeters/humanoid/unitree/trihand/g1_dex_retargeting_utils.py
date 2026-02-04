@@ -75,8 +75,8 @@ class G1TriHandDexRetargeting:
         hand_joint_names: list[str],
         right_hand_config_filename: str = "g1_hand_right_dexpilot.yml",
         left_hand_config_filename: str = "g1_hand_left_dexpilot.yml",
-        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",
-        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",
+        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",  # noqa: E501
+        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",  # noqa: E501
     ):
         """Initialize the hand retargeting.
 

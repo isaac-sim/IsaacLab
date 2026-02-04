@@ -219,8 +219,8 @@ class DeformableObjectData:
 
     @property
     def root_pos_w(self) -> torch.Tensor:
-        """Root position from nodal positions of the simulation mesh for the deformable bodies in simulation world frame.
-        Shape is (num_instances, 3).
+        """Root position from nodal positions of the simulation mesh for the deformable bodies in simulation
+        world frame. Shape is (num_instances, 3).
 
         This quantity is computed as the mean of the nodal positions.
         """

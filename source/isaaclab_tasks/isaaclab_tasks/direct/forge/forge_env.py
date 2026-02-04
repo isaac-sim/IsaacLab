@@ -194,7 +194,8 @@ class ForgeEnv(FactoryEnv):
         desired_xyz = torch.stack([desired_roll, desired_pitch, desired_yaw], dim=1)
 
         # (2.b.ii) Correct the direction of motion to avoid joint limit.
-        # Map yaws between [-125, 235] degrees (so that angles appear on a continuous span uninterrupted by the joint limit).
+        # Map yaws between [-125, 235] degrees
+        # (so that angles appear on a continuous span uninterrupted by the joint limit)
         curr_yaw = factory_utils.wrap_yaw(curr_yaw)
         desired_yaw = factory_utils.wrap_yaw(desired_yaw)
 
