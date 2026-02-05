@@ -9,6 +9,7 @@ This package provides benchmarking utilities used across different test modules.
 """
 
 from .benchmark_core import BaseIsaacLabBenchmark, get_default_output_filename
+from .benchmark_monitor import BenchmarkMonitor
 from .method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 from .measurements import (
     BooleanMeasurement,
@@ -29,6 +30,8 @@ __all__ = [
     # benchmark_core
     "BaseIsaacLabBenchmark",
     "get_default_output_filename",
+    # benchmark_monitor
+    "BenchmarkMonitor",
     # method_benchmark
     "MethodBenchmarkRunner",
     "MethodBenchmarkRunnerConfig",

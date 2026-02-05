@@ -81,7 +81,7 @@ imports_time_end = time.perf_counter_ns()
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
@@ -225,10 +225,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset the agent and env
     runner.reset()
 
-    # train the agent
-    runner.run({"train": True, "play": False, "sigma": None})
+    # train the agent with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        runner.run({"train": True, "play": False, "sigma": None})
 
     if world_rank == 0:
+        # Final update after training completes
         benchmark.update_manual_recorders()
 
         # parse tensorboard file stats

@@ -58,7 +58,7 @@ app_start_time_end = time.perf_counter_ns()
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
@@ -159,30 +159,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     num_frames = 0
     # log frame times
     step_times = []
-    while simulation_app.is_running():
-        while num_frames < args_cli.num_frames:
-            # Update manual recorders
-            benchmark.update_manual_recorders()
 
-            # get upper and lower bounds of action space, sample actions randomly on this interval
-            action_high = 1
-            action_low = -1
-            actions = (action_high - action_low) * torch.rand(
-                env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
-            ) - action_high
+    # Run with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        while simulation_app.is_running():
+            while num_frames < args_cli.num_frames:
+                # get upper and lower bounds of action space, sample actions randomly on this interval
+                action_high = 1
+                action_low = -1
+                actions = (action_high - action_low) * torch.rand(
+                    env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
+                ) - action_high
 
-            # env stepping
-            env_step_time_begin = time.perf_counter_ns()
-            _ = env.step(actions)
-            end_step_time_end = time.perf_counter_ns()
-            step_times.append(end_step_time_end - env_step_time_begin)
+                # env stepping
+                env_step_time_begin = time.perf_counter_ns()
+                _ = env.step(actions)
+                end_step_time_end = time.perf_counter_ns()
+                step_times.append(end_step_time_end - env_step_time_begin)
 
-            num_frames += 1
+                num_frames += 1
 
-        # terminate
-        break
+            # terminate
+            break
 
     if world_rank == 0:
+        # Final update after loop completes
         benchmark.update_manual_recorders()
 
         # compute stats
