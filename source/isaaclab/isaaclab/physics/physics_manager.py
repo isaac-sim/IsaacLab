@@ -84,3 +84,18 @@ class PhysicsManager(ABC):
     def is_fabric_enabled(cls) -> bool:
         """Check if fabric interface is enabled."""
         pass
+
+    @classmethod
+    def play(cls) -> None:
+        """Start or resume physics simulation. Default is no-op."""
+        pass
+
+    @classmethod
+    def pause(cls) -> None:
+        """Pause physics simulation. Default is no-op."""
+        pass
+
+    @classmethod
+    def stop(cls) -> None:
+        """Stop physics simulation. Default is no-op."""
+        pass

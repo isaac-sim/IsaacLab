@@ -146,7 +146,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(device="cuda:0")
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim._visualizer_interface.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
+    sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
 
     # Start the timer for creating the scene
     setup_time_begin = time.perf_counter_ns()

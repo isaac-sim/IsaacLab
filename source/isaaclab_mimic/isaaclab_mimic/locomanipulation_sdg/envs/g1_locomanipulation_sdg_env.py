@@ -148,7 +148,7 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
 
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
         super().__init__(cfg)
-        self.sim._visualizer_interface.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
+        self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
         self._upper_body_dim = self.action_manager.get_term("upper_body_ik").action_dim
         self._waist_dim = 0  # self._env.action_manager.get_term("waist_joint_pos").action_dim
         self._lower_body_dim = self.action_manager.get_term("lower_body_joint_pos").action_dim

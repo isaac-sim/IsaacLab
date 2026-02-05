@@ -173,7 +173,7 @@ def main():
     # Initialize the simulation context
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01)))
     # Set main camera
-    sim._visualizer_interface.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # design scene
     scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)

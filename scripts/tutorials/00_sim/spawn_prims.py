@@ -94,7 +94,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim._visualizer_interface.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
+    sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
     # Design scene
     design_scene()
     # Play the simulator

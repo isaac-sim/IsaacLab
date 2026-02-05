@@ -55,7 +55,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
-    sim._visualizer_interface.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
 
     # Spawn things into stage
     # Ground-plane

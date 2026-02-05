@@ -218,7 +218,7 @@ def test_reset():
     assert sim.is_playing()
 
     # check that physics sim view is created
-    assert sim._physics_interface.physics_sim_view is not None
+    assert sim.physics_sim_view is not None
 
 
 @pytest.mark.isaacsim_ci

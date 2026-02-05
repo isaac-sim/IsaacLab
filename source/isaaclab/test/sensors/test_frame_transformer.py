@@ -79,7 +79,7 @@ def sim():
     # Load kit helper
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
-    sim._visualizer_interface.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
+    sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
     yield sim
     # Cleanup
     sim.clear_instance()

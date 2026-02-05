@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
 from dataclasses import MISSING
-from .physics_manager import PhysicsManager
+
+from isaaclab.utils import configclass
+
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
 
@@ -46,3 +47,6 @@ class PhysicsManagerCfg:
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
+
+    physics_prim_path: str = "/physicsScene"
+    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""

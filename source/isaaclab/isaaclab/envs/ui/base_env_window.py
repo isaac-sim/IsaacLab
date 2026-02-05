@@ -131,7 +131,7 @@ class BaseEnvWindow:
             else:
                 render_value = RenderMode.FULL_RENDERING
 
-            for visualizer in self.env.sim._visualizer_interface._visualizers:
+            for visualizer in self.env.sim.visualizers:
                 if hasattr(visualizer, "set_render_mode"):
                     set_render_mode_fn = lambda value: visualizer.set_render_mode(RenderMode[value])
 

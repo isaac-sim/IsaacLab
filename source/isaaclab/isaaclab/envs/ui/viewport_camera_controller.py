@@ -216,7 +216,7 @@ class ViewportCameraController:
         cam_target = viewer_origin + self.default_cam_lookat
 
         # set the camera view
-        self._env.sim._visualizer_interface.set_camera_view(eye=cam_eye, target=cam_target)
+        self._env.sim.set_camera_view(eye=cam_eye, target=cam_target)
 
     """
     Private Functions

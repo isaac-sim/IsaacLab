@@ -42,7 +42,7 @@ def main():
     sim_cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim._visualizer_interface.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Play the simulator
     sim.reset()

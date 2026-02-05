@@ -336,7 +336,7 @@ def main():
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # set the simulation view
-    sim._visualizer_interface.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
+    sim.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
 
     scene_cfg = FrankaHaplySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)

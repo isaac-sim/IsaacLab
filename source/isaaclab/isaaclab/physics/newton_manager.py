@@ -111,7 +111,7 @@ class NewtonManager(PhysicsManager):
 
         # USD fabric sync only needed for OV rendering
         if cls._sim is not None:
-            cls._clone_physics_only = "omniverse" not in cls._sim._visualizer_interface._visualizers_str  # type: ignore[union-attr]
+            cls._clone_physics_only = not cls._sim.has_visualizer("omniverse")
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:

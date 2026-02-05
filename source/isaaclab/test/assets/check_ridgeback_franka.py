@@ -149,7 +149,7 @@ def main():
     # Initialize the simulation context
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg())
     # Set main camera
-    sim._visualizer_interface.set_camera_view([1.5, 1.5, 1.5], [0.0, 0.0, 0.0])
+    sim.set_camera_view([1.5, 1.5, 1.5], [0.0, 0.0, 0.0])
     # design scene
     robot = design_scene()
     # Play the simulator
