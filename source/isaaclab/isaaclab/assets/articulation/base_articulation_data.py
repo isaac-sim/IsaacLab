@@ -977,7 +977,7 @@ class BaseArticulationData(ABC):
     def default_mass(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
         warnings.warn(
-            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead."
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
             "The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
