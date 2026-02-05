@@ -11,22 +11,6 @@ import warp as wp
 import os
 
 
-@wp.kernel(enable_backward=False)
-def update_transforms(mapping: wp.array(dtype=wp.int32, ndim=2), body_world: wp.array(dtype=wp.int32), physx_pos: wp.array(dtype=wp.float32, ndim=3), physx_quat: wp.array(dtype=wp.float32, ndim=3), out_transform: wp.array(dtype=wp.transformf)):
-    world_id, body_id = wp.tid()
-
-    shape_index = mapping[world_id, body_id]
-    shape_world_id = body_world[shape_index]
-
-    pos_raw = physx_pos[shape_world_id, body_id]
-    pos = wp.vec3f(pos_raw[0], pos_raw[1], pos_raw[2])
-
-    quat_raw = physx_quat[shape_world_id, body_id]
-    quat = wp.quatf(quat_raw[1], quat_raw[2], quat_raw[3], quat_raw[0])
-
-    out_transform[shape_index] = wp.transformf(pos, quat)
-
-
 class CameraManager:
     @dataclass
     class CameraData:
@@ -57,15 +41,6 @@ class CameraManager:
             self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(self.camera_data[name].width, self.camera_data[name].height, camera_fovs)
             self.camera_data[name].color_image = render_context.create_color_image_output(self.camera_data[name].width, self.camera_data[name].height, self.num_cameras)
     
-    def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
-        position, orientation = isaaclab_sim.resolve_prim_pose(prim)
-        return wp.transformf(position, wp.quatf(orientation[1], -orientation[2], -orientation[3], orientation[0]))
-        # position, orientation = isaaclab_sim.resolve_prim_pose(prim)
-        # t = torch.tensor(orientation, dtype=torch.float32, device="cpu").unsqueeze(0)
-        # t = convert_camera_frame_orientation_convention(t)
-        # orientation = t.squeeze(0).cpu().numpy()
-        # return wp.transformf(position, wp.quatf(orientation))
-
     def get_camera_transforms(self, camera_data: CameraData) -> wp.array(dtype=wp.transformf):
         camera_transforms = []
         for prim in camera_data.prims:
@@ -83,6 +58,15 @@ class CameraManager:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             Image.fromarray(color_data.numpy()).save(filename % name)
 
+    def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
+        position, orientation = isaaclab_sim.resolve_prim_pose(prim)
+        return wp.transformf(position, wp.quatf(orientation[1], -orientation[2], -orientation[3], orientation[0]))
+        # position, orientation = isaaclab_sim.resolve_prim_pose(prim)
+        # t = torch.tensor(orientation, dtype=torch.float32, device="cpu").unsqueeze(0)
+        # t = convert_camera_frame_orientation_convention(t)
+        # orientation = t.squeeze(0).cpu().numpy()
+        # return wp.transformf(position, wp.quatf(orientation))
+
 
 class NewtonWarpRenderer:
     def __init__(self, scene: InteractiveScene):
@@ -97,36 +81,22 @@ class NewtonWarpRenderer:
                 builder.add_usd(isaaclab_sim.get_current_stage(), root_path=path)
             builder.end_world()
 
-        self.model = builder.finalize()
-        self.state = self.model.state()
+        self.newton_model = builder.finalize()
+        self.newton_state = self.newton_model.state()
 
-        self.body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
+        self.physx_to_newton_body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
 
         self.camera_manager = CameraManager(scene)
-        self.sensor = newton.sensors.SensorTiledCamera(self.model)
-        self.camera_manager.create_outputs(self.sensor.render_context)
+        self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
+        self.camera_manager.create_outputs(self.newton_sensor.render_context)
 
-    def __build_mapping(self):
-        if self.body_mapping:
-            return
-
-        for name, articulation in self.scene.articulations.items():
-            index_mapping = []
-            for prim in isaaclab_sim.find_matching_prims(articulation.cfg.prim_path):
-                body_indices = []
-                for body_name in articulation.body_names:
-                    prim_path = prim.GetPath().AppendChild(body_name).pathString
-                    body_indices.append(self.model.body_key.index(prim_path))
-                index_mapping.append(body_indices)
-            self.body_mapping[name] = wp.array(index_mapping, dtype=wp.int32)
-        
     def update(self):
-        self.__build_mapping()
+        self.__update_mapping()
         for name, articulation in self.scene.articulations.items():
-            if mapping := self.body_mapping.get(name):
+            if mapping := self.physx_to_newton_body_mapping.get(name):
                 physx_pos = wp.from_torch(articulation.data.body_pos_w)
                 physx_quat = wp.from_torch(articulation.data.body_quat_w)
-                wp.launch(update_transforms, mapping.shape, [mapping, self.model.body_world, physx_pos, physx_quat, self.state.body_q])
+                wp.launch(NewtonWarpRenderer.__update_transforms, mapping.shape, [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q])
 
     def render(self, sensor_name: str):
         if camera_data := self.camera_manager.camera_data.get(sensor_name):
@@ -137,4 +107,34 @@ class NewtonWarpRenderer:
             self.__render(camera_data)
 
     def __render(self, camera_data: CameraManager.CameraData):
-        self.sensor.render(self.state, self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image)
+        self.newton_sensor.render(self.newton_state, self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image)
+
+    def __update_mapping(self):
+        if self.physx_to_newton_body_mapping:
+            return
+
+        self.physx_to_newton_body_mapping.clear()
+        for name, articulation in self.scene.articulations.items():
+            articulation_mapping = []
+            for prim in isaaclab_sim.find_matching_prims(articulation.cfg.prim_path):
+                body_indices = []
+                for body_name in articulation.body_names:
+                    prim_path = prim.GetPath().AppendChild(body_name).pathString
+                    body_indices.append(self.newton_model.body_key.index(prim_path))
+                articulation_mapping.append(body_indices)
+            self.physx_to_newton_body_mapping[name] = wp.array(articulation_mapping, dtype=wp.int32)
+
+    @wp.kernel(enable_backward=False)
+    def __update_transforms(mapping: wp.array(dtype=wp.int32, ndim=2), newton_body_world: wp.array(dtype=wp.int32), physx_pos: wp.array(dtype=wp.float32, ndim=3), physx_quat: wp.array(dtype=wp.float32, ndim=3), out_transform: wp.array(dtype=wp.transformf)):
+        physx_world_id, physx_body_id = wp.tid()
+
+        newton_body_index = mapping[physx_world_id, physx_body_id]
+        newton_world_id = newton_body_world[newton_body_index]
+
+        pos_raw = physx_pos[newton_world_id, physx_body_id]
+        pos = wp.vec3f(pos_raw[0], pos_raw[1], pos_raw[2])
+
+        quat_raw = physx_quat[newton_world_id, physx_body_id]
+        quat = wp.quatf(quat_raw[1], quat_raw[2], quat_raw[3], quat_raw[0])
+
+        out_transform[newton_body_index] = wp.transformf(pos, quat)
