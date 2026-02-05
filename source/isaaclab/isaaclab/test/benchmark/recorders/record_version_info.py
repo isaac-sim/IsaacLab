@@ -6,7 +6,7 @@
 import os
 import subprocess
 
-from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder, MeasurementData
+from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
 
 

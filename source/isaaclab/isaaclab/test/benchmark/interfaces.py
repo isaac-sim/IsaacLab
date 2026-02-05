@@ -1,7 +1,13 @@
-from .measurements import Measurement, MetadataBase
-from dataclasses import dataclass, field
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from .measurements import Measurement, MetadataBase
 
 
 @dataclass
@@ -17,6 +23,7 @@ class MeasurementData:
     measurements: Sequence[Measurement] = field(default_factory=lambda: [])
     metadata: Sequence[MetadataBase] = field(default_factory=lambda: [])
     artefacts: Sequence[tuple[Path, str]] = field(default_factory=lambda: [])  # (path, artefact-label)
+
 
 class MeasurementDataRecorder:
     """Base class for recording metrics, metadata, and file-based artifacts.

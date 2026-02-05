@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Set output directory from argument or use default
 ROOT_DIR="${1:-./benchmarks}"

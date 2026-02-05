@@ -1,12 +1,16 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import copy
 import json
 import logging
-import tempfile
+import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-import os
 
-from .measurements import TestPhase, TestPhaseEncoder, SingleMeasurement, StatisticalMeasurement
+from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,7 @@ def get_default_output_filename(prefix: str = "benchmark") -> str:
     """
     datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return f"{prefix}_{datetime_str}"
+
 
 class MetricsBackendInterface(ABC):
     """Abstract base class for metrics backends."""
@@ -191,7 +196,6 @@ class OsmoKPIFile(MetricsBackendInterface):
         """
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
-            test_name = test_phase.get_metadata_field("workflow_name")
             phase_name = test_phase.get_metadata_field("phase")
 
             osmo_kpis: dict[str, object] = {}
@@ -257,10 +261,8 @@ class OmniPerfKPIFile(MetricsBackendInterface):
 
         workflow_data: dict[str, object] = {}
 
-        test_name = None
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
-            test_name = test_phase.get_metadata_field("workflow_name")
             phase_name = test_phase.get_metadata_field("phase")
 
             phase_data: dict[str, object] = {}
@@ -273,7 +275,8 @@ class OmniPerfKPIFile(MetricsBackendInterface):
             for measurement in test_phase.measurements:
                 if isinstance(measurement, StatisticalMeasurement):
                     log_statements.append(
-                        f"{measurement.name}: {measurement.mean:.2f} ± {measurement.std:.2f} {measurement.unit} (n={measurement.n})"
+                        f"{measurement.name}: {measurement.mean:.2f} ± {measurement.std:.2f} "
+                        f"{measurement.unit} (n={measurement.n})"
                     )
                     phase_data[f"{measurement.name}_mean"] = measurement.mean
                     phase_data[f"{measurement.name}_std"] = measurement.std

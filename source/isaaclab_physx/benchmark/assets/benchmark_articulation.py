@@ -67,7 +67,6 @@ from isaacsim.core.simulation_manager import SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 import warp as wp
-
 from isaaclab_physx.assets.articulation.articulation import Articulation
 from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_ids, make_tensor_joint_ids

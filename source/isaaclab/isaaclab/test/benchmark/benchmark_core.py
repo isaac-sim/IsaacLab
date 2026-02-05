@@ -1,21 +1,31 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import logging
-import time
 import os
+import time
 from collections.abc import Sequence
 from datetime import datetime
 
 from . import backends
 from .backends import get_default_output_filename
 from .interfaces import MeasurementDataRecorder
+from .measurements import DictMetadata, FloatMetadata, IntMetadata, Measurement, MetadataBase, StringMetadata, TestPhase
 from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
-from .measurements import MetadataBase, StringMetadata, DictMetadata, IntMetadata, FloatMetadata, Measurement, TestPhase
-
 
 logger = logging.getLogger(__name__)
 
 # Valid measurement and metadata class names (to support both isaaclab and isaacsim types)
-_MEASUREMENT_CLASS_NAMES = {"Measurement", "SingleMeasurement", "StatisticalMeasurement",
-                            "BooleanMeasurement", "DictMeasurement", "ListMeasurement"}
+_MEASUREMENT_CLASS_NAMES = {
+    "Measurement",
+    "SingleMeasurement",
+    "StatisticalMeasurement",
+    "BooleanMeasurement",
+    "DictMeasurement",
+    "ListMeasurement",
+}
 _METADATA_CLASS_NAMES = {"MetadataBase", "StringMetadata", "IntMetadata", "FloatMetadata", "DictMetadata"}
 
 
@@ -55,7 +65,7 @@ class BaseIsaacLabBenchmark:
         """
         self.benchmark_name = benchmark_name
 
-        # Resolve output path        
+        # Resolve output path
         if not os.path.exists(output_path):
             try:
                 os.makedirs(output_path)
@@ -64,7 +74,7 @@ class BaseIsaacLabBenchmark:
         self.output_path = output_path
         if output_prefix is None:
             output_prefix = "benchmark"
-            logger.warning(f"No output prefix provided, using default prefix: benchmark")
+            logger.warning("No output prefix provided, using default prefix: benchmark")
         self.output_prefix = get_default_output_filename(output_prefix)
 
         # Get metrics backend
@@ -75,11 +85,11 @@ class BaseIsaacLabBenchmark:
         # Generate workflow-level metadata
         workflow_name = StringMetadata(name="workflow_name", data=self.benchmark_name)
         timestamp = StringMetadata(name="timestamp", data=datetime.now().isoformat())
-        self.add_measurement("benchmark_info", metadata = workflow_name)
-        self.add_measurement("benchmark_info", metadata = timestamp)
+        self.add_measurement("benchmark_info", metadata=workflow_name)
+        self.add_measurement("benchmark_info", metadata=timestamp)
         if workflow_metadata:
             if "metadata" in workflow_metadata:
-                self.add_measurement("benchmark_info", metadata = self._metadata_from_dict(workflow_metadata))
+                self.add_measurement("benchmark_info", metadata=self._metadata_from_dict(workflow_metadata))
             else:
                 logger.warning(
                     "workflow_metadata provided, but missing expected 'metadata' entry. Metadata will not be read."
@@ -103,18 +113,22 @@ class BaseIsaacLabBenchmark:
                 try:
                     # Enable the benchmark services extension first
                     from isaacsim.core.utils.extensions import enable_extension
+
                     enable_extension("isaacsim.benchmark.services")
 
-                    from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
                     from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
                     from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
+                    from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
+                    from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
+
                     self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
                     self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
                     self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
                     self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
                 except ImportError as e:
-                    logger.warning(f"Could not import kit recorders: {e}. Kit related measurements will not be available.")
+                    logger.warning(
+                        f"Could not import kit recorders: {e}. Kit related measurements will not be available."
+                    )
 
                 # Start collecting frametime recorders.
                 for recorder in self._frametime_recorders.values():
@@ -157,11 +171,11 @@ class BaseIsaacLabBenchmark:
         for recorder in self._manual_recorders.values():
             recorder.update()
 
-
-    def add_measurement(self,
+    def add_measurement(
+        self,
         phase_name: str,
         measurement: Measurement | Sequence[Measurement] | None = None,
-        metadata: MetadataBase | Sequence[MetadataBase] | None = None
+        metadata: MetadataBase | Sequence[MetadataBase] | None = None,
     ) -> None:
         """Add a measurement to the benchmark.
 
@@ -202,7 +216,6 @@ class BaseIsaacLabBenchmark:
                     raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
                 self._phases[phase_name].metadata.append(metadata)
 
-
     def _finalize_impl(self) -> None:
         # Stop collecting frametime recorders.
         for recorder in self._frametime_recorders.values():
@@ -229,10 +242,7 @@ class BaseIsaacLabBenchmark:
 
         # Check that there are phases to write.
         if not self._phases:
-            logger.warning(
-                "No phases collected."
-                "No metrics will be written."
-            )
+            logger.warning("No phases collected.No metrics will be written.")
             return
 
         # Add the phases to the metrics backend.

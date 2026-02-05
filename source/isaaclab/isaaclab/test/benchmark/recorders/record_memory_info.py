@@ -8,7 +8,7 @@ import os
 
 import psutil
 
-from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder, MeasurementData
+from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import FloatMetadata, SingleMeasurement
 
 
@@ -134,19 +134,23 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
 
         # USS (Unique Set Size) - only if available
         if "uss_mean" in self._memory_runtime_info:
-            measurements.extend([
-                SingleMeasurement(
-                    name="System Memory USS",
-                    value=self._bytes_to_gb(self._memory_runtime_info.get("uss_mean", 0)),
-                    unit="GB",
-                ),
-                SingleMeasurement(
-                    name="System Memory USS std",
-                    value=self._bytes_to_gb(self._memory_runtime_info.get("uss_std", 0)),
-                    unit="GB",
-                ),
-                SingleMeasurement(name="System Memory USS n", value=self._memory_runtime_info.get("uss_n", 0), unit=""),
-            ])
+            measurements.extend(
+                [
+                    SingleMeasurement(
+                        name="System Memory USS",
+                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_mean", 0)),
+                        unit="GB",
+                    ),
+                    SingleMeasurement(
+                        name="System Memory USS std",
+                        value=self._bytes_to_gb(self._memory_runtime_info.get("uss_std", 0)),
+                        unit="GB",
+                    ),
+                    SingleMeasurement(
+                        name="System Memory USS n", value=self._memory_runtime_info.get("uss_n", 0), unit=""
+                    ),
+                ]
+            )
 
         return MeasurementData(
             measurements=measurements,

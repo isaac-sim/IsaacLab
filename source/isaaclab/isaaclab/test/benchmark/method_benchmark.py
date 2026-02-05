@@ -185,8 +185,10 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
 
         print(f"\nBenchmarking {len(benchmarks)} methods...")
         print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
-        print(f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
-              f"{self._config.num_joints} joints")
+        print(
+            f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
+            f"{self._config.num_joints} joints"
+        )
         print(f"Device: {self._config.device}")
         print(f"Modes: {self._modes_to_run if self._modes_to_run else 'All available'}")
         print("-" * 80)
@@ -313,6 +315,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         """Synchronize GPU device."""
         try:
             import warp as wp
+
             wp.synchronize()
         except ImportError:
             pass
@@ -348,8 +351,10 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
 
         print(f"\nBenchmarking {len(properties)} properties...")
         print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
-        print(f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
-              f"{self._config.num_joints} joints")
+        print(
+            f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
+            f"{self._config.num_joints} joints"
+        )
         print("-" * 80)
 
         for i, prop_name in enumerate(properties):

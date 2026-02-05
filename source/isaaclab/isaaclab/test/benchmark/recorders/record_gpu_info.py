@@ -9,7 +9,7 @@ import subprocess
 
 import torch
 
-from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder, MeasurementData
+from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import (
     DictMetadata,
     IntMetadata,
@@ -129,10 +129,12 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                     for line in result.stdout.strip().split("\n"):
                         parts = line.split(",")
                         if len(parts) >= 2:
-                            nvidia_smi_data.append({
-                                "memory_used_mb": float(parts[0].strip()),
-                                "utilization": float(parts[1].strip()),
-                            })
+                            nvidia_smi_data.append(
+                                {
+                                    "memory_used_mb": float(parts[0].strip()),
+                                    "utilization": float(parts[1].strip()),
+                                }
+                            )
 
         for i in range(self._device_count):
             # GPU memory usage per device
@@ -142,6 +144,7 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             if self._nvml_available and i < len(self._handles):
                 with contextlib.suppress(Exception):
                     import pynvml
+
                     mem_info = pynvml.nvmlDeviceGetMemoryInfo(self._handles[i])
                     memory_bytes = mem_info.used
 
@@ -171,6 +174,7 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             if self._nvml_available and i < len(self._handles):
                 with contextlib.suppress(Exception):
                     import pynvml
+
                     util = pynvml.nvmlDeviceGetUtilizationRates(self._handles[i])
                     gpu_util = util.gpu
 
@@ -217,12 +221,18 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         # Global metadata
         metadata.append(IntMetadata(name="gpu_device_count", data=self._device_count))
         metadata.append(IntMetadata(name="gpu_current_device", data=self._gpu_hardware_info["current_device"]))
-        metadata.append(StringMetadata(name="cuda_version", data=self._gpu_hardware_info.get("cuda_version", "Unknown")))
+        metadata.append(
+            StringMetadata(name="cuda_version", data=self._gpu_hardware_info.get("cuda_version", "Unknown"))
+        )
 
         # Per-device hardware info as a dict
         devices_data = {}
         for i in range(self._device_count):
-            device_hw = self._gpu_hardware_info.get("devices", [{}])[i] if i < len(self._gpu_hardware_info.get("devices", [])) else {}
+            device_hw = (
+                self._gpu_hardware_info.get("devices", [{}])[i]
+                if i < len(self._gpu_hardware_info.get("devices", []))
+                else {}
+            )
 
             device_data = {
                 "name": device_hw.get("name", "Unknown"),
@@ -244,38 +254,50 @@ class GPUInfoRecorder(MeasurementDataRecorder):
 
                 # Memory used
                 if "memory_used_mean_bytes" in runtime:
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Memory Used",
-                        value=self._bytes_to_gb(runtime["memory_used_mean_bytes"]),
-                        unit="GB",
-                    ))
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Memory Used std",
-                        value=self._bytes_to_gb(runtime["memory_used_std_bytes"]),
-                        unit="GB",
-                    ))
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Memory Used n",
-                        value=runtime["memory_n"],
-                        unit="",
-                    ))
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Memory Used",
+                            value=self._bytes_to_gb(runtime["memory_used_mean_bytes"]),
+                            unit="GB",
+                        )
+                    )
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Memory Used std",
+                            value=self._bytes_to_gb(runtime["memory_used_std_bytes"]),
+                            unit="GB",
+                        )
+                    )
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Memory Used n",
+                            value=runtime["memory_n"],
+                            unit="",
+                        )
+                    )
 
                 # GPU Utilization
                 if "utilization_mean_percent" in runtime:
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Utilization",
-                        value=round(runtime["utilization_mean_percent"], 2),
-                        unit="%",
-                    ))
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Utilization std",
-                        value=round(runtime["utilization_std_percent"], 2),
-                        unit="%",
-                    ))
-                    measurements.append(SingleMeasurement(
-                        name=f"{prefix}Utilization n",
-                        value=runtime["utilization_n"],
-                        unit="",
-                    ))
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Utilization",
+                            value=round(runtime["utilization_mean_percent"], 2),
+                            unit="%",
+                        )
+                    )
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Utilization std",
+                            value=round(runtime["utilization_std_percent"], 2),
+                            unit="%",
+                        )
+                    )
+                    measurements.append(
+                        SingleMeasurement(
+                            name=f"{prefix}Utilization n",
+                            value=runtime["utilization_n"],
+                            unit="",
+                        )
+                    )
 
         return MeasurementData(measurements=measurements, metadata=metadata)

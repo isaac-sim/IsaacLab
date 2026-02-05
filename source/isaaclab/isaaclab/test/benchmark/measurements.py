@@ -1,9 +1,14 @@
-from dataclasses import dataclass, field
-from typing import Any, Union, cast
-from pathlib import Path
-import os
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import json
 import logging
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Union, cast
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +17,7 @@ _MetadataWithData = Union["StringMetadata", "IntMetadata", "FloatMetadata", "Dic
 
 
 @dataclass
-class Measurement(object):
+class Measurement:
     """Base measurement record.
 
     Args:
@@ -50,6 +55,7 @@ class StatisticalMeasurement(Measurement):
         unit: Unit string.
         type: Measurement type label. Defaults to "statistical".
     """
+
     mean: float
     std: float
     n: int
@@ -114,7 +120,7 @@ class ListMeasurement(Measurement):
 
 
 @dataclass
-class MetadataBase(object):
+class MetadataBase:
     """Base metadata record.
 
     Args:
@@ -181,7 +187,7 @@ class DictMetadata(MetadataBase):
 
 
 @dataclass
-class TestPhase(object):
+class TestPhase:
     """Represent a single test phase with associated metrics and metadata.
 
     Args:
@@ -222,8 +228,7 @@ class TestPhase(object):
 
         if default is KeyError:
             raise KeyError(name)
-        else:
-            return default
+        return default
 
     @classmethod
     def metadata_from_dict(cls, m: dict) -> list[_MetadataWithData]:
@@ -312,7 +317,7 @@ class TestPhase(object):
             metric_path = os.path.join(json_folder_path, f)
             if os.path.isfile(metric_path):
                 if f.startswith("metrics") and f.endswith(".json"):
-                    with open(metric_path, "r") as json_file:
+                    with open(metric_path) as json_file:
                         try:
                             test_run_json_list = json.load(json_file)
                             for m in test_run_json_list:

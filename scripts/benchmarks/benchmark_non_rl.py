@@ -92,7 +92,7 @@ imports_time_end = time.perf_counter_ns()
 
 # Create the benchmark
 benchmark = BaseIsaacLabBenchmark(
-    benchmark_name=f"benchmark_non_rl",
+    benchmark_name="benchmark_non_rl",
     backend_type=get_backend_type(args_cli.benchmark_backend),
     output_path=args_cli.output_path,
     use_recorders=True,

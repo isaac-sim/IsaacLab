@@ -4,13 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import contextlib
+import math
 import os
 import platform
-import psutil
-import math
 
-from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder, MeasurementData
-from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata, IntMetadata
+import psutil
+
+from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
+from isaaclab.test.benchmark.measurements import IntMetadata, SingleMeasurement, StringMetadata
+
 
 class CPUInfoRecorder(MeasurementDataRecorder):
     def __init__(self):
@@ -37,7 +39,7 @@ class CPUInfoRecorder(MeasurementDataRecorder):
                     if "model name" in line:
                         self._cpu_hardware_info["name"] = line.split(":")[1].strip()
                         break
-    
+
     def _get_runtime_info(self) -> None:
         process_cpu_percent = self._process.cpu_percent(interval=None)
         # Welford's algorithm for computing the mean and standard deviation
@@ -51,7 +53,7 @@ class CPUInfoRecorder(MeasurementDataRecorder):
         self._cpu_runtime_info["mean"] = self._mean
         self._cpu_runtime_info["std"] = self._std
         self._cpu_runtime_info["n"] = self._n
-    
+
     def update(self) -> None:
         self._get_runtime_info()
 
@@ -64,7 +66,7 @@ class CPUInfoRecorder(MeasurementDataRecorder):
         return {
             "cpu_utilization": self._cpu_runtime_info,
         }
-    
+
     def get_data(self) -> MeasurementData:
         return MeasurementData(
             measurements=[

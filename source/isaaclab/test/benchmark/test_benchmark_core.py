@@ -15,7 +15,6 @@ from isaaclab.test.benchmark import backends
 from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
 
-
 # ==============================================================================
 # BaseIsaacLabBenchmark Tests
 # ==============================================================================
@@ -54,7 +53,7 @@ class TestBaseIsaacLabBenchmark:
         """Test that initialization creates output directory if it doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = os.path.join(tmpdir, "nested", "output")
-            benchmark = BaseIsaacLabBenchmark(
+            _benchmark = BaseIsaacLabBenchmark(  # noqa: F841
                 benchmark_name="test_benchmark",
                 backend_type="omniperf",
                 output_path=output_path,
@@ -192,7 +191,7 @@ class TestBaseIsaacLabBenchmark:
         benchmark._finalize_impl()
 
         # Read and verify output
-        with open(benchmark.output_file_path, "r") as f:
+        with open(benchmark.output_file_path) as f:
             data = json.load(f)
 
         # Check that runtime phase is present with our measurement
@@ -230,7 +229,7 @@ class TestBaseIsaacLabBenchmark:
         )
         benchmark._finalize_impl()
 
-        with open(benchmark.output_file_path, "r") as f:
+        with open(benchmark.output_file_path) as f:
             data = json.load(f)
 
         # Check benchmark phase has workflow metadata
