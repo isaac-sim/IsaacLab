@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -62,11 +62,11 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # robots
     robot: ArticulationCfg = MISSING
-    # sensors
+    # sensor
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
+        attach_yaw_only=True,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
@@ -173,15 +173,6 @@ class EventCfg:
         },
     )
 
-    base_com = EventTerm(
-        func=mdp.randomize_rigid_body_com,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-        },
-    )
-
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
@@ -192,6 +183,7 @@ class EventCfg:
             "torque_range": (-0.0, 0.0),
         },
     )
+
 
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -206,6 +198,7 @@ class EventCfg:
                 "pitch": (-0.5, 0.5),
                 "yaw": (-0.5, 0.5),
             },
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
         },
     )
 
@@ -225,6 +218,8 @@ class EventCfg:
         interval_range_s=(10.0, 15.0),
         params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
     )
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
 @configclass
@@ -263,6 +258,7 @@ class RewardsCfg:
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
 
 
+
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -273,12 +269,17 @@ class TerminationsCfg:
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
     )
 
+    
+
+
+
 
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    # terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
+    # lin_vel_cmd_levels = CurrTerm(mdp.lin_vel_cmd_levels)
 
 
 ##

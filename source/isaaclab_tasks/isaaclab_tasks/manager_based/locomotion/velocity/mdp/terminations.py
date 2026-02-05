@@ -52,3 +52,41 @@ def terrain_out_of_bounds(
         return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
     else:
         raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
+
+def terminate_on_z_height(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    height_threshold: float = 0.05,
+) -> torch.Tensor:
+    """Terminate when the actor moves too close to the height of the terrain."""
+    asset = env.scene[asset_cfg.name]
+    robot_z_pos = asset.data.root_pos_w[:, 2]
+
+    return robot_z_pos < height_threshold
+
+def ground_contact_termination(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Terminate when any robot body in sensor list makes contact with the ground."""
+
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    ground_contact_forces = contact_sensor.data.force_matrix_w
+
+    return torch.any(torch.max(torch.norm(ground_contact_forces[:, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1)
+
+
+def ground_contact_termination_history(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    force_hist = contact_sensor.data.net_forces_w_history
+
+    if force_hist is not None:
+        # select bodies -> (N, T, |Bids|, M, 3)
+        f = force_hist[:, :, sensor_cfg.body_ids]
+        # norm -> (N, T, |Bids|, M)
+        f_norm = torch.norm(f, dim=-1)
+        # per-step max over bodies & filtered prims -> (N, T)
+        per_step = torch.amax(f_norm, dim=(2, 3))
+    else:
+        # Fallback: unfiltered net forces history (N, T, B, 3) :contentReference[oaicite:2]{index=2}
+        net_hist = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids]
+        per_step = torch.amax(torch.norm(net_hist, dim=-1), dim=2)  # (N, T)
+
+    return torch.all(per_step > eps, dim=1)  # (N,)
