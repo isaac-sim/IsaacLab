@@ -1133,7 +1133,7 @@ class BaseArticulation(AssetBase):
         joint_friction: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
-    ):
+    ) -> None:
         """Write joint friction coefficients into the simulation.
 
         .. deprecated:: 2.1.0
@@ -1153,7 +1153,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         warn_limit_violation: bool = True,
-    ):
+    ) -> None:
         """Write joint limits into the simulation.
 
         .. deprecated:: 2.1.0
@@ -1174,7 +1174,7 @@ class BaseArticulation(AssetBase):
         limit: torch.Tensor,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
-    ):
+    ) -> None:
         """Set fixed tendon position limits into internal buffers.
 
         .. deprecated:: 2.1.0
