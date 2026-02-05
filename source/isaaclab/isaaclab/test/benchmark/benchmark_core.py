@@ -1,302 +1,220 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-"""Core benchmarking utilities shared across test modules.
-
-This module provides dataclasses, enums, and helper functions used by the
-benchmark scripts for both Articulation and RigidObject classes.
-"""
-
-from __future__ import annotations
-
-import contextlib
+import logging
 import time
-from collections.abc import Callable
-from dataclasses import dataclass
+import os
+from collections.abc import Sequence
+from datetime import datetime
 
-import numpy as np
-import warp as wp
-
-
-@dataclass
-class BenchmarkConfig:
-    """Configuration for the benchmarking framework."""
-
-    num_iterations: int = 1000
-    """Number of iterations to run each function."""
-
-    warmup_steps: int = 10
-    """Number of warmup steps before timing."""
-
-    num_instances: int = 4096
-    """Number of instances (articulations or rigid objects)."""
-
-    num_bodies: int = 12
-    """Number of bodies per instance."""
-
-    num_joints: int = 11
-    """Number of joints per instance (only applicable for articulations)."""
-
-    device: str = "cuda:0"
-    """Device to run benchmarks on."""
-
-    mode: str | list[str] = "all"
-    """Benchmark mode(s) to run. Can be a single string or list of strings. 'all' runs all available modes."""
+from . import backends
+from .interfaces import MeasurementDataRecorder
+from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from .measurements import MetadataBase, StringMetadata, DictMetadata, IntMetadata, FloatMetadata, Measurement, TestPhase
 
 
-@dataclass
-class BenchmarkResult:
-    """Result of a single benchmark."""
-
-    name: str
-    """Name of the benchmarked method/property."""
-
-    mean_time_us: float
-    """Mean execution time in microseconds."""
-
-    std_time_us: float
-    """Standard deviation of execution time in microseconds."""
-
-    num_iterations: int
-    """Number of iterations run."""
-
-    mode: str | None = None
-    """Input mode used (e.g., 'warp', 'torch_list', etc.). None for property benchmarks."""
-
-    skipped: bool = False
-    """Whether the benchmark was skipped."""
-
-    skip_reason: str = ""
-    """Reason for skipping the benchmark."""
-
-    dependencies: list[str] | None = None
-    """List of parent properties that were pre-computed before timing."""
+logger = logging.getLogger(__name__)
 
 
-@dataclass
-class MethodBenchmark:
-    """Definition of a method to benchmark."""
-
-    name: str
-    """Name of the method."""
-
-    method_name: str
-    """Actual method name on the class."""
-
-    input_generators: dict[str, Callable]
-    """Dictionary mapping mode names to input generator functions."""
-
-    category: str = "general"
-    """Category of the method (e.g., 'root_state', 'joint_state', 'joint_params')."""
-
-
-# =============================================================================
-# Common Input Generator Helpers
-# =============================================================================
-
-import torch
-
-
-def make_tensor_env_ids(num_instances: int, device: str) -> torch.Tensor:
-    """Create a tensor of environment IDs.
+def get_default_output_filename(prefix: str = "benchmark") -> str:
+    """Generate default output filename with current date and time.
 
     Args:
-        num_instances: Number of environment instances.
-        device: Device to create the tensor on.
+        prefix: Prefix for the filename (e.g., "articulation_benchmark").
 
     Returns:
-        Tensor of environment IDs [0, 1, ..., num_instances-1].
+        Filename string with timestamp.
     """
-    return torch.arange(num_instances, dtype=torch.long, device=device)
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return f"{prefix}_{datetime_str}.json"
 
 
-def make_tensor_joint_ids(num_joints: int, device: str) -> torch.Tensor:
-    """Create a tensor of joint IDs.
+class BaseIsaacLabBenchmark:
+    """Base benchmark class for IsaacLab's benchmarks."""
 
-    Args:
-        num_joints: Number of joints.
-        device: Device to create the tensor on.
+    def __init__(
+        self,
+        benchmark_name: str,
+        backend_type: str,
+        output_path: str,
+        use_recorders: bool = True,
+        output_prefix: str | None = None,
+        workflow_metadata: dict | None = None,
+    ):
+        """Initialize common benchmark state and recorders.
 
-    Returns:
-        Tensor of joint IDs [0, 1, ..., num_joints-1].
-    """
-    return torch.arange(num_joints, dtype=torch.long, device=device)
+        Args:
+            benchmark_name: Name of benchmark to use in outputs.
+            backend_type: Type of backend used to collect and print metrics.
+            output_path: Path to output directory.
+            use_recorders: Whether to use recorders to collect metrics. Defaults to True.
+            output_filename: Filename to use for the output file, defaults to None.
+            workflow_metadata: Metadata describing benchmark, defaults to None.
+        """
+        self.benchmark_name = benchmark_name
+
+        # Resolve output path        
+        if not os.path.exists(output_path):
+            try:
+                os.makedirs(output_path)
+            except Exception as e:
+                raise ValueError(f"Could not create output directory {output_path}: {e}")
+        self.output_path = output_path
+        if output_prefix is None:
+            output_prefix = "benchmark"
+            logger.warning(f"No output prefix provided, using default prefix: benchmark")
+        self.output_prefix = get_default_output_filename(output_prefix)
+        self.output_file_path = os.path.join(self.output_path, self.output_prefix)
+
+        # Get metrics backend
+        logger.info("Using metrics backend = %s", backend_type)
+        self._metrics = backends.MetricsBackend.get_instance(instance_type=backend_type)
+        self._phases: dict[str, TestPhase] = {}
+
+        # Generate workflow-level metadata
+        workflow_name = StringMetadata(name="workflow_name", data=self.benchmark_name)
+        timestamp = StringMetadata(name="timestamp", data=datetime.now().isoformat())
+        self.add_measurement("benchmark_info", metadata = workflow_name)
+        self.add_measurement("benchmark_info", metadata = timestamp)
+        if workflow_metadata:
+            if "metadata" in workflow_metadata:
+                self.add_measurement("benchmark_info", metadata = self._metadata_from_dict(workflow_metadata))
+            else:
+                logger.warning(
+                    "workflow_metadata provided, but missing expected 'metadata' entry. Metadata will not be read."
+                )
+
+        # Whether to use recorders to collect metrics.
+        self._use_recorders = use_recorders
+        if self._use_recorders:
+            # Recorders that need to be updated manually since they don't depend on the kit timeline.
+            self._manual_recorders: dict[str, MeasurementDataRecorder] = {
+                "CPUInfo": CPUInfoRecorder(),
+                "GPUInfo": GPUInfoRecorder(),
+                "MemoryInfo": MemoryInfoRecorder(),
+                "VersionInfo": VersionInfoRecorder(),
+            }
+
+            # If we're using Kit, then we can use IsaacSim's benchmark services to peak into the frametimes.
+            self._automatic_recorders: dict[str, MeasurementDataRecorder] = {}
+            try:
+                from isaacsim.benchmark.services.datarecorders import physics_frametime
+                from isaacsim.benchmark.services.datarecorders import render_frametime
+                from isaacsim.benchmark.services.datarecorders import app_frametime
+                self._automatic_recorders["PhysicsFrametime"] = physics_frametime()
+                self._automatic_recorders["RenderFrametime"] = render_frametime()
+                self._automatic_recorders["AppFrametime"] = app_frametime()
+            except ImportError:
+                logger.warning("Could not import kit recorders. Kit related measurements will not be available.")
+
+        # Set the start time of the benchmark.
+        logger.info("Starting")
+        self.benchmark_start_time = time.time()
+
+    def _metadata_from_dict(self, metadata_dict: dict) -> list[MetadataBase]:
+        """Convert a dictionary with metadata lists into a list of MetadataBase objects.
+
+        Example:
+        .. code-block:: python
+            metadata = self._metadata_from_dict({"metadata": [{"name": "gpu", "data": "A10"}]})
+
+        Args:
+            metadata_dict: A dictionary with metadata lists.
+
+        Returns:
+            A list of MetadataBase objects.
+        """
+        metadata: list[MetadataBase] = []
+        metadata_mapping = {str: StringMetadata, int: IntMetadata, float: FloatMetadata, dict: DictMetadata}
+        for meas in metadata_dict["metadata"]:
+            if "data" in meas:
+                metadata_type = metadata_mapping.get(type(meas["data"]))
+                if metadata_type:
+                    curr_meta = metadata_type(name=meas["name"], data=meas["data"])
+                    metadata.append(curr_meta)
+        return metadata
+
+    def update_manual_recorders(self) -> None:
+        """Update manual recorders that don't depend on the kit timeline."""
+
+        if not self._use_recorders:
+            logger.warning("Recorders are not enabled. Skipping update of manual recorders.")
+            return
+
+        for recorder in self._manual_recorders.values():
+            recorder.update()
 
 
-def make_tensor_body_ids(num_bodies: int, device: str) -> torch.Tensor:
-    """Create a tensor of body IDs.
+    def add_measurement(self,
+        phase_name: str,
+        measurement: Measurement | Sequence[Measurement] | None = None,
+        metadata: MetadataBase | Sequence[MetadataBase] | None = None
+    ) -> None:
+        """Add a measurement to the benchmark.
 
-    Args:
-        num_bodies: Number of bodies.
-        device: Device to create the tensor on.
+        Args:
+            phase_name: The name of the phase to add the measurement to.
+            measurement: The measurement to add.
+            metadata: The metadata to add.
+        """
+        if phase_name not in self._phases:
+            self._phases[phase_name] = TestPhase(phase_name=phase_name)
+            # Add required phase metadata for backends
+            phase_metadata = StringMetadata(name="phase", data=phase_name)
+            workflow_metadata = StringMetadata(name="workflow_name", data=self.benchmark_name)
+            self._phases[phase_name].metadata.extend([phase_metadata, workflow_metadata])
 
-    Returns:
-        Tensor of body IDs [0, 1, ..., num_bodies-1].
-    """
-    return torch.arange(num_bodies, dtype=torch.long, device=device)
-
-
-def make_warp_env_mask(num_instances: int, device: str) -> wp.array:
-    """Create an all-true environment mask.
-
-    Args:
-        num_instances: Number of environment instances.
-        device: Device to create the mask on.
-
-    Returns:
-        Warp array of booleans, all set to True.
-    """
-    return wp.ones((num_instances,), dtype=wp.bool, device=device)
-
-
-def make_warp_joint_mask(num_joints: int, device: str) -> wp.array:
-    """Create an all-true joint mask.
-
-    Args:
-        num_joints: Number of joints.
-        device: Device to create the mask on.
-
-    Returns:
-        Warp array of booleans, all set to True.
-    """
-    return wp.ones((num_joints,), dtype=wp.bool, device=device)
-
-
-def make_warp_body_mask(num_bodies: int, device: str) -> wp.array:
-    """Create an all-true body mask.
-
-    Args:
-        num_bodies: Number of bodies.
-        device: Device to create the mask on.
-
-    Returns:
-        Warp array of booleans, all set to True.
-    """
-    return wp.ones((num_bodies,), dtype=wp.bool, device=device)
+        if measurement:
+            if isinstance(measurement, Sequence):
+                # Check that all the elements are of type Measurement
+                for m in measurement:
+                    if not isinstance(m, Measurement):
+                        raise ValueError(f"Measurement element {m} is not of type Measurement")
+                self._phases[phase_name].measurements.extend(measurement)
+            else:
+                # Check that the element is of type Measurement
+                if not isinstance(measurement, Measurement):
+                    raise ValueError(f"Measurement element {measurement} is not of type Measurement")
+                self._phases[phase_name].measurements.append(measurement)
+        if metadata:
+            if isinstance(metadata, Sequence):
+                # Check that all the elements are of type MetadataBase
+                for m in metadata:
+                    if not isinstance(m, MetadataBase):
+                        raise ValueError(f"Metadata element {m} is not of type MetadataBase")
+                self._phases[phase_name].metadata.extend(metadata)
+            else:
+                # Check that the element is of type MetadataBase
+                if not isinstance(metadata, MetadataBase):
+                    raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
+                self._phases[phase_name].metadata.append(metadata)
 
 
-# =============================================================================
-# Benchmark Method Helper Functions
-# =============================================================================
+    def _finalize_impl(self) -> None:
+        # Add measurements and metadata from recorders to the phases.
+        if self._use_recorders:
+            recorders: dict[str, MeasurementDataRecorder] = {**self._manual_recorders, **self._automatic_recorders}
+            for recorder_name, measurement_data in recorders.items():
+                data = measurement_data.get_data()
+                # Add measurements to runtime phase if present
+                if data.measurements:
+                    self.add_measurement("runtime", measurement=data.measurements)
+                # Add metadata to appropriate phase (even if no measurements)
+                if data.metadata:
+                    if recorder_name == "VersionInfo":
+                        self.add_measurement("version_info", metadata=data.metadata)
+                    else:
+                        self.add_measurement("hardware_info", metadata=data.metadata)
 
+        # Check that there are phases to write.
+        if not self._phases:
+            logger.warning(
+                "No phases collected."
+                "No metrics will be written."
+            )
+            return
 
-def benchmark_method(
-    method: Callable | None,
-    method_name: str,
-    generator: Callable,
-    config: BenchmarkConfig,
-    dependencies: dict[str, list[str]] = {},
-) -> BenchmarkResult:
-    """Benchmarks a method.
+        # Add the phases to the metrics backend.
+        for phase in self._phases.values():
+            self._metrics.add_metrics(phase)
 
-    Args:
-        method: The method to benchmark.
-        method_name: The name of the method.
-        generator: The input generator to use for the method.
-        config: Benchmark configuration.
-
-    Returns:
-        BenchmarkResult with timing statistics.
-    """
-    # Check if method exists
-    if method is None:
-        return BenchmarkResult(
-            name=method_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="Method not found",
-        )
-
-    # Try to access the property once to check if it raises NotImplementedError
-    try:
-        _ = method(**generator(config))
-    except NotImplementedError as e:
-        return BenchmarkResult(
-            name=method_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"NotImplementedError: {e}",
-        )
-    except Exception as e:
-        return BenchmarkResult(
-            name=method_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason=f"Error: {type(e).__name__}: {e}",
-        )
-
-    # Get dependencies for this property (if any)
-    dependencies_ = dependencies.get(method_name, [])
-
-    # Warmup phase with random data
-    for _ in range(config.warmup_steps):
-        try:
-            # Warm up dependencies first
-            inputs = generator(config)
-            for dep in dependencies_:
-                _ = method(**inputs)
-            # Then warm up the method
-            _ = method(**inputs)
-        except Exception:
-            pass
-        # Sync GPU
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-
-    # Timing phase
-    times = []
-    for _ in range(config.num_iterations):
-        # Call dependencies first to populate their caches (not timed)
-        # This ensures we only measure the overhead of the derived property
-        inputs = generator(config)
-        with contextlib.suppress(Exception):
-            for dep in dependencies_:
-                _ = method(**inputs)
-
-        # Sync before timing
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-
-        # Time only the target property access
-        start_time = time.perf_counter()
-        try:
-            _ = method(**inputs)
-        except Exception:
-            continue
-
-        # Sync after to ensure kernel completion
-        if config.device.startswith("cuda"):
-            wp.synchronize()
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-
-        end_time = time.perf_counter()
-        times.append((end_time - start_time) * 1e6)  # Convert to microseconds
-
-    if not times:
-        return BenchmarkResult(
-            name=method_name,
-            mean_time_us=0.0,
-            std_time_us=0.0,
-            num_iterations=0,
-            skipped=True,
-            skip_reason="No successful iterations",
-        )
-
-    return BenchmarkResult(
-        name=method_name,
-        mean_time_us=float(np.mean(times)),
-        std_time_us=float(np.std(times)),
-        num_iterations=len(times),
-        dependencies=dependencies_ if dependencies_ else None,
-    )
+        self._metrics.finalize(self.output_path)
+        self._manual_recorders = None
+        self._automatic_recorders = None

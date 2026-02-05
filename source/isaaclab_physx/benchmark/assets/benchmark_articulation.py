@@ -37,8 +37,8 @@ parser.add_argument("--num_instances", type=int, default=4096, help="Number of i
 parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
 parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
 parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
-parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
+parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
+parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -70,23 +70,11 @@ import warp as wp
 
 from isaaclab_physx.assets.articulation.articulation import Articulation
 from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
+from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_ids, make_tensor_joint_ids
 from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-from isaaclab.test.benchmark import (
-    BenchmarkConfig,
-    MethodBenchmark,
-    benchmark_method,
-    export_results_csv,
-    export_results_json,
-    get_default_output_filename,
-    get_hardware_info,
-    make_tensor_body_ids,
-    make_tensor_env_ids,
-    make_tensor_joint_ids,
-    print_hardware_info,
-    print_results,
-)
+from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
 # Suppress deprecation warnings during benchmarking
@@ -174,7 +162,7 @@ def create_test_articulation(
 
 
 # --- Root Link Pose ---
-def gen_root_link_pose_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_link_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_link_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
@@ -182,7 +170,7 @@ def gen_root_link_pose_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_link_pose_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_link_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_link_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
@@ -191,7 +179,7 @@ def gen_root_link_pose_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root COM Pose ---
-def gen_root_com_pose_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_com_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_com_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
@@ -199,7 +187,7 @@ def gen_root_com_pose_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_com_pose_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_com_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_com_pose_to_sim."""
     return {
         "root_pose": torch.rand(config.num_instances, 7, device=config.device, dtype=torch.float32),
@@ -208,7 +196,7 @@ def gen_root_com_pose_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root Link Velocity ---
-def gen_root_link_velocity_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_link_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_link_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
@@ -216,7 +204,7 @@ def gen_root_link_velocity_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_link_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_link_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_link_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
@@ -225,7 +213,7 @@ def gen_root_link_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root COM Velocity ---
-def gen_root_com_velocity_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_com_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_com_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
@@ -233,7 +221,7 @@ def gen_root_com_velocity_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_com_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_com_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_com_velocity_to_sim."""
     return {
         "root_velocity": torch.rand(config.num_instances, 6, device=config.device, dtype=torch.float32),
@@ -242,7 +230,7 @@ def gen_root_com_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root State (Deprecated) ---
-def gen_root_state_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -250,7 +238,7 @@ def gen_root_state_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_state_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -259,7 +247,7 @@ def gen_root_state_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root COM State (Deprecated) ---
-def gen_root_com_state_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_com_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_com_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -267,7 +255,7 @@ def gen_root_com_state_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_com_state_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_com_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_com_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -276,7 +264,7 @@ def gen_root_com_state_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Root Link State (Deprecated) ---
-def gen_root_link_state_torch_list(config: BenchmarkConfig) -> dict:
+def gen_root_link_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list env_ids for write_root_link_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -284,7 +272,7 @@ def gen_root_link_state_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_root_link_state_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_root_link_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor env_ids for write_root_link_state_to_sim."""
     return {
         "root_state": torch.rand(config.num_instances, 13, device=config.device, dtype=torch.float32),
@@ -293,7 +281,7 @@ def gen_root_link_state_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint State ---
-def gen_joint_state_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_state_to_sim."""
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -303,7 +291,7 @@ def gen_joint_state_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_state_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_state_to_sim."""
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -314,7 +302,7 @@ def gen_joint_state_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Position ---
-def gen_joint_position_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_position_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_position_to_sim."""
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -323,7 +311,7 @@ def gen_joint_position_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_position_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_position_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_position_to_sim."""
     return {
         "position": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -333,7 +321,7 @@ def gen_joint_position_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Velocity ---
-def gen_joint_velocity_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_velocity_to_sim."""
     return {
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -342,7 +330,7 @@ def gen_joint_velocity_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_velocity_to_sim."""
     return {
         "velocity": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -352,7 +340,7 @@ def gen_joint_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Stiffness ---
-def gen_joint_stiffness_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_stiffness_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_stiffness_to_sim."""
     return {
         "stiffness": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -361,7 +349,7 @@ def gen_joint_stiffness_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_stiffness_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_stiffness_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_stiffness_to_sim."""
     return {
         "stiffness": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -371,7 +359,7 @@ def gen_joint_stiffness_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Damping ---
-def gen_joint_damping_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_damping_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_damping_to_sim."""
     return {
         "damping": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -380,7 +368,7 @@ def gen_joint_damping_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_damping_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_damping_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_damping_to_sim."""
     return {
         "damping": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -390,7 +378,7 @@ def gen_joint_damping_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Position Limit ---
-def gen_joint_position_limit_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_position_limit_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_position_limit_to_sim."""
     # limits shape is (N, J, 2) where [:,: ,0] is lower and [:,:,1] is upper
     lower = torch.rand(config.num_instances, config.num_joints, 1, device=config.device, dtype=torch.float32) * -3.14
@@ -402,7 +390,7 @@ def gen_joint_position_limit_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_position_limit_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_position_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_position_limit_to_sim."""
     # limits shape is (N, J, 2) where [:,: ,0] is lower and [:,:,1] is upper
     lower = torch.rand(config.num_instances, config.num_joints, 1, device=config.device, dtype=torch.float32) * -3.14
@@ -415,7 +403,7 @@ def gen_joint_position_limit_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Velocity Limit ---
-def gen_joint_velocity_limit_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_velocity_limit_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_velocity_limit_to_sim."""
     return {
         "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
@@ -424,7 +412,7 @@ def gen_joint_velocity_limit_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_velocity_limit_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_velocity_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_velocity_limit_to_sim."""
     return {
         "limits": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32) * 10.0,
@@ -434,7 +422,7 @@ def gen_joint_velocity_limit_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Effort Limit ---
-def gen_joint_effort_limit_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_effort_limit_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_effort_limit_to_sim."""
     return {
         "limits": (
@@ -445,7 +433,7 @@ def gen_joint_effort_limit_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_effort_limit_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_effort_limit_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_effort_limit_to_sim."""
     return {
         "limits": (
@@ -457,7 +445,7 @@ def gen_joint_effort_limit_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Armature ---
-def gen_joint_armature_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_armature_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_armature_to_sim."""
     return {
         "armature": (
@@ -468,7 +456,7 @@ def gen_joint_armature_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_armature_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_armature_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_armature_to_sim."""
     return {
         "armature": (
@@ -480,7 +468,7 @@ def gen_joint_armature_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Joint Friction Coefficient ---
-def gen_joint_friction_coefficient_torch_list(config: BenchmarkConfig) -> dict:
+def gen_joint_friction_coefficient_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for write_joint_friction_coefficient_to_sim."""
     return {
         "joint_friction_coeff": (
@@ -491,7 +479,7 @@ def gen_joint_friction_coefficient_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_joint_friction_coefficient_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_joint_friction_coefficient_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for write_joint_friction_coefficient_to_sim."""
     return {
         "joint_friction_coeff": (
@@ -503,7 +491,7 @@ def gen_joint_friction_coefficient_torch_tensor(config: BenchmarkConfig) -> dict
 
 
 # --- Set Joint Position Target ---
-def gen_set_joint_position_target_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_joint_position_target_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_joint_position_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -512,7 +500,7 @@ def gen_set_joint_position_target_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_joint_position_target_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_joint_position_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_joint_position_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -522,7 +510,7 @@ def gen_set_joint_position_target_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set Joint Velocity Target ---
-def gen_set_joint_velocity_target_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_joint_velocity_target_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_joint_velocity_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -531,7 +519,7 @@ def gen_set_joint_velocity_target_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_joint_velocity_target_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_joint_velocity_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_joint_velocity_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -541,7 +529,7 @@ def gen_set_joint_velocity_target_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set Joint Effort Target ---
-def gen_set_joint_effort_target_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_joint_effort_target_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_joint_effort_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -550,7 +538,7 @@ def gen_set_joint_effort_target_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_joint_effort_target_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_joint_effort_target_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_joint_effort_target."""
     return {
         "target": torch.rand(config.num_instances, config.num_joints, device=config.device, dtype=torch.float32),
@@ -560,7 +548,7 @@ def gen_set_joint_effort_target_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set Masses ---
-def gen_set_masses_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_masses_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_masses."""
     # Articulation masses shape is (N, B)
     return {
@@ -570,7 +558,7 @@ def gen_set_masses_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_masses_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_masses_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_masses."""
     # Articulation masses shape is (N, B)
     return {
@@ -581,7 +569,7 @@ def gen_set_masses_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set CoMs ---
-def gen_set_coms_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_coms_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_coms."""
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 7, device=config.device, dtype=torch.float32),
@@ -590,7 +578,7 @@ def gen_set_coms_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_coms_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_coms_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_coms."""
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 7, device=config.device, dtype=torch.float32),
@@ -600,7 +588,7 @@ def gen_set_coms_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set Inertias ---
-def gen_set_inertias_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_inertias_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_inertias."""
     # Articulation inertias shape is (N, B, 9) - flattened 3x3 matrix
     return {
@@ -610,7 +598,7 @@ def gen_set_inertias_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_set_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_inertias_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_inertias."""
     # Articulation inertias shape is (N, B, 9) - flattened 3x3 matrix
     return {
@@ -621,7 +609,7 @@ def gen_set_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Set External Force and Torque ---
-def gen_set_external_force_and_torque_torch_list(config: BenchmarkConfig) -> dict:
+def gen_set_external_force_and_torque_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with list ids for set_external_force_and_torque."""
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
@@ -630,7 +618,7 @@ def gen_set_external_force_and_torque_torch_list(config: BenchmarkConfig) -> dic
     }
 
 
-def gen_set_external_force_and_torque_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_set_external_force_and_torque_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     """Generate Torch inputs with tensor ids for set_external_force_and_torque."""
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
@@ -643,11 +631,9 @@ def gen_set_external_force_and_torque_torch_tensor(config: BenchmarkConfig) -> d
 # Benchmarks
 # =============================================================================
 
-BENCHMARK_DEPENDENCIES = {}
-
 BENCHMARKS = [
     # --- Root State (Deprecated) ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_state_to_sim",
         method_name="write_root_state_to_sim",
         input_generators={
@@ -656,7 +642,7 @@ BENCHMARKS = [
         },
         category="root_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_com_state_to_sim",
         method_name="write_root_com_state_to_sim",
         input_generators={
@@ -665,7 +651,7 @@ BENCHMARKS = [
         },
         category="root_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_link_state_to_sim",
         method_name="write_root_link_state_to_sim",
         input_generators={
@@ -675,7 +661,7 @@ BENCHMARKS = [
         category="root_state",
     ),
     # --- Root Pose / Velocity ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_link_pose_to_sim",
         method_name="write_root_link_pose_to_sim",
         input_generators={
@@ -684,7 +670,7 @@ BENCHMARKS = [
         },
         category="root_pose",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_com_pose_to_sim",
         method_name="write_root_com_pose_to_sim",
         input_generators={
@@ -693,7 +679,7 @@ BENCHMARKS = [
         },
         category="root_pose",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_link_velocity_to_sim",
         method_name="write_root_link_velocity_to_sim",
         input_generators={
@@ -702,7 +688,7 @@ BENCHMARKS = [
         },
         category="root_velocity",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_root_com_velocity_to_sim",
         method_name="write_root_com_velocity_to_sim",
         input_generators={
@@ -712,7 +698,7 @@ BENCHMARKS = [
         category="root_velocity",
     ),
     # --- Joint State ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_state_to_sim",
         method_name="write_joint_state_to_sim",
         input_generators={
@@ -721,7 +707,7 @@ BENCHMARKS = [
         },
         category="joint_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_position_to_sim",
         method_name="write_joint_position_to_sim",
         input_generators={
@@ -730,7 +716,7 @@ BENCHMARKS = [
         },
         category="joint_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_velocity_to_sim",
         method_name="write_joint_velocity_to_sim",
         input_generators={
@@ -740,7 +726,7 @@ BENCHMARKS = [
         category="joint_state",
     ),
     # --- Joint Params ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_stiffness_to_sim",
         method_name="write_joint_stiffness_to_sim",
         input_generators={
@@ -749,7 +735,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_damping_to_sim",
         method_name="write_joint_damping_to_sim",
         input_generators={
@@ -758,7 +744,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_position_limit_to_sim",
         method_name="write_joint_position_limit_to_sim",
         input_generators={
@@ -767,7 +753,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_velocity_limit_to_sim",
         method_name="write_joint_velocity_limit_to_sim",
         input_generators={
@@ -776,7 +762,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_effort_limit_to_sim",
         method_name="write_joint_effort_limit_to_sim",
         input_generators={
@@ -785,7 +771,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_armature_to_sim",
         method_name="write_joint_armature_to_sim",
         input_generators={
@@ -794,7 +780,7 @@ BENCHMARKS = [
         },
         category="joint_params",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_joint_friction_coefficient_to_sim",
         method_name="write_joint_friction_coefficient_to_sim",
         input_generators={
@@ -804,7 +790,7 @@ BENCHMARKS = [
         category="joint_params",
     ),
     # --- Joint Targets ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_joint_position_target",
         method_name="set_joint_position_target",
         input_generators={
@@ -813,7 +799,7 @@ BENCHMARKS = [
         },
         category="joint_targets",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_joint_velocity_target",
         method_name="set_joint_velocity_target",
         input_generators={
@@ -822,7 +808,7 @@ BENCHMARKS = [
         },
         category="joint_targets",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_joint_effort_target",
         method_name="set_joint_effort_target",
         input_generators={
@@ -832,7 +818,7 @@ BENCHMARKS = [
         category="joint_targets",
     ),
     # --- Body Properties ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_masses",
         method_name="set_masses",
         input_generators={
@@ -841,7 +827,7 @@ BENCHMARKS = [
         },
         category="body_props",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_coms",
         method_name="set_coms",
         input_generators={
@@ -850,7 +836,7 @@ BENCHMARKS = [
         },
         category="body_props",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_inertias",
         method_name="set_inertias",
         input_generators={
@@ -859,7 +845,7 @@ BENCHMARKS = [
         },
         category="body_props",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_external_force_and_torque",
         method_name="set_external_force_and_torque",
         input_generators={
@@ -871,22 +857,19 @@ BENCHMARKS = [
 ]
 
 
-def run_benchmark(config: BenchmarkConfig):
-    """Run all benchmarks."""
-    results = []
+def main():
+    """Main entry point for the benchmarking script."""
+    config = MethodBenchmarkRunnerConfig(
+        num_iterations=args.num_iterations,
+        warmup_steps=args.warmup_steps,
+        num_instances=args.num_instances,
+        num_bodies=args.num_bodies,
+        num_joints=args.num_joints,
+        device=args.device,
+        mode=args.mode,
+    )
 
-    # Check if we should run all modes or specific ones
-    modes_to_run = []
-    if isinstance(config.mode, str):
-        if config.mode == "all":
-            # Will be populated dynamically based on available generators
-            modes_to_run = None
-        else:
-            modes_to_run = [config.mode]
-    elif isinstance(config.mode, list):
-        modes_to_run = config.mode
-
-    # Setup
+    # Create the test articulation
     articulation, _, _ = create_test_articulation(
         num_instances=config.num_instances,
         num_bodies=config.num_bodies,
@@ -898,71 +881,18 @@ def run_benchmark(config: BenchmarkConfig):
         f"Benchmarking Articulation (PhysX) with {config.num_instances} instances, {config.num_bodies} bodies,"
         f" {config.num_joints} joints..."
     )
-    print(f"Device: {config.device}")
-    print(f"Iterations: {config.num_iterations}, Warmup: {config.warmup_steps}")
-    print(f"Modes: {modes_to_run if modes_to_run else 'All available'}")
 
-    print(f"\nBenchmarking {len(BENCHMARKS)} methods...")
-    for i, benchmark in enumerate(BENCHMARKS):
-        method = getattr(articulation, benchmark.method_name, None)
-
-        # Determine which modes to run for this benchmark
-        available_modes = list(benchmark.input_generators.keys())
-        current_modes = modes_to_run if modes_to_run is not None else available_modes
-
-        # Filter modes that are available for this benchmark
-        current_modes = [m for m in current_modes if m in available_modes]
-
-        for mode in current_modes:
-            generator = benchmark.input_generators[mode]
-            print(f"[{i + 1}/{len(BENCHMARKS)}] [{mode.upper()}] {benchmark.name}...", end=" ", flush=True)
-
-            result = benchmark_method(
-                method=method,
-                method_name=benchmark.name,
-                generator=generator,
-                config=config,
-                dependencies=BENCHMARK_DEPENDENCIES,
-            )
-            result.mode = mode
-            results.append(result)
-
-            if result.skipped:
-                print(f"SKIPPED ({result.skip_reason})")
-            else:
-                print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
-
-    return results
-
-
-def main():
-    """Main entry point for the benchmarking script."""
-    config = BenchmarkConfig(
-        num_iterations=args.num_iterations,
-        warmup_steps=args.warmup_steps,
-        num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=args.num_joints,
-        device=args.device,
-        mode=args.mode,
+    # Create runner and run benchmarks
+    runner = MethodBenchmarkRunner(
+        benchmark_name="articulation_benchmark",
+        config=config,
+        backend_type=args.backend,
+        output_path=args.output_dir,
+        use_recorders=True,
     )
 
-    results = run_benchmark(config)
-
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
-    print_results(results)
-
-    if args.output:
-        json_filename = args.output
-    else:
-        json_filename = get_default_output_filename("articulation_benchmark")
-
-    export_results_json(results, config, hardware_info, json_filename)
-
-    if not args.no_csv:
-        csv_filename = json_filename.replace(".json", ".csv")
-        export_results_csv(results, csv_filename)
+    runner.run_benchmarks(BENCHMARKS, articulation)
+    runner.finalize()
 
     # Close the simulation app
     simulation_app.close()

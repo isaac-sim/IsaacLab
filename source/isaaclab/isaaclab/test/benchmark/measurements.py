@@ -1,4 +1,14 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Union, cast
+from pathlib import Path
+import os
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Type alias for metadata with data attribute (defined after classes below)
+_MetadataWithData = Union["StringMetadata", "IntMetadata", "FloatMetadata", "DictMetadata"]
 
 
 @dataclass

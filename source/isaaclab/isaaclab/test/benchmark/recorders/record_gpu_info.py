@@ -5,6 +5,7 @@
 
 import contextlib
 import math
+import subprocess
 
 import torch
 
@@ -12,6 +13,7 @@ from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder, Measurem
 from isaaclab.test.benchmark.measurements import (
     DictMetadata,
     IntMetadata,
+    SingleMeasurement,
     StringMetadata,
 )
 
@@ -91,6 +93,19 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                 self._handles.append(handle)
             self._nvml_available = True
 
+        # Check if nvidia-smi is available as fallback
+        self._nvidia_smi_available = False
+        if not self._nvml_available:
+            with contextlib.suppress(Exception):
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    self._nvidia_smi_available = True
+
     def _get_runtime_info(self) -> None:
         if not torch.cuda.is_available():
             return
@@ -99,40 +114,81 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         if "devices" not in self._gpu_runtime_info:
             self._gpu_runtime_info["devices"] = [{} for _ in range(self._device_count)]
 
+        # Query nvidia-smi once for all GPUs if needed (more efficient than per-device calls)
+        nvidia_smi_data = None
+        if self._nvidia_smi_available:
+            with contextlib.suppress(Exception):
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=memory.used,utilization.gpu", "--format=csv,noheader,nounits"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    nvidia_smi_data = []
+                    for line in result.stdout.strip().split("\n"):
+                        parts = line.split(",")
+                        if len(parts) >= 2:
+                            nvidia_smi_data.append({
+                                "memory_used_mb": float(parts[0].strip()),
+                                "utilization": float(parts[1].strip()),
+                            })
+
         for i in range(self._device_count):
             # GPU memory usage per device
-            memory_allocated = torch.cuda.memory_allocated(i)
+            memory_bytes = None
+
+            # Try pynvml first
+            if self._nvml_available and i < len(self._handles):
+                with contextlib.suppress(Exception):
+                    import pynvml
+                    mem_info = pynvml.nvmlDeviceGetMemoryInfo(self._handles[i])
+                    memory_bytes = mem_info.used
+
+            # Fall back to nvidia-smi
+            elif nvidia_smi_data and i < len(nvidia_smi_data):
+                memory_bytes = nvidia_smi_data[i]["memory_used_mb"] * 1024 * 1024  # MB to bytes
+
+            # Last resort: PyTorch memory_allocated (only tracks PyTorch tensors)
+            if memory_bytes is None:
+                memory_bytes = torch.cuda.memory_allocated(i)
+
             self._mem_n[i] += 1
-            delta = memory_allocated - self._mem_mean[i]
+            delta = memory_bytes - self._mem_mean[i]
             self._mem_mean[i] += delta / self._mem_n[i]
-            delta2 = memory_allocated - self._mem_mean[i]
+            delta2 = memory_bytes - self._mem_mean[i]
             self._mem_m2[i] += delta * delta2
             if self._mem_n[i] > 1:
                 self._mem_std[i] = math.sqrt(self._mem_m2[i] / (self._mem_n[i] - 1))
 
-            self._gpu_runtime_info["devices"][i]["memory_allocated_mean_bytes"] = self._mem_mean[i]
-            self._gpu_runtime_info["devices"][i]["memory_allocated_std_bytes"] = self._mem_std[i]
+            self._gpu_runtime_info["devices"][i]["memory_used_mean_bytes"] = self._mem_mean[i]
+            self._gpu_runtime_info["devices"][i]["memory_used_std_bytes"] = self._mem_std[i]
             self._gpu_runtime_info["devices"][i]["memory_n"] = self._mem_n[i]
 
-            # GPU utilization from pynvml
+            # GPU utilization from pynvml or nvidia-smi fallback
+            gpu_util = None
+
             if self._nvml_available and i < len(self._handles):
                 with contextlib.suppress(Exception):
                     import pynvml
-
                     util = pynvml.nvmlDeviceGetUtilizationRates(self._handles[i])
                     gpu_util = util.gpu
 
-                    self._util_n[i] += 1
-                    delta = gpu_util - self._util_mean[i]
-                    self._util_mean[i] += delta / self._util_n[i]
-                    delta2 = gpu_util - self._util_mean[i]
-                    self._util_m2[i] += delta * delta2
-                    if self._util_n[i] > 1:
-                        self._util_std[i] = math.sqrt(self._util_m2[i] / (self._util_n[i] - 1))
+            elif nvidia_smi_data and i < len(nvidia_smi_data):
+                gpu_util = nvidia_smi_data[i]["utilization"]
 
-                    self._gpu_runtime_info["devices"][i]["utilization_mean_percent"] = self._util_mean[i]
-                    self._gpu_runtime_info["devices"][i]["utilization_std_percent"] = self._util_std[i]
-                    self._gpu_runtime_info["devices"][i]["utilization_n"] = self._util_n[i]
+            if gpu_util is not None:
+                self._util_n[i] += 1
+                delta = gpu_util - self._util_mean[i]
+                self._util_mean[i] += delta / self._util_n[i]
+                delta2 = gpu_util - self._util_mean[i]
+                self._util_m2[i] += delta * delta2
+                if self._util_n[i] > 1:
+                    self._util_std[i] = math.sqrt(self._util_m2[i] / (self._util_n[i] - 1))
+
+                self._gpu_runtime_info["devices"][i]["utilization_mean_percent"] = self._util_mean[i]
+                self._gpu_runtime_info["devices"][i]["utilization_std_percent"] = self._util_std[i]
+                self._gpu_runtime_info["devices"][i]["utilization_n"] = self._util_n[i]
 
     def update(self) -> None:
         self._get_runtime_info()
@@ -147,6 +203,10 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             "gpu_utilization": self._gpu_runtime_info,
         }
 
+    def _bytes_to_gb(self, bytes_value: float) -> float:
+        """Convert bytes to gigabytes, rounded to 2 decimal places."""
+        return round(bytes_value / (1024**3), 2)
+
     def get_data(self) -> MeasurementData:
         measurements = []
         metadata = []
@@ -159,32 +219,63 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         metadata.append(IntMetadata(name="gpu_current_device", data=self._gpu_hardware_info["current_device"]))
         metadata.append(StringMetadata(name="cuda_version", data=self._gpu_hardware_info.get("cuda_version", "Unknown")))
 
-        # Per-device info as a dict
+        # Per-device hardware info as a dict
         devices_data = {}
         for i in range(self._device_count):
             device_hw = self._gpu_hardware_info.get("devices", [{}])[i] if i < len(self._gpu_hardware_info.get("devices", [])) else {}
-            device_runtime = self._gpu_runtime_info.get("devices", [{}] * self._device_count)[i]
 
             device_data = {
-                # Hardware info
                 "name": device_hw.get("name", "Unknown"),
                 "total_memory_gb": device_hw.get("total_memory_gb", 0),
                 "compute_capability": device_hw.get("compute_capability", "Unknown"),
                 "multi_processor_count": device_hw.get("multi_processor_count", 0),
-                # Runtime measurements
-                "memory_allocated_mean_bytes": device_runtime.get("memory_allocated_mean_bytes", 0),
-                "memory_allocated_std_bytes": device_runtime.get("memory_allocated_std_bytes", 0),
-                "memory_n": device_runtime.get("memory_n", 0),
             }
-
-            # Add utilization if available
-            if "utilization_mean_percent" in device_runtime:
-                device_data["utilization_mean_percent"] = device_runtime["utilization_mean_percent"]
-                device_data["utilization_std_percent"] = device_runtime["utilization_std_percent"]
-                device_data["utilization_n"] = device_runtime["utilization_n"]
 
             devices_data[str(i)] = device_data
 
         metadata.append(DictMetadata(name="gpu_devices", data=devices_data))
+
+        # Runtime measurements - GPU memory and utilization
+        for i in range(self._device_count):
+            device_runtime = self._gpu_runtime_info.get("devices", [{}] * self._device_count)
+            if i < len(device_runtime):
+                runtime = device_runtime[i]
+                prefix = f"GPU {i} " if self._device_count > 1 else "GPU "
+
+                # Memory used
+                if "memory_used_mean_bytes" in runtime:
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Memory Used",
+                        value=self._bytes_to_gb(runtime["memory_used_mean_bytes"]),
+                        unit="GB",
+                    ))
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Memory Used std",
+                        value=self._bytes_to_gb(runtime["memory_used_std_bytes"]),
+                        unit="GB",
+                    ))
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Memory Used n",
+                        value=runtime["memory_n"],
+                        unit="",
+                    ))
+
+                # GPU Utilization
+                if "utilization_mean_percent" in runtime:
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Utilization",
+                        value=round(runtime["utilization_mean_percent"], 2),
+                        unit="%",
+                    ))
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Utilization std",
+                        value=round(runtime["utilization_std_percent"], 2),
+                        unit="%",
+                    ))
+                    measurements.append(SingleMeasurement(
+                        name=f"{prefix}Utilization n",
+                        value=runtime["utilization_n"],
+                        unit="",
+                    ))
 
         return MeasurementData(measurements=measurements, metadata=metadata)

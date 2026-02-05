@@ -17,16 +17,22 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         # Empty dictionaries to store hardware and runtime information
         self._memory_hardware_info = {}
         self._memory_runtime_info = {}
-        # Welford's algorithm for process RSS
-        self._proc_mean = 0
-        self._proc_std = 0
-        self._proc_n = 0
-        self._proc_m2 = 0
-        # Welford's algorithm for system available memory
-        self._sys_mean = 0
-        self._sys_std = 0
-        self._sys_n = 0
-        self._sys_m2 = 0
+
+        # Welford's algorithm stats for RSS (Resident Set Size)
+        self._rss_mean = 0
+        self._rss_m2 = 0
+        self._rss_n = 0
+
+        # Welford's algorithm stats for VMS (Virtual Memory Size)
+        self._vms_mean = 0
+        self._vms_m2 = 0
+        self._vms_n = 0
+
+        # Welford's algorithm stats for USS (Unique Set Size)
+        self._uss_mean = 0
+        self._uss_m2 = 0
+        self._uss_n = 0
+
         # Process handle
         self._process = psutil.Process(os.getpid())
         self._get_hardware_info()
@@ -35,34 +41,51 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
         mem = psutil.virtual_memory()
         self._memory_hardware_info["total_ram_gb"] = round(mem.total / (1024**3), 2)
 
+    def _update_welford(self, value: float, mean: float, m2: float, n: int) -> tuple[float, float, int, float]:
+        """Update Welford's online algorithm for mean and variance.
+
+        Returns:
+            Tuple of (new_mean, new_m2, new_n, std)
+        """
+        n += 1
+        delta = value - mean
+        mean += delta / n
+        delta2 = value - mean
+        m2 += delta * delta2
+        std = math.sqrt(m2 / (n - 1)) if n > 1 else 0
+        return mean, m2, n, std
+
     def _get_runtime_info(self) -> None:
-        # Process RSS memory
-        process_rss = self._process.memory_info().rss
-        self._proc_n += 1
-        delta = process_rss - self._proc_mean
-        self._proc_mean += delta / self._proc_n
-        delta2 = process_rss - self._proc_mean
-        self._proc_m2 += delta * delta2
-        if self._proc_n > 1:
-            self._proc_std = math.sqrt(self._proc_m2 / (self._proc_n - 1))
+        mem_info = self._process.memory_info()
 
-        self._memory_runtime_info["process_rss_mean_bytes"] = self._proc_mean
-        self._memory_runtime_info["process_rss_std_bytes"] = self._proc_std
-        self._memory_runtime_info["process_n"] = self._proc_n
+        # RSS (Resident Set Size) - physical memory used
+        self._rss_mean, self._rss_m2, self._rss_n, rss_std = self._update_welford(
+            mem_info.rss, self._rss_mean, self._rss_m2, self._rss_n
+        )
+        self._memory_runtime_info["rss_mean"] = self._rss_mean
+        self._memory_runtime_info["rss_std"] = rss_std
+        self._memory_runtime_info["rss_n"] = self._rss_n
 
-        # System available memory
-        sys_available = psutil.virtual_memory().available
-        self._sys_n += 1
-        delta = sys_available - self._sys_mean
-        self._sys_mean += delta / self._sys_n
-        delta2 = sys_available - self._sys_mean
-        self._sys_m2 += delta * delta2
-        if self._sys_n > 1:
-            self._sys_std = math.sqrt(self._sys_m2 / (self._sys_n - 1))
+        # VMS (Virtual Memory Size) - total virtual memory
+        self._vms_mean, self._vms_m2, self._vms_n, vms_std = self._update_welford(
+            mem_info.vms, self._vms_mean, self._vms_m2, self._vms_n
+        )
+        self._memory_runtime_info["vms_mean"] = self._vms_mean
+        self._memory_runtime_info["vms_std"] = vms_std
+        self._memory_runtime_info["vms_n"] = self._vms_n
 
-        self._memory_runtime_info["system_available_mean_bytes"] = self._sys_mean
-        self._memory_runtime_info["system_available_std_bytes"] = self._sys_std
-        self._memory_runtime_info["system_n"] = self._sys_n
+        # USS (Unique Set Size) - memory unique to process (not shared)
+        try:
+            uss = self._process.memory_full_info().uss
+            self._uss_mean, self._uss_m2, self._uss_n, uss_std = self._update_welford(
+                uss, self._uss_mean, self._uss_m2, self._uss_n
+            )
+            self._memory_runtime_info["uss_mean"] = self._uss_mean
+            self._memory_runtime_info["uss_std"] = uss_std
+            self._memory_runtime_info["uss_n"] = self._uss_n
+        except (psutil.AccessDenied, AttributeError):
+            # USS may not be available on all platforms
+            pass
 
     def update(self) -> None:
         self._get_runtime_info()
@@ -77,24 +100,56 @@ class MemoryInfoRecorder(MeasurementDataRecorder):
             "memory_utilization": self._memory_runtime_info,
         }
 
+    def _bytes_to_gb(self, bytes_value: float) -> float:
+        """Convert bytes to gigabytes, rounded to 2 decimal places."""
+        return round(bytes_value / (1024**3), 2)
+
     def get_data(self) -> MeasurementData:
+        measurements = [
+            # RSS (Resident Set Size)
+            SingleMeasurement(
+                name="System Memory RSS",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("rss_mean", 0)),
+                unit="GB",
+            ),
+            SingleMeasurement(
+                name="System Memory RSS std",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("rss_std", 0)),
+                unit="GB",
+            ),
+            SingleMeasurement(name="System Memory RSS n", value=self._memory_runtime_info.get("rss_n", 0), unit=""),
+            # VMS (Virtual Memory Size)
+            SingleMeasurement(
+                name="System Memory VMS",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("vms_mean", 0)),
+                unit="GB",
+            ),
+            SingleMeasurement(
+                name="System Memory VMS std",
+                value=self._bytes_to_gb(self._memory_runtime_info.get("vms_std", 0)),
+                unit="GB",
+            ),
+            SingleMeasurement(name="System Memory VMS n", value=self._memory_runtime_info.get("vms_n", 0), unit=""),
+        ]
+
+        # USS (Unique Set Size) - only if available
+        if "uss_mean" in self._memory_runtime_info:
+            measurements.extend([
+                SingleMeasurement(
+                    name="System Memory USS",
+                    value=self._bytes_to_gb(self._memory_runtime_info.get("uss_mean", 0)),
+                    unit="GB",
+                ),
+                SingleMeasurement(
+                    name="System Memory USS std",
+                    value=self._bytes_to_gb(self._memory_runtime_info.get("uss_std", 0)),
+                    unit="GB",
+                ),
+                SingleMeasurement(name="System Memory USS n", value=self._memory_runtime_info.get("uss_n", 0), unit=""),
+            ])
+
         return MeasurementData(
-            measurements=[
-                SingleMeasurement(
-                    name="process_rss", value=self._memory_runtime_info.get("process_rss_mean_bytes", 0), unit="bytes"
-                ),
-                SingleMeasurement(
-                    name="process_rss_std", value=self._memory_runtime_info.get("process_rss_std_bytes", 0), unit="bytes"
-                ),
-                SingleMeasurement(name="process_rss_n", value=self._memory_runtime_info.get("process_n", 0), unit=""),
-                SingleMeasurement(
-                    name="system_available", value=self._memory_runtime_info.get("system_available_mean_bytes", 0), unit="bytes"
-                ),
-                SingleMeasurement(
-                    name="system_available_std", value=self._memory_runtime_info.get("system_available_std_bytes", 0), unit="bytes"
-                ),
-                SingleMeasurement(name="system_available_n", value=self._memory_runtime_info.get("system_n", 0), unit=""),
-            ],
+            measurements=measurements,
             metadata=[
                 FloatMetadata(name="total_ram_gb", data=self._memory_hardware_info["total_ram_gb"]),
             ],

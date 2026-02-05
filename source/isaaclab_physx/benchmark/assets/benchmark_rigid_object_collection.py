@@ -30,8 +30,8 @@ parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warm
 parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
 parser.add_argument("--num_bodies", type=int, default=4, help="Number of bodies per instance")
 parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor)")
-parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
+parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
+parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -62,22 +62,11 @@ SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_si
 
 from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
 from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
+from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_ids
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
 from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-from isaaclab.test.benchmark import (
-    BenchmarkConfig,
-    MethodBenchmark,
-    benchmark_method,
-    export_results_csv,
-    export_results_json,
-    get_default_output_filename,
-    get_hardware_info,
-    make_tensor_body_ids,
-    make_tensor_env_ids,
-    print_hardware_info,
-    print_results,
-)
+from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -133,7 +122,7 @@ def create_test_collection(
 # =============================================================================
 
 
-def gen_body_state_torch_list(config: BenchmarkConfig) -> dict:
+def gen_body_state_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_states": torch.rand(
             config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32
@@ -143,7 +132,7 @@ def gen_body_state_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_body_state_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_body_state_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_states": torch.rand(
             config.num_instances, config.num_bodies, 13, device=config.device, dtype=torch.float32
@@ -153,7 +142,7 @@ def gen_body_state_torch_tensor(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_body_pose_torch_list(config: BenchmarkConfig) -> dict:
+def gen_body_pose_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_poses": torch.rand(config.num_instances, config.num_bodies, 7, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
@@ -161,7 +150,7 @@ def gen_body_pose_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_body_pose_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_body_pose_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_poses": torch.rand(config.num_instances, config.num_bodies, 7, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
@@ -169,7 +158,7 @@ def gen_body_pose_torch_tensor(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_body_velocity_torch_list(config: BenchmarkConfig) -> dict:
+def gen_body_velocity_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_velocities": torch.rand(
             config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32
@@ -179,7 +168,7 @@ def gen_body_velocity_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_body_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_body_velocity_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "body_velocities": torch.rand(
             config.num_instances, config.num_bodies, 6, device=config.device, dtype=torch.float32
@@ -190,7 +179,7 @@ def gen_body_velocity_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- External Force and Torque ---
-def gen_external_force_and_torque_torch_list(config: BenchmarkConfig) -> dict:
+def gen_external_force_and_torque_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
@@ -198,7 +187,7 @@ def gen_external_force_and_torque_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_external_force_and_torque_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_external_force_and_torque_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "forces": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "torques": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
@@ -207,7 +196,7 @@ def gen_external_force_and_torque_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Masses ---
-def gen_masses_torch_list(config: BenchmarkConfig) -> dict:
+def gen_masses_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "masses": torch.rand(config.num_instances, config.num_bodies, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
@@ -215,7 +204,7 @@ def gen_masses_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_masses_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_masses_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "masses": torch.rand(config.num_instances, config.num_bodies, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
@@ -224,7 +213,7 @@ def gen_masses_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- CoMs ---
-def gen_coms_torch_list(config: BenchmarkConfig) -> dict:
+def gen_coms_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
@@ -232,7 +221,7 @@ def gen_coms_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_coms_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_coms_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "coms": torch.rand(config.num_instances, config.num_bodies, 3, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
@@ -241,7 +230,7 @@ def gen_coms_torch_tensor(config: BenchmarkConfig) -> dict:
 
 
 # --- Inertias ---
-def gen_inertias_torch_list(config: BenchmarkConfig) -> dict:
+def gen_inertias_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "inertias": torch.rand(
             config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
@@ -251,7 +240,7 @@ def gen_inertias_torch_list(config: BenchmarkConfig) -> dict:
     }
 
 
-def gen_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
+def gen_inertias_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
         "inertias": torch.rand(
             config.num_instances, config.num_bodies, 3, 3, device=config.device, dtype=torch.float32
@@ -265,11 +254,9 @@ def gen_inertias_torch_tensor(config: BenchmarkConfig) -> dict:
 # Benchmarks
 # =============================================================================
 
-BENCHMARK_DEPENDENCIES = {}
-
 BENCHMARKS = [
     # --- Body State ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_state_to_sim",
         method_name="write_body_state_to_sim",
         input_generators={
@@ -278,7 +265,7 @@ BENCHMARKS = [
         },
         category="body_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_link_state_to_sim",
         method_name="write_body_link_state_to_sim",
         input_generators={
@@ -287,7 +274,7 @@ BENCHMARKS = [
         },
         category="body_state",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_com_state_to_sim",
         method_name="write_body_com_state_to_sim",
         input_generators={
@@ -297,7 +284,7 @@ BENCHMARKS = [
         category="body_state",
     ),
     # --- Body Pose ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_pose_to_sim",
         method_name="write_body_pose_to_sim",
         input_generators={
@@ -306,7 +293,7 @@ BENCHMARKS = [
         },
         category="body_pose",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_link_pose_to_sim",
         method_name="write_body_link_pose_to_sim",
         input_generators={
@@ -315,7 +302,7 @@ BENCHMARKS = [
         },
         category="body_pose",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_com_pose_to_sim",
         method_name="write_body_com_pose_to_sim",
         input_generators={
@@ -325,7 +312,7 @@ BENCHMARKS = [
         category="body_pose",
     ),
     # --- Body Velocity ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_velocity_to_sim",
         method_name="write_body_velocity_to_sim",
         input_generators={
@@ -334,7 +321,7 @@ BENCHMARKS = [
         },
         category="body_velocity",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_link_velocity_to_sim",
         method_name="write_body_link_velocity_to_sim",
         input_generators={
@@ -343,7 +330,7 @@ BENCHMARKS = [
         },
         category="body_velocity",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="write_body_com_velocity_to_sim",
         method_name="write_body_com_velocity_to_sim",
         input_generators={
@@ -353,7 +340,7 @@ BENCHMARKS = [
         category="body_velocity",
     ),
     # --- External Force and Torque ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_external_force_and_torque",
         method_name="set_external_force_and_torque",
         input_generators={
@@ -363,7 +350,7 @@ BENCHMARKS = [
         category="external_wrench",
     ),
     # --- Body Properties ---
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_masses",
         method_name="set_masses",
         input_generators={
@@ -372,7 +359,7 @@ BENCHMARKS = [
         },
         category="body_props",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_coms",
         method_name="set_coms",
         input_generators={
@@ -381,7 +368,7 @@ BENCHMARKS = [
         },
         category="body_props",
     ),
-    MethodBenchmark(
+    MethodBenchmarkDefinition(
         name="set_inertias",
         method_name="set_inertias",
         input_generators={
@@ -393,18 +380,17 @@ BENCHMARKS = [
 ]
 
 
-def run_benchmark(config: BenchmarkConfig):
-    """Run all benchmarks."""
-    results = []
-
-    modes_to_run = []
-    if isinstance(config.mode, str):
-        if config.mode == "all":
-            modes_to_run = None
-        else:
-            modes_to_run = [config.mode]
-    elif isinstance(config.mode, list):
-        modes_to_run = config.mode
+def main():
+    """Main entry point for the benchmarking script."""
+    config = MethodBenchmarkRunnerConfig(
+        num_iterations=args.num_iterations,
+        warmup_steps=args.warmup_steps,
+        num_instances=args.num_instances,
+        num_bodies=args.num_bodies,
+        num_joints=0,
+        device=args.device,
+        mode=args.mode,
+    )
 
     collection, mock_view = create_test_collection(
         num_instances=config.num_instances,
@@ -416,68 +402,18 @@ def run_benchmark(config: BenchmarkConfig):
         f"Benchmarking RigidObjectCollection (PhysX) with {config.num_instances} instances, "
         f"{config.num_bodies} bodies..."
     )
-    print(f"Device: {config.device}")
-    print(f"Iterations: {config.num_iterations}, Warmup: {config.warmup_steps}")
-    print(f"Modes: {modes_to_run if modes_to_run else 'All available'}")
 
-    print(f"\nBenchmarking {len(BENCHMARKS)} methods...")
-    for i, benchmark in enumerate(BENCHMARKS):
-        method = getattr(collection, benchmark.method_name, None)
-
-        available_modes = list(benchmark.input_generators.keys())
-        current_modes = modes_to_run if modes_to_run is not None else available_modes
-        current_modes = [m for m in current_modes if m in available_modes]
-
-        for mode in current_modes:
-            generator = benchmark.input_generators[mode]
-            print(f"[{i + 1}/{len(BENCHMARKS)}] [{mode.upper()}] {benchmark.name}...", end=" ", flush=True)
-
-            result = benchmark_method(
-                method=method,
-                method_name=benchmark.name,
-                generator=generator,
-                config=config,
-                dependencies=BENCHMARK_DEPENDENCIES,
-            )
-            result.mode = mode
-            results.append(result)
-
-            if result.skipped:
-                print(f"SKIPPED ({result.skip_reason})")
-            else:
-                print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
-
-    return results
-
-
-def main():
-    """Main entry point for the benchmarking script."""
-    config = BenchmarkConfig(
-        num_iterations=args.num_iterations,
-        warmup_steps=args.warmup_steps,
-        num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=0,
-        device=args.device,
-        mode=args.mode,
+    # Create runner and run benchmarks
+    runner = MethodBenchmarkRunner(
+        benchmark_name="rigid_object_collection_benchmark",
+        config=config,
+        backend_type=args.backend,
+        output_path=args.output_dir,
+        use_recorders=True,
     )
 
-    results = run_benchmark(config)
-
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
-    print_results(results)
-
-    if args.output:
-        json_filename = args.output
-    else:
-        json_filename = get_default_output_filename("rigid_object_collection_benchmark")
-
-    export_results_json(results, config, hardware_info, json_filename)
-
-    if not args.no_csv:
-        csv_filename = json_filename.replace(".json", ".csv")
-        export_results_csv(results, csv_filename)
+    runner.run_benchmarks(BENCHMARKS, collection)
+    runner.finalize()
 
     # Close the simulation app
     simulation_app.close()

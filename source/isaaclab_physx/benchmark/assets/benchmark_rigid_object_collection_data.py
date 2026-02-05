@@ -34,8 +34,8 @@ parser.add_argument("--num_iterations", type=int, default=1000, help="Number of 
 parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
 parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
 parser.add_argument("--num_bodies", type=int, default=4, help="Number of bodies per instance")
-parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
+parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
+parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -66,18 +66,7 @@ SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_si
 from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
 
-from isaaclab.test.benchmark import (
-    BenchmarkConfig,
-    BenchmarkResult,
-    MethodBenchmark,
-    benchmark_method,
-    export_results_csv,
-    export_results_json,
-    get_default_output_filename,
-    get_hardware_info,
-    print_hardware_info,
-    print_results,
-)
+from isaaclab.test.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -196,7 +185,7 @@ def get_benchmarkable_properties(data: RigidObjectCollectionData) -> list[str]:
     return sorted(all_properties)
 
 
-def setup_mock_environment(config: BenchmarkConfig) -> MockRigidBodyView:
+def setup_mock_environment(config: MethodBenchmarkRunnerConfig) -> MockRigidBodyView:
     """Set up the mock environment for benchmarking."""
     # For collection, total count = num_instances * num_bodies
     total_count = config.num_instances * config.num_bodies
@@ -207,9 +196,16 @@ def setup_mock_environment(config: BenchmarkConfig) -> MockRigidBodyView:
     return mock_view
 
 
-def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
-    """Run all benchmarks for RigidObjectCollectionData."""
-    results = []
+def main():
+    """Main entry point for the benchmarking script."""
+    config = MethodBenchmarkRunnerConfig(
+        num_iterations=args.num_iterations,
+        warmup_steps=args.warmup_steps,
+        num_instances=args.num_instances,
+        num_bodies=args.num_bodies,
+        num_joints=0,
+        device=args.device,
+    )
 
     # Setup mock environment
     mock_view = setup_mock_environment(config)
@@ -224,7 +220,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
     total_count = config.num_instances * config.num_bodies
 
     # Generator that updates mock data and invalidates timestamp
-    def gen_mock_data(cfg: BenchmarkConfig) -> dict:
+    def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
         mock_view.set_mock_transforms(torch.randn(total_count, 7, device=cfg.device))
         mock_view.set_mock_velocities(torch.randn(total_count, 6, device=cfg.device))
         mock_view.set_mock_accelerations(torch.randn(total_count, 6, device=cfg.device))
@@ -232,75 +228,25 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
         data._sim_timestamp += 1.0
         return {}
 
-    # Create benchmarks dynamically
-    benchmarks = []
-    for prop_name in properties:
-        benchmarks.append(
-            MethodBenchmark(
-                name=prop_name,
-                method_name=prop_name,
-                input_generators={"default": gen_mock_data},
-                category="property",
-            )
-        )
-
-    print(f"\nBenchmarking {len(benchmarks)} properties...")
-    print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
-    print(f"        {config.num_instances} instances, {config.num_bodies} bodies")
-    print("-" * 80)
-
-    for i, benchmark in enumerate(benchmarks):
-
-        def prop_accessor(prop=benchmark.method_name, **kwargs):
-            return getattr(data, prop)
-
-        print(f"[{i + 1}/{len(benchmarks)}] [DEFAULT] {benchmark.name}...", end=" ", flush=True)
-
-        result = benchmark_method(
-            method=prop_accessor,
-            method_name=benchmark.name,
-            generator=gen_mock_data,
-            config=config,
-            dependencies=PROPERTY_DEPENDENCIES,
-        )
-        result.mode = "default"
-        results.append(result)
-
-        if result.skipped:
-            print(f"SKIPPED ({result.skip_reason})")
-        else:
-            print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
-
-    return results
-
-
-def main():
-    """Main entry point for the benchmarking script."""
-    config = BenchmarkConfig(
-        num_iterations=args.num_iterations,
-        warmup_steps=args.warmup_steps,
-        num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=0,
-        device=args.device,
+    # Create runner
+    runner = MethodBenchmarkRunner(
+        benchmark_name="rigid_object_collection_data_benchmark",
+        config=config,
+        backend_type=args.backend,
+        output_path=args.output_dir,
+        use_recorders=True,
     )
 
-    results = run_benchmarks(config)
+    # Run property benchmarks
+    runner.run_property_benchmarks(
+        target_data=data,
+        properties=properties,
+        gen_mock_data=gen_mock_data,
+        dependencies=PROPERTY_DEPENDENCIES,
+        category="property",
+    )
 
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
-    print_results(results, include_mode=False)
-
-    if args.output:
-        json_filename = args.output
-    else:
-        json_filename = get_default_output_filename("rigid_object_collection_data_benchmark")
-
-    export_results_json(results, config, hardware_info, json_filename)
-
-    if not args.no_csv:
-        csv_filename = json_filename.replace(".json", ".csv")
-        export_results_csv(results, csv_filename)
+    runner.finalize()
 
     # Close the simulation app
     simulation_app.close()
