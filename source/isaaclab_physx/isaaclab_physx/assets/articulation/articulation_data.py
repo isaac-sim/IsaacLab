@@ -10,11 +10,13 @@ import weakref
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
 
+from .kernels import *
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -68,10 +70,12 @@ class ArticulationData(BaseArticulationData):
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+        gravity_dir = gravity_dir.repeat(self._root_view.count, 1)
+        forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_view.count, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
+        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.float32) 
+        self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.float32)
 
         self._create_buffers()
 
@@ -129,7 +133,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def default_root_pose(self) -> torch.Tensor:
+    def default_root_pose(self) -> wp.array:
         """Default root pose ``[pos, quat]`` in the local environment frame.
 
         The position and quaternion are of the articulation root's actor frame. Shape is (num_instances, 7).
@@ -137,7 +141,7 @@ class ArticulationData(BaseArticulationData):
         return self._default_root_pose
 
     @default_root_pose.setter
-    def default_root_pose(self, value: torch.Tensor) -> None:
+    def default_root_pose(self, value: wp.array) -> None:
         """Set the default root pose.
 
         Args:
@@ -148,10 +152,10 @@ class ArticulationData(BaseArticulationData):
         """
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
-        self._default_root_pose = value
+        self._default_root_pose.assign(value)
 
     @property
-    def default_root_vel(self) -> torch.Tensor:
+    def default_root_vel(self) -> wp.array:
         """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         The linear and angular velocities are of the articulation root's center of mass frame.
@@ -160,7 +164,7 @@ class ArticulationData(BaseArticulationData):
         return self._default_root_vel
 
     @default_root_vel.setter
-    def default_root_vel(self, value: torch.Tensor) -> None:
+    def default_root_vel(self, value: wp.array) -> None:
         """Set the default root velocity.
 
         Args:
@@ -171,10 +175,10 @@ class ArticulationData(BaseArticulationData):
         """
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
-        self._default_root_vel = value
+        self._default_root_vel.assign(value)
 
     @property
-    def default_root_state(self) -> torch.Tensor:
+    def default_root_state(self) -> wp.array:
         """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
 
 
@@ -192,7 +196,7 @@ class ArticulationData(BaseArticulationData):
         return torch.cat([self._default_root_pose, self._default_root_vel], dim=1)
 
     @default_root_state.setter
-    def default_root_state(self, value: torch.Tensor) -> None:
+    def default_root_state(self, value: wp.array) -> None:
         """Set the default root state.
 
         Args:
@@ -209,11 +213,11 @@ class ArticulationData(BaseArticulationData):
         )
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
-        self._default_root_pose = value[:, :7]
-        self._default_root_vel = value[:, 7:]
+        self._default_root_pose.assign(value[:, :7])
+        self._default_root_vel.assign(value[:, 7:])
 
     @property
-    def default_joint_pos(self) -> torch.Tensor:
+    def default_joint_pos(self) -> wp.array:
         """Default joint positions of all joints. Shape is (num_instances, num_joints).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
@@ -221,7 +225,7 @@ class ArticulationData(BaseArticulationData):
         return self._default_joint_pos
 
     @default_joint_pos.setter
-    def default_joint_pos(self, value: torch.Tensor) -> None:
+    def default_joint_pos(self, value: wp.array) -> None:
         """Set the default joint positions.
 
         Args:
@@ -232,10 +236,10 @@ class ArticulationData(BaseArticulationData):
         """
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
-        self._default_joint_pos = value
+        self._default_joint_pos.assign(value)
 
     @property
-    def default_joint_vel(self) -> torch.Tensor:
+    def default_joint_vel(self) -> wp.array:
         """Default joint velocities of all joints. Shape is (num_instances, num_joints).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
@@ -243,7 +247,7 @@ class ArticulationData(BaseArticulationData):
         return self._default_joint_vel
 
     @default_joint_vel.setter
-    def default_joint_vel(self, value: torch.Tensor) -> None:
+    def default_joint_vel(self, value: wp.array) -> None:
         """Set the default joint velocities.
 
         Args:
@@ -254,14 +258,14 @@ class ArticulationData(BaseArticulationData):
         """
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
-        self._default_joint_vel = value
+        self._default_joint_vel.assign(value)
 
     """
     Joint commands -- Set into simulation.
     """
 
     @property
-    def joint_pos_target(self) -> torch.Tensor:
+    def joint_pos_target(self) -> wp.array:
         """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
@@ -271,7 +275,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_target
 
     @property
-    def joint_vel_target(self) -> torch.Tensor:
+    def joint_vel_target(self) -> wp.array:
         """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
@@ -281,7 +285,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_vel_target
 
     @property
-    def joint_effort_target(self) -> torch.Tensor:
+    def joint_effort_target(self) -> wp.array:
         """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
@@ -295,7 +299,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def computed_torque(self) -> torch.Tensor:
+    def computed_torque(self) -> wp.array:
         """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
 
         This quantity is the raw torque output from the actuator mode, before any clipping is applied.
@@ -305,7 +309,7 @@ class ArticulationData(BaseArticulationData):
         return self._computed_torque
 
     @property
-    def applied_torque(self) -> torch.Tensor:
+    def applied_torque(self) -> wp.array:
         """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
 
         These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
@@ -318,7 +322,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def joint_stiffness(self) -> torch.Tensor:
+    def joint_stiffness(self) -> wp.array:
         """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
 
         In the case of explicit actuators, the value for the corresponding joints is zero.
@@ -326,7 +330,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_stiffness
 
     @property
-    def joint_damping(self) -> torch.Tensor:
+    def joint_damping(self) -> wp.array:
         """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
 
         In the case of explicit actuators, the value for the corresponding joints is zero.
@@ -334,27 +338,27 @@ class ArticulationData(BaseArticulationData):
         return self._joint_damping
 
     @property
-    def joint_armature(self) -> torch.Tensor:
+    def joint_armature(self) -> wp.array:
         """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_armature
 
     @property
-    def joint_friction_coeff(self) -> torch.Tensor:
+    def joint_friction_coeff(self) -> wp.array:
         """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_friction_coeff
 
     @property
-    def joint_dynamic_friction_coeff(self) -> torch.Tensor:
+    def joint_dynamic_friction_coeff(self) -> wp.array:
         """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_dynamic_friction_coeff
 
     @property
-    def joint_viscous_friction_coeff(self) -> torch.Tensor:
+    def joint_viscous_friction_coeff(self) -> wp.array:
         """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_viscous_friction_coeff
 
     @property
-    def joint_pos_limits(self) -> torch.Tensor:
+    def joint_pos_limits(self) -> wp.array:
         """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
 
         The limits are in the order :math:`[lower, upper]`.
@@ -362,12 +366,12 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_limits
 
     @property
-    def joint_vel_limits(self) -> torch.Tensor:
+    def joint_vel_limits(self) -> wp.array:
         """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_vel_limits
 
     @property
-    def joint_effort_limits(self) -> torch.Tensor:
+    def joint_effort_limits(self) -> wp.array:
         """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
         return self._joint_effort_limits
 
@@ -376,7 +380,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def soft_joint_pos_limits(self) -> torch.Tensor:
+    def soft_joint_pos_limits(self) -> wp.array:
         r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
 
         The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
@@ -397,7 +401,7 @@ class ArticulationData(BaseArticulationData):
         return self._soft_joint_pos_limits
 
     @property
-    def soft_joint_vel_limits(self) -> torch.Tensor:
+    def soft_joint_vel_limits(self) -> wp.array:
         """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
 
         These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
@@ -406,7 +410,7 @@ class ArticulationData(BaseArticulationData):
         return self._soft_joint_vel_limits
 
     @property
-    def gear_ratio(self) -> torch.Tensor:
+    def gear_ratio(self) -> wp.array:
         """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
         return self._gear_ratio
 
@@ -415,32 +419,32 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def fixed_tendon_stiffness(self) -> torch.Tensor:
+    def fixed_tendon_stiffness(self) -> wp.array:
         """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
         return self._fixed_tendon_stiffness
 
     @property
-    def fixed_tendon_damping(self) -> torch.Tensor:
+    def fixed_tendon_damping(self) -> wp.array:
         """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
         return self._fixed_tendon_damping
 
     @property
-    def fixed_tendon_limit_stiffness(self) -> torch.Tensor:
+    def fixed_tendon_limit_stiffness(self) -> wp.array:
         """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
         return self._fixed_tendon_limit_stiffness
 
     @property
-    def fixed_tendon_rest_length(self) -> torch.Tensor:
+    def fixed_tendon_rest_length(self) -> wp.array:
         """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
         return self._fixed_tendon_rest_length
 
     @property
-    def fixed_tendon_offset(self) -> torch.Tensor:
+    def fixed_tendon_offset(self) -> wp.array:
         """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
         return self._fixed_tendon_offset
 
     @property
-    def fixed_tendon_pos_limits(self) -> torch.Tensor:
+    def fixed_tendon_pos_limits(self) -> wp.array:
         """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
         return self._fixed_tendon_pos_limits
 
@@ -449,22 +453,22 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def spatial_tendon_stiffness(self) -> torch.Tensor:
+    def spatial_tendon_stiffness(self) -> wp.array:
         """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
         return self._spatial_tendon_stiffness
 
     @property
-    def spatial_tendon_damping(self) -> torch.Tensor:
+    def spatial_tendon_damping(self) -> wp.array:
         """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
         return self._spatial_tendon_damping
 
     @property
-    def spatial_tendon_limit_stiffness(self) -> torch.Tensor:
+    def spatial_tendon_limit_stiffness(self) -> wp.array:
         """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
         return self._spatial_tendon_limit_stiffness
 
     @property
-    def spatial_tendon_offset(self) -> torch.Tensor:
+    def spatial_tendon_offset(self) -> wp.array:
         """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
         return self._spatial_tendon_offset
 
@@ -473,43 +477,46 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def root_link_pose_w(self) -> torch.Tensor:
+    def root_link_pose_w(self) -> wp.array:
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's actor frame relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            pose = self._root_view.get_root_transforms().clone()
             # set the buffer data and timestamp
-            self._root_link_pose_w.data = pose
+            # TODO: Here, we copy. But do we need to? What are the risks? If this is a pointer to the staging buffers,
+            # this could be good, and we could just capture the pointer early on without ever needing to update ours.
+            self._root_link_pose_w.data = self._root_view.get_root_transforms()
             self._root_link_pose_w.timestamp = self._sim_timestamp
 
         return self._root_link_pose_w.data
 
     @property
-    def root_link_vel_w(self) -> torch.Tensor:
+    def root_link_vel_w(self) -> wp.array:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            # read the CoM velocity
-            vel = self.root_com_vel_w.clone()
-            # adjust linear velocity to link from center of mass
-            vel[:, :3] += torch.linalg.cross(
-                vel[:, 3:], quat_apply(self.root_link_quat_w, -self.body_com_pos_b[:, 0]), dim=-1
+            wp.launch(
+                get_root_link_vel_from_root_com_vel,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_com_vel_w,
+                    self.root_link_pose_w,
+                    self.body_com_pose_w,
+                    self._root_link_vel_w.data,
+                ],
+                device=self.device,
             )
-            # set the buffer data and timestamp
-            self._root_link_vel_w.data = vel
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
         return self._root_link_vel_w.data
 
     @property
-    def root_com_pose_w(self) -> torch.Tensor:
+    def root_com_pose_w(self) -> wp.array:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
@@ -517,17 +524,21 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
-            pos, quat = combine_frame_transforms(
-                self.root_link_pos_w, self.root_link_quat_w, self.body_com_pos_b[:, 0], self.body_com_quat_b[:, 0]
+            wp.launch(
+                get_root_com_pose_from_root_link_pose,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.body_com_pose_w,
+                    self._root_com_pose_w.data,
+                ],
             )
-            # set the buffer data and timestamp
-            self._root_com_pose_w.data = torch.cat((pos, quat), dim=-1)
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
         return self._root_com_pose_w.data
 
     @property
-    def root_com_vel_w(self) -> torch.Tensor:
+    def root_com_vel_w(self) -> wp.array:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the articulation root's center of mass frame
@@ -540,7 +551,7 @@ class ArticulationData(BaseArticulationData):
         return self._root_com_vel_w.data
 
     @property
-    def root_state_w(self) -> torch.Tensor:
+    def root_state_w(self) -> wp.array:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
@@ -553,7 +564,7 @@ class ArticulationData(BaseArticulationData):
         return self._root_state_w.data
 
     @property
-    def root_link_state_w(self) -> torch.Tensor:
+    def root_link_state_w(self) -> wp.array:
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
@@ -566,7 +577,7 @@ class ArticulationData(BaseArticulationData):
         return self._root_link_state_w.data
 
     @property
-    def root_com_state_w(self) -> torch.Tensor:
+    def root_com_state_w(self) -> wp.array:
         """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
@@ -584,17 +595,17 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def body_mass(self) -> torch.Tensor:
+    def body_mass(self) -> wp.array:
         """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
         return self._body_mass.to(self.device)
 
     @property
-    def body_inertia(self) -> torch.Tensor:
+    def body_inertia(self) -> wp.array:
         """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
         return self._body_inertia.to(self.device)
 
     @property
-    def body_link_pose_w(self) -> torch.Tensor:
+    def body_link_pose_w(self) -> wp.array:
         """Body link pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 7).
 
@@ -613,7 +624,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_pose_w.data
 
     @property
-    def body_link_vel_w(self) -> torch.Tensor:
+    def body_link_vel_w(self) -> wp.array:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 6).
 
@@ -634,7 +645,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_vel_w.data
 
     @property
-    def body_com_pose_w(self) -> torch.Tensor:
+    def body_com_pose_w(self) -> wp.array:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 7).
 
@@ -653,7 +664,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_w.data
 
     @property
-    def body_com_vel_w(self) -> torch.Tensor:
+    def body_com_vel_w(self) -> wp.array:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 6).
 
@@ -723,7 +734,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_acc_w.data
 
     @property
-    def body_com_pose_b(self) -> torch.Tensor:
+    def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
         Shape is (num_instances, 1, 7).
 
@@ -740,7 +751,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_b.data
 
     @property
-    def body_incoming_joint_wrench_b(self) -> torch.Tensor:
+    def body_incoming_joint_wrench_b(self) -> wp.array:
         """Joint reaction wrench applied from body parent to child body in parent body frame.
 
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
@@ -763,7 +774,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def joint_pos(self) -> torch.Tensor:
+    def joint_pos(self) -> wp.array:
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
@@ -772,7 +783,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos.data
 
     @property
-    def joint_vel(self) -> torch.Tensor:
+    def joint_vel(self) -> wp.array:
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
@@ -781,7 +792,7 @@ class ArticulationData(BaseArticulationData):
         return self._joint_vel.data
 
     @property
-    def joint_acc(self) -> torch.Tensor:
+    def joint_acc(self) -> wp.array:
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_acc.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
@@ -813,7 +824,7 @@ class ArticulationData(BaseArticulationData):
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     @property
-    def root_link_lin_vel_b(self) -> torch.Tensor:
+    def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity in base frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the articulation root's actor frame with respect to the
@@ -822,7 +833,7 @@ class ArticulationData(BaseArticulationData):
         return quat_apply_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
 
     @property
-    def root_link_ang_vel_b(self) -> torch.Tensor:
+    def root_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity in base world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the articulation root's actor frame with respect to the
@@ -831,7 +842,7 @@ class ArticulationData(BaseArticulationData):
         return quat_apply_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
 
     @property
-    def root_com_lin_vel_b(self) -> torch.Tensor:
+    def root_com_lin_vel_b(self) -> wp.array:
         """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
@@ -840,7 +851,7 @@ class ArticulationData(BaseArticulationData):
         return quat_apply_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
 
     @property
-    def root_com_ang_vel_b(self) -> torch.Tensor:
+    def root_com_ang_vel_b(self) -> wp.array:
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
@@ -853,7 +864,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def root_link_pos_w(self) -> torch.Tensor:
+    def root_link_pos_w(self) -> wp.array:
         """Root link position in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
@@ -861,7 +872,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_link_pose_w[:, :3]
 
     @property
-    def root_link_quat_w(self) -> torch.Tensor:
+    def root_link_quat_w(self) -> wp.array:
         """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
@@ -869,7 +880,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_link_pose_w[:, 3:7]
 
     @property
-    def root_link_lin_vel_w(self) -> torch.Tensor:
+    def root_link_lin_vel_w(self) -> wp.array:
         """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
@@ -877,7 +888,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_link_vel_w[:, :3]
 
     @property
-    def root_link_ang_vel_w(self) -> torch.Tensor:
+    def root_link_ang_vel_w(self) -> wp.array:
         """Root link angular velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
@@ -885,7 +896,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_link_vel_w[:, 3:6]
 
     @property
-    def root_com_pos_w(self) -> torch.Tensor:
+    def root_com_pos_w(self) -> wp.array:
         """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
@@ -893,7 +904,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_com_pose_w[:, :3]
 
     @property
-    def root_com_quat_w(self) -> torch.Tensor:
+    def root_com_quat_w(self) -> wp.array:
         """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
@@ -901,7 +912,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_com_pose_w[:, 3:7]
 
     @property
-    def root_com_lin_vel_w(self) -> torch.Tensor:
+    def root_com_lin_vel_w(self) -> wp.array:
         """Root center of mass linear velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
@@ -909,7 +920,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_com_vel_w[:, :3]
 
     @property
-    def root_com_ang_vel_w(self) -> torch.Tensor:
+    def root_com_ang_vel_w(self) -> wp.array:
         """Root center of mass angular velocity in simulation world frame. Shape is (num_instances, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
@@ -917,7 +928,7 @@ class ArticulationData(BaseArticulationData):
         return self.root_com_vel_w[:, 3:6]
 
     @property
-    def body_link_pos_w(self) -> torch.Tensor:
+    def body_link_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
@@ -925,7 +936,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_link_pose_w[..., :3]
 
     @property
-    def body_link_quat_w(self) -> torch.Tensor:
+    def body_link_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
@@ -933,7 +944,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_link_pose_w[..., 3:7]
 
     @property
-    def body_link_lin_vel_w(self) -> torch.Tensor:
+    def body_link_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
@@ -941,7 +952,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_link_vel_w[..., :3]
 
     @property
-    def body_link_ang_vel_w(self) -> torch.Tensor:
+    def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
@@ -949,7 +960,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_link_vel_w[..., 3:6]
 
     @property
-    def body_com_pos_w(self) -> torch.Tensor:
+    def body_com_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the articulation bodies' actor frame.
@@ -957,7 +968,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_pose_w[..., :3]
 
     @property
-    def body_com_quat_w(self) -> torch.Tensor:
+    def body_com_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies, 4).
 
@@ -966,7 +977,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_pose_w[..., 3:7]
 
     @property
-    def body_com_lin_vel_w(self) -> torch.Tensor:
+    def body_com_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
@@ -974,7 +985,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_vel_w[..., :3]
 
     @property
-    def body_com_ang_vel_w(self) -> torch.Tensor:
+    def body_com_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
@@ -982,7 +993,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_vel_w[..., 3:6]
 
     @property
-    def body_com_lin_acc_w(self) -> torch.Tensor:
+    def body_com_lin_acc_w(self) -> wp.array:
         """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
@@ -990,7 +1001,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_acc_w[..., :3]
 
     @property
-    def body_com_ang_acc_w(self) -> torch.Tensor:
+    def body_com_ang_acc_w(self) -> wp.array:
         """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
@@ -998,7 +1009,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_acc_w[..., 3:6]
 
     @property
-    def body_com_pos_b(self) -> torch.Tensor:
+    def body_com_pos_b(self) -> wp.array:
         """Center of mass position of all of the bodies in their respective link frames.
         Shape is (num_instances, num_bodies, 3).
 
@@ -1007,7 +1018,7 @@ class ArticulationData(BaseArticulationData):
         return self.body_com_pose_b[..., :3]
 
     @property
-    def body_com_quat_b(self) -> torch.Tensor:
+    def body_com_quat_b(self) -> wp.array:
         """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
 

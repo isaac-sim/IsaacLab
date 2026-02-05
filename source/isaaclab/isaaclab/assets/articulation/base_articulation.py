@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from ..asset_base import AssetBase
 
@@ -189,11 +190,12 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
@@ -224,7 +226,9 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[list[int], list[str], wp.array]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -235,14 +239,14 @@ class BaseArticulation(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple of lists containing the body indices, names, and warp mask.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    ) -> tuple[list[int], list[str], wp.array]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -255,14 +259,14 @@ class BaseArticulation(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the joint indices and names.
+            A tuple of lists containing the joint indices, names, and warp mask.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    ) -> tuple[list[int], list[str], wp.array]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -276,14 +280,14 @@ class BaseArticulation(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple of lists containing the tendon indices, names, and warp mask.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    ) -> tuple[list[int], list[str], wp.array]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -296,7 +300,7 @@ class BaseArticulation(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the tendon indices and names.
+            A tuple of lists containing the tendon indices, names, and warp mask.
         """
         raise NotImplementedError()
 
@@ -307,204 +311,372 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def write_root_state_to_sim(
         self,
-        root_state: torch.Tensor,
+        root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 13).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_com_state_to_sim(
         self,
-        root_state: torch.Tensor,
+        root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 13).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_link_state_to_sim(
         self,
-        root_state: torch.Tensor,
+        root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link state over selected environment indices into the simulation.
 
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 13).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
+        root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 7).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_link_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
+        root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 7).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_com_pose_to_sim(
         self,
-        root_pose: torch.Tensor,
+        root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 7).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
+        root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 6).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
                 (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_com_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
+        root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 6).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
+        ..note::
+            This sets the velocity of the root's center of mass rather than the roots frame.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
                 (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_root_link_velocity_to_sim(
         self,
-        root_velocity: torch.Tensor,
+        root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the root's frame rather than the roots center of mass.
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, 6).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
+        ..note::
+            This sets the velocity of the root's frame rather than the roots center of mass.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
                 (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_state_to_sim(
         self,
-        position: torch.Tensor,
-        velocity: torch.Tensor,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | slice | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint positions and velocities to the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_position_to_sim(
         self,
-        position: torch.Tensor,
+        position: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | slice | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint positions to the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_velocity_to_sim(
         self,
-        velocity: torch.Tensor,
+        velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | slice | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint velocities to the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
@@ -515,44 +687,90 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def write_joint_stiffness_to_sim(
         self,
-        stiffness: torch.Tensor | float,
+        stiffness: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint stiffness into the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the stiffness for. Defaults to None (all joints).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_damping_to_sim(
         self,
-        damping: torch.Tensor | float,
+        damping: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint damping into the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             damping: Joint damping. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the damping for. Defaults to None (all joints).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_position_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         warn_limit_violation: bool = True,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint position limits into the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids), 2). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints, 2).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).
@@ -560,15 +778,19 @@ class BaseArticulation(AssetBase):
             env_ids: The environment indices to set the limits for. Defaults to None (all environments).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_velocity_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint max velocity to the simulation.
 
@@ -576,57 +798,105 @@ class BaseArticulation(AssetBase):
         be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
         faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
             env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_effort_limit_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint effort limits into the simulation.
 
         The effort limit is used to constrain the computed joint efforts in the physics engine. If the
         computed effort exceeds this limit, the physics engine will clip the effort to this value.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_armature_to_sim(
         self,
-        armature: torch.Tensor | float,
+        armature: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint armature into the simulation.
 
         The armature is directly added to the corresponding joint-space inertia. It helps improve the
         simulation stability by reducing the joint velocities.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             armature: Joint armature. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_joint_friction_coefficient_to_sim(
         self,
-        joint_friction_coeff: torch.Tensor | float,
+        joint_friction_coeff: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         r"""Write joint static friction coefficients into the simulation.
 
@@ -634,11 +904,25 @@ class BaseArticulation(AssetBase):
         from the parent body to the child body to the maximal static friction force that may be applied by the solver
         to resist the joint motion.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)) or
                 (num_instances, num_joints).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
@@ -649,61 +933,113 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def set_masses(
         self,
-        masses: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
     ) -> None:
         """Set masses of all bodies in the simulation world frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(body_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_bodies).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+        
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
-            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_coms(
         self,
-        coms: torch.Tensor,
+        coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies in the simulation world frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(body_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_bodies).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3) or
+                (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass positions for. Defaults to None
                 (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_inertias(
         self,
-        inertias: torch.Tensor,
+        inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies in the simulation world frame.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(body_ids), 9). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_bodies, 9).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
-            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
+                (num_instances, num_bodies, 9).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_external_force_and_torque(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         is_global: bool = False,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
     ) -> None:
         """Set external force and torque to apply on the asset's bodies in their local frame.
 
@@ -712,26 +1048,17 @@ class BaseArticulation(AssetBase):
         into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
         external wrench at (in the local link frame of the bodies).
 
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-            .. code-block:: python
-
-                # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(body_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_bodies).
 
         .. caution::
-            If the function is called consecutively with and with different values for ``is_global``, then the
-            all the external wrenches will be applied in the frame specified by the last call.
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
 
-            .. code-block:: python
-
-                # example of setting external wrench in the global frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
-                # example of setting external wrench in the link frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
-                # Both environments will have the external wrenches applied in the link frame
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
@@ -749,36 +1076,68 @@ class BaseArticulation(AssetBase):
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
                 the external wrench is applied in the link frame of the articulations' bodies.
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_joint_position_target(
         self,
-        target: torch.Tensor,
+        target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_joint_velocity_target(
         self,
-        target: torch.Tensor,
+        target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
@@ -787,17 +1146,33 @@ class BaseArticulation(AssetBase):
             target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_joint_effort_target(
         self,
-        target: torch.Tensor,
+        target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(joint_ids)). However, if env_mask is provided, then the shape of the data
+        should be (num_instances, num_joints).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `joint_ids` and `joint_mask` are provided, then `joint_mask` takes precedence over `joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
@@ -806,6 +1181,8 @@ class BaseArticulation(AssetBase):
             target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         raise NotImplementedError()
 
@@ -816,9 +1193,11 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def set_fixed_tendon_stiffness(
         self,
-        stiffness: torch.Tensor,
+        stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers.
 
@@ -826,20 +1205,37 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim`
         function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence
+            over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
                 (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_fixed_tendon_damping(
         self,
-        damping: torch.Tensor,
+        damping: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers.
 
@@ -857,9 +1253,11 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def set_fixed_tendon_limit_stiffness(
         self,
-        limit_stiffness: torch.Tensor,
+        limit_stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon limit stiffness efforts into internal buffers.
 
@@ -867,40 +1265,74 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim`
         function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence
+            over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
                 (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_fixed_tendon_position_limit(
         self,
-        limit: torch.Tensor,
+        limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon limit efforts into internal buffers.
 
         This function does not apply the tendon limit to the simulation. It only fills the buffers with
         the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence
+            over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
                 (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limit for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_fixed_tendon_rest_length(
         self,
-        rest_length: torch.Tensor,
+        rest_length: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon rest length efforts into internal buffers.
 
@@ -908,31 +1340,62 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim`
         function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence
+            over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
             (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the rest length for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_fixed_tendon_offset(
         self,
-        offset: torch.Tensor,
+        offset: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon offset efforts into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
         the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or
                 (num_instances, num_fixed_tendons).
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the offset for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
@@ -941,21 +1404,39 @@ class BaseArticulation(AssetBase):
         self,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(fixed_tendon_ids)). However, if env_mask is provided, then the shape of the data should be
+        (num_instances, num_fixed_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `fixed_tendon_ids` and `fixed_tendon_mask` are provided, then `fixed_tendon_mask` takes precedence over `fixed_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             fixed_tendon_ids: The fixed tendon indices to set the limits for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_spatial_tendon_stiffness(
         self,
-        stiffness: torch.Tensor,
+        stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        spatial_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon stiffness into internal buffers.
 
@@ -974,9 +1455,11 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def set_spatial_tendon_damping(
         self,
-        damping: torch.Tensor,
+        damping: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        spatial_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon damping into internal buffers.
 
@@ -984,6 +1467,18 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim`
         function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(spatial_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_spatial_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `spatial_tendon_ids` and `spatial_tendon_mask` are provided, then `spatial_tendon_mask` takes
+            precedence over `spatial_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
@@ -996,9 +1491,11 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def set_spatial_tendon_limit_stiffness(
         self,
-        limit_stiffness: torch.Tensor,
+        limit_stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        spatial_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon limit stiffness into internal buffers.
 
@@ -1006,12 +1503,27 @@ class BaseArticulation(AssetBase):
         the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim`
         function.
 
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(spatial_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_spatial_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `spatial_tendon_ids` and `spatial_tendon_mask` are provided, then `spatial_tendon_mask` takes
+            precedence over `spatial_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
+
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
                 (num_instances, num_spatial_tendons).
             spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None
                 (all spatial tendons).
             env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
         """
         raise NotImplementedError()
 
@@ -1041,13 +1553,30 @@ class BaseArticulation(AssetBase):
         self,
         spatial_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        spatial_tendon_mask: wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation.
+
+        When providing the environment indices, we expect the data to be partial. However, when providing the
+        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
+        data should be (len(env_ids), len(spatial_tendon_ids)). However, if env_mask is provided, then the shape of the
+        data should be (num_instances, num_spatial_tendons).
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
+            if both `spatial_tendon_ids` and `spatial_tendon_mask` are provided, then `spatial_tendon_mask` takes
+            precedence over `spatial_tendon_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the environment mask instead of the environment indices.
 
         Args:
             spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None
                 (all spatial tendons).
             env_ids: The environment indices to set the properties for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
         """
         raise NotImplementedError()
 
@@ -1130,9 +1659,11 @@ class BaseArticulation(AssetBase):
 
     def write_joint_friction_to_sim(
         self,
-        joint_friction: torch.Tensor | float,
+        joint_friction: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint friction coefficients into the simulation.
 
@@ -1145,14 +1676,18 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_friction_coefficient_to_sim(
+            joint_friction, joint_ids=joint_ids, env_ids=env_ids, env_mask=env_mask, joint_mask=joint_mask
+        )
 
     def write_joint_limits_to_sim(
         self,
-        limits: torch.Tensor | float,
+        limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
         warn_limit_violation: bool = True,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint limits into the simulation.
 
@@ -1166,14 +1701,21 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_position_limit_to_sim(
-            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+            limits,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            warn_limit_violation=warn_limit_violation,
+            env_mask=env_mask,
+            joint_mask=joint_mask,
         )
 
     def set_fixed_tendon_limit(
         self,
-        limit: torch.Tensor,
+        limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limits into internal buffers.
 
@@ -1186,4 +1728,10 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_position_limit(
+            limit,
+            fixed_tendon_ids=fixed_tendon_ids,
+            env_ids=env_ids,
+            env_mask=env_mask,
+            fixed_tendon_mask=fixed_tendon_mask,
+        )
