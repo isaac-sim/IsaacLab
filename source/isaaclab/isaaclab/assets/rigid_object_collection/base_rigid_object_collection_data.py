@@ -437,6 +437,11 @@ class BaseRigidObjectCollectionData(ABC):
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
+    def _create_buffers(self):
+        # -- Default mass and inertia (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+
     """
     Deprecated properties for backwards compatibility.
     """

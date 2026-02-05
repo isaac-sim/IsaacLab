@@ -518,6 +518,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         return self.body_com_pose_b[..., 3:7]
 
     def _create_buffers(self) -> None:
+        super._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
         self._body_link_pose_w = TimestampedBuffer()
@@ -540,10 +541,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Body properties
         self._body_mass = self._root_view.get_masses().to(self.device).clone()
         self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
-
-        # -- Default mass and inertia (Lazy allocation of default values)
-        self._default_mass = None
-        self._default_inertia = None
 
     """
     Helpers.
