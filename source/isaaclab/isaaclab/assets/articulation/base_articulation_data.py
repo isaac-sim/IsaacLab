@@ -1018,7 +1018,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`joint_damping` instead and manage the default joint damping
         manually."""
         warnings.warn(
-            "The `default_joint_damping` property will be deprecated in a IsaacLab 4.0. Please use `joint_damping`"
+            "The `default_joint_damping` property will be deprecated in a IsaacLab 4.0. Please use `joint_damping` "
             "instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
