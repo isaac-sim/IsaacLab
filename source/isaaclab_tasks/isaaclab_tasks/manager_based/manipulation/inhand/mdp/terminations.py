@@ -5,8 +5,9 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg

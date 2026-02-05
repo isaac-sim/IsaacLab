@@ -11,9 +11,10 @@ import functools
 import inspect
 import logging
 import re
-import torch
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
+
+import torch
 
 import omni.kit.commands
 import omni.usd
@@ -119,7 +120,7 @@ def create_prim(
         ...     prim_path="/World/Parent/Cube",
         ...     prim_type="Cube",
         ...     position=(1.0, 0.5, 0.0),
-        ...     attributes={"size": 2.0}
+        ...     attributes={"size": 2.0},
         ... )
         Usd.Prim(</World/Parent/Cube>)
         >>>
@@ -128,7 +129,7 @@ def create_prim(
         ...     prim_path="/World/Parent/Sphere",
         ...     prim_type="Sphere",
         ...     translation=(0.5, 0.0, 0.0),
-        ...     scale=(2.0, 2.0, 2.0)
+        ...     scale=(2.0, 2.0, 2.0),
         ... )
         Usd.Prim(</World/Parent/Sphere>)
     """
@@ -458,10 +459,7 @@ def change_prim_property(
         >>> from pxr import Sdf
         >>>
         >>> # Change an existing property
-        >>> sim_utils.change_prim_property(
-        ...     prop_path="/World/Cube.size",
-        ...     value=2.0
-        ... )
+        >>> sim_utils.change_prim_property(prop_path="/World/Cube.size", value=2.0)
         True
         >>>
         >>> # Create a new custom property
@@ -469,7 +467,7 @@ def change_prim_property(
         ...     prop_path="/World/Cube.customValue",
         ...     value=42,
         ...     type_to_create_if_not_exist=Sdf.ValueTypeNames.Int,
-        ...     is_custom=True
+        ...     is_custom=True,
         ... )
         True
     """
@@ -1029,6 +1027,7 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         class TableVariants:
             color: Literal["blue", "red"] = "red"
             size: Literal["small", "large"] = "large"
+
 
         select_usd_variants(
             prim_path="/World/Table",

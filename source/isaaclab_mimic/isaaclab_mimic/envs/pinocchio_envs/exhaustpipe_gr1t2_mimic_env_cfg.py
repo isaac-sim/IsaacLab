@@ -13,6 +13,7 @@ from isaaclab_tasks.manager_based.manipulation.pick_place.exhaustpipe_gr1t2_pink
 
 @configclass
 class ExhaustPipeGR1T2MimicEnvCfg(ExhaustPipeGR1T2PinkIKEnvCfg, MimicEnvCfg):
+    """Configuration for GR1T2 Exhaust Pipe Mimic environment."""
 
     def __post_init__(self):
         # Calling post init of parents

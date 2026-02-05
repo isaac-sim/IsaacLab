@@ -5,8 +5,9 @@
 
 import contextlib
 import logging
-import numpy as np
 from time import time
+
+import numpy as np
 
 from isaacsim.core.utils.extensions import enable_extension
 
@@ -150,10 +151,11 @@ class ManusViveIntegration:
             logger.error(f"Vive tracker update failed: {e}")
 
     def _initialize_coordinate_transformation(self):
-        """
-        Initialize the scene to lighthouse coordinate transformation.
-        The coordinate transformation is used to transform the wrist pose from lighthouse coordinate system to isaac sim scene coordinate.
-        It is computed from multiple frames of AVP/OpenXR wrist pose and Vive wrist pose samples at the beginning of the session.
+        """Initialize the scene to lighthouse coordinate transformation.
+
+        The coordinate transformation is used to transform the wrist pose from lighthouse
+        coordinate system to isaac sim scene coordinate. It is computed from multiple
+        frames of AVP/OpenXR wrist pose and Vive wrist pose samples at the beginning of the session.
         """
         min_frames = 6
         tolerance = 3.0

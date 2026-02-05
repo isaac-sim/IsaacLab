@@ -189,8 +189,9 @@ Helper functions.
 async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
     """Checks whether the given USD path is available on the Omniverse Nucleus server.
 
-    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.
-    It will return True if the USD path is available on the server, False otherwise.
+    This function is a asynchronous routine to check the availability of the given USD path on
+    the Omniverse Nucleus server. It will return True if the USD path is available on the server,
+    False otherwise.
 
     Args:
         usd_path: The remote or local USD file path to check.

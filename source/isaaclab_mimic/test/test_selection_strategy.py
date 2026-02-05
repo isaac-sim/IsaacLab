@@ -103,9 +103,9 @@ def test_select_source_demo_identity_orientations_object_strategy(nearest_neighb
     ]
 
     # Assert that all selected indices are valid indices within cluster 1
-    assert np.all(
-        np.array(selected_indices) < len(src_object_poses_in_world_cluster_1)
-    ), "Some selected indices are not part of cluster 1."
+    assert np.all(np.array(selected_indices) < len(src_object_poses_in_world_cluster_1)), (
+        "Some selected indices are not part of cluster 1."
+    )
 
     # Test 2:
     # Set the current object pose to the first value of cluster 2 and add some noise
@@ -135,12 +135,12 @@ def test_select_source_demo_identity_orientations_object_strategy(nearest_neighb
     ]
 
     # Assert that all selected indices are valid indices within cluster 2
-    assert np.all(
-        np.array(selected_indices) < len(src_object_poses_in_world)
-    ), "Some selected indices are not part of cluster 2."
-    assert np.all(
-        np.array(selected_indices) > (len(src_object_poses_in_world_cluster_1) - 1)
-    ), "Some selected indices are not part of cluster 2."
+    assert np.all(np.array(selected_indices) < len(src_object_poses_in_world)), (
+        "Some selected indices are not part of cluster 2."
+    )
+    assert np.all(np.array(selected_indices) > (len(src_object_poses_in_world_cluster_1) - 1)), (
+        "Some selected indices are not part of cluster 2."
+    )
 
 
 def test_select_source_demo_identity_orientations_robot_distance_strategy(nearest_neighbor_robot_distance_strategy):
@@ -175,10 +175,12 @@ def test_select_source_demo_identity_orientations_robot_distance_strategy(neares
     transformed_eef_in_world_poses_tensor = torch.stack(transformed_eef_pose_cluster_1 + transformed_eef_pose_cluster_2)
 
     # Create transformation matrices corresponding to each source object pose
-    src_obj_in_world_poses = torch.stack([
-        PoseUtils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
-        for _ in range(transformed_eef_in_world_poses_tensor.shape[0])
-    ])
+    src_obj_in_world_poses = torch.stack(
+        [
+            PoseUtils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
+            for _ in range(transformed_eef_in_world_poses_tensor.shape[0])
+        ]
+    )
 
     # Calculate the src_eef poses from the transformed eef poses, src_obj_in_world and curr_obj_pose_in_world
     # This is the inverse of the transformation of the eef pose done in NearestNeighborRobotDistanceStrategy
@@ -237,9 +239,9 @@ def test_select_source_demo_identity_orientations_robot_distance_strategy(neares
     ]
 
     # Assert that all selected indices are valid indices within cluster 1
-    assert np.all(
-        np.array(selected_indices) < len(transformed_eef_pose_cluster_1)
-    ), "Some selected indices are not part of cluster 1."
+    assert np.all(np.array(selected_indices) < len(transformed_eef_pose_cluster_1)), (
+        "Some selected indices are not part of cluster 1."
+    )
 
     # Test 2: Ensure the nearest neighbor is always part of cluster 2
     max_deviation = 3  # Define a maximum deviation for the current pose
@@ -268,9 +270,9 @@ def test_select_source_demo_identity_orientations_robot_distance_strategy(neares
     ]
 
     # Assert that all selected indices are valid indices within cluster 2
-    assert np.all(
-        np.array(selected_indices) < transformed_eef_in_world_poses_tensor.shape[0]
-    ), "Some selected indices are not part of cluster 2."
-    assert np.all(
-        np.array(selected_indices) > (len(transformed_eef_pose_cluster_1) - 1)
-    ), "Some selected indices are not part of cluster 2."
+    assert np.all(np.array(selected_indices) < transformed_eef_in_world_poses_tensor.shape[0]), (
+        "Some selected indices are not part of cluster 2."
+    )
+    assert np.all(np.array(selected_indices) > (len(transformed_eef_pose_cluster_1) - 1)), (
+        "Some selected indices are not part of cluster 2."
+    )

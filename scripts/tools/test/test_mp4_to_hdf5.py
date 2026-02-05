@@ -5,12 +5,13 @@
 
 """Test cases for MP4 to HDF5 conversion script."""
 
+import os
+import tempfile
+
 import cv2
 import h5py
 import numpy as np
-import os
 import pytest
-import tempfile
 
 from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_and_demo
 
@@ -18,7 +19,7 @@ from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_a
 @pytest.fixture(scope="class")
 def temp_hdf5_file():
     """Create temporary HDF5 file with test data."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)  # noqa: SIM115
     with h5py.File(temp_file.name, "w") as h5f:
         # Create test data structure for 2 demos
         for demo_id in range(2):
@@ -54,7 +55,7 @@ def temp_hdf5_file():
 @pytest.fixture(scope="class")
 def temp_videos_dir():
     """Create temporary MP4 files."""
-    temp_dir = tempfile.mkdtemp()
+    temp_dir = tempfile.mkdtemp()  # noqa: SIM115
     video_paths = []
 
     for demo_id in range(2):
@@ -82,7 +83,7 @@ def temp_videos_dir():
 @pytest.fixture
 def temp_output_file():
     """Create temporary output file."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".h5", delete=False)  # noqa: SIM115
     yield temp_file.name
     # Cleanup
     os.remove(temp_file.name)

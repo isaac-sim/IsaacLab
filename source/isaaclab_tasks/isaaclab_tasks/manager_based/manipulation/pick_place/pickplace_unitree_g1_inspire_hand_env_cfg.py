@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import tempfile
+
 import torch
+from pink.tasks import FrameTask
 
 import carb
-
-from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
 import isaaclab.envs.mdp as base_mdp
@@ -40,6 +40,7 @@ from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 ##
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
+    """Configuration for the Unitree G1 Inspire Hand Pick Place Base Scene."""
 
     # Table
     packing_table = AssetBaseCfg(
@@ -317,47 +318,49 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (12), right hand joint pos (12)]
-    idle_action = torch.tensor([
-        # 14 hand joints for EEF control
-        -0.1487,
-        0.2038,
-        1.0952,
-        0.707,
-        0.0,
-        0.0,
-        0.707,
-        0.1487,
-        0.2038,
-        1.0952,
-        0.707,
-        0.0,
-        0.0,
-        0.707,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    ])
+    idle_action = torch.tensor(
+        [
+            # 14 hand joints for EEF control
+            -0.1487,
+            0.2038,
+            1.0952,
+            0.707,
+            0.0,
+            0.0,
+            0.707,
+            0.1487,
+            0.2038,
+            1.0952,
+            0.707,
+            0.0,
+            0.0,
+            0.707,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
 
     def __post_init__(self):
         """Post initialization."""
@@ -386,8 +389,10 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
                             # number of joints in both hands
                             num_open_xr_hand_joints=2 * 26,
                             sim_device=self.sim.device,
-                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is consistent with robot.joint_names[-24:]
-                            # The order of the joints does matter as it will be used for converting pink_ik actions to final control actions in IsaacLab.
+                            # Please confirm that self.actions.pink_ik_cfg.hand_joint_names is
+                            # consistent with robot.joint_names[-24:]
+                            # The order of the joints does matter as it will be used for
+                            # converting pink_ik actions to final control actions in IsaacLab.
                             hand_joint_names=self.actions.pink_ik_cfg.hand_joint_names,
                         ),
                     ],

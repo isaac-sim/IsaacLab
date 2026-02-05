@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+
 import numpy as np
 import pytest
 import torch
@@ -56,9 +57,9 @@ def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd | tuple, 
     real_match_neg = math.isclose(q1.GetReal(), -q2.GetReal(), abs_tol=eps)
     imag_match_neg = all(math.isclose(q1.GetImaginary()[i], -q2.GetImaginary()[i], abs_tol=eps) for i in range(3))
 
-    assert (real_match and imag_match) or (
-        real_match_neg and imag_match_neg
-    ), f"Quaternion mismatch: {q1} != {q2} (and not equal to negative either)"
+    assert (real_match and imag_match) or (real_match_neg and imag_match_neg), (
+        f"Quaternion mismatch: {q1} != {q2} (and not equal to negative either)"
+    )
 
 
 def get_xform_ops(prim: Usd.Prim) -> list[str]:

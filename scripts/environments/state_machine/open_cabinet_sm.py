@@ -38,10 +38,11 @@ simulation_app = app_launcher.app
 
 """Rest everything else."""
 
+from collections.abc import Sequence
+
 import gymnasium as gym
 import torch
 import warp as wp
-from collections.abc import Sequence
 
 from isaaclab.sensors import FrameTransformer
 

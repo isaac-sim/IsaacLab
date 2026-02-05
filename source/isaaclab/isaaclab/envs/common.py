@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from typing import Dict, Literal, TypeVar  # noqa: UP035
+
 import gymnasium as gym
 import torch
-from typing import Dict, Literal, TypeVar
 
 from isaaclab.utils import configclass
 
@@ -44,7 +45,8 @@ class ViewerCfg:
     * ``"world"``: The origin of the world.
     * ``"env"``: The origin of the environment defined by :attr:`env_index`.
     * ``"asset_root"``: The center of the asset defined by :attr:`asset_name` in environment :attr:`env_index`.
-    * ``"asset_body"``: The center of the body defined by :attr:`body_name` in asset defined by :attr:`asset_name` in environment :attr:`env_index`.
+    * ``"asset_body"``: The center of the body defined by :attr:`body_name` in asset defined by
+      :attr:`asset_name` in environment :attr:`env_index`.
     """
 
     env_index: int = 0

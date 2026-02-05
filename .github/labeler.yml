@@ -26,7 +26,6 @@ infrastructure:
       - setup.py
       - pyproject.toml
       - .pre-commit-config.yaml
-      - .flake8
       - isaaclab.sh
       - isaaclab.bat
       - docs/licenses/**

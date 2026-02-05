@@ -89,7 +89,6 @@ from isaaclab.sim.schemas import schemas_cfg
 
 
 def main():
-
     # Define conversion time given
     conversion_type = args_cli.conversion_type.lower()
     # Warning if conversion type input is not valid

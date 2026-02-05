@@ -5,21 +5,22 @@
 
 import builtins
 import enum
-import flatdict
 import glob
 import logging
-import numpy as np
 import os
 import re
 import time
-import toml
-import torch
 import traceback
 import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
+
+import flatdict
+import numpy as np
+import toml
+import torch
 
 import carb
 import omni.physx
@@ -99,8 +100,8 @@ class SimulationContext(_SimulationContext):
         control what is updated when the simulation is rendered. This is where the render mode comes in. There are
         four different render modes:
 
-        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
-          so none of the above are updated.
+        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag
+          is disabled, so none of the above are updated.
         * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
         * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
         * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
@@ -709,6 +710,9 @@ class SimulationContext(_SimulationContext):
         self.carb_settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # hide the Simulation Settings window
         self.carb_settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        self.carb_settings.set_bool("/physics/visualizationSimulationOutput", False)
+        # set fabric enabled flag
+        self.carb_settings.set_bool("/physics/fabricEnabled", self.cfg.use_fabric)
 
     def _apply_render_settings_from_cfg(self):  # noqa: C901
         """Sets rtx settings specified in the RenderCfg."""
@@ -1043,20 +1047,20 @@ def build_simulation_context(
     aspects of the simulation, such as time step, gravity, device, and scene elements like ground plane and
     lighting.
 
-    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings, with parameters
-    overwritten based on arguments to the function.
+    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings,
+    with parameters overwritten based on arguments to the function.
 
     An example usage of the context manager function:
 
     ..  code-block:: python
 
         with build_simulation_context() as sim:
-             # Design the scene
+            # Design the scene
 
-             # Play the simulation
-             sim.reset()
-             while sim.is_playing():
-                 sim.step()
+            # Play the simulation
+            sim.reset()
+            while sim.is_playing():
+                sim.step()
 
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.

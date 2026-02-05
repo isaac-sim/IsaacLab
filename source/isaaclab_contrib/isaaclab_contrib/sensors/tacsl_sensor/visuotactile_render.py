@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
-import cv2
 import logging
-import numpy as np
 import os
+from typing import TYPE_CHECKING
+
+import cv2
+import numpy as np
 import scipy
 import torch
-from typing import TYPE_CHECKING
 
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -91,9 +92,12 @@ def compute_penetration_depth(
 
 
 class GelsightRender:
-    """Class to handle GelSight rendering using the Taxim example-based approach.
+    """Class to handle GelSight rendering using the Taxim example-based approach from :cite:t:`si2022taxim`.
 
-    Reference: https://arxiv.org/abs/2109.04027
+    Reference:
+        Si, Z., & Yuan, W. (2022). Taxim: An example-based simulation model for GelSight
+        tactile sensors. IEEE Robotics and Automation Letters, 7(2), 2361-2368.
+        https://arxiv.org/abs/2109.04027
     """
 
     def __init__(self, cfg: GelSightRenderCfg, device: str | torch.device):
@@ -113,7 +117,7 @@ class GelsightRender:
         # Validate configuration parameters
         eps = 1e-9
         if self.cfg.mm_per_pixel < eps:
-            raise ValueError(f"mm_per_pixel must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
+            raise ValueError(f"Input 'mm_per_pixel' must be positive (>= {eps}), got {self.cfg.mm_per_pixel}")
 
         # Retrieve render data files using the configured base path
         bg_path = self._get_render_data(self.cfg.sensor_data_dir_name, self.cfg.background_path)
@@ -146,7 +150,7 @@ class GelsightRender:
         self.x_binr = 0.5 * np.pi / binm  # x [0,pi/2]
         self.y_binr = 2 * np.pi / binm  # y [-pi, pi]
 
-        kernel = self._get_filtering_kernel(kernel_sz=5)
+        kernel = self._get_filtering_kernel(kernel_size=5)
         self.kernel = torch.tensor(kernel, dtype=torch.float, device=self.device)
 
         self.calib_data_grad_r = torch.tensor(calib_grad_r, device=self.device)
@@ -159,18 +163,18 @@ class GelsightRender:
         # Pre-allocate buffer for RGB output (will be resized if needed)
         self._sim_img_rgb_buffer = torch.empty((1, image_height, image_width, 3), device=self.device)
 
-        logger.info("Gelsight initialization done!")
+        logger.info("Gelsight renderer initialization done!")
 
-    def render(self, heightMap: torch.Tensor) -> torch.Tensor:
-        """Render the height map using the GelSight sensor (tensorized version).
+    def render(self, height_map: torch.Tensor) -> torch.Tensor:
+        """Render the height map using the GelSight sensor.
 
         Args:
-            heightMap: Input height map tensor. Shape: (N, H, W).
+            height_map: Input height map tensor. Shape is (N, H, W).
 
         Returns:
-            Rendered image tensor. Shape: (N, H, W, 3).
+            Rendered image tensor. Shape is (N, H, W, 3).
         """
-        height_map = heightMap.clone()
+        height_map = height_map.clone()
         height_map[torch.abs(height_map) < 1e-6] = 0  # remove minor artifact
         height_map = height_map * -1000.0
         height_map /= self.cfg.mm_per_pixel
@@ -255,18 +259,18 @@ class GelsightRender:
 
         return grad_mag, grad_dir
 
-    def _get_filtering_kernel(self, kernel_sz: int = 5) -> np.ndarray:
+    def _get_filtering_kernel(self, kernel_size: int = 5) -> np.ndarray:
         """Create a Gaussian filtering kernel.
 
         For kernel derivation, see https://cecas.clemson.edu/~stb/ece847/internal/cvbook/ch03_filtering.pdf
 
         Args:
-            kernel_sz: Size of the kernel. Defaults to 5.
+            kernel_size: Size of the kernel. Defaults to 5.
 
         Returns:
-            Filtering kernel. Shape: (kernel_sz, kernel_sz).
+            Filtering kernel. Shape is (kernel_size, kernel_size).
         """
-        filter_1D = scipy.special.binom(kernel_sz - 1, np.arange(kernel_sz))
+        filter_1D = scipy.special.binom(kernel_size - 1, np.arange(kernel_size))
         filter_1D /= filter_1D.sum()
         filter_1D = filter_1D[..., None]
 
@@ -277,11 +281,11 @@ class GelsightRender:
         """Apply Gaussian filtering to the input image tensor.
 
         Args:
-            img: Input image tensor. Shape: (N, H, W, 1).
-            kernel: Filtering kernel tensor. Shape: (K, K).
+            img: Input image tensor. Shape is (N, H, W, 1).
+            kernel: Filtering kernel tensor. Shape is (K, K).
 
         Returns:
-            Filtered image tensor. Shape: (N, H, W, 1).
+            Filtered image tensor. Shape is (N, H, W, 1).
         """
         img_output = torch.nn.functional.conv2d(
             img.permute(0, 3, 1, 2), kernel.unsqueeze(0).unsqueeze(0), stride=1, padding="same"

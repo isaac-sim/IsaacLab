@@ -6,15 +6,16 @@
 from __future__ import annotations
 
 import logging
-import numpy
 import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+import numpy
+
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
 
 from isaaclab.managers import ManagerBase
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
 from .image_plot import ImagePlot
@@ -60,7 +61,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         """Initialize ManagerLiveVisualizer.
 
         Args:
-            manager: The manager with terms to be plotted. The manager must have a :meth:`get_active_iterable_terms` method.
+            manager: The manager with terms to be plotted. The manager must have a
+                :meth:`~isaaclab.managers.manager_base.ManagerBase.get_active_iterable_terms` method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
 

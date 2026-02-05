@@ -36,7 +36,6 @@ NUM_BOXES = 12
 
 @configclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
-
     packing_table_2 = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable2",
         init_state=AssetBaseCfg.InitialStateCfg(
@@ -100,7 +99,6 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
-
         robot_pov_cam = ObsTerm(
             func=manip_mdp.image,
             params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
@@ -134,14 +132,13 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         self.sim.render_interval = 6
 
         # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"
+        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
 
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
-
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
@@ -185,7 +182,6 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         right_hand_joint_positions_target: torch.Tensor,
         base_velocity_target: torch.Tensor,
     ):
-
         action = torch.zeros(self.action_space.shape)
 
         # Set base height
@@ -193,15 +189,15 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         action[0, lower_body_index_offset + 3 : lower_body_index_offset + 4] = torch.tensor([0.8])
 
         # Left hand pose
-        assert left_hand_pose_target.shape == (
-            self._frame_pose_dim,
-        ), f"Expected pose shape ({self._frame_pose_dim},), got {left_hand_pose_target.shape}"
+        assert left_hand_pose_target.shape == (self._frame_pose_dim,), (
+            f"Expected pose shape ({self._frame_pose_dim},), got {left_hand_pose_target.shape}"
+        )
         action[0, : self._frame_pose_dim] = left_hand_pose_target
 
         # Right hand pose
-        assert right_hand_pose_target.shape == (
-            self._frame_pose_dim,
-        ), f"Expected pose shape ({self._frame_pose_dim},), got {right_hand_pose_target.shape}"
+        assert right_hand_pose_target.shape == (self._frame_pose_dim,), (
+            f"Expected pose shape ({self._frame_pose_dim},), got {right_hand_pose_target.shape}"
+        )
         action[0, self._frame_pose_dim : 2 * self._frame_pose_dim] = right_hand_pose_target
 
         # Left hand joint positions
@@ -220,8 +216,7 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         )
         action[
             0,
-            2 * self._frame_pose_dim
-            + self._number_of_finger_joints : 2 * self._frame_pose_dim
+            2 * self._frame_pose_dim + self._number_of_finger_joints : 2 * self._frame_pose_dim
             + 2 * self._number_of_finger_joints,
         ] = right_hand_joint_positions_target
 
@@ -261,7 +256,6 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         )
 
     def get_obstacle_fixtures(self):
-
         obstacles = [
             SceneFixture(
                 self.scene,

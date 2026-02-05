@@ -14,10 +14,11 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import pytest
-import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+import pytest
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
@@ -30,7 +31,6 @@ class DummyData:
 
 
 class DummySensor(SensorBase):
-
     def __init__(self, cfg):
         super().__init__(cfg)
         self._data = DummyData()
@@ -87,7 +87,6 @@ def _populate_scene():
 
 @pytest.fixture
 def create_dummy_sensor(request, device):
-
     # Create a new stage
     sim_utils.create_new_stage()
 

@@ -16,20 +16,21 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import math
+
 import pytest
 import torch
 
-import isaacsim.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors.camera import TiledCameraCfg
-from isaaclab.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensor, VisuoTactileSensorCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 
 # Sample sensor poses
 
@@ -48,7 +49,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
         sensor_type: Type of sensor configuration. Options: "minimum_config", "tactile_cam", "nut_rgb_ff".
 
     Returns:
-        VisuoTactileSensorCfg: The sensor configuration for the specified type.
+        The sensor configuration for the specified type.
 
     Raises:
         ValueError: If the sensor_type is not supported.
@@ -117,7 +118,7 @@ def setup(sensor_type: str = "cube"):
         Tuple containing simulation context, sensor config, timestep, robot config, cube config, and nut config.
     """
     # Create a new stage
-    stage_utils.create_new_stage()
+    sim_utils.create_new_stage()
 
     # Simulation time-step
     dt = 0.01
@@ -132,9 +133,8 @@ def setup(sensor_type: str = "cube"):
 
     # gelsightr15 filter
     usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
-    # robot
-    from isaaclab.assets import ArticulationCfg
 
+    # robot
     robot_cfg = ArticulationCfg(
         prim_path="/World/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
@@ -180,7 +180,7 @@ def setup(sensor_type: str = "cube"):
     sensor_cfg = get_sensor_cfg_by_type(sensor_type)
 
     # load stage
-    stage_utils.update_stage()
+    sim_utils.update_stage()
     return sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg
 
 

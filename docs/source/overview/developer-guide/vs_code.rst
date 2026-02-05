@@ -80,15 +80,13 @@ refer to the `VSCode documentation <https://code.visualstudio.com/docs/python/en
 Setting up formatting and linting
 ---------------------------------
 
-We use `black <https://black.readthedocs.io/en/stable/>`_ as a formatter and `flake8 <https://flake8.pycqa.org/en/latest/>`_ as a linter. These are configured in the ``.vscode/settings.json`` file:
+We use `ruff <https://github.com/astral-sh/ruff/>`_ as a formatter and linter.
+These are configured in the ``.vscode/settings.json`` file:
 
 .. code-block:: json
 
    {
-      "black-formatter.args": ["--line-length", "120", "--unstable"],
-      "flake8.enabled": true,
-      "flake8.args": ["--config", "${workspaceFolder}/pyproject.toml"],
+      "ruff.configuration": "${workspaceFolder}/pyproject.toml",
    }
 
-The black formatter will automatically format your code to match the project's style guide (120 character line length).
-The flake8 linter will show warnings and errors in your code to help you follow Python best practices and the project's coding standards.
+The ruff linter will show warnings and errors in your code to help you follow Python best practices and the project's coding standards.

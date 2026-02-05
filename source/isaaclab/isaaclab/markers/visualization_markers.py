@@ -20,9 +20,10 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 from __future__ import annotations
 
 import logging
+from dataclasses import MISSING
+
 import numpy as np
 import torch
-from dataclasses import MISSING
 
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
@@ -99,7 +100,7 @@ class VisualizationMarkers:
                         radius=1.0,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
                     ),
-                }
+                },
             )
             # Create the markers instance
             # This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.

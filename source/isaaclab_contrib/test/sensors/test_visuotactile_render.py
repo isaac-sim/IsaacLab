@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for GelSight utility functions - primarily focused on GelsightRender."""
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -11,15 +12,16 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
+import os
+import tempfile
+
 import cv2
 import numpy as np
-import os
 import pytest
-import tempfile
 import torch
 
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import GelsightRender
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_cfg import GelSightRenderCfg
 
 
 def test_gelsight_render_custom_path_missing_file():

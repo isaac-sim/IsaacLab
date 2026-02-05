@@ -13,6 +13,7 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
 
 @configclass
 class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
+    """Configuration for G1 Locomanipulation Mimic environment."""
 
     def __post_init__(self):
         # Call parent post-init

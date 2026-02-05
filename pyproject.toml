@@ -3,137 +3,102 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ["py311"]
-preview = true
-unstable = true
+target-version = "py310"
 
-[tool.flake8]
-show-source = true
-statistics = true
-
-per-file-ignores = [
-  "*/__init__.py:F401",
+# Exclude directories
+extend-exclude = [
+    "logs",
+    "_isaac_sim",
+    ".vscode",
+    "_*",
+    ".git",
 ]
 
+[tool.ruff.lint]
+# Enable flake8 rules and other useful ones
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "C90",    # mccabe complexity
+    # "D",      # pydocstyle
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+]
+
+# Ignore specific rules (matching your flake8 config)
 ignore = [
-  "E402",   # Module level import not at top of file
-  "E501",   # Line too long
-  "F403",   # Unable to detect undefined names
-  "W503",   # Line break before binary operator
-  "E203",   # Whitespace before ':' (Black conflict)
-  "D401",   # First line should be in imperative mood
-  "R504",   # Unnecessary variable assignment before return
-  "R505",   # Unnecessary elif after return statement
-  "SIM102", # Use a single if-statement instead of nested if-statements
-  "SIM117", # Merge with statements for context managers that have same scope.
-  "SIM118", # Checks for key-existence checks against dict.keys() calls.
+    "E402",   # Module level import not at top of file
+    "D401",   # First line should be in imperative mood
+    "RET504", # Unnecessary variable assignment before return statement
+    "RET505", # Unnecessary elif after return statement
+    "SIM102", # Use a single if-statement instead of nested if-statements
+    "SIM103", # Return the negated condition directly
+    "SIM108", # Use ternary operator instead of if-else statement
+    "SIM117", # Merge with statements for context managers
+    "SIM118", # Use {key} in {dict} instead of {key} in {dict}.keys()
+    "UP006",  # Use 'dict' instead of 'Dict' type annotation
+    "UP018",  # Unnecessary `float` call (rewrite as a literal)
 ]
 
-max-line-length = 120
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py files
+
+[tool.ruff.lint.mccabe]
 max-complexity = 30
 
-exclude = [
-  "_**",
-  ".vscode",
-  ".git",
-  "docs/**",
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+
+# Custom import sections with separate sections for each Isaac Lab extension
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    # Group omniverse extensions separately since they are run-time dependencies
+    # which are pulled in by Isaac Lab extensions
+    "omniverse-extensions",
+    # Group Isaac Lab extensions together since they are all part of the Isaac Lab project
+    "isaaclab",
+    "isaaclab-contrib",
+    "isaaclab-rl",
+    "isaaclab-mimic",
+    "isaaclab-tasks",
+    "isaaclab-assets",
+    # First-party is reserved for project templates
+    "first-party",
+    "local-folder",
 ]
 
-# docstrings
-docstring-convention = "google"
+[tool.ruff.lint.isort.sections]
+# Define what belongs in each custom section
 
-# annotations
-suppress-none-returning = true
-allow-star-arg-any = true
-
-[tool.isort]
-
-profile = "black"
-py_version = 310
-line_length = 120
-group_by_package = true
-
-# Files to skip
-skip_glob = ["docs/*", "logs/*", "_isaac_sim/*", ".vscode/*"]
-
-# Order of imports
-sections = [
-    "FUTURE",
-    "STDLIB",
-    "OMNIVERSE_EXTENSIONS",
-    "THIRDPARTY",
-    "ASSETS_FIRSTPARTY",
-    "FIRSTPARTY",
-    "EXTRA_FIRSTPARTY",
-    "TASK_FIRSTPARTY",
-    "LOCALFOLDER",
-]
-
-# Extra standard libraries considered as part of python (permissive licenses
-extra_standard_library = [
-    "numpy",
-    "torch",
-    "einops",
-    "tensordict",
-    "warp",
-    "scipy",
-    "open3d",
-    "cv2",
-    "PIL",
-    "torchvision",
-    "transformers",
-    "h5py",
-    "yaml",
-    "toml",
-    "bpy",
-    "trimesh",
-    "matplotlib",
-    "gymnasium",
-    "gym",
-    "hid",
-    "prettytable",
-    "tqdm",
-    "flatdict",
-    "packaging",
-    "pytest",
-    "pytest-mock",
-    "flaky",
-]
-
-known_third_party = [
-    "junitparser",
-    "pinocchio",
-    "pink",
-    "rsl_rl",
-    "rl_games",
-    "ray",
-    "stable_baselines3",
-    "skrl",
-    "wandb",
-    "tensorboard",
-    "hydra",
-    "omegaconf",
-]
-
-# Imports from Isaac Sim and Omniverse
-known_omniverse_extensions = [
-    "carb",
-    "omni*",
-    "isaacsim*",
+"omniverse-extensions" = [
+    "isaacsim",
+    "omni",
     "pxr",
+    "carb",
     "usdrt",
     "Semantics",
+    "curobo",
 ]
 
-# Imports from this repository
-known_first_party = "isaaclab"
-known_assets_firstparty = "isaaclab_assets"
-known_extra_firstparty = ["isaaclab_rl", "isaaclab_mimic"]
-known_task_firstparty = "isaaclab_tasks"
-# Imports from the local folder
-known_local_folder = "config"
+"isaaclab" = ["isaaclab"]
+"isaaclab-assets" = ["isaaclab_assets"]
+"isaaclab-contrib" = ["isaaclab_contrib"]
+"isaaclab-rl" = ["isaaclab_rl"]
+"isaaclab-mimic" = ["isaaclab_mimic"]
+"isaaclab-tasks" = ["isaaclab_tasks"]
+
+[tool.ruff.format]
+
+docstring-code-format = true
 
 [tool.pyright]
 
@@ -164,9 +129,14 @@ reportPrivateUsage = "warning"
 
 
 [tool.codespell]
-skip = '*.usd,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
+skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
-ignore-words-list = "haa,slq,collapsable,buss,reacher"
-# todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
-exclude-file = "source/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"
+ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
+
+
+[tool.pytest.ini_options]
+
+markers = [
+    "isaacsim_ci: mark test to run in isaacsim ci",
+]

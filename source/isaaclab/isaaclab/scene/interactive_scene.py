@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import Any
+
+import torch
 
 import carb
 from isaacsim.core.cloner import GridCloner
@@ -26,12 +27,16 @@ from isaaclab.assets import (
     SurfaceGripper,
     SurfaceGripperCfg,
 )
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg, VisuoTactileSensorCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.utils.version import get_isaac_sim_version
+
+# Note: This is a temporary import for the VisuoTactileSensorCfg class.
+# It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -72,9 +77,10 @@ class InteractiveScene:
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
+
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-
+            # ANYmal-C robot spawned in each environment
             robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     Then the robot can be accessed from the scene as follows:

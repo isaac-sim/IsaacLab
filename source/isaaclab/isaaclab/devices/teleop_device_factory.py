@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Factory to create teleoperation devices from configuration."""
+
 import inspect
 import logging
 from collections.abc import Callable

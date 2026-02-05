@@ -64,18 +64,20 @@ def get_parameter_input(
         full_param_name = f"{event_term_name}.{param_name}" if event_term_name else param_name
 
         # Create container with label and range slider
-        container = widgets.HBox([
-            widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
-            widgets.FloatRangeSlider(
-                value=[current_val[0], current_val[1]],
-                min=allowed_range[0],
-                max=allowed_range[1],
-                step=step_size,
-                layout=widgets.Layout(width="300px"),
-                readout=True,
-                readout_format=".3f",
-            ),
-        ])
+        container = widgets.HBox(
+            [
+                widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
+                widgets.FloatRangeSlider(
+                    value=[current_val[0], current_val[1]],
+                    min=allowed_range[0],
+                    max=allowed_range[1],
+                    step=step_size,
+                    layout=widgets.Layout(width="300px"),
+                    readout=True,
+                    readout_format=".3f",
+                ),
+            ]
+        )
 
         def on_value_change(change):
             new_tuple = (change["new"][0], change["new"][1])
@@ -97,18 +99,20 @@ def get_parameter_input(
         full_param_name = f"{event_term_name}.{param_name}" if event_term_name else param_name
 
         # Create container with label and slider
-        container = widgets.HBox([
-            widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
-            widgets.FloatSlider(
-                value=current_val,
-                min=allowed_range[0],
-                max=allowed_range[1],
-                step=step_size,
-                layout=widgets.Layout(width="300px"),
-                readout=True,
-                readout_format=".3f",
-            ),
-        ])
+        container = widgets.HBox(
+            [
+                widgets.Label(full_param_name, layout=widgets.Layout(width="auto")),
+                widgets.FloatSlider(
+                    value=current_val,
+                    min=allowed_range[0],
+                    max=allowed_range[1],
+                    step=step_size,
+                    layout=widgets.Layout(width="300px"),
+                    readout=True,
+                    readout_format=".3f",
+                ),
+            ]
+        )
 
         def on_value_change(change):
             update_fn(change["new"])

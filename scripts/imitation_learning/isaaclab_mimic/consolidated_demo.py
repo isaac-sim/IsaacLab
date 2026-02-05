@@ -73,11 +73,12 @@ simulation_app = app_launcher.app
 
 import asyncio
 import contextlib
-import gymnasium as gym
-import numpy as np
 import os
 import random
 import time
+
+import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -301,7 +302,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
     is_first_print = True
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
-
             actions = torch.zeros(env.unwrapped.action_space.shape)
 
             # get actions from all the data generators

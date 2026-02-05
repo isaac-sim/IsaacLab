@@ -5,7 +5,6 @@
 
 """Configuration for Velodyne LiDAR sensors."""
 
-
 from isaaclab.sensors import RayCasterCfg, patterns
 
 ##

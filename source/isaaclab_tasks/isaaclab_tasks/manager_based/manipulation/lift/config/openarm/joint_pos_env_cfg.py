@@ -6,8 +6,6 @@
 
 import math
 
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
-
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
@@ -17,6 +15,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
 from isaaclab_tasks.manager_based.manipulation.lift.config.openarm.lift_openarm_env_cfg import LiftEnvCfg
+
+from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
 
 ##
 # Pre-defined configs

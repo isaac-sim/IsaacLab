@@ -170,7 +170,8 @@ class DirectRLEnvCfg:
     """
 
     observation_noise_model: NoiseModelCfg | None = None
-    """The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.
+    """The noise model to apply to the computed observations from the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -207,7 +208,8 @@ class DirectRLEnvCfg:
     """
 
     action_noise_model: NoiseModelCfg | None = None
-    """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.
+    """The noise model applied to the actions provided to the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -231,13 +233,14 @@ class DirectRLEnvCfg:
     """
 
     num_rerenders_on_reset: int = 0
-    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.
+    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed
+    after reset.
 
-    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-      latest states in simulation caused by the reset.
-    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-      to reflect the latest states from the reset. This comes at a cost of performance as additional render
-      steps will be performed after each time an environment is reset.
+    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+      reset will be stale and will not reflect the latest states in simulation caused by the reset.
+    * When this is greater than 0, the specified number of extra render steps will be performed to update the
+      sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+      render steps will be performed after each time an environment is reset.
     """
 
     wait_for_textures: bool = True

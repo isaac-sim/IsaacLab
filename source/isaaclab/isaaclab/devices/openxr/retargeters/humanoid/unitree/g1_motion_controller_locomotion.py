@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 from dataclasses import dataclass
+
+import torch
 
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
@@ -51,7 +52,8 @@ class G1LowerBodyStandingMotionControllerRetargeter(RetargeterBase):
                     right_thumbstick_x = right_inputs[DeviceBase.MotionControllerInputIndex.THUMBSTICK_X.value]
                     right_thumbstick_y = right_inputs[DeviceBase.MotionControllerInputIndex.THUMBSTICK_Y.value]
 
-        # Thumbstick values are in the range of [-1, 1], so we need to scale them to the range of [-movement_scale, movement_scale]
+        # Thumbstick values are in the range of [-1, 1], so we need to scale them to the range of
+        # [-movement_scale, movement_scale]
         left_thumbstick_x = left_thumbstick_x * self.cfg.movement_scale
         left_thumbstick_y = left_thumbstick_y * self.cfg.movement_scale
 

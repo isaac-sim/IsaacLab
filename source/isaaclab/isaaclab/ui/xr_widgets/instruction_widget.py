@@ -196,10 +196,12 @@ def show_instruction(
     if copied_prim is not None:
         space_stack.append(SpatialSource.new_prim_path_source(target_prim_path))
 
-    space_stack.extend([
-        SpatialSource.new_translation_source(translation),
-        SpatialSource.new_look_at_camera_source(),
-    ])
+    space_stack.extend(
+        [
+            SpatialSource.new_translation_source(translation),
+            SpatialSource.new_look_at_camera_source(),
+        ]
+    )
 
     # Create the UI container with the widget.
     container = UiContainer(

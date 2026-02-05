@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 from dataclasses import MISSING
 
-from isaacsim.core.api.simulation_context import SimulationContext
+import torch
+
 from isaacsim.core.prims import SingleArticulation
 
 # enable motion generation extensions
@@ -18,7 +18,7 @@ enable_extension("isaacsim.robot_motion.motion_generation")
 from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
-import isaaclab.sim.utils as sim_utils
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -79,7 +79,7 @@ class RmpFlowController:
             prim_paths_expr: The expression to find the articulation prim paths.
         """
         # obtain the simulation time
-        physics_dt = SimulationContext.instance().get_physics_dt()
+        physics_dt = sim_utils.SimulationContext.instance().get_physics_dt()
         # find all prims
         self._prim_paths = sim_utils.find_matching_prim_paths(prim_paths_expr)
         self.num_robots = len(self._prim_paths)

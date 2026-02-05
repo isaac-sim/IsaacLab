@@ -13,13 +13,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+
 import pytest
 
-from isaacsim.core.api.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
@@ -32,7 +33,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,
@@ -73,6 +74,7 @@ def setup_simulation():
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()
@@ -256,9 +258,9 @@ def _validate_articulation_properties_on_prim(
         # convert attribute name in prim to cfg name
         prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
         # validate the values
-        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-            attr_value, abs=1e-5
-        ), f"Failed setting for {prim_prop_name}"
+        assert root_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+            f"Failed setting for {prim_prop_name}"
+        )
 
 
 def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: bool = False):
@@ -282,9 +284,9 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                    attr_value, abs=1e-5
-                ), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                    f"Failed setting for {prim_prop_name}"
+                )
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a rigid body.")
 
@@ -311,9 +313,9 @@ def _validate_collision_properties_on_prim(prim_path: str, collision_cfg, verbos
                     # convert attribute name in prim to cfg name
                     prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"
                     # validate the values
-                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                        attr_value, abs=1e-5
-                    ), f"Failed setting for {prim_prop_name}"
+                    assert mesh_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                        f"Failed setting for {prim_prop_name}"
+                    )
             elif verbose:
                 print(f"Skipping prim {mesh_prim.GetPrimPath()} as it is not a collision mesh.")
 
@@ -339,9 +341,9 @@ def _validate_mass_properties_on_prim(prim_path: str, mass_cfg, verbose: bool = 
                 # print(link_prim.GetProperties())
                 prim_prop_name = f"physics:{to_camel_case(attr_name, to='cC')}"
                 # validate the values
-                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(
-                    attr_value, abs=1e-5
-                ), f"Failed setting for {prim_prop_name}"
+                assert link_prim.GetAttribute(prim_prop_name).Get() == pytest.approx(attr_value, abs=1e-5), (
+                    f"Failed setting for {prim_prop_name}"
+                )
         elif verbose:
             print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a mass api.")
 
@@ -400,8 +402,8 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                             prim_attr_value = prim_attr_value * 180.0 / math.pi
 
                     # validate the values
-                    assert prim_attr_value == pytest.approx(
-                        attr_value, abs=1e-5
-                    ), f"Failed setting for {prim_attr_name}"
+                    assert prim_attr_value == pytest.approx(attr_value, abs=1e-5), (
+                        f"Failed setting for {prim_attr_name}"
+                    )
             elif verbose:
                 print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")

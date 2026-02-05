@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import torch
 import weakref
+
+import torch
 
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
@@ -121,7 +122,8 @@ class ArticulationData:
     ##
 
     default_root_state: torch.Tensor = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame. Shape is (num_instances, 13).
+    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
+    Shape is (num_instances, 13).
 
     The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
     velocities are of its center of mass frame.
@@ -154,9 +156,10 @@ class ArticulationData:
     default_inertia: torch.Tensor = None
     """Default inertia for all the bodies in the articulation. Shape is (num_instances, num_bodies, 9).
 
-    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links' actor frame.
-    The values are stored in the order :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`.
-    However, due to the symmetry of inertia tensors, row- and column-major orders are equivalent.
+    The inertia tensor should be given with respect to the center of mass, expressed in the articulation links'
+    actor frame. The values are stored in the order
+    :math:`[I_{xx}, I_{yx}, I_{zx}, I_{xy}, I_{yy}, I_{zy}, I_{xz}, I_{yz}, I_{zz}]`. However, due to the
+    symmetry of inertia tensors, row- and column-major orders are equivalent.
 
     This quantity is parsed from the USD schema at the time of initialization.
     """
@@ -200,34 +203,38 @@ class ArticulationData:
     parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
     is used.
 
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
+    Note:
+        In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+        it is modeled as an effort (torque or force).
     """
 
     default_joint_dynamic_friction_coeff: torch.Tensor = None
     """Default joint dynamic friction coefficient of all joints. Shape is (num_instances, num_joints).
 
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
+    This quantity is configured through the actuator model's
+    :attr:`isaaclab.actuators.ActuatorBaseCfg.dynamic_friction` parameter. If the parameter's value is None,
+    the value parsed from the USD schema, at the time of initialization, is used.
 
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
+    Note:
+        In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
+        it is modeled as an effort (torque or force).
     """
 
     default_joint_viscous_friction_coeff: torch.Tensor = None
     """Default joint viscous friction coefficient of all joints. Shape is (num_instances, num_joints).
 
-    This quantity is configured through the actuator model's :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction`
-    parameter. If the parameter's value is None, the value parsed from the USD schema, at the time of initialization,
-    is used.
+    This quantity is configured through the actuator model's
+    :attr:`isaaclab.actuators.ActuatorBaseCfg.viscous_friction` parameter. If the parameter's value is None,
+    the value parsed from the USD schema, at the time of initialization, is used.
     """
 
     default_joint_pos_limits: torch.Tensor = None
     """Default joint position limits of all joints. Shape is (num_instances, num_joints, 2).
 
-    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the time of initialization.
+    The limits are in the order :math:`[lower, upper]`. They are parsed from the USD schema at the
+    time of initialization.
     """
+
     default_fixed_tendon_stiffness: torch.Tensor = None
     """Default tendon stiffness of all fixed tendons. Shape is (num_instances, num_fixed_tendons).
 
@@ -555,7 +562,8 @@ class ArticulationData:
 
     @property
     def root_com_state_w(self):
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, 13).
 
         The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
         relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
@@ -726,8 +734,11 @@ class ArticulationData:
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
         world of an articulation.
 
-        For more information on joint wrenches, please check the`PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force>`__
-        and the underlying `PhysX Tensor API <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force>`__ .
+        For more information on joint wrenches, please check the`PhysX documentation`_ and the underlying
+        `PhysX Tensor API`_.
+
+        .. _`PhysX documentation`: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
+        .. _`PhysX Tensor API`: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
         """
 
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:

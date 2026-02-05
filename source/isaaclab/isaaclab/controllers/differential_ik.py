@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 
@@ -209,7 +210,7 @@ class DifferentialIKController:
             # U: 6xd, S: dxd, V: d x num-joint
             U, S, Vh = torch.linalg.svd(jacobian)
             S_inv = 1.0 / S
-            S_inv = torch.where(S > min_singular_value, S_inv, torch.zeros_like(S_inv))
+            S_inv = torch.where(min_singular_value < S, S_inv, torch.zeros_like(S_inv))
             jacobian_pinv = (
                 torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6]
                 @ torch.diag_embed(S_inv)

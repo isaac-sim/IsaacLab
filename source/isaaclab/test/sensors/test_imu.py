@@ -14,6 +14,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import pathlib
+
 import pytest
 import torch
 
@@ -359,7 +360,6 @@ def test_single_dof_pendulum(setup_sim):
 
     # should achieve same results between the two imu sensors on the robot
     for idx in range(500):
-
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -493,7 +493,6 @@ def test_indirect_attachment(setup_sim):
 
     # should achieve same results between the two imu sensors on the robot
     for idx in range(500):
-
         # write data to sim
         scene.write_data_to_sim()
         # perform step

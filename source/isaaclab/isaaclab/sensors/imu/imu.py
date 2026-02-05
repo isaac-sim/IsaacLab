@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
@@ -26,8 +27,9 @@ if TYPE_CHECKING:
 class Imu(SensorBase):
     """The Inertia Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame linear acceleration and angular velocity,
-    along with world-frame pose and body-frame linear and angular accelerations/velocities.
+    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
+    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
+    accelerations/velocities.
 
     If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
     The fixed transform from that ancestor to the target prim is computed once during initialization and
@@ -41,8 +43,8 @@ class Imu(SensorBase):
 
     .. note::
 
-        The user can configure the sensor offset in the configuration file. The offset is applied relative to the rigid source prim.
-        If the target prim is not a rigid body, the offset is composed with the fixed transform
+        The user can configure the sensor offset in the configuration file. The offset is applied relative to the
+        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
         from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
         The offset is defined as a position vector and a quaternion rotation, which
         are applied in the order: position, then rotation. The position is applied as a translation
@@ -247,7 +249,8 @@ class Imu(SensorBase):
         self._prev_lin_vel_w = torch.zeros_like(self._data.pos_w)
         self._prev_ang_vel_w = torch.zeros_like(self._data.pos_w)
 
-        # store sensor offset (applied relative to rigid source). This may be composed later with a fixed ancestor->target transform.
+        # store sensor offset (applied relative to rigid source).
+        # This may be composed later with a fixed ancestor->target transform.
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
         # set gravity bias

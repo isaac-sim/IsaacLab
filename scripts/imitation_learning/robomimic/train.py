@@ -53,37 +53,31 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-# Standard library imports
 import argparse
-
-# Third-party imports
-import gymnasium as gym
-import h5py
 import importlib
 import json
-import numpy as np
 import os
 import shutil
 import sys
 import time
-import torch
 import traceback
 from collections import OrderedDict
-from torch.utils.data import DataLoader
 
+import gymnasium as gym
+import h5py
+import numpy as np
 import psutil
-
-# Robomimic imports
 import robomimic.utils.env_utils as EnvUtils
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.utils.torch_utils as TorchUtils
 import robomimic.utils.train_utils as TrainUtils
+import torch
 from robomimic.algo import algo_factory
 from robomimic.config import Config, config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
+from torch.utils.data import DataLoader
 
-# Isaac Lab imports (needed so that environment is registered)
 import isaaclab_tasks  # noqa: F401
 import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
 import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401

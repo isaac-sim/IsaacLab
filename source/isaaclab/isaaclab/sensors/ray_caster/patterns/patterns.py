@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import math
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 if TYPE_CHECKING:
     from . import patterns_cfg
@@ -153,7 +154,9 @@ def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch
         up_to = None
 
     # Horizontal angles
-    num_horizontal_angles = math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res)
+    num_horizontal_angles = (
+        math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res) + 1
+    )
     horizontal_angles = torch.linspace(cfg.horizontal_fov_range[0], cfg.horizontal_fov_range[1], num_horizontal_angles)[
         :up_to
     ]

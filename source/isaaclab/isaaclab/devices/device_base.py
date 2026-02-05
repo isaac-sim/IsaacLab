@@ -5,12 +5,13 @@
 
 """Base class for teleoperation interface."""
 
-import torch
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 

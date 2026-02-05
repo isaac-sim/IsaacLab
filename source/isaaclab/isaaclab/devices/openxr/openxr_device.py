@@ -4,14 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """OpenXR-powered device for teleoperation and interaction."""
+
 from __future__ import annotations
 
 import contextlib
 import logging
-import numpy as np
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
 
 import carb
 
@@ -31,7 +33,7 @@ XRPoseValidityFlags = None
 XRCoreEventType = None
 
 with contextlib.suppress(ModuleNotFoundError):
-    from omni.kit.xr.core import XRCore, XRPoseValidityFlags, XRCoreEventType
+    from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 
 from isaacsim.core.prims import SingleXFormPrim
 
@@ -345,15 +347,17 @@ class OpenXRDevice(DeviceBase):
             quatw = quat.GetReal()
 
             # Store in w, x, y, z order to match our convention
-            self._previous_headpose = np.array([
-                position[0],
-                position[1],
-                position[2],
-                quatw,
-                quati[0],
-                quati[1],
-                quati[2],
-            ])
+            self._previous_headpose = np.array(
+                [
+                    position[0],
+                    position[1],
+                    position[2],
+                    quatw,
+                    quati[0],
+                    quati[1],
+                    quati[2],
+                ]
+            )
 
         return self._previous_headpose
 

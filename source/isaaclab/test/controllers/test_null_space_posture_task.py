@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 """Launch Isaac Sim Simulator first."""
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+
+# Import pinocchio in the main script to force the use of the dependencies installed
+# by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
@@ -23,7 +25,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import pytest
-
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
@@ -150,9 +151,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         # Test: N * J^T should be approximately zero (null space property)
         # where N is the null space projector and J is the end-effector Jacobian
         null_space_projection = null_space_jacobian @ ee_jacobian.T
-        assert np.allclose(
-            null_space_projection, np.zeros_like(null_space_projection), atol=1e-7
-        ), f"Null space projection of end-effector Jacobian not zero: {null_space_projection}"
+        assert np.allclose(null_space_projection, np.zeros_like(null_space_projection), atol=1e-7), (
+            f"Null space projection of end-effector Jacobian not zero: {null_space_projection}"
+        )
 
     def test_null_space_jacobian_identity_when_no_frame_tasks(
         self, robot_configuration, joint_configurations, num_joints
@@ -173,9 +174,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
 
         # Should be identity matrix
         expected_identity = np.eye(num_joints)
-        assert np.allclose(
-            null_space_jacobian, expected_identity
-        ), f"Null space Jacobian should be identity when no frame tasks defined: {null_space_jacobian}"
+        assert np.allclose(null_space_jacobian, expected_identity), (
+            f"Null space Jacobian should be identity when no frame tasks defined: {null_space_jacobian}"
+        )
 
     def test_null_space_jacobian_consistency_across_configurations(
         self, robot_configuration, tasks, joint_configurations, num_joints
@@ -215,9 +216,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
             null_space_velocity = jacobian @ random_velocity
             ee_velocity = ee_jacobian @ null_space_velocity
 
-            assert np.allclose(
-                ee_velocity, np.zeros(6), atol=1e-7
-            ), f"End-effector velocity not zero for configuration {config}: {ee_velocity}"
+            assert np.allclose(ee_velocity, np.zeros(6), atol=1e-7), (
+                f"End-effector velocity not zero for configuration {config}: {ee_velocity}"
+            )
 
     def test_compute_error_without_target(self, robot_configuration, joint_configurations):
         """Test that compute_error raises ValueError when no target is set."""
@@ -258,14 +259,16 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         error = null_space_task.compute_error(robot_configuration)
 
         # Only controlled joints should have non-zero error
-        # Joint indices: waist_yaw_joint=0, waist_pitch_joint=1, waist_roll_joint=2, left_shoulder_pitch_joint=3, left_shoulder_roll_joint=4, etc.
+        # Joint indices:
+        # waist_yaw_joint=0, waist_pitch_joint=1, waist_roll_joint=2, left_shoulder_pitch_joint=3,
+        # left_shoulder_roll_joint=4, etc.
         expected_error = np.zeros(num_joints)
         for i in joint_indexes:
             expected_error[i] = current_config[i]
 
-        assert np.allclose(
-            error, expected_error, atol=1e-7
-        ), f"Joint mask not working correctly: expected {expected_error}, got {error}"
+        assert np.allclose(error, expected_error, atol=1e-7), (
+            f"Joint mask not working correctly: expected {expected_error}, got {error}"
+        )
 
     def test_empty_controlled_joints(self, robot_configuration, joint_configurations, num_joints):
         """Test behavior when controlled_joints is empty."""
@@ -331,9 +334,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
             ee_velocity_left = jacobian_left_hand @ null_space_velocity
             ee_velocity_right = jacobian_right_hand @ null_space_velocity
 
-            assert np.allclose(
-                ee_velocity_left, np.zeros(6), atol=1e-7
-            ), f"Left hand velocity not zero: {ee_velocity_left}"
-            assert np.allclose(
-                ee_velocity_right, np.zeros(6), atol=1e-7
-            ), f"Right hand velocity not zero: {ee_velocity_right}"
+            assert np.allclose(ee_velocity_left, np.zeros(6), atol=1e-7), (
+                f"Left hand velocity not zero: {ee_velocity_left}"
+            )
+            assert np.allclose(ee_velocity_right, np.zeros(6), atol=1e-7), (
+                f"Right hand velocity not zero: {ee_velocity_right}"
+            )

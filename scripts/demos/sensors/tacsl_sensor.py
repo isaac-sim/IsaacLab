@@ -7,20 +7,28 @@
 Example script demonstrating the TacSL tactile sensor implementation in IsaacLab.
 
 This script shows how to use the TactileSensor for both camera-based and force field
-tactile sensing with the gelsight finger setup.
+tactile sensing with the GelSight finger setup.
 
 .. code-block:: bash
 
     # Usage
-    python tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --num_envs 16 --contact_object_type nut --save_viz --enable_cameras
+    python scripts/demos/sensors/tacsl_sensor.py \
+        --use_tactile_rgb \
+        --use_tactile_ff \
+        --tactile_compliance_stiffness 100.0 \
+        --num_envs 16 \
+        --contact_object_type nut \
+        --save_viz \
+        --enable_cameras
 
 """
 
 import argparse
-import cv2
 import math
-import numpy as np
 import os
+
+import cv2
+import numpy as np
 import torch
 
 from isaaclab.app import AppLauncher
@@ -69,19 +77,19 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from isaaclab_assets.sensors import GELSIGHT_R15_CFG
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-
-# Import our TactileSensor
-from isaaclab.sensors import TiledCameraCfg, VisuoTactileSensorCfg
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
+
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import compute_tactile_shear_image
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+
+from isaaclab_assets.sensors import GELSIGHT_R15_CFG
 
 
 @configclass
@@ -145,12 +153,14 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         friction_coefficient=args_cli.friction_coefficient,
         tangential_stiffness=args_cli.tangential_stiffness,
         # Camera configuration
+        # Note: the camera is already spawned in the scene, properties are set in the
+        # 'gelsight_r15_finger.usd' USD file
         camera_cfg=TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             height=GELSIGHT_R15_CFG.image_height,
             width=GELSIGHT_R15_CFG.image_width,
             data_types=["distance_to_image_plane"],
-            spawn=None,  # the camera is already spawned in the scene, properties are set in the gelsight_r15_finger.usd file
+            spawn=None,
         ),
         # Debug Visualization
         trimesh_vis_tactile_points=args_cli.trimesh_vis_tactile_points,
@@ -214,10 +224,13 @@ def mkdir_helper(dir_path: str) -> tuple[str, str]:
     """
     tactile_img_folder = dir_path
     os.makedirs(tactile_img_folder, exist_ok=True)
+    # create a subdirectory for the force field data
     tactile_force_field_dir = os.path.join(tactile_img_folder, "tactile_force_field")
     os.makedirs(tactile_force_field_dir, exist_ok=True)
+    # create a subdirectory for the RGB image data
     tactile_rgb_image_dir = os.path.join(tactile_img_folder, "tactile_rgb_image")
     os.makedirs(tactile_rgb_image_dir, exist_ok=True)
+
     return tactile_force_field_dir, tactile_rgb_image_dir
 
 
@@ -258,9 +271,13 @@ def save_viz_helper(
                 tactile_shear_force[1, :, :].detach().cpu().numpy(),
             )
             combined_image = np.vstack([tactile_image, tactile_image_1])
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (combined_image * 255).astype(np.uint8))
+            cv2.imwrite(
+                os.path.join(tactile_force_field_dir, f"{count:04d}.png"), (combined_image * 255).astype(np.uint8)
+            )
         else:
-            cv2.imwrite(os.path.join(tactile_force_field_dir, f"{count}.png"), (tactile_image * 255).astype(np.uint8))
+            cv2.imwrite(
+                os.path.join(tactile_force_field_dir, f"{count:04d}.png"), (tactile_image * 255).astype(np.uint8)
+            )
 
     if tactile_data.tactile_rgb_image is not None:
         tactile_rgb_data = tactile_data.tactile_rgb_image.cpu().numpy()
@@ -274,7 +291,7 @@ def save_viz_helper(
                 if tactile_rgb_tiled.max() <= 1.0
                 else tactile_rgb_tiled.astype(np.uint8)
             )
-        cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count}.png"), tactile_rgb_tiled)
+        cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count:04d}.png"), tactile_rgb_tiled)
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -289,6 +306,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     if args_cli.save_viz:
         # Create output directories for tactile data
+        print(f"[INFO]: Saving tactile data to: {args_cli.save_viz_dir}...")
         dir_path_list = mkdir_helper(args_cli.save_viz_dir)
 
     # Create constant downward force
@@ -308,7 +326,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         entity_list.append("contact_object")
 
     while simulation_app.is_running():
-
         if count == 122:
             # Reset robot and contact object positions
             count = 0
@@ -328,7 +345,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 even_mask = env_indices % 2 == 0
                 torque_tensor[odd_mask, 0, 2] = 10  # rotation for odd environments
                 torque_tensor[even_mask, 0, 2] = -10  # rotation for even environments
-                scene["contact_object"].set_external_force_and_torque(force_tensor, torque_tensor)
+                scene["contact_object"].permanent_wrench_composer.set_forces_and_torques(force_tensor, torque_tensor)
 
         # Step simulation
         scene.write_data_to_sim()
@@ -362,22 +379,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     # Initialize simulation
+    # Note: We set the gpu_collision_stack_size to prevent buffer overflow in contact-rich environments.
     sim_cfg = sim_utils.SimulationCfg(
         dt=0.005,
         device=args_cli.device,
-        physx=sim_utils.PhysxCfg(
-            gpu_collision_stack_size=2**30,  # Prevent collisionStackSize buffer overflow in contact-rich environments.
-        ),
+        physx=sim_utils.PhysxCfg(gpu_collision_stack_size=2**30),
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Set main camera
-    sim.set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[0.5, 0.6, 1.0], target=[-0.1, 0.1, 0.5])
 
     # Create scene based on contact object type
     if args_cli.contact_object_type == "cube":
         scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # disabled force field for cube contact object because a SDF collision mesh cannot be created for the Shape Prims
+        # disabled force field for cube contact object because a SDF collision mesh cannot
+        # be created for the Shape Prims
         scene_cfg.tactile_sensor.enable_force_field = False
     elif args_cli.contact_object_type == "nut":
         scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
@@ -386,6 +403,10 @@ def main():
         scene_cfg.tactile_sensor.contact_object_prim_path_expr = None
         # this flag is to visualize the tactile sensor points
         scene_cfg.tactile_sensor.debug_vis = True
+    else:
+        raise ValueError(
+            f"Invalid contact object type: '{args_cli.contact_object_type}'. Must be 'none', 'cube', or 'nut'."
+        )
 
     scene = InteractiveScene(scene_cfg)
 

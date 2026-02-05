@@ -8,12 +8,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import h5py
 import json
-import numpy as np
 import os
-import torch
 from collections.abc import Iterable
+
+import h5py
+import numpy as np
+import torch
 
 from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData

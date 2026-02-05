@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
+
+import torch
 
 from isaaclab.utils import configclass
 

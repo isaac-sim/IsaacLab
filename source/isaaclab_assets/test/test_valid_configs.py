@@ -20,10 +20,10 @@ simulation_app = app_launcher.app
 # Define a fixture to replace setUpClass
 import pytest
 
-import isaaclab_assets as lab_assets  # noqa: F401
-
 from isaaclab.assets import AssetBase, AssetBaseCfg
 from isaaclab.sim import build_simulation_context
+
+import isaaclab_assets as lab_assets  # noqa: F401
 
 
 @pytest.fixture(scope="module")

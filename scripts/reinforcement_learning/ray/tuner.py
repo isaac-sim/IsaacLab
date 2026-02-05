@@ -274,10 +274,12 @@ def invoke_tuning_run(
     repeat_search = Repeater(searcher, repeat=args.repeat_run_count)
 
     # Configure the stoppers
-    stoppers: CombinedStopper = CombinedStopper(*[
-        LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
-        *([stopper] if stopper is not None else []),
-    ])
+    stoppers: CombinedStopper = CombinedStopper(
+        *[
+            LogExtractionErrorStopper(max_errors=MAX_LOG_EXTRACTION_ERRORS),
+            *([stopper] if stopper is not None else []),
+        ]
+    )
 
     if progress_reporter is not None:
         os.environ["RAY_AIR_NEW_OUTPUT"] = "0"

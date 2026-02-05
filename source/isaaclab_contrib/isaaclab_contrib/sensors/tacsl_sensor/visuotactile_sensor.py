@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import itertools
 import logging
-import numpy as np
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import torch
 
 import isaacsim.core.utils.torch as torch_utils
 from isaacsim.core.simulation_manager import SimulationManager
@@ -22,8 +23,9 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sensors.tacsl_sensor.visuotactile_render import GelsightRender
-from isaaclab.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+
+from .visuotactile_render import GelsightRender
+from .visuotactile_sensor_data import VisuoTactileSensorData
 
 if TYPE_CHECKING:
     from .visuotactile_sensor_cfg import VisuoTactileSensorCfg
@@ -47,7 +49,8 @@ class VisuoTactileSensor(SensorBase):
         processes them through the tac-sl GelSight renderer to produce realistic tactile images.
 
         Force field sensing queries Signed Distance Fields (SDF) to compute penetration depths,
-        then applies penalty-based spring-damper models (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
+        then applies penalty-based spring-damper models
+        (:math:`F_n = k_n \cdot \text{depth}`, :math:`F_t = \min(k_t \cdot \|v_t\|, \mu \cdot F_n)`)
         to compute normal and shear forces at discrete tactile points.
 
     **Example Usage:**
@@ -763,7 +766,6 @@ class VisuoTactileSensor(SensorBase):
         num_pts = self.num_tactile_points
 
         if collision_mask.any() or self.cfg.visualize_sdf_closest_pts:
-
             # Get contact object and elastomer velocities (com velocities)
             contact_object_velocities = self._contact_object_body_view.get_velocities()
             contact_object_linvel_w_com = contact_object_velocities[env_ids, :3]

@@ -156,8 +156,8 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         >>>
         >>> stage_in_memory = Usd.Stage.CreateInMemory()
         >>> with sim_utils.use_stage(stage_in_memory):
-        ...    # operate on the specified stage
-        ...    pass
+        ...     # operate on the specified stage
+        ...     pass
         >>> # operate on the default stage attached to the USD context
     """
     if get_isaac_sim_version().major < 5:
@@ -275,7 +275,6 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
         >>>
         >>> def callback(*args, **kwargs):
         ...     print("callback:", args, kwargs)
-        ...
         >>> sim_utils.close_stage(callback)
         True
         >>> sim_utils.close_stage(callback)
@@ -355,7 +354,7 @@ def is_stage_loading() -> bool:
     """Convenience function to see if any files are being loaded.
 
     Returns:
-        bool: True if loading, False otherwise
+        True if loading, False otherwise
 
     Example:
         >>> import isaaclab.sim as sim_utils
@@ -389,6 +388,14 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        pathResolverContext=<invalid repr>)
     """
     stage = getattr(_context, "stage", omni.usd.get_context().get_stage())
+
+    if fabric:
+        import usdrt
+
+        # Get stage ID and attach to Fabric stage
+        stage_id = get_current_stage_id()
+        return usdrt.Usd.Stage.Attach(stage_id)
+
     return stage
 
 

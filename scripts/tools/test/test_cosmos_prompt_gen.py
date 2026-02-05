@@ -7,8 +7,9 @@
 
 import json
 import os
-import pytest
 import tempfile
+
+import pytest
 
 from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 
@@ -16,7 +17,7 @@ from scripts.tools.cosmos.cosmos_prompt_gen import generate_prompt, main
 @pytest.fixture(scope="class")
 def temp_templates_file():
     """Create temporary templates file."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)  # noqa: SIM115
 
     # Create test templates
     test_templates = {
@@ -39,7 +40,7 @@ def temp_templates_file():
 @pytest.fixture
 def temp_output_file():
     """Create temporary output file."""
-    temp_file = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".txt", delete=False)  # noqa: SIM115
     yield temp_file.name
     # Cleanup
     os.remove(temp_file.name)

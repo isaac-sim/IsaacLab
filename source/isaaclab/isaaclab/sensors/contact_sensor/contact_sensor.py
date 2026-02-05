@@ -8,9 +8,10 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 import carb
 import omni.physics.tensors.impl.api as physx

@@ -121,7 +121,8 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         ),
         # "left_Right_2_Joint" is excluded from Articulation.
         # "left_hand_joint1" is the driver joint, and "left_Right_1_Joint" is the mimic joint.
-        # "left_.*_Support_Joint" driver joint can be set optionally, to disable the driver, set stiffness and damping to 0.0 below
+        # "left_.*_Support_Joint" driver joint can be set optionally, to disable the driver,
+        #   set stiffness and damping to 0.0 below
         "left_gripper": ImplicitActuatorCfg(
             joint_names_expr=["left_hand_joint1", "left_.*_Support_Joint"],
             effort_limit_sim={"left_hand_joint1": 10.0, "left_.*_Support_Joint": 1.0},
@@ -139,7 +140,8 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         ),
         # "right_Right_2_Joint" is excluded from Articulation.
         # "right_hand_joint1" is the driver joint, and "right_Right_1_Joint" is the mimic joint.
-        # "right_.*_Support_Joint" driver joint can be set optionally, to disable the driver, set stiffness and damping to 0.0 below
+        # "right_.*_Support_Joint" driver joint can be set optionally, to disable the driver,
+        #   set stiffness and damping to 0.0 below
         "right_gripper": ImplicitActuatorCfg(
             joint_names_expr=["right_hand_joint1", "right_.*_Support_Joint"],
             effort_limit_sim={"right_hand_joint1": 100.0, "right_.*_Support_Joint": 100.0},

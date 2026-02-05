@@ -21,6 +21,7 @@ from .cartpole_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 
 @configclass
 class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
+    """Configuration for the cartpole environment with RGB camera."""
 
     # add camera to the scene
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
@@ -37,7 +38,6 @@ class CartpoleRGBCameraSceneCfg(CartpoleSceneCfg):
 
 @configclass
 class CartpoleDepthCameraSceneCfg(CartpoleSceneCfg):
-
     # add camera to the scene
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",

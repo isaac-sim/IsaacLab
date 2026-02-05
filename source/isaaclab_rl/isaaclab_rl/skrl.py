@@ -18,7 +18,7 @@ Or, equivalently, by directly calling the skrl library API as follows:
 .. code-block:: python
 
     from skrl.envs.torch.wrappers import wrap_env  # for PyTorch, or...
-    from skrl.envs.jax.wrappers import wrap_env    # for JAX
+    from skrl.envs.jax.wrappers import wrap_env  # for JAX
 
     env = wrap_env(env, wrapper="isaaclab")
 

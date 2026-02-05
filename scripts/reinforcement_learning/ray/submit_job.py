@@ -46,7 +46,8 @@ Usage:
     python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
 
     # Example: submitting tasks with specific resources, and supporting pip packages and py_modules
-    # You may use relative paths for task_cfg and py_modules, placing them in the scripts/reinforcement_learning/ray directory, which will be uploaded to the cluster.
+    # You may use relative paths for task_cfg and py_modules, placing them in the
+    # "scripts/reinforcement_learning/ray" directory, which will be uploaded to the cluster.
     python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml
 
     # For all command line arguments

@@ -6,7 +6,6 @@
 
 """Configuration for the ray-cast sensor."""
 
-
 from dataclasses import MISSING
 
 from isaaclab.utils import configclass
@@ -39,8 +38,8 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
         merge_prim_meshes: bool = True
         """Whether to merge the parsed meshes for a prim that contains multiple meshes. Defaults to True.
 
-        This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs will then refer to the single
-        merged mesh.
+        This will create a new mesh that combines all meshes in the parsed prim. The raycast hits mesh IDs
+        will then refer to the single merged mesh.
         """
 
         track_mesh_transforms: bool = True
@@ -55,7 +54,9 @@ class MultiMeshRayCasterCfg(RayCasterCfg):
     mesh_prim_paths: list[str | RaycastTargetCfg] = MISSING
     """The list of mesh primitive paths to ray cast against.
 
-    If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with `~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility with the default raycaster.
+    If an entry is a string, it is internally converted to :class:`RaycastTargetCfg` with
+    :attr:`~RaycastTargetCfg.track_mesh_transforms` disabled. These settings ensure backwards compatibility
+    with the default raycaster.
     """
 
     update_mesh_ids: bool = False

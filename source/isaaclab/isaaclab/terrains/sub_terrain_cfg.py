@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-import numpy as np
-import trimesh
 from collections.abc import Callable
 from dataclasses import MISSING
+
+import numpy as np
+import trimesh
 
 from isaaclab.utils import configclass
 

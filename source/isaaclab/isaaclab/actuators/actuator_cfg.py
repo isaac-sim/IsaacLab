@@ -21,8 +21,7 @@ def __getattr__(name):
     if new_module is not None:
         warnings.warn(
             f"The module actuator_cfg.py is deprecated. Please import {name} directly from the isaaclab.actuators"
-            " package, "
-            + f"or from its new module {new_module.__name__}.",
+            f" package, or from its new module {new_module.__name__}.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -12,8 +12,9 @@ the randomization introduced by the function.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# ruff: noqa
 # fmt: off
 
 # [start-init-import]

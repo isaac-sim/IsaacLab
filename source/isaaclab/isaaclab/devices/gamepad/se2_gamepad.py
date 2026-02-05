@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
-import numpy as np
-import torch
 import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
+
+import numpy as np
+import torch
 
 import carb
 import carb.input

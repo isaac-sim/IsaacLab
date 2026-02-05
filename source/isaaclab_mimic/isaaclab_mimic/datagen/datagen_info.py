@@ -3,24 +3,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-Defines structure of information that is needed from an environment for data generation.
-"""
+"""Defines the structure of information required from an environment for data generation processes."""
+
 from copy import deepcopy
 
 
 class DatagenInfo:
-    """
-    Defines the structure of information required from an environment for data generation processes.
-    The `DatagenInfo` class centralizes all essential data elements needed for data generation in one place,
-    reducing the overhead and complexity of repeatedly querying the environment whenever this information is needed.
+    """Defines the structure of information required from an environment for data generation processes.
+
+    The :class:`DatagenInfo` class centralizes all essential data elements needed for data generation in one place,
+    reducing the overhead and complexity of repeatedly querying the environment whenever this information
+    is needed.
 
     To allow for flexibility,not all information must be present.
 
     Core Elements:
+
     - **eef_pose**: Captures the current 6 dimensional poses of the robot's end-effector.
     - **object_poses**: Captures the 6 dimensional poses of relevant objects in the scene.
-    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify the precise start of a subtask from a demonstration.
+    - **subtask_start_signals**: Captures subtask start signals. Used by skillgen to identify
+      the precise start of a subtask from a demonstration.
     - **subtask_term_signals**: Captures subtask completions signals.
     - **target_eef_pose**: Captures the target 6 dimensional poses for robot's end effector at each time step.
     - **gripper_action**:  Captures the gripper's state.
@@ -35,7 +37,8 @@ class DatagenInfo:
         target_eef_pose=None,
         gripper_action=None,
     ):
-        """
+        """Initialize the DatagenInfo object.
+
         Args:
             eef_pose (torch.Tensor or None): robot end effector poses of shape [..., 4, 4]
             object_poses (dict or None): dictionary mapping object name to object poses
@@ -87,9 +90,11 @@ class DatagenInfo:
         if gripper_action is not None:
             self.gripper_action = gripper_action
 
-    def to_dict(self):
-        """
-        Convert this instance to a dictionary containing the same information.
+    def to_dict(self) -> dict:
+        """Convert this instance to a dictionary containing the same information.
+
+        Returns:
+            A dictionary containing the same information as this instance.
         """
         ret = dict()
         if self.eef_pose is not None:

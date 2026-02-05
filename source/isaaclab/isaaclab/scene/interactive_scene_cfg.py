@@ -33,9 +33,9 @@ class InteractiveSceneCfg:
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
+
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-
             # terrain - flat terrain plane
             terrain = TerrainImporterCfg(
                 prim_path="/World/ground",

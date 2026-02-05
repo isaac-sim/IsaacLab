@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import json
-import numpy as np
 import os
+
+import numpy as np
 import torch
 
 import carb
@@ -27,7 +28,6 @@ class DisassemblyEnv(DirectRLEnv):
     cfg: DisassemblyEnvCfg
 
     def __init__(self, cfg: DisassemblyEnvCfg, render_mode: str | None = None, **kwargs):
-
         # Update number of obs/states
         cfg.observation_space = sum([OBS_DIM_CFG[obs] for obs in cfg.obs_order])
         cfg.state_space = sum([STATE_DIM_CFG[state] for state in cfg.state_order])
@@ -426,7 +426,6 @@ class DisassemblyEnv(DirectRLEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         if time_out[0]:
-
             self.close_gripper(env_ids=np.array(range(self.num_envs)).reshape(-1))
             self._disassemble_plug_from_socket()
 
@@ -551,7 +550,6 @@ class DisassemblyEnv(DirectRLEnv):
         return pos_error, axis_angle_error
 
     def _move_gripper_to_eef_pose(self, env_ids, goal_pos, goal_quat, sim_steps, if_log=False):
-
         for _ in range(sim_steps):
             if if_log:
                 self._log_robot_state_per_timestep()
@@ -617,7 +615,6 @@ class DisassemblyEnv(DirectRLEnv):
         self._compute_intermediate_values(dt=self.physics_dt)
 
     def randomize_fixed_initial_state(self, env_ids):
-
         # (1.) Randomize fixed asset pose.
         fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
         # (1.a.) Position
@@ -655,7 +652,6 @@ class DisassemblyEnv(DirectRLEnv):
         self.step_sim_no_action()
 
     def randomize_held_initial_state(self, env_ids, pre_grasp):
-
         # Set plug pos to assembled state
         held_state = self._held_asset.data.default_root_state.clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
@@ -749,7 +745,6 @@ class DisassemblyEnv(DirectRLEnv):
         """Lift gripper by specified distance. Called outside RL loop (i.e., after last step of episode)."""
 
         ctrl_tgt_pos = torch.empty_like(self.fingertip_midpoint_pos).copy_(self.fingertip_midpoint_pos)
-        # ctrl_tgt_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32, device=self.device).repeat((self.num_envs,1))
         ctrl_tgt_quat = torch.empty_like(self.fingertip_midpoint_quat).copy_(self.fingertip_midpoint_quat)
         ctrl_tgt_pos[:, 2] += lift_distance
         if len(env_ids) == 0:
@@ -798,7 +793,6 @@ class DisassemblyEnv(DirectRLEnv):
         self._move_gripper_to_eef_pose(env_ids, ctrl_tgt_pos, ctrl_tgt_quat, sim_steps, if_log=True)
 
     def _init_log_data_per_assembly(self):
-
         self.log_assembly_id = []
         self.log_plug_pos = []
         self.log_plug_quat = []
@@ -811,7 +805,6 @@ class DisassemblyEnv(DirectRLEnv):
         self.log_arm_dof_pos = []
 
     def _init_log_data_per_episode(self):
-
         self.log_fingertip_centered_pos_traj = []
         self.log_fingertip_centered_quat_traj = []
         self.log_arm_dof_pos_traj = []
@@ -824,7 +817,6 @@ class DisassemblyEnv(DirectRLEnv):
         self.init_plug_quat = self.held_quat.clone().detach()
 
     def _log_robot_state(self, env_ids):
-
         self.log_plug_pos += torch.stack(self.log_plug_pos_traj, dim=1)[env_ids].cpu().tolist()
         self.log_plug_quat += torch.stack(self.log_plug_quat_traj, dim=1)[env_ids].cpu().tolist()
         self.log_arm_dof_pos += torch.stack(self.log_arm_dof_pos_traj, dim=1)[env_ids].cpu().tolist()
@@ -836,7 +828,6 @@ class DisassemblyEnv(DirectRLEnv):
         )
 
     def _log_robot_state_per_timestep(self):
-
         self.log_plug_pos_traj.append(self.held_pos.clone().detach())
         self.log_plug_quat_traj.append(self.held_quat.clone().detach())
         self.log_arm_dof_pos_traj.append(self.joint_pos[:, 0:7].clone().detach())
@@ -844,16 +835,13 @@ class DisassemblyEnv(DirectRLEnv):
         self.log_fingertip_centered_quat_traj.append(self.fingertip_midpoint_quat.clone().detach())
 
     def _log_object_state(self, env_ids):
-
         self.log_plug_grasp_pos += self.init_plug_grasp_pos[env_ids].cpu().tolist()
         self.log_plug_grasp_quat += self.init_plug_grasp_quat[env_ids].cpu().tolist()
         self.log_init_plug_pos += self.init_plug_pos[env_ids].cpu().tolist()
         self.log_init_plug_quat += self.init_plug_quat[env_ids].cpu().tolist()
 
     def _save_log_traj(self):
-
         if len(self.log_arm_dof_pos) > self.cfg_task.num_log_traj:
-
             log_item = []
             for i in range(self.cfg_task.num_log_traj):
                 curr_dict = dict({})

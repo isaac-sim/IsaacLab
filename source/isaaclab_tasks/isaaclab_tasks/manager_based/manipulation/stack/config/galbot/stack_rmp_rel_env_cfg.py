@@ -36,6 +36,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmCubeStackEnvCfg):
+    """Configuration for the Galbot Left Arm Cube Stack Environment."""
 
     def __post_init__(self):
         # post init of parent
@@ -104,7 +105,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
 ##
 @configclass
 class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -174,7 +174,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 ##
 @configclass
 class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -299,8 +298,10 @@ class GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg_PLAY(RmpFlowGalbotLeft
             joint_names=["left_gripper_.*_joint"],
             open_command_expr={"left_gripper_.*_joint": 0.035},
             close_command_expr={"left_gripper_.*_joint": 0.023},
-            # real gripper close data is 0.0235, close to it to meet data distribution, but smaller to ensure robust grasping.
-            # during VLA inference, we set the close command to '0.023' since the VLA has never seen the gripper fully closed.
+            # real gripper close data is 0.0235, close to it to meet data distribution,
+            # but smaller to ensure robust grasping.
+            # during VLA inference, we set the close command to '0.023' since the VLA
+            # has never seen the gripper fully closed.
         )
 
 

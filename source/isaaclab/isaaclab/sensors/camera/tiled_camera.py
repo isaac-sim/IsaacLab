@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import torch
 import warp as wp
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
 
 import carb
 from pxr import UsdGeom
@@ -287,9 +288,9 @@ class TiledCamera(Camera):
             #       larger than the clipping range in the output. We apply an additional clipping to ensure values
             #       are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                self._data.output[data_type][
-                    self._data.output[data_type] > self.cfg.spawn.clipping_range[1]
-                ] = torch.inf
+                self._data.output[data_type][self._data.output[data_type] > self.cfg.spawn.clipping_range[1]] = (
+                    torch.inf
+                )
             # apply defined clipping behavior
             if (
                 data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"

@@ -12,11 +12,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from typing import Literal
+
 import numpy as np
 import pytest
 import torch
 import trimesh
-from typing import Literal
 
 import omni.kit
 import omni.kit.commands

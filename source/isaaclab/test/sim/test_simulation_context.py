@@ -12,12 +12,12 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
-import pytest
 from collections.abc import Generator
 
+import numpy as np
+import pytest
+
 import omni.physx
-from isaacsim.core.api.simulation_context import SimulationContext as IsaacSimulationContext
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -60,9 +60,7 @@ def test_singleton():
     """Tests that the singleton is working."""
     sim1 = SimulationContext()
     sim2 = SimulationContext()
-    sim3 = IsaacSimulationContext()
     assert sim1 is sim2
-    assert sim1 is sim3
 
     # try to delete the singleton
     sim2.clear_instance()
@@ -70,11 +68,7 @@ def test_singleton():
     # create new instance
     sim4 = SimulationContext()
     assert sim1 is not sim4
-    assert sim3 is not sim4
     assert sim1.instance() is sim4.instance()
-    assert sim3.instance() is sim4.instance()
-    # clear instance
-    sim3.clear_instance()
 
 
 @pytest.mark.isaacsim_ci

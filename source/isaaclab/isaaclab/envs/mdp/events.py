@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import math
 import re
-import torch
 from typing import TYPE_CHECKING, Literal
+
+import torch
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -285,13 +286,14 @@ class randomize_rigid_body_material(ManagerTermBase):
 class randomize_rigid_body_mass(ManagerTermBase):
     """Randomize the mass of the bodies by adding, scaling, or setting random values.
 
-    This function allows randomizing the mass of the bodies of the asset. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+    This function allows randomizing the mass of the bodies of the asset. The function samples random
+    values from the given distribution parameters and adds, scales, or sets the values into the physics
+    simulation based on the operation.
 
-    If the ``recompute_inertia`` flag is set to ``True``, the function recomputes the inertia tensor of the bodies
-    after setting the mass. This is useful when the mass is changed significantly, as the inertia tensor depends
-    on the mass. It assumes the body is a uniform density object. If the body is not a uniform density object,
-    the inertia tensor may not be accurate.
+    If the :attr:`recompute_inertia` flag is set to :obj:`True`, the function recomputes the inertia tensor
+    of the bodies after setting the mass. This is useful when the mass is changed significantly, as the
+    inertia tensor depends on the mass. It assumes the body is a uniform density object. If the body is not
+    a uniform density object, the inertia tensor may not be accurate.
 
     .. tip::
         This function uses CPU tensors to assign the body masses. It is recommended to use this function
@@ -541,9 +543,9 @@ class randomize_actuator_gains(ManagerTermBase):
 
     This function allows randomizing the actuator stiffness and damping gains.
 
-    The function samples random values from the given distribution parameters and applies the operation to the joint properties.
-    It then sets the values into the actuator models. If the distribution parameters are not provided for a particular property,
-    the function does not modify the property.
+    The function samples random values from the given distribution parameters and applies the operation to
+    the joint properties. It then sets the values into the actuator models. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
 
     .. tip::
         For implicit actuators, this function uses CPU tensors to assign the actuator gains into the simulation.
@@ -839,10 +841,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     This function allows randomizing the fixed tendon parameters of the asset.
     These correspond to the physics engine tendon properties that affect the joint behavior.
 
-    The function samples random values from the given distribution parameters and applies the operation to the tendon properties.
-    It then sets the values into the physics simulation. If the distribution parameters are not provided for a
-    particular property, the function does not modify the property.
-
+    The function samples random values from the given distribution parameters and applies the operation to
+    the tendon properties. It then sets the values into the physics simulation. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -1034,7 +1035,12 @@ def apply_external_force_torque(
     torques = math_utils.sample_uniform(*torque_range, size, asset.device)
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
-    asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=forces,
+        torques=torques,
+        body_ids=asset_cfg.body_ids,
+        env_ids=env_ids,
+    )
 
 
 def push_by_setting_velocity(

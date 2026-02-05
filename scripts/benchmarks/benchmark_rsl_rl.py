@@ -66,11 +66,11 @@ app_start_time_end = time.perf_counter_ns()
 
 imports_time_begin = time.perf_counter_ns()
 
+from datetime import datetime
+
 import gymnasium as gym
 import numpy as np
 import torch
-from datetime import datetime
-
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -91,6 +91,7 @@ enable_extension("isaacsim.benchmark.services")
 from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 from isaaclab.utils.timer import Timer
+
 from scripts.benchmarks.utils import (
     log_app_start_time,
     log_python_imports_time,

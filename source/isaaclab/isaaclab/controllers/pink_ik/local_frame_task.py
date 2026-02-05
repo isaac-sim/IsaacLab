@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import numpy as np
 from collections.abc import Sequence
 
+import numpy as np
 import pinocchio as pin
 from pink.tasks.frame_task import FrameTask
 

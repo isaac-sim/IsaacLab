@@ -45,16 +45,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import random
+
 import torch
 
 import omni.usd
 from pxr import Gf, Sdf
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
-from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
@@ -63,6 +58,12 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+##
+# Pre-defined configs
+##
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -248,7 +249,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Simulate physics
     while simulation_app.is_running():
-
         if count % 500 == 0:
             # reset counter
             count = 0

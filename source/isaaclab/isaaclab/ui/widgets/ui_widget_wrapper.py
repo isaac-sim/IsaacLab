@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# This file has been adapted from _isaac_sim/exts/isaacsim.gui.components/isaacsim/gui/components/element_wrappers/base_ui_element_wrappers.py
+# This file has been adapted from:
+# _isaac_sim/exts/isaacsim.gui.components/isaacsim/gui/components/element_wrappers/base_ui_element_wrappers.py
 
 from __future__ import annotations
 

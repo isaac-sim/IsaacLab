@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import json
 import logging
-import numpy as np
 import re
-import torch
 from collections.abc import Sequence
-from packaging import version
 from typing import TYPE_CHECKING, Any, Literal
+
+import numpy as np
+import torch
+from packaging import version
 
 import carb
 import omni.usd
@@ -257,7 +258,6 @@ class Camera(SensorBase):
             matrices = np.asarray(matrices, dtype=float)
         # iterate over env_ids
         for i, intrinsic_matrix in zip(env_ids, matrices):
-
             height, width = self.image_shape
 
             params = sensor_utils.convert_camera_intrinsics_to_usd(
@@ -403,8 +403,10 @@ class Camera(SensorBase):
 
         # Initialize parent class
         super()._initialize_impl()
-        # Create a view for the sensor
-        self._view = XformPrimView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
+        self._view = XformPrimView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

@@ -164,11 +164,12 @@ def process_cluster(cluster_info: dict, ray_head_name: str = "head") -> str:
     For each cluster, check that it is running, and get the Ray head address that will accept jobs.
 
     Args:
-        cluster_info (dict): A dictionary containing cluster information with keys 'cluster', 'pods', and 'namespace'.
-        ray_head_name (str, optional): The name of the ray head container. Defaults to "head".
+        cluster_info: A dictionary containing cluster information with keys 'cluster', 'pods', and 'namespace'.
+        ray_head_name: The name of the ray head container. Defaults to "head".
 
     Returns:
-        str: A string containing the cluster name and its Ray head address, or an error message if the head pod or Ray address is not found.
+        A string containing the cluster name and its Ray head address, or an error message if
+        the head pod or Ray address is not found.
     """
     cluster, pods, namespace = cluster_info
     head_pod = None

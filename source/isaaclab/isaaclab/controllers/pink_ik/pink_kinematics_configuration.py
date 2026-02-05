@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 import pinocchio as pin
 from pink.configuration import Configuration
 from pink.exceptions import FrameNotFound
@@ -18,11 +17,13 @@ class PinkKinematicsConfiguration(Configuration):
     A configuration class that maintains both a "controlled" (reduced) model and a "full" model.
 
     This class extends the standard Pink Configuration to allow for selective joint control:
-    - The "controlled" model/data/q represent the subset of joints being actively controlled (e.g., a kinematic chain or arm).
+
+    - The "controlled" model/data/q represent the subset of joints being actively controlled
+      (e.g., a kinematic chain or arm).
     - The "full" model/data/q represent the complete robot, including all joints.
 
-    This is useful for scenarios where only a subset of joints are being optimized or controlled, but full-model kinematics
-    (e.g., for collision checking, full-body Jacobians, or visualization) are still required.
+    This is useful for scenarios where only a subset of joints are being optimized or controlled, but
+    full-model kinematics (e.g., for collision checking, full-body Jacobians, or visualization) are still required.
 
     The class ensures that both models are kept up to date, and provides methods to update both the controlled and full
     configurations as needed.
@@ -39,16 +40,19 @@ class PinkKinematicsConfiguration(Configuration):
         """
         Initialize PinkKinematicsConfiguration.
 
-        Args:
-            urdf_path (str): Path to the robot URDF file.
-            mesh_path (str): Path to the mesh files for the robot.
-            controlled_joint_names (list[str]): List of joint names to be actively controlled.
-            copy_data (bool, optional): If True, work on an internal copy of the input data. Defaults to True.
-            forward_kinematics (bool, optional): If True, compute forward kinematics from the configuration vector. Defaults to True.
 
-        This constructor initializes the PinkKinematicsConfiguration, which maintains both a "controlled" (reduced) model and a "full" model.
-        The controlled model/data/q represent the subset of joints being actively controlled, while the full model/data/q represent the complete robot.
-        This is useful for scenarios where only a subset of joints are being optimized or controlled, but full-model kinematics are still required.
+        This constructor initializes the PinkKinematicsConfiguration, which maintains both a "controlled"
+        (reduced) model and a "full" model. The controlled model/data/q represent the subset of joints
+        being actively controlled, while the full model/data/q represent the complete robot. This is useful
+        for scenarios where only a subset of joints are being optimized or controlled, but full-model
+        kinematics are still required.
+
+        Args:
+            urdf_path: Path to the robot URDF file.
+            mesh_path: Path to the mesh files for the robot.
+            controlled_joint_names: List of joint names to be actively controlled.
+            copy_data: If True, work on an internal copy of the input data. Defaults to True.
+            forward_kinematics: If True, compute forward kinematics from the configuration vector. Defaults to True.
         """
         self._controlled_joint_names = controlled_joint_names
 
@@ -63,7 +67,8 @@ class PinkKinematicsConfiguration(Configuration):
 
         # import pdb; pdb.set_trace()
         self._all_joint_names = self.full_model.names.tolist()[1:]
-        # controlled_joint_indices: indices in all_joint_names for joints that are in controlled_joint_names, preserving all_joint_names order
+        # controlled_joint_indices: indices in all_joint_names for joints that are in controlled_joint_names,
+        # preserving all_joint_names order
         self._controlled_joint_indices = [
             idx for idx, joint_name in enumerate(self._all_joint_names) if joint_name in self._controlled_joint_names
         ]
@@ -146,9 +151,11 @@ class PinkKinematicsConfiguration(Configuration):
 
     def get_transform_frame_to_world(self, frame: str) -> pin.SE3:
         """Get the pose of a frame in the current configuration.
+
         We override this method from the super class to solve the issue that in the default
         Pink implementation, the frame placements do not take into account the non-controlled joints
-        being not at initial pose (which is a bad assumption when they are controlled by other controllers like a lower body controller).
+        being not at initial pose (which is a bad assumption when they are controlled by other
+        controllers like a lower body controller).
 
         Args:
             frame: Name of a frame, typically a link name from the URDF.

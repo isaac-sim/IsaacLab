@@ -12,16 +12,17 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import os
+
+import numpy as np
 import pytest
 from packaging.version import Version
 
 import omni.kit.app
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.utils.version import get_isaac_sim_version
 
@@ -52,9 +53,10 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, stage_units_in_meters=1.0, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
+    sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
     sim.clear()
     sim.clear_all_callbacks()
@@ -138,11 +140,13 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
 
     # check drive values for the robot (read from usd)
+    # Note: Disable the app control callback to prevent hanging during sim.stop()
+    sim._disable_app_control_on_stop_handle = True
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness, config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping, config.joint_drive.gains.damping)
+    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)

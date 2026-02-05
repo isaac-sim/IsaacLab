@@ -5,9 +5,10 @@
 
 """Shared test utilities for Isaac Lab environments."""
 
-import gymnasium as gym
 import inspect
 import os
+
+import gymnasium as gym
 import pytest
 import torch
 

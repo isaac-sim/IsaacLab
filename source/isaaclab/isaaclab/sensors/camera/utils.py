@@ -8,10 +8,11 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import torch
 import warp as wp
-from collections.abc import Sequence
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.array import TensorData, convert_to_torch
@@ -169,7 +170,8 @@ def create_pointcloud_from_rgbd(
 
     The ``rgb`` attribute is used to resolve the corresponding point's color:
 
-    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels encode RGB values.
+    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels
+      encode the RGB values.
     - If a tuple, then the point cloud has a single color specified by the values (r, g, b).
     - If None, then default color is white, i.e. (0, 0, 0).
 

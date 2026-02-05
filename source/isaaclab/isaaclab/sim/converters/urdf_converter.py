@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import math
 import re
-from packaging.version import Version
 from typing import TYPE_CHECKING
+
+from packaging.version import Version
 
 import omni.kit.app
 import omni.kit.commands

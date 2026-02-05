@@ -6,7 +6,8 @@
 """Benchmark script comparing XformPrimView implementations across different APIs.
 
 This script tests the performance of batched transform operations using:
-- Isaac Lab's XformPrimView implementation
+- Isaac Lab's XformPrimView implementation with USD backend
+- Isaac Lab's XformPrimView implementation with Fabric backend
 - Isaac Sim's XformPrimView implementation (legacy)
 - Isaac Sim Experimental's XformPrim implementation (latest)
 
@@ -18,9 +19,10 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --profile --headless
 
     # Then visualize with snakeviz:
-    snakeviz profile_results/isaaclab_XformPrimView.prof
-    snakeviz profile_results/isaacsim_XformPrimView.prof
-    snakeviz profile_results/isaacsim_experimental_XformPrim.prof
+    snakeviz profile_results/isaaclab_usd_benchmark.prof
+    snakeviz profile_results/isaaclab_fabric_benchmark.prof
+    snakeviz profile_results/isaacsim_benchmark.prof
+    snakeviz profile_results/isaacsim_exp_benchmark.prof
 """
 
 from __future__ import annotations
@@ -61,8 +63,9 @@ simulation_app = app_launcher.app
 
 import cProfile
 import time
-import torch
 from typing import Literal
+
+import torch
 
 from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
 from isaacsim.core.utils.extensions import enable_extension
@@ -76,13 +79,19 @@ from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
 
 
 @torch.no_grad()
-def benchmark_xform_prim_view(
-    api: Literal["isaaclab", "isaacsim", "isaacsim-exp"], num_iterations: int
+def benchmark_xform_prim_view(  # noqa: C901
+    api: Literal["isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric", "isaacsim-exp"],
+    num_iterations: int,
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
     """Benchmark the Xform view class from Isaac Lab, Isaac Sim, or Isaac Sim Experimental.
 
     Args:
-        api: Which API to benchmark ("isaaclab", "isaacsim", or "isaacsim-exp").
+        api: Which API to benchmark:
+            - "isaaclab-usd": Isaac Lab XformPrimView with USD backend
+            - "isaaclab-fabric": Isaac Lab XformPrimView with Fabric backend
+            - "isaacsim-usd": Isaac Sim legacy XformPrimView with USD (usd=True)
+            - "isaacsim-fabric": Isaac Sim legacy XformPrimView with Fabric (usd=False)
+            - "isaacsim-exp": Isaac Sim Experimental XformPrim
         num_iterations: Number of iterations to run.
 
     Returns:
@@ -99,7 +108,12 @@ def benchmark_xform_prim_view(
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=args_cli.device))
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.01,
+        device=args_cli.device,
+        use_fabric=api in ("isaaclab-fabric", "isaacsim-fabric"),
+    )
+    sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
 
     print(f"  Time taken to create simulation context: {time.perf_counter() - start_time} seconds")
@@ -119,31 +133,38 @@ def benchmark_xform_prim_view(
 
     # Create view
     start_time = time.perf_counter()
-    if api == "isaaclab":
+    if api == "isaaclab-usd" or api == "isaaclab-fabric":
         xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
-    elif api == "isaacsim":
-        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False)
+    elif api == "isaacsim-usd":
+        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=True)
+    elif api == "isaacsim-fabric":
+        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=False)
     elif api == "isaacsim-exp":
         xform_view = IsaacSimExperimentalXformPrimView(pattern)
     else:
         raise ValueError(f"Invalid API: {api}")
     timing_results["init"] = time.perf_counter() - start_time
 
-    if api in ("isaaclab", "isaacsim"):
+    if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
         num_prims = xform_view.count
     elif api == "isaacsim-exp":
         num_prims = len(xform_view.prims)
     print(f"  XformView managing {num_prims} prims")
 
     # Benchmark get_world_poses
+    # Warmup call to initialize Fabric (if needed) - excluded from timing
+    positions, orientations = xform_view.get_world_poses()
+
+    # Now time the actual iterations (steady-state performance)
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         positions, orientations = xform_view.get_world_poses()
-        # Ensure tensors are torch tensors
-        if not isinstance(positions, torch.Tensor):
-            positions = torch.tensor(positions, dtype=torch.float32)
-        if not isinstance(orientations, torch.Tensor):
-            orientations = torch.tensor(orientations, dtype=torch.float32)
+
+    # Ensure tensors are torch tensors (do this AFTER timing)
+    if not isinstance(positions, torch.Tensor):
+        positions = torch.tensor(positions, dtype=torch.float32)
+    if not isinstance(orientations, torch.Tensor):
+        orientations = torch.tensor(orientations, dtype=torch.float32)
 
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -156,7 +177,7 @@ def benchmark_xform_prim_view(
     new_positions[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api in ("isaaclab", "isaacsim"):
+        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
             xform_view.set_world_poses(new_positions, orientations)
         elif api == "isaacsim-exp":
             xform_view.set_world_poses(new_positions.cpu().numpy(), orientations.cpu().numpy())
@@ -172,14 +193,18 @@ def benchmark_xform_prim_view(
     computed_results["world_orientations_after_set"] = orientations_after_set.clone()
 
     # Benchmark get_local_poses
+    # Warmup call (though local poses use USD, so minimal overhead)
+    translations, orientations_local = xform_view.get_local_poses()
+
+    # Now time the actual iterations
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         translations, orientations_local = xform_view.get_local_poses()
-        # Ensure tensors are torch tensors
-        if not isinstance(translations, torch.Tensor):
-            translations = torch.tensor(translations, dtype=torch.float32, device=args_cli.device)
-        if not isinstance(orientations_local, torch.Tensor):
-            orientations_local = torch.tensor(orientations_local, dtype=torch.float32, device=args_cli.device)
+    # Ensure tensors are torch tensors (do this AFTER timing)
+    if not isinstance(translations, torch.Tensor):
+        translations = torch.tensor(translations, dtype=torch.float32, device=args_cli.device)
+    if not isinstance(orientations_local, torch.Tensor):
+        orientations_local = torch.tensor(orientations_local, dtype=torch.float32, device=args_cli.device)
 
     timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -192,7 +217,7 @@ def benchmark_xform_prim_view(
     new_translations[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api in ("isaaclab", "isaacsim"):
+        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
             xform_view.set_local_poses(new_translations, orientations_local)
         elif api == "isaacsim-exp":
             xform_view.set_local_poses(new_translations.cpu().numpy(), orientations_local.cpu().numpy())
@@ -208,11 +233,45 @@ def benchmark_xform_prim_view(
     computed_results["local_orientations_after_set"] = orientations_local_after_set.clone()
 
     # Benchmark combined get operation
+    # Warmup call (Fabric should already be initialized by now, but for consistency)
+    positions, orientations = xform_view.get_world_poses()
+    translations, local_orientations = xform_view.get_local_poses()
+
+    # Now time the actual iterations
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         positions, orientations = xform_view.get_world_poses()
         translations, local_orientations = xform_view.get_local_poses()
     timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
+
+    # Benchmark interleaved set/get (realistic workflow pattern)
+    # Pre-convert tensors for experimental API to avoid conversion overhead in loop
+    if api == "isaacsim-exp":
+        new_positions_np = new_positions.cpu().numpy()
+        orientations_np = orientations
+
+    # Warmup
+    if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+        xform_view.set_world_poses(new_positions, orientations)
+        positions, orientations = xform_view.get_world_poses()
+    elif api == "isaacsim-exp":
+        xform_view.set_world_poses(new_positions_np, orientations_np)
+        positions, orientations = xform_view.get_world_poses()
+        positions = torch.tensor(positions, dtype=torch.float32)
+        orientations = torch.tensor(orientations, dtype=torch.float32)
+
+    # Now time the actual interleaved iterations
+    start_time = time.perf_counter()
+    for _ in range(num_iterations):
+        # Write then immediately read (common pattern: set pose, verify/query result)
+        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+            xform_view.set_world_poses(new_positions, orientations)
+            positions, orientations = xform_view.get_world_poses()
+        elif api == "isaacsim-exp":
+            xform_view.set_world_poses(new_positions_np, orientations_np)
+            positions, orientations = xform_view.get_world_poses()
+
+    timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     # close simulation
     sim.clear()
@@ -227,20 +286,61 @@ def compare_results(
 ) -> dict[str, dict[str, dict[str, float]]]:
     """Compare computed results across multiple implementations.
 
+    Only compares implementations using the same data path:
+    - USD implementations (isaaclab-usd, isaacsim-usd) are compared with each other
+    - Fabric implementations (isaaclab-fabric, isaacsim-fabric) are compared with each other
+
+    This is because Fabric is designed for write-first workflows and may not match
+    USD reads on initialization.
+
     Args:
         results_dict: Dictionary mapping API names to their computed values.
         tolerance: Tolerance for numerical comparison.
 
     Returns:
         Nested dictionary: {comparison_pair: {metric: {stats}}}, e.g.,
-        {"isaaclab_vs_isaacsim": {"initial_world_positions": {"max_diff": 0.001, ...}}}
+        {"isaaclab-usd_vs_isaacsim-usd": {"initial_world_positions": {"max_diff": 0.001, ...}}}
     """
     comparison_stats = {}
-    api_names = list(results_dict.keys())
 
-    # Compare each pair of APIs
-    for i, api1 in enumerate(api_names):
-        for api2 in api_names[i + 1 :]:
+    # Group APIs by their data path (USD vs Fabric)
+    usd_apis = [api for api in results_dict.keys() if "usd" in api and "fabric" not in api]
+    fabric_apis = [api for api in results_dict.keys() if "fabric" in api]
+
+    # Compare within USD group
+    for i, api1 in enumerate(usd_apis):
+        for api2 in usd_apis[i + 1 :]:
+            pair_key = f"{api1}_vs_{api2}"
+            comparison_stats[pair_key] = {}
+
+            computed1 = results_dict[api1]
+            computed2 = results_dict[api2]
+
+            for key in computed1.keys():
+                if key not in computed2:
+                    print(f"  Warning: Key '{key}' not found in {api2} results")
+                    continue
+
+                val1 = computed1[key]
+                val2 = computed2[key]
+
+                # Compute differences
+                diff = torch.abs(val1 - val2)
+                max_diff = torch.max(diff).item()
+                mean_diff = torch.mean(diff).item()
+
+                # Check if within tolerance
+                all_close = torch.allclose(val1, val2, atol=tolerance, rtol=0)
+
+                comparison_stats[pair_key][key] = {
+                    "max_diff": max_diff,
+                    "mean_diff": mean_diff,
+                    "all_close": all_close,
+                }
+
+    # Compare within Fabric group
+    for i, api1 in enumerate(fabric_apis):
+        for api2 in fabric_apis[i + 1 :]:
             pair_key = f"{api1}_vs_{api2}"
             comparison_stats[pair_key] = {}
 
@@ -279,6 +379,17 @@ def print_comparison_results(comparison_stats: dict[str, dict[str, dict[str, flo
         comparison_stats: Nested dictionary containing comparison statistics for each API pair.
         tolerance: Tolerance used for comparison.
     """
+    if not comparison_stats:
+        print("\n" + "=" * 100)
+        print("RESULT COMPARISON")
+        print("=" * 100)
+        print("ℹ️  No comparisons performed.")
+        print("   USD and Fabric implementations are not compared because Fabric uses a")
+        print("   write-first workflow and may not match USD reads on initialization.")
+        print("=" * 100)
+        print()
+        return
+
     for pair_key, pair_stats in comparison_stats.items():
         # Format the pair key for display (e.g., "isaaclab_vs_isaacsim" -> "Isaac Lab vs Isaac Sim")
         api1, api2 = pair_key.split("_vs_")
@@ -313,7 +424,15 @@ def print_comparison_results(comparison_stats: dict[str, dict[str, dict[str, flo
 
             print("=" * 100)
             print(f"\n✗ Some results differ beyond tolerance ({tolerance})")
-            print(f"  This may indicate implementation differences between {display_api1} and {display_api2}")
+
+            # Special note for Isaac Sim Fabric local pose bug
+            if "isaacsim-fabric" in pair_key and any("local_translations_after_set" in k for k in pair_stats.keys()):
+                if not pair_stats.get("local_translations_after_set", {}).get("all_close", True):
+                    print("\n  ⚠️  Known Issue: Isaac Sim Fabric has a bug where get_local_poses() returns stale")
+                    print("     values after set_local_poses(). Isaac Lab Fabric correctly returns updated values.")
+                    print("     This is a correctness issue in Isaac Sim's implementation, not Isaac Lab's.")
+            else:
+                print(f"  This may indicate implementation differences between {display_api1} and {display_api2}")
 
     print()
 
@@ -352,6 +471,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         ("Get Local Poses", "get_local_poses"),
         ("Set Local Poses", "set_local_poses"),
         ("Get Both (World+Local)", "get_both"),
+        ("Interleaved World Set→Get", "interleaved_world_set_get"),
     ]
 
     for op_name, op_key in operations:
@@ -370,27 +490,27 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         total_row += f" {total_time:>{col_width - 1}.4f}"
     print(f"\n{total_row}")
 
-    # Calculate speedups relative to Isaac Lab
-    if "isaaclab" in api_names:
+    # Calculate speedups relative to Isaac Lab USD (baseline)
+    if "isaaclab-usd" in api_names:
         print("\n" + "=" * 100)
-        print("SPEEDUP vs Isaac Lab")
+        print("SPEEDUP vs Isaac Lab USD (Baseline)")
         print("=" * 100)
         print(f"{'Operation':<25}", end="")
-        for display_name in display_names:
-            if "isaaclab" not in display_name.lower():
-                print(f" {display_name + ' Speedup':<{col_width}}", end="")
+        for api_name, display_name in zip(api_names, display_names):
+            if api_name != "isaaclab-usd":
+                print(f" {display_name:<{col_width}}", end="")
         print()
         print("-" * 100)
 
-        isaaclab_results = results_dict["isaaclab"]
+        isaaclab_usd_results = results_dict["isaaclab-usd"]
         for op_name, op_key in operations:
             print(f"{op_name:<25}", end="")
-            isaaclab_time = isaaclab_results.get(op_key, 0)
+            isaaclab_usd_time = isaaclab_usd_results.get(op_key, 0)
             for api_name, display_name in zip(api_names, display_names):
-                if api_name != "isaaclab":
+                if api_name != "isaaclab-usd":
                     api_time = results_dict[api_name].get(op_key, 0)
-                    if isaaclab_time > 0 and api_time > 0:
-                        speedup = api_time / isaaclab_time
+                    if isaaclab_usd_time > 0 and api_time > 0:
+                        speedup = isaaclab_usd_time / api_time
                         print(f" {speedup:>{col_width - 1}.2f}x", end="")
                     else:
                         print(f" {'N/A':>{col_width}}", end="")
@@ -399,12 +519,12 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         # Overall speedup
         print("=" * 100)
         print(f"{'Overall Speedup':<25}", end="")
-        total_isaaclab = sum(isaaclab_results.values())
+        total_isaaclab_usd = sum(isaaclab_usd_results.values())
         for api_name, display_name in zip(api_names, display_names):
-            if api_name != "isaaclab":
+            if api_name != "isaaclab-usd":
                 total_api = sum(results_dict[api_name].values())
-                if total_isaaclab > 0 and total_api > 0:
-                    overall_speedup = total_api / total_isaaclab
+                if total_isaaclab_usd > 0 and total_api > 0:
+                    overall_speedup = total_isaaclab_usd / total_api
                     print(f" {overall_speedup:>{col_width - 1}.2f}x", end="")
                 else:
                     print(f" {'N/A':>{col_width}}", end="")
@@ -413,9 +533,9 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print("\n" + "=" * 100)
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
-    print("  - Speedup = (Other API time) / (Isaac Lab time)")
-    print("  - Speedup > 1.0 means Isaac Lab is faster")
-    print("  - Speedup < 1.0 means the other API is faster")
+    print("  - Speedup = (Isaac Lab USD time) / (Other API time)")
+    print("  - Speedup > 1.0 means the other API is faster than Isaac Lab USD")
+    print("  - Speedup < 1.0 means the other API is slower than Isaac Lab USD")
     print()
 
 
@@ -446,8 +566,10 @@ def main():
 
     # APIs to benchmark
     apis_to_test = [
-        ("isaaclab", "Isaac Lab XformPrimView"),
-        ("isaacsim", "Isaac Sim XformPrimView (Legacy)"),
+        ("isaaclab-usd", "Isaac Lab XformPrimView (USD)"),
+        ("isaaclab-fabric", "Isaac Lab XformPrimView (Fabric)"),
+        ("isaacsim-usd", "Isaac Sim XformPrimView (USD)"),
+        ("isaacsim-fabric", "Isaac Sim XformPrimView (Fabric)"),
         ("isaacsim-exp", "Isaac Sim Experimental XformPrim"),
     ]
 

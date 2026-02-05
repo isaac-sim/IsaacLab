@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from pxr import UsdPhysics
 
@@ -665,10 +666,14 @@ class OperationalSpaceControllerAction(ActionTerm):
             # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
             #        = (v_J_ee + w_J_ee x r_link_ee ) * q
             #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
             # -- rotational part
             # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :])  # type: ignore
+            self._jacobian_b[:, 3:, :] = torch.bmm(
+                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            )  # type: ignore
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -766,9 +771,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                 max=self.cfg.controller_cfg.motion_stiffness_limits_task[1],
             )
         if self._damping_ratio_idx is not None:
-            self._processed_actions[
-                :, self._damping_ratio_idx : self._damping_ratio_idx + 6
-            ] *= self._damping_ratio_scale
+            self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] *= (
+                self._damping_ratio_scale
+            )
             self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6] = torch.clamp(
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],

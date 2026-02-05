@@ -239,13 +239,13 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gymnasium as gym
-import numpy as np
 import random
 import time
-import torch
 
+import gymnasium as gym
+import numpy as np
 import psutil
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -546,7 +546,6 @@ def get_utilization_percentages(reset: bool = False, max_values: list[float] = [
 
     # GPU utilization using pynvml
     if torch.cuda.is_available():
-
         if args_cli.autotune:
             pynvml.nvmlInit()  # Initialize NVML
             for i in range(torch.cuda.device_count()):
@@ -663,7 +662,6 @@ def run_simulator(
         # Loop through all camera lists and their data_types
         for camera_list, data_types, label in zip(camera_lists, camera_data_types, labels):
             for cam_idx, camera in enumerate(camera_list):
-
                 if env is None:  # No env, need to step cams manually
                     # Only update the camera if it hasn't been updated as part of scene_entities.update ...
                     camera.update(dt=sim.get_physics_dt())

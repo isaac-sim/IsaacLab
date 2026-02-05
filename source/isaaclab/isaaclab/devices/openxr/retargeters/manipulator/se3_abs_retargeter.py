@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
-from dataclasses import dataclass
 from scipy.spatial.transform import Rotation, Slerp
 
 from isaaclab.devices.device_base import DeviceBase

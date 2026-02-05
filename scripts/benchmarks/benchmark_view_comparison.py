@@ -8,10 +8,12 @@
 This script tests the performance of batched transform operations using:
 
 - Isaac Lab's XformPrimView (USD-based)
+- Isaac Lab's XformPrimView (Fabric-based)
 - PhysX RigidBodyView (PhysX tensors-based, as used in RigidObject)
 
 Note:
     XformPrimView operates on USD attributes directly (useful for non-physics prims),
+    or on Fabric attributes when Fabric is enabled.
     while RigidBodyView requires rigid body physics components and operates on PhysX tensors.
     This benchmark helps understand the performance trade-offs between the two approaches.
 
@@ -40,7 +42,7 @@ args_cli = argparse.Namespace()
 
 parser = argparse.ArgumentParser(description="Benchmark XformPrimView vs PhysX RigidBodyView performance.")
 
-parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
+parser.add_argument("--num_envs", type=int, default=1000, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
 parser.add_argument(
     "--profile",
@@ -65,6 +67,7 @@ simulation_app = app_launcher.app
 
 import cProfile
 import time
+
 import torch
 
 from isaacsim.core.simulation_manager import SimulationManager
@@ -79,7 +82,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     """Benchmark the specified view class.
 
     Args:
-        view_type: Type of view to benchmark ("xform" or "physx").
+        view_type: Type of view to benchmark ("xform", "xform_fabric", or "physx").
         num_iterations: Number of iterations to run.
 
     Returns:
@@ -96,7 +99,8 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=args_cli.device))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "xform_fabric"))
+    sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
 
     print(f"  Time taken to create simulation context: {time.perf_counter() - start_time:.4f} seconds")
@@ -127,7 +131,13 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     if view_type == "xform":
         view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
         num_prims = view.count
-        view_name = "XformPrimView"
+        view_name = "XformPrimView (USD)"
+    elif view_type == "xform_fabric":
+        if "cuda" not in args_cli.device:
+            raise ValueError("Fabric backend requires CUDA. Please use --device cuda:0 for this benchmark.")
+        view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
+        num_prims = view.count
+        view_name = "XformPrimView (Fabric)"
     else:  # physx
         physics_sim_view = SimulationManager.get_physics_sim_view()
         view = physics_sim_view.create_rigid_body_view(pattern)
@@ -139,10 +149,20 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
 
     print(f"  {view_name} managing {num_prims} prims")
 
+    # Fabric is write-first: initialize it to match USD before benchmarking reads.
+    if view_type == "xform_fabric" and num_prims > 0:
+        init_positions = torch.zeros((num_prims, 3), dtype=torch.float32, device=args_cli.device)
+        init_positions[:, 0] = 2.0 * torch.arange(num_prims, device=args_cli.device, dtype=torch.float32)
+        init_positions[:, 2] = 1.0
+        init_orientations = torch.tensor(
+            [[1.0, 0.0, 0.0, 0.0]] * num_prims, dtype=torch.float32, device=args_cli.device
+        )
+        view.set_world_poses(init_positions, init_orientations)
+
     # Benchmark get_world_poses
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if view_type == "xform":
+        if view_type in ("xform", "xform_fabric"):
             positions, orientations = view.get_world_poses()
         else:  # physx
             transforms = view.get_transforms()
@@ -161,7 +181,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     new_positions[:, 2] += 0.5
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if view_type == "xform":
+        if view_type in ("xform", "xform_fabric"):
             view.set_world_poses(new_positions, orientations)
         else:  # physx
             # Convert quaternion from wxyz to xyzw for PhysX
@@ -171,7 +191,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     # Get world poses after setting to verify
-    if view_type == "xform":
+    if view_type in ("xform", "xform_fabric"):
         positions_after_set, orientations_after_set = view.get_world_poses()
     else:  # physx
         transforms_after = view.get_transforms()
@@ -346,14 +366,14 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         total_row += f" {total_time:>{col_width - 1}.4f}"
     print(f"\n{total_row}")
 
-    # Calculate speedups relative to XformPrimView
+    # Calculate speedups relative to XformPrimView (USD baseline)
     if "xform_view" in impl_names:
         print("\n" + "=" * 100)
-        print("SPEEDUP vs XformPrimView")
+        print("SPEEDUP vs XformPrimView (USD)")
         print("=" * 100)
         print(f"{'Operation':<30}", end="")
-        for display_name in display_names:
-            if "xform" not in display_name.lower():
+        for impl_name, display_name in zip(impl_names, display_names):
+            if impl_name != "xform_view":
                 print(f" {display_name + ' Speedup':<{col_width}}", end="")
         print()
         print("-" * 100)
@@ -397,9 +417,9 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print("\n" + "=" * 100)
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
-    print("  - Speedup = (PhysX View time) / (XformPrimView time)")
-    print("  - Speedup > 1.0 means XformPrimView is faster")
-    print("  - Speedup < 1.0 means PhysX View is faster")
+    print("  - Speedup = (Implementation time) / (XformPrimView USD time)")
+    print("  - Speedup > 1.0 means USD XformPrimView is faster")
+    print("  - Speedup < 1.0 means the implementation is faster than USD")
     print("  - PhysX View requires rigid body physics components")
     print("  - XformPrimView works with any Xform prim (physics or non-physics)")
     print("  - PhysX View does not support local pose operations directly")
@@ -433,7 +453,8 @@ def main():
 
     # Implementations to benchmark
     implementations = [
-        ("xform_view", "XformPrimView", "xform"),
+        ("xform_view", "XformPrimView (USD)", "xform"),
+        ("xform_fabric_view", "XformPrimView (Fabric)", "xform_fabric"),
         ("physx_view", "PhysX RigidBodyView", "physx"),
     ]
 

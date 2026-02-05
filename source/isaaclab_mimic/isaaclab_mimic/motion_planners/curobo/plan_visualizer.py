@@ -10,15 +10,16 @@ using Rerun's visualization capabilities. It helps in debugging and validating c
 """
 
 import atexit
-import numpy as np
 import os
 import signal
 import subprocess
 import threading
 import time
-import torch
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
+
+import numpy as np
+import torch
 
 # Check if rerun is installed
 try:
@@ -878,9 +879,7 @@ class PlanVisualizer:
         """
         if len(plan.position) < 2:
             # If only one waypoint, just return it
-            return [
-                plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])
-            ]  # type: ignore
+            return [plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])]  # type: ignore
 
         interpolated_positions = []
 

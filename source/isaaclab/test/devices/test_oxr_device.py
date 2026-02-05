@@ -18,6 +18,7 @@ app_launcher = AppLauncher(headless=HEADLESS)
 simulation_app = app_launcher.app
 
 import importlib
+
 import numpy as np
 import pytest
 import torch

@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.utils import DelayBuffer, LinearInterpolation
 from isaaclab.utils.types import ArticulationActions
@@ -212,16 +213,17 @@ class DCMotor(IdealPDActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at 0 Torque (:attr:`velocity_limit`).
-    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at 0 speed (:attr:`saturation_effort`).
-    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period. This
-      is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage, or
-      enforced by electrical limitations.(:attr:`effort_limit`).
+    * No-load speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor at
+      zero torque (:attr:`velocity_limit`).
+    * Stall torque (:math:`\tau_{motor, stall}`): The maximum-rated torque produced at
+      zero speed (:attr:`saturation_effort`).
+    * Continuous torque (:math:`\tau_{motor, con}`): The maximum torque that can be outputted for a short period.
+      This is often enforced on the current drives for a DC motor to limit overheating, prevent mechanical damage,
+      or enforced by electrical limitations (:attr:`effort_limit`).
     * Corner velocity (:math:`V_{c}`): The velocity where the torque-speed curve intersects with continuous torque.
-      Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
-      (where torque-speed curve intersects with continuous torque) are defined as follows:
 
-    Based on these parameters, the instantaneous minimum and maximum torques for velocities are defined as follows:
+    Based on these parameters, the instantaneous minimum and maximum torques for velocities between corner velocities
+    (where torque-speed curve intersects with continuous torque) are defined as follows:
 
     .. math::
 

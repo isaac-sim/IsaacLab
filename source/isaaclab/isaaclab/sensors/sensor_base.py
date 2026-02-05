@@ -14,11 +14,12 @@ from __future__ import annotations
 import builtins
 import inspect
 import re
-import torch
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
+
+import torch
 
 import omni.kit.app
 import omni.timeline

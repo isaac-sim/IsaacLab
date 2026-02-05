@@ -56,6 +56,7 @@ class EventCfg:
 
 @configclass
 class ObservationGalbotLeftArmGripperCfg:
+    """Observations for the Galbot Left Arm Gripper."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -156,7 +157,6 @@ class ObservationGalbotLeftArmGripperCfg:
 
 @configclass
 class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -272,16 +272,13 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
 
 @configclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
-        l, r = self.events.randomize_cube_positions.params["pose_range"]["y"]
-        self.events.randomize_cube_positions.params["pose_range"]["y"] = (
-            -r,
-            -l,
-        )  # move to area below right hand
+        # Move to area below right hand (invert y-axis)
+        left, right = self.events.randomize_cube_positions.params["pose_range"]["y"]
+        self.events.randomize_cube_positions.params["pose_range"]["y"] = (-right, -left)
 
         # Set actions for the specific robot type (galbot)
         self.actions.arm_action = mdp.JointPositionActionCfg(

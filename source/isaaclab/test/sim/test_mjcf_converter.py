@@ -13,12 +13,13 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import os
+
 import pytest
 
-from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
 
@@ -30,7 +31,7 @@ def test_setup_teardown():
 
     # Setup: Create simulation context
     dt = 0.01
-    sim = SimulationContext(physics_dt=dt, rendering_dt=dt, backend="numpy")
+    sim = SimulationContext(SimulationCfg(dt=dt))
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")

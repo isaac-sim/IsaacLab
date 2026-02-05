@@ -40,8 +40,8 @@ class AssetConverterBase(abc.ABC):
 
     .. note::
         Changes to the parameters :obj:`AssetConverterBaseCfg.asset_path`, :obj:`AssetConverterBaseCfg.usd_dir`, and
-        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance that
-        trigger USD file re-generation.
+        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance
+        that trigger the USD file re-generation.
 
     """
 

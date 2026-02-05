@@ -11,8 +11,9 @@ the termination introduced by the function.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
+
+import torch
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -190,9 +191,12 @@ def task_done_exhaust_pipe(
         env: The RL environment instance.
         blue_exhaust_pipe_cfg: Configuration for the blue exhaust pipe entity.
         blue_sorting_bin_cfg: Configuration for the blue sorting bin entity.
-        max_blue_exhaust_to_bin_x: Maximum x position of the blue exhaust pipe relative to the blue sorting bin for task completion.
-        max_blue_exhaust_to_bin_y: Maximum y position of the blue exhaust pipe relative to the blue sorting bin for task completion.
-        max_blue_exhaust_to_bin_z: Maximum z position of the blue exhaust pipe relative to the blue sorting bin for task completion.
+        max_blue_exhaust_to_bin_x: Maximum x position of the blue exhaust pipe
+            relative to the blue sorting bin for task completion.
+        max_blue_exhaust_to_bin_y: Maximum y position of the blue exhaust pipe
+            relative to the blue sorting bin for task completion.
+        max_blue_exhaust_to_bin_z: Maximum z position of the blue exhaust pipe
+            relative to the blue sorting bin for task completion.
 
     Returns:
         Boolean tensor indicating which environments have completed the task.

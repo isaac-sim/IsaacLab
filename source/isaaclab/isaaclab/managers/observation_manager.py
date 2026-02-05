@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
-from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
 
 from isaaclab.utils import class_to_dict, modifiers, noise
 from isaaclab.utils.buffers import CircularBuffer

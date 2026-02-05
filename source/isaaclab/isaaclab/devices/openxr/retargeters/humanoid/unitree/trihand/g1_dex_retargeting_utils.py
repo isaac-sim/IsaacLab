@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import yaml
-from scipy.spatial.transform import Rotation as R
-
 from dex_retargeting.retargeting_config import RetargetingConfig
+from scipy.spatial.transform import Rotation as R
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -26,17 +26,21 @@ logging.getLogger("dex_retargeting.yourdfpy").setLevel(logging.ERROR)
 _HAND_JOINTS_INDEX = [1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25]
 
 # The transformation matrices to convert hand pose to canonical view.
-_OPERATOR2MANO_RIGHT = np.array([
-    [0, 0, 1],
-    [1, 0, 0],
-    [0, 1, 0],
-])
+_OPERATOR2MANO_RIGHT = np.array(
+    [
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+    ]
+)
 
-_OPERATOR2MANO_LEFT = np.array([
-    [0, 0, 1],
-    [1, 0, 0],
-    [0, 1, 0],
-])
+_OPERATOR2MANO_LEFT = np.array(
+    [
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+    ]
+)
 
 # G1 robot hand joint names - 2 fingers and 1 thumb configuration
 _LEFT_HAND_JOINT_NAMES = [
@@ -71,8 +75,8 @@ class G1TriHandDexRetargeting:
         hand_joint_names: list[str],
         right_hand_config_filename: str = "g1_hand_right_dexpilot.yml",
         left_hand_config_filename: str = "g1_hand_left_dexpilot.yml",
-        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",
-        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",
+        left_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_left_hand.urdf",  # noqa: E501
+        right_hand_urdf_path: str = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_dexpilot_asset/G1_right_hand.urdf",  # noqa: E501
     ):
         """Initialize the hand retargeting.
 

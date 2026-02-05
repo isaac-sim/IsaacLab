@@ -5,7 +5,6 @@
 
 """Configuration for the ray-cast sensor."""
 
-
 from dataclasses import MISSING
 from typing import Literal
 
@@ -66,10 +65,10 @@ class RayCasterCfg(SensorBaseCfg):
     The options are:
 
     * ``base`` if the rays' starting positions and directions track the full root position and orientation.
-    * ``yaw`` if the rays' starting positions and directions track root position and only yaw component of orientation.
-      This is useful for ray-casting height maps.
-    * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination with a mapping
-      package on the robot and querying ray-casts in a global frame.
+    * ``yaw`` if the rays' starting positions and directions track root position and only yaw component of
+      the orientation. This is useful for ray-casting height maps.
+    * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination
+      with a mapping package on the robot and querying ray-casts in a global frame.
     """
 
     pattern_cfg: PatternBaseCfg = MISSING

@@ -14,6 +14,7 @@ from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneFixtur
 
 
 class LocomanipulationSDGOutputDataRecorder(RecorderTerm):
+    """Recorder for Locomanipulation SDG output data."""
 
     def record_pre_step(self):
         output_data: LocomanipulationSDGOutputData = self._env._locomanipulation_sdg_output_data

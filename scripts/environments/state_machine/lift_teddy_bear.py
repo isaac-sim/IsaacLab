@@ -40,10 +40,11 @@ disable_extension("omni.usd.metrics.assembler.ui")
 
 """Rest everything else."""
 
+from collections.abc import Sequence
+
 import gymnasium as gym
 import torch
 import warp as wp
-from collections.abc import Sequence
 
 from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData
 

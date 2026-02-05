@@ -132,9 +132,9 @@ def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
             term_cfg = getattr(getattr(env_cfg.observations, group_name), term_name)
             low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
             high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
-            assert isinstance(
-                term_space, gym.spaces.Box
-            ), f"Expected Box space for {term_name} in {group_name}, got {type(term_space)}"
+            assert isinstance(term_space, gym.spaces.Box), (
+                f"Expected Box space for {term_name} in {group_name}, got {type(term_space)}"
+            )
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
 

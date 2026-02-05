@@ -6,8 +6,9 @@
 # needed because we concatenate int and torch.Tensor in the type hints
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
+
+import torch
 
 from .circular_buffer import CircularBuffer
 
