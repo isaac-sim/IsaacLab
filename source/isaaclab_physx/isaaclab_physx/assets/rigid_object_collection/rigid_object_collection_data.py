@@ -518,7 +518,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         return self.body_com_pose_b[..., 3:7]
 
     def _create_buffers(self) -> None:
-        super._create_buffers()
+        super()._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
         self._body_link_pose_w = TimestampedBuffer()
