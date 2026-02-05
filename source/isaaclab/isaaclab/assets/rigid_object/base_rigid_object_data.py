@@ -646,7 +646,7 @@ class BaseRigidObjectData(ABC):
     def default_inertia(self) -> torch.Tensor:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
         warnings.warn(
-            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead."
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
             "The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
