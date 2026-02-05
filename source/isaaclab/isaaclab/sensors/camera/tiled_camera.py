@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -187,7 +188,7 @@ class TiledCamera(Camera):
 
         if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
             rep.AnnotatorRegistry.register_annotator_from_aov(
-                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.float32, output_channels=4
+                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
             # Set simple shading mode (if requested) before rendering
             simple_shading_mode = self._resolve_simple_shading_mode()
@@ -391,7 +392,7 @@ class TiledCamera(Camera):
         for data_type in self.SIMPLE_SHADING_MODES:
             if data_type in self.cfg.data_types:
                 data_dict[data_type] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
+                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
                 ).contiguous()
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(

@@ -102,7 +102,7 @@ class Camera(SensorBase):
         "simple_shading_diffuse_mdl": 1,
         "simple_shading_full_mdl": 2,
     }
-    SIMPLE_SHADING_AOV: str = "SdgSimpleShading"
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     SIMPLE_SHADING_MODE_SETTING: str = "/rtx/sdg/simpleShading/mode"
 
     def __init__(self, cfg: CameraCfg):
@@ -528,7 +528,7 @@ class Camera(SensorBase):
                     )
                 if name in self.SIMPLE_SHADING_MODES:
                     rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.float32, output_channels=4
+                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
                     )
 
                 # Map special cases to their corresponding annotator names

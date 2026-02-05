@@ -24,6 +24,7 @@ import pytest
 import torch
 
 import omni.replicator.core as rep
+from scipy.spatial import transform as tf
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
@@ -853,7 +854,7 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     output = camera.data.output
     assert output[data_type].shape == hw_3c_shape
     # access image data and compare dtype
-    assert output[data_type].dtype == torch.float32
+    assert output[data_type].dtype == torch.uint8
 
 
 def test_camera_resolution_no_colorize(setup_sim_camera):
