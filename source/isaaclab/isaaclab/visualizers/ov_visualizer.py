@@ -306,7 +306,7 @@ class OVVisualizer(Visualizer):
                 camera_path = "/OmniverseKit_Persp"  # Default camera
 
             # Use Isaac Sim utility to set camera view
-            vp_utils._visualizer_interface.set_camera_view(
+            vp_utils.set_camera_view(
                 eye=list(eye), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
             )
 
