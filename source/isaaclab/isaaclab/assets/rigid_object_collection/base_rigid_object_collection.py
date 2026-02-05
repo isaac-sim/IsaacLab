@@ -477,7 +477,7 @@ class BaseRigidObjectCollection(AssetBase):
     def num_objects(self) -> int:
         """Deprecated property. Please use :attr:`num_bodies` instead."""
         warnings.warn(
-            "The `num_bodies` property will be deprecated in a future release. Please use `num_bodies` instead.",
+            "The `num_objects` property will be deprecated in a future release. Please use `num_bodies` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
