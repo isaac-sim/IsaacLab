@@ -69,8 +69,8 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
         left_controller_data = data.get(DeviceBase.TrackingTarget.CONTROLLER_LEFT, np.array([]))
         right_controller_data = data.get(DeviceBase.TrackingTarget.CONTROLLER_RIGHT, np.array([]))
 
-        # Default wrist poses (position + quaternion)
-        default_wrist = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+        # Default wrist poses (position + quaternion xyzw)
+        default_wrist = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
         # Extract poses from controller data
         left_wrist = self._extract_wrist_pose(left_controller_data, default_wrist)
@@ -209,7 +209,7 @@ class G1TriHandUpperBodyMotionControllerRetargeter(RetargeterBase):
 
         # Combined -75° (rather than -90° for wrist comfort) Y rotation + 90° Z rotation
         # This is equivalent to (0, -75, 90) in euler angles
-        combined_quat = torch.tensor([0.5358, -0.4619, 0.5358, 0.4619], dtype=torch.float32)
+        combined_quat = torch.tensor([-0.4619, 0.5358, 0.4619, 0.5358], dtype=torch.float32)
 
         openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
         transform_pose = PoseUtils.make_pose(torch.zeros(3), PoseUtils.matrix_from_quat(combined_quat))

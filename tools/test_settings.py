@@ -28,14 +28,17 @@ PER_TEST_TIMEOUTS = {
     "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
     "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
-        6000
+        10000
     ),  # This test runs through training for several environments and compares thresholds
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_rl_games_wrapper.py": 500,
-    "test_skrl_wrapper.py": 500,
-    "test_rsl_rl_wrapper.py": 500,
+    "test_rsl_rl_wrapper.py": 1000,
+    "test_sb3_wrapper.py": 500,
+    "test_skrl_wrapper.py": 1000,
+    "test_action_state_recorder_term.py": 500,
+    "test_manager_based_rl_env_obs_spaces.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

@@ -124,7 +124,7 @@ class QuadcopterEnv(DirectRLEnv):
         }
         # Get specific body indices
         self._body_id = self._robot.find_bodies("body")[0]
-        self._robot_mass = self._robot.root_physx_view.get_masses()[0].sum()
+        self._robot_mass = self._robot.root_view.get_masses()[0].sum()
         self._gravity_magnitude = torch.tensor(self.sim.cfg.gravity, device=self.device).norm()
         self._robot_weight = (self._robot_mass * self._gravity_magnitude).item()
 

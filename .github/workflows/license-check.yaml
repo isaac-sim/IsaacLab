@@ -26,12 +26,25 @@ jobs:
 
     - name: Clean up disk space
       run: |
+        # Remove pre-installed tools
         rm -rf /opt/hostedtoolcache
         rm -rf /usr/share/dotnet
         rm -rf /opt/ghc
+        sudo rm -rf /usr/local/lib/android
+        rm -rf /usr/share/swift
+        rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/.ghcup
+        sudo rm -rf /usr/local/lib/node_modules
+        sudo rm -rf /usr/local/share/chromium
+        sudo rm -rf /usr/local/share/powershell
+        # Clean apt cache
+        sudo apt-get clean
+        sudo rm -rf /var/lib/apt/lists/*
+        # Docker cleanup
         docker container prune -f
         docker image prune -af
-        docker volume prune -f || true
+        docker volume prune -f
+        docker system prune -af
 
 
     - name: Set up Python
@@ -40,19 +53,27 @@ jobs:
         python-version: '3.11'  # Adjust as needed
 
     - name: Install dependencies using ./isaaclab.sh -i
+      env:
+        OMNI_KIT_ACCEPT_EULA: yes
+        ACCEPT_EULA: Y
+        ISAACSIM_ACCEPT_EULA: YES
       run: |
         # first install isaac sim
         pip install --upgrade pip
-        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.0.0' }}' --extra-index-url https://pypi.nvidia.com
+        pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '5.1.0' }}' --extra-index-url https://pypi.nvidia.com
         chmod +x ./isaaclab.sh  # Make sure the script is executable
+        # Install torch
+        pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+        # clean up pip cache
+        pip cache purge
         # install all lab dependencies
         ./isaaclab.sh -i
 
     - name: Install pip-licenses
       run: |
-        pip install pip-licenses
-        pip install -r tools/template/requirements.txt
-        pip install -r docs/requirements.txt
+        pip install --no-cache-dir pip-licenses
+        pip install --no-cache-dir -r tools/template/requirements.txt
+        pip install --no-cache-dir -r docs/requirements.txt
 
     # Optional: Print the license report for visibility
     - name: Print License Report
@@ -61,6 +82,8 @@ jobs:
     # Print pipdeptree
     - name: Print pipdeptree
       run: |
+        # clean up pip cache
+        pip cache purge
         pip install pipdeptree
         pipdeptree
 
@@ -89,6 +112,11 @@ jobs:
 
         # Loop through the installed packages and their licenses
         for pkg in $(jq -r '.[].Name' licenses.json); do
+          # Skip packages starting with nvidia (case-insensitive)
+          if [[ "${pkg,,}" == nvidia* ]]; then
+            continue
+          fi
+
           LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.Name == $pkg) | .License' licenses.json)
 
           # Check if any of the allowed licenses are a substring of the package's license

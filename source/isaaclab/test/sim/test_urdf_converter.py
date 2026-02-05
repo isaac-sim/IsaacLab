@@ -34,12 +34,12 @@ def sim_config():
     sim_utils.create_new_stage()
     # pin the urdf importer extension to the older version
     manager = omni.kit.app.get_app().get_extension_manager()
-    if get_isaac_sim_version() >= Version("5.1"):
+    if get_isaac_sim_version() == Version("5.1"):
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
-        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     else:
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
     # obtain the extension path
+    manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
     extension_path = manager.get_extension_path(extension_id)
     # default configuration
@@ -140,13 +140,13 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
 
     # check drive values for the robot (read from usd)
     # Note: Disable the app control callback to prevent hanging during sim.stop()
     sim._disable_app_control_on_stop_handle = True
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_array_equal(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_array_equal(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)

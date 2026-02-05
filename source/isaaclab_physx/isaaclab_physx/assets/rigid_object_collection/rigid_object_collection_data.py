@@ -1,0 +1,1038 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
+
+import logging
+import warnings
+import weakref
+from typing import TYPE_CHECKING
+
+import torch
+
+from isaacsim.core.simulation_manager import SimulationManager
+
+from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
+from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
+
+if TYPE_CHECKING:
+    from isaaclab.assets.rigid_object_collection.rigid_object_collection_view import RigidObjectCollectionView
+
+# import logger
+logger = logging.getLogger(__name__)
+
+
+class RigidObjectCollectionData(BaseRigidObjectCollectionData):
+    """Data container for a rigid object collection.
+
+    This class contains the data for a rigid object collection in the simulation. The data includes the state of
+    all the bodies in the collection. The data is stored in the simulation world frame unless otherwise specified.
+    The data is in the order ``(num_instances, num_objects, data_size)``, where data_size is the size of the data.
+
+    For a rigid body, there are two frames of reference that are used:
+
+    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+      with the rigid body schema.
+    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
+    Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
+    This needs to be taken into account when interpreting the data.
+
+    The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
+    when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
+    is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
+    """
+
+    __backend_name__: str = "physx"
+    """The name of the backend for the rigid object collection data."""
+
+    def __init__(self, root_view: RigidObjectCollectionView, num_bodies: int, device: str):
+        """Initializes the rigid object data.
+
+        Args:
+            root_view: The root rigid body collection view.
+            num_bodies: The number of bodies in the collection.
+            device: The device used for processing.
+        """
+        super().__init__(root_view, num_bodies, device)
+        self.num_bodies = num_bodies
+        # Set the root rigid body view
+        # note: this is stored as a weak reference to avoid circular references between the asset class
+        #  and the data container. This is important to avoid memory leaks.
+        self._root_view: RigidObjectCollectionView = weakref.proxy(root_view)
+        self.num_instances = self._root_view.count // self.num_bodies
+
+        # Set initial time stamp
+        self._sim_timestamp = 0.0
+        self._is_primed = False
+
+        # Obtain global physics sim view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        gravity = self._physics_sim_view.get_gravity()
+        # Convert to direction vector
+        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+
+        # Initialize constants
+        self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, self.num_bodies, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(
+            self.num_instances, self.num_bodies, 1
+        )
+
+        self._create_buffers()
+
+    @property
+    def is_primed(self) -> bool:
+        """Whether the rigid object collection data is fully instantiated and ready to use."""
+        return self._is_primed
+
+    @is_primed.setter
+    def is_primed(self, value: bool) -> None:
+        """Set whether the rigid object collection data is fully instantiated and ready to use.
+
+        .. note:: Once this quantity is set to True, it cannot be changed.
+
+        Args:
+            value: The primed state.
+
+        Raises:
+            ValueError: If the rigid object collection data is already primed.
+        """
+        if self._is_primed:
+            raise ValueError("The rigid object collection data is already primed.")
+        self._is_primed = value
+
+    def update(self, dt: float) -> None:
+        """Updates the data for the rigid object collection.
+
+        Args:
+            dt: The time step for the update. This must be a positive value.
+        """
+        # update the simulation timestamp
+        self._sim_timestamp += dt
+
+    """
+    Names.
+    """
+
+    body_names: list[str] = None
+    """Body names in the order parsed by the simulation view."""
+
+    """
+    Defaults.
+    """
+
+    @property
+    def default_body_pose(self) -> torch.Tensor:
+        """Default body pose ``[pos, quat]`` in local environment frame.
+
+        The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, num_bodies, 7).
+        """
+        return self._default_body_pose
+
+    @default_body_pose.setter
+    def default_body_pose(self, value: torch.Tensor) -> None:
+        """Set the default body pose.
+
+        Args:
+            value: The default body pose. Shape is (num_instances, num_bodies, 7).
+
+        Raises:
+            ValueError: If the rigid object collection data is already primed.
+        """
+        if self._is_primed:
+            raise ValueError("The rigid object collection data is already primed.")
+        self._default_body_pose = value
+
+    @property
+    def default_body_vel(self) -> torch.Tensor:
+        """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is
+
+        The linear and angular velocities are of the rigid body's center of mass frame. Shape is
+        (num_instances, num_bodies, 6).
+        """
+        return self._default_body_vel
+
+    @default_body_vel.setter
+    def default_body_vel(self, value: torch.Tensor) -> None:
+        """Set the default body velocity.
+
+        Args:
+            value: The default body velocity. Shape is (num_instances, num_bodies, 6).
+
+        Raises:
+            ValueError: If the rigid object collection data is already primed.
+        """
+        if self._is_primed:
+            raise ValueError("The rigid object collection data is already primed.")
+        self._default_body_vel = value
+
+    @property
+    def default_body_state(self) -> torch.Tensor:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
+
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
+        """
+        warnings.warn(
+            "Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_body_pose and default_body_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return torch.cat([self.default_body_pose, self.default_body_vel], dim=-1)
+
+    @default_body_state.setter
+    def default_body_state(self, value: torch.Tensor) -> None:
+        """Set the default body state.
+
+        Args:
+            value: The default body state. Shape is (num_instances, num_bodies, 13).
+
+        Raises:
+            ValueError: If the rigid object collection data is already primed.
+        """
+        warnings.warn(
+            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._is_primed:
+            raise ValueError("The rigid object collection data is already primed.")
+        self._default_body_pose = value[:, :, :7]
+        self._default_body_vel = value[:, :, 7:]
+
+    """
+    Body state properties.
+    """
+
+    @property
+    def body_link_pose_w(self) -> torch.Tensor:
+        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
+
+        This quantity is the pose of the actor frame of the rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        if self._body_link_pose_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            pose = self._reshape_view_to_data(self._root_view.get_transforms().clone())
+            # set the buffer data and timestamp
+            self._body_link_pose_w.data = pose
+            self._body_link_pose_w.timestamp = self._sim_timestamp
+
+        return self._body_link_pose_w.data
+
+    @property
+    def body_link_vel_w(self) -> torch.Tensor:
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_bodies, 6).
+
+        This quantity contains the linear and angular velocities of the actor frame of the root
+        rigid body relative to the world.
+        """
+        if self._body_link_vel_w.timestamp < self._sim_timestamp:
+            # read data from simulation
+            velocity = self.body_com_vel_w.clone()
+            # adjust linear velocity to link from center of mass
+            velocity[..., :3] += torch.linalg.cross(
+                velocity[..., 3:], quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+            )
+            # set the buffer data and timestamp
+            self._body_link_vel_w.data = velocity
+            self._body_link_vel_w.timestamp = self._sim_timestamp
+
+        return self._body_link_vel_w.data
+
+    @property
+    def body_com_pose_w(self) -> torch.Tensor:
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
+
+        This quantity is the pose of the center of mass frame of the rigid body relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        if self._body_com_pose_w.timestamp < self._sim_timestamp:
+            # adjust pose to center of mass
+            pos, quat = combine_frame_transforms(
+                self.body_link_pos_w, self.body_link_quat_w, self.body_com_pos_b, self.body_com_quat_b
+            )
+            # set the buffer data and timestamp
+            self._body_com_pose_w.data = torch.cat((pos, quat), dim=-1)
+            self._body_com_pose_w.timestamp = self._sim_timestamp
+
+        return self._body_com_pose_w.data
+
+    @property
+    def body_com_vel_w(self) -> torch.Tensor:
+        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_bodies, 6).
+
+        This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
+        relative to the world.
+        """
+        if self._body_com_vel_w.timestamp < self._sim_timestamp:
+            self._body_com_vel_w.data = self._reshape_view_to_data(self._root_view.get_velocities())
+            self._body_com_vel_w.timestamp = self._sim_timestamp
+
+        return self._body_com_vel_w.data
+
+    @property
+    def body_state_w(self) -> torch.Tensor:
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
+        velocities are of the rigid bodies' center of mass frame.
+        """
+        if self._body_state_w.timestamp < self._sim_timestamp:
+            self._body_state_w.data = torch.cat((self.body_link_pose_w, self.body_com_vel_w), dim=-1)
+            self._body_state_w.timestamp = self._sim_timestamp
+
+        return self._body_state_w.data
+
+    @property
+    def body_link_state_w(self) -> torch.Tensor:
+        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            self._body_link_state_w.data = torch.cat((self.body_link_pose_w, self.body_link_vel_w), dim=-1)
+            self._body_link_state_w.timestamp = self._sim_timestamp
+
+        return self._body_link_state_w.data
+
+    @property
+    def body_com_state_w(self) -> torch.Tensor:
+        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
+        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
+        principle inertia. The orientation is provided in (x, y, z, w) format.
+        """
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            self._body_com_state_w.data = torch.cat((self.body_com_pose_w, self.body_com_vel_w), dim=-1)
+            self._body_com_state_w.timestamp = self._sim_timestamp
+
+        return self._body_com_state_w.data
+
+    @property
+    def body_com_acc_w(self) -> torch.Tensor:
+        """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
+        Shape is (num_instances, num_bodies, 6).
+
+        This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
+        """
+        if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            self._body_com_acc_w.data = self._reshape_view_to_data(self._root_view.get_accelerations())
+            self._body_com_acc_w.timestamp = self._sim_timestamp
+        return self._body_com_acc_w.data
+
+    @property
+    def body_com_pose_b(self) -> torch.Tensor:
+        """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
+        Shape is (num_instances, num_bodies, 7).
+
+        This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
+        The orientation is provided in (x, y, z, w) format.
+        """
+        if self._body_com_pose_b.timestamp < self._sim_timestamp:
+            # obtain the coms
+            poses = self._root_view.get_coms().to(self.device)
+            # read data from simulation
+            self._body_com_pose_b.data = self._reshape_view_to_data(poses)
+            self._body_com_pose_b.timestamp = self._sim_timestamp
+
+        return self._body_com_pose_b.data
+
+    @property
+    def body_mass(self) -> torch.Tensor:
+        """Mass of all bodies in the simulation world frame. Shape is (num_instances, num_bodies)."""
+        return self._reshape_view_to_data(self._body_mass.to(self.device))
+
+    @property
+    def body_inertia(self) -> torch.Tensor:
+        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, num_bodies, 9)."""
+        return self._reshape_view_to_data(self._body_inertia.to(self.device))
+
+    """
+    Derived Properties.
+    """
+
+    @property
+    def projected_gravity_b(self) -> torch.Tensor:
+        """Projection of the gravity direction on base frame. Shape is (num_instances, num_bodies, 3)."""
+        return quat_apply_inverse(self.body_link_quat_w, self.GRAVITY_VEC_W)
+
+    @property
+    def heading_w(self) -> torch.Tensor:
+        """Yaw heading of the base frame (in radians). Shape is (num_instances, num_bodies).
+
+        .. note::
+            This quantity is computed by assuming that the forward-direction of the base
+            frame is along x-direction, i.e. :math:`(1, 0, 0)`.
+        """
+        forward_w = quat_apply(self.body_link_quat_w, self.FORWARD_VEC_B)
+        return torch.atan2(forward_w[..., 1], forward_w[..., 0])
+
+    @property
+    def body_link_lin_vel_b(self) -> torch.Tensor:
+        """Root link linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
+        rigid body's actor frame.
+        """
+        return quat_apply_inverse(self.body_link_quat_w, self.body_link_lin_vel_w)
+
+    @property
+    def body_link_ang_vel_b(self) -> torch.Tensor:
+        """Root link angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
+        rigid body's actor frame.
+        """
+        return quat_apply_inverse(self.body_link_quat_w, self.body_link_ang_vel_w)
+
+    @property
+    def body_com_lin_vel_b(self) -> torch.Tensor:
+        """Root center of mass linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
+        rigid body's actor frame.
+        """
+        return quat_apply_inverse(self.body_link_quat_w, self.body_com_lin_vel_w)
+
+    @property
+    def body_com_ang_vel_b(self) -> torch.Tensor:
+        """Root center of mass angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
+        rigid body's actor frame.
+        """
+        return quat_apply_inverse(self.body_link_quat_w, self.body_com_ang_vel_w)
+
+    """
+    Sliced properties.
+    """
+
+    @property
+    def body_link_pos_w(self) -> torch.Tensor:
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the position of the rigid bodies' actor frame relative to the world.
+        """
+        return self.body_link_pose_w[..., :3]
+
+    @property
+    def body_link_quat_w(self) -> torch.Tensor:
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+
+        This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
+        """
+        return self.body_link_pose_w[..., 3:7]
+
+    @property
+    def body_link_lin_vel_w(self) -> torch.Tensor:
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
+        """
+        return self.body_link_vel_w[..., :3]
+
+    @property
+    def body_link_ang_vel_w(self) -> torch.Tensor:
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
+        """
+        return self.body_link_vel_w[..., 3:6]
+
+    @property
+    def body_com_pos_w(self) -> torch.Tensor:
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the position of the rigid bodies' actor frame.
+        """
+        return self.body_com_pose_w[..., :3]
+
+    @property
+    def body_com_quat_w(self) -> torch.Tensor:
+        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
+
+        Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies' actor frame.
+        """
+        return self.body_com_pose_w[..., 3:7]
+
+    @property
+    def body_com_lin_vel_w(self) -> torch.Tensor:
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear velocity of the rigid bodies' center of mass frame.
+        """
+        return self.body_com_vel_w[..., :3]
+
+    @property
+    def body_com_ang_vel_w(self) -> torch.Tensor:
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular velocity of the rigid bodies' center of mass frame.
+        """
+        return self.body_com_vel_w[..., 3:6]
+
+    @property
+    def body_com_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear acceleration of the rigid bodies' center of mass frame.
+        """
+        return self.body_com_acc_w[..., :3]
+
+    @property
+    def body_com_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular acceleration of the rigid bodies' center of mass frame.
+        """
+        return self.body_com_acc_w[..., 3:6]
+
+    @property
+    def body_com_pos_b(self) -> torch.Tensor:
+        """Center of mass position of all of the bodies in their respective link frames.
+        Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the center of mass location relative to its body'slink frame.
+        """
+        return self.body_com_pose_b[..., :3]
+
+    @property
+    def body_com_quat_b(self) -> torch.Tensor:
+        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
+        respective link frames. Shape is (num_instances, num_bodies, 4).
+
+        This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
+        """
+        return self.body_com_pose_b[..., 3:7]
+
+    def _create_buffers(self) -> None:
+        # Initialize the lazy buffers.
+        # -- link frame w.r.t. world frame
+        self._body_link_pose_w = TimestampedBuffer()
+        self._body_link_vel_w = TimestampedBuffer()
+        # -- com frame w.r.t. link frame
+        self._body_com_pose_b = TimestampedBuffer()
+        # -- com frame w.r.t. world frame
+        self._body_com_pose_w = TimestampedBuffer()
+        self._body_com_vel_w = TimestampedBuffer()
+        self._body_com_acc_w = TimestampedBuffer()
+        # -- combined state(these are cached as they concatenate)
+        self._body_state_w = TimestampedBuffer()
+        self._body_link_state_w = TimestampedBuffer()
+        self._body_com_state_w = TimestampedBuffer()
+
+        # -- Default state
+        self._default_body_pose = torch.zeros(self.num_instances, self.num_bodies, 7, device=self.device)
+        self._default_body_vel = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
+
+        # -- Body properties
+        self._body_mass = self._root_view.get_masses().to(self.device).clone()
+        self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+
+        # -- Default mass and inertia (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+
+    """
+    Properties for backwards compatibility.
+    """
+
+    @property
+    def default_object_pose(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_pose` instead."""
+        warnings.warn(
+            "The `default_object_pose` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_body_pose` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.default_body_pose
+
+    @property
+    def default_object_vel(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_vel` instead."""
+        warnings.warn(
+            "The `default_object_vel` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_body_vel` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.default_body_vel
+
+    @property
+    def default_object_state(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_body_state` instead."""
+        warnings.warn(
+            "The `default_object_state` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_body_state` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.default_body_state
+
+    @property
+    def object_link_pose_w(self):
+        """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
+        warnings.warn(
+            "The `object_link_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_pose_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_pose_w
+
+    @property
+    def object_link_vel_w(self):
+        """Deprecated property. Please use :attr:`body_link_vel_w` instead."""
+        warnings.warn(
+            "The `object_link_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_vel_w
+
+    @property
+    def object_com_pose_w(self):
+        """Deprecated property. Please use :attr:`body_com_pose_w` instead."""
+        warnings.warn(
+            "The `object_com_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_pose_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_pose_w
+
+    @property
+    def object_com_vel_w(self):
+        """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
+        warnings.warn(
+            "The `object_com_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_vel_w
+
+    @property
+    def object_state_w(self):
+        """Deprecated property. Please use :attr:`body_state_w` instead."""
+        warnings.warn(
+            "The `object_state_w` property will be deprecated in a IsaacLab 4.0. Please use `body_state_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_state_w
+
+    @property
+    def object_link_state_w(self):
+        """Deprecated property. Please use :attr:`body_link_state_w` instead."""
+        warnings.warn(
+            "The `object_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_state_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_state_w
+
+    @property
+    def object_com_state_w(self):
+        """Deprecated property. Please use :attr:`body_com_state_w` instead."""
+        warnings.warn(
+            "The `object_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_state_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_state_w
+
+    @property
+    def object_com_acc_w(self):
+        """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
+        warnings.warn(
+            "The `object_com_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_acc_w
+
+    @property
+    def object_com_pose_b(self):
+        """Deprecated property. Please use :attr:`body_com_pose_b` instead."""
+        warnings.warn(
+            "The `object_com_pose_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_pose_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_pose_b
+
+    @property
+    def object_link_pos_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
+        warnings.warn(
+            "The `object_link_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_pos_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_pos_w
+
+    @property
+    def object_link_quat_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
+        warnings.warn(
+            "The `object_link_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_quat_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_quat_w
+
+    @property
+    def object_link_lin_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
+        warnings.warn(
+            "The `object_link_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_lin_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_lin_vel_w
+
+    @property
+    def object_link_ang_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
+        warnings.warn(
+            "The `object_link_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_ang_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_ang_vel_w
+
+    @property
+    def object_com_pos_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
+        warnings.warn(
+            "The `object_com_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_pos_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_pos_w
+
+    @property
+    def object_com_quat_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
+        warnings.warn(
+            "The `object_com_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_quat_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_quat_w
+
+    @property
+    def object_com_lin_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
+        warnings.warn(
+            "The `object_com_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_vel_w
+
+    @property
+    def object_com_ang_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
+        warnings.warn(
+            "The `object_com_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_vel_w
+
+    @property
+    def object_com_lin_acc_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
+        warnings.warn(
+            "The `object_com_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_acc_w
+
+    @property
+    def object_com_ang_acc_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
+        warnings.warn(
+            "The `object_com_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_acc_w
+
+    @property
+    def object_com_pos_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
+        warnings.warn(
+            "The `object_com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_pos_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_pos_b
+
+    @property
+    def object_com_quat_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
+        warnings.warn(
+            "The `object_com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_quat_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_quat_b
+
+    @property
+    def object_link_lin_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
+        warnings.warn(
+            "The `object_link_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_lin_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_lin_vel_b
+
+    @property
+    def object_link_ang_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
+        warnings.warn(
+            "The `object_link_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_link_ang_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_ang_vel_b
+
+    @property
+    def object_com_lin_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
+        warnings.warn(
+            "The `object_com_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_vel_b
+
+    @property
+    def object_com_ang_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
+        warnings.warn(
+            "The `object_com_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_vel_b
+
+    @property
+    def object_pose_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
+        warnings.warn(
+            "The `object_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_pose_w
+
+    @property
+    def object_pos_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
+        warnings.warn(
+            "The `object_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_pos_w
+
+    @property
+    def object_quat_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
+        warnings.warn(
+            "The `object_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_link_quat_w
+
+    @property
+    def object_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
+        warnings.warn(
+            "The `object_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_vel_w
+
+    @property
+    def object_lin_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
+        warnings.warn(
+            "The `object_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_vel_w
+
+    @property
+    def object_ang_vel_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
+        warnings.warn(
+            "The `object_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_vel_w
+
+    @property
+    def object_lin_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
+        warnings.warn(
+            "The `object_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_vel_b
+
+    @property
+    def object_ang_vel_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
+        warnings.warn(
+            "The `object_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_vel_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_vel_b
+
+    @property
+    def object_acc_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
+        warnings.warn(
+            "The `object_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_acc_w
+
+    @property
+    def object_lin_acc_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
+        warnings.warn(
+            "The `object_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_lin_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_lin_acc_w
+
+    @property
+    def object_ang_acc_w(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
+        warnings.warn(
+            "The `object_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `body_com_ang_acc_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_ang_acc_w
+
+    @property
+    def com_pos_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
+        warnings.warn(
+            "The `com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_pos_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_pos_b
+
+    @property
+    def com_quat_b(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
+        warnings.warn(
+            "The `com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use `body_com_quat_b` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_com_quat_b
+
+    """
+    Removed - Default values are no longer stored.
+    """
+
+    @property
+    def default_mass(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_mass is None:
+            self._default_mass = self.body_mass.clone()
+        return self._default_mass
+
+    @property
+    def default_inertia(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead."
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_inertia is None:
+            self._default_inertia = self.body_inertia.clone()
+        return self._default_inertia
+
+    """
+    Helpers.
+    """
+
+    def _reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
+        """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
+
+        Args:
+            data: The data from the physics view. Shape is (num_instances * num_bodies, data_size).
+
+        Returns:
+            The reshaped data. Shape is (num_bodies, num_instances, data_size).
+        """
+        return torch.einsum("ijk -> jik", data.reshape(self.num_bodies, self.num_instances, -1))

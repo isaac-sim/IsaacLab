@@ -30,6 +30,7 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 class EventCfg:
     """Configuration for events."""
 
+    # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
     init_franka_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         # mode="startup",
@@ -131,7 +132,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         # Blue sorting bin positioned at table center
         self.scene.blue_sorting_bin = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/BlueSortingBin",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0203), rot=(0.0, 0.0, 0.0, 0.1)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
                 scale=(1.1, 1.6, 3.3),
@@ -143,7 +144,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         # The bin is at (0.4, 0.0, 0.0203), so cube_1 should be slightly above it
         self.scene.cube_1 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.025), rot=(1.0, 0.0, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.025), rot=(0.0, 0.0, 0.0, 1.0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
@@ -154,7 +155,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         # Cube 2 positioned outside the bin (to the right)
         self.scene.cube_2 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_2",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.85, 0.25, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.85, 0.25, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
@@ -165,7 +166,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
         # Cube 3 positioned outside the bin (to the left)
         self.scene.cube_3 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_3",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.85, -0.25, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.85, -0.25, 0.0203), rot=(0.0, 0.0, 0.0, 1.0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),

@@ -447,7 +447,7 @@ class _compute_keypoint_distance:
 
         # Pre-allocate identity quaternion for keypoint transforms
         self.identity_quat_keypoints = (
-            torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
             .repeat(env.num_envs * self.num_keypoints, 1)
             .contiguous()
         )

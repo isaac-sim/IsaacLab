@@ -34,9 +34,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
+from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
 ##

@@ -303,7 +303,7 @@ def run_simulator(
         ee_quat_w = robot.data.body_quat_w[:, ee_body_idx]
 
         # get jacobian to IK controller
-        jacobian = robot.root_physx_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
+        jacobian = robot.root_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
         ik_controller.set_command(command=target_pos_tensor, ee_quat=ee_quat_w)
         joint_pos_des = ik_controller.compute(ee_pos_w, ee_quat_w, jacobian, current_joint_pos)
 

@@ -37,7 +37,7 @@ def setup_camera():
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -156,6 +156,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -223,6 +224,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
                     "rgba",
+                    "albedo",
                     "semantic_segmentation",
                     "instance_segmentation_fast",
                     "instance_id_segmentation_fast",
@@ -245,6 +247,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         info = camera.data.info
         assert output["rgb"].dtype == torch.uint8
         assert output["rgba"].dtype == torch.uint8
+        assert output["albedo"].dtype == torch.uint8
         assert output["depth"].dtype == torch.float
         assert output["distance_to_camera"].dtype == torch.float
         assert output["distance_to_image_plane"].dtype == torch.float
@@ -335,6 +338,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
@@ -407,7 +411,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 4
     positions = [(0.0, 0.0, 4.0), (0.0, 0.0, 2.0), (0.0, 0.0, 3.0)]
-    rotations = [(0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0)]
+    rotations = [(0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0)]
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):

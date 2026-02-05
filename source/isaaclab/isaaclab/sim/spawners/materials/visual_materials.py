@@ -60,7 +60,23 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # in that case is always the one from USD Context which makes it difficult to
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
-        if not material_prim:
+        if material_prim:
+            shader_prim = CreateShaderPrimFromSdrCommand(
+                parent_path=prim_path,
+                identifier="UsdPreviewSurface",
+                stage_or_context=stage,
+                prim_name="Shader",
+            ).do()
+            # bind the shader graph to the material
+            if shader_prim:
+                surface_out = shader_prim.GetOutput("surface")
+                if surface_out:
+                    material_prim.CreateSurfaceOutput().ConnectToSource(surface_out)
+
+                displacement_out = shader_prim.GetOutput("displacement")
+                if displacement_out:
+                    material_prim.CreateDisplacementOutput().ConnectToSource(displacement_out)
+        else:
             raise ValueError(f"Failed to create preview surface shader at path: '{prim_path}'.")
 
         shader_prim = CreateShaderPrimFromSdrCommand(

@@ -7,14 +7,13 @@ import numpy as np
 import torch
 
 import carb
-import isaacsim.core.utils.torch as torch_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils import math as torch_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import axis_angle_from_quat
 
 from . import factory_control, factory_utils
 from .factory_env_cfg import OBS_DIM_CFG, STATE_DIM_CFG, FactoryEnvCfg
@@ -75,7 +74,7 @@ class FactoryEnv(DirectRLEnv):
         self.last_update_timestamp = 0.0  # Note: This is for finite differencing body velocities.
         self.prev_fingertip_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.prev_fingertip_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         self.prev_joint_pos = torch.zeros((self.num_envs, 7), device=self.device)
 
@@ -89,7 +88,7 @@ class FactoryEnv(DirectRLEnv):
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
         cfg.func(
-            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.70711, 0.0, 0.0, 0.70711)
+            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
         )
 
         self._robot = Articulation(self.cfg.robot)
@@ -129,12 +128,12 @@ class FactoryEnv(DirectRLEnv):
         self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w[:, self.fingertip_body_idx]
 
-        jacobians = self._robot.root_physx_view.get_jacobians()
+        jacobians = self._robot.root_view.get_jacobians()
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.root_physx_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
+        self.arm_mass_matrix = self._robot.root_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
         self.joint_pos = self._robot.data.joint_pos.clone()
         self.joint_vel = self._robot.data.joint_vel.clone()
 
@@ -146,8 +145,8 @@ class FactoryEnv(DirectRLEnv):
         rot_diff_quat = torch_utils.quat_mul(
             self.fingertip_midpoint_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
         )
-        rot_diff_quat *= torch.sign(rot_diff_quat[:, 0]).unsqueeze(-1)
-        rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
+        rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
+        rot_diff_aa = torch_utils.axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
         self.prev_fingertip_quat = self.fingertip_midpoint_quat.clone()
 
@@ -232,11 +231,11 @@ class FactoryEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1.0e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
-        target_euler_xyz = torch.stack(torch_utils.get_euler_xyz(ctrl_target_fingertip_midpoint_quat), dim=1)
+        target_euler_xyz = torch.stack(torch_utils.euler_xyz_from_quat(ctrl_target_fingertip_midpoint_quat), dim=1)
         target_euler_xyz[:, 0] = 3.14159
         target_euler_xyz[:, 1] = 0.0
 
@@ -283,11 +282,11 @@ class FactoryEnv(DirectRLEnv):
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1e-6,
             rot_actions_quat,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1),
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
         ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
-        target_euler_xyz = torch.stack(torch_utils.get_euler_xyz(ctrl_target_fingertip_midpoint_quat), dim=1)
+        target_euler_xyz = torch.stack(torch_utils.euler_xyz_from_quat(ctrl_target_fingertip_midpoint_quat), dim=1)
         target_euler_xyz[:, 0] = 3.14159  # Restrict actions to be upright.
         target_euler_xyz[:, 1] = 0.0
 
@@ -374,7 +373,7 @@ class FactoryEnv(DirectRLEnv):
         curr_successes = torch.logical_and(is_centered, is_close_or_below)
 
         if check_rot:
-            _, _, curr_yaw = torch_utils.get_euler_xyz(self.fingertip_midpoint_quat)
+            _, _, curr_yaw = torch_utils.euler_xyz_from_quat(self.fingertip_midpoint_quat)
             curr_yaw = factory_utils.wrap_yaw(curr_yaw)
             is_rotated = curr_yaw < self.cfg_task.ee_success_yaw
             curr_successes = torch.logical_and(curr_successes, is_rotated)
@@ -443,18 +442,18 @@ class FactoryEnv(DirectRLEnv):
         offsets = factory_utils.get_keypoint_offsets(self.cfg_task.num_keypoints, self.device)
         keypoint_offsets = offsets * self.cfg_task.keypoint_scale
         for idx, keypoint_offset in enumerate(keypoint_offsets):
-            keypoints_held[:, idx] = torch_utils.tf_combine(
-                held_base_quat,
+            keypoints_held[:, idx], _ = torch_utils.combine_frame_transforms(
                 held_base_pos,
-                torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+                held_base_quat,
                 keypoint_offset.repeat(self.num_envs, 1),
-            )[1]
-            keypoints_fixed[:, idx] = torch_utils.tf_combine(
-                target_held_base_quat,
+                torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+            )
+            keypoints_fixed[:, idx], _ = torch_utils.combine_frame_transforms(
                 target_held_base_pos,
-                torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+                target_held_base_quat,
                 keypoint_offset.repeat(self.num_envs, 1),
-            )[1]
+                torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+            )
         keypoint_dist = torch.norm(keypoints_held - keypoints_fixed, p=2, dim=-1).mean(-1)
 
         a0, b0 = self.cfg_task.keypoint_coef_baseline
@@ -570,7 +569,7 @@ class FactoryEnv(DirectRLEnv):
             raise NotImplementedError("Task not implemented")
 
         held_asset_relative_quat = (
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
         )
         if self.cfg_task.name == "nut_thread":
             # Rotate along z-axis of frame for default position.
@@ -660,11 +659,11 @@ class FactoryEnv(DirectRLEnv):
         if self.cfg_task.name == "gear_mesh":
             fixed_tip_pos_local[:, 0] = self.cfg_task.fixed_asset_cfg.medium_gear_base_offset[0]
 
-        _, fixed_tip_pos = torch_utils.tf_combine(
-            self.fixed_quat,
+        fixed_tip_pos, _ = torch_utils.combine_frame_transforms(
             self.fixed_pos,
-            torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
+            self.fixed_quat,
             fixed_tip_pos_local,
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
         )
         self.fixed_pos_obs_frame[:] = fixed_tip_pos
 
@@ -741,22 +740,22 @@ class FactoryEnv(DirectRLEnv):
 
         # (3) Randomize asset-in-gripper location.
         # flip gripper z orientation
-        flip_z_quat = torch.tensor([0.0, 0.0, 1.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
-        fingertip_flipped_quat, fingertip_flipped_pos = torch_utils.tf_combine(
-            q1=self.fingertip_midpoint_quat,
-            t1=self.fingertip_midpoint_pos,
-            q2=flip_z_quat,
-            t2=torch.zeros((self.num_envs, 3), device=self.device),
+        flip_z_quat = torch.tensor([0.0, 1.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1)
+        fingertip_flipped_pos, fingertip_flipped_quat = torch_utils.combine_frame_transforms(
+            self.fingertip_midpoint_pos,
+            self.fingertip_midpoint_quat,
+            torch.zeros((self.num_envs, 3), device=self.device),
+            flip_z_quat,
         )
 
         # get default gripper in asset transform
         held_asset_relative_pos, held_asset_relative_quat = self.get_handheld_asset_relative_pose()
-        asset_in_hand_quat, asset_in_hand_pos = torch_utils.tf_inverse(
-            held_asset_relative_quat, held_asset_relative_pos
-        )
+        # Compute inverse of relative transform: inv(quat, pos) = (quat_conjugate, -quat_rotate_inverse(quat, pos))
+        asset_in_hand_quat = torch_utils.quat_inv(held_asset_relative_quat)
+        asset_in_hand_pos = torch_utils.quat_apply_inverse(held_asset_relative_quat, -held_asset_relative_pos)
 
-        translated_held_asset_quat, translated_held_asset_pos = torch_utils.tf_combine(
-            q1=fingertip_flipped_quat, t1=fingertip_flipped_pos, q2=asset_in_hand_quat, t2=asset_in_hand_pos
+        translated_held_asset_pos, translated_held_asset_quat = torch_utils.combine_frame_transforms(
+            fingertip_flipped_pos, fingertip_flipped_quat, asset_in_hand_pos, asset_in_hand_quat
         )
 
         # Add asset in hand randomization
@@ -767,11 +766,11 @@ class FactoryEnv(DirectRLEnv):
 
         held_asset_pos_noise_level = torch.tensor(self.cfg_task.held_asset_pos_noise, device=self.device)
         held_asset_pos_noise = held_asset_pos_noise @ torch.diag(held_asset_pos_noise_level)
-        translated_held_asset_quat, translated_held_asset_pos = torch_utils.tf_combine(
-            q1=translated_held_asset_quat,
-            t1=translated_held_asset_pos,
-            q2=torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
-            t2=held_asset_pos_noise,
+        translated_held_asset_pos, translated_held_asset_quat = torch_utils.combine_frame_transforms(
+            translated_held_asset_pos,
+            translated_held_asset_quat,
+            held_asset_pos_noise,
+            torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).unsqueeze(0).repeat(self.num_envs, 1),
         )
 
         held_state = self._held_asset.data.default_root_state.clone()

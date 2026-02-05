@@ -90,8 +90,8 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
         # Handle case where wrist data is not available
         if left_wrist is None or right_wrist is None:
             # Set to default pose if no data available.
-            # pos=(0,0,0), quat=(1,0,0,0) (w,x,y,z)
-            default_pose = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+            # pos=(0,0,0), quat=(0,0,0,1) (x,y,z,w)
+            default_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
             if left_wrist is None:
                 left_wrist = default_pose
             if right_wrist is None:
@@ -148,10 +148,10 @@ class G1TriHandUpperBodyRetargeter(RetargeterBase):
 
         if is_left:
             # Corresponds to a rotation of (0, 90, 90) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0.7071, 0, 0.7071, 0], dtype=torch.float32)
+            combined_quat = torch.tensor([0, 0.7071, 0, 0.7071], dtype=torch.float32)
         else:
             # Corresponds to a rotation of (0, -90, -90) in euler angles (x,y,z)
-            combined_quat = torch.tensor([0, -0.7071, 0, 0.7071], dtype=torch.float32)
+            combined_quat = torch.tensor([-0.7071, 0, 0.7071, 0], dtype=torch.float32)
 
         openxr_pose = PoseUtils.make_pose(wrist_pos, PoseUtils.matrix_from_quat(wrist_quat))
         transform_pose = PoseUtils.make_pose(torch.zeros(3), PoseUtils.matrix_from_quat(combined_quat))

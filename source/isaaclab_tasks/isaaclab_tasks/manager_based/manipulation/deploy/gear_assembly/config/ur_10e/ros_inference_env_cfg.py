@@ -48,31 +48,31 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
         # (rotated 180° around Z from base_link), not the base_link frame (USD origin).
         # See: https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_description/doc/robot_frames.html
         # Joint positions and pos are inherited from parent, only override rotation to be deterministic
-        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
 
         # Override gear base initial pose (fixed pose for ROS inference)
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Override gear initial poses (fixed poses for ROS inference)
         # Small gear
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),  # z = base_z + 0.1675 (above base)
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Medium gear
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Large gear
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Fixed asset parameters for ROS inference - derived from configuration
@@ -141,31 +141,31 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
         # (rotated 180° around Z from base_link), not the base_link frame (USD origin).
         # See: https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/doc/ur_description/doc/robot_frames.html
         # Joint positions and pos are inherited from parent, only override rotation to be deterministic
-        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.robot.init_state.rot = (0.0, 0.0, 1.0, 0.0)
 
         # Override gear base initial pose (fixed pose for ROS inference)
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Override gear initial poses (fixed poses for ROS inference)
         # Small gear
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),  # z = base_z + 0.1675 (above base)
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Medium gear
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Large gear
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(1.0200, -0.2100, -0.1),
-            rot=(-0.70711, 0.0, 0.0, 0.70711),
+            rot=(0.0, 0.0, 0.70711, -0.70711),
         )
 
         # Fixed asset parameters for ROS inference - derived from configuration

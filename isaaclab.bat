@@ -42,8 +42,8 @@ rem --- Ensure CUDA PyTorch helper ------------------------------------------
 :ensure_cuda_torch
 rem expects: !python_exe! set by :extract_python_exe
 setlocal EnableExtensions EnableDelayedExpansion
-set "TORCH_VER=2.7.0"
-set "TV_VER=0.22.0"
+set "TORCH_VER=2.9.0"
+set "TV_VER=0.24.0"
 set "CUDA_TAG=cu128"
 set "PYTORCH_INDEX=https://download.pytorch.org/whl/%CUDA_TAG%"
 
@@ -66,9 +66,9 @@ if errorlevel 1 (
 endlocal & exit /b 0
 
 rem -----------------------------------------------------------------------
-rem Returns success (exit code 0) if Isaac Sim's version starts with "4.5"
+rem Returns success (exit code 0) if Isaac Sim's version starts with "5."
 rem -----------------------------------------------------------------------
-:is_isaacsim_version_4_5
+:is_isaacsim_version_5_x
     rem make sure we have %python_exe%
     call :extract_python_exe
 
@@ -84,8 +84,8 @@ rem -----------------------------------------------------------------------
     rem Clean up the version string (remove any trailing whitespace or newlines)
     set "ISAACSIM_VER=!ISAACSIM_VER: =!"
 
-    rem Use string comparison instead of findstr for more reliable matching
-    if "!ISAACSIM_VER:~0,3!"=="4.5" (
+    rem Use string comparison - check if version starts with "5."
+    if "!ISAACSIM_VER:~0,2!"=="5." (
         exit /b 0
     ) else (
         exit /b 1
@@ -153,7 +153,7 @@ call :extract_python_exe
 rem if the directory contains setup.py then install the python module
 if exist "%ext_folder%\setup.py" (
     echo     module: %ext_folder%
-    call !python_exe! -m pip install --editable %ext_folder%
+    call !python_exe! -m pip install --prefer-binary --editable %ext_folder%
 )
 goto :eof
 
@@ -190,16 +190,16 @@ if %errorlevel% equ 0 (
     rem patch Python version if needed, but back up first
     rem ————————————————————————————————
     copy "%ISAACLAB_PATH%environment.yml" "%ISAACLAB_PATH%environment.yml.bak" >nul
-    call :is_isaacsim_version_4_5
+    call :is_isaacsim_version_5_x
     if !ERRORLEVEL! EQU 0 (
-        echo [INFO] Detected Isaac Sim 4.5 --^> forcing python=3.10
+        echo [INFO] Detected Isaac Sim 5.X --^> using python=3.11
         rem Use findstr to replace the python version line
         (
             for /f "delims=" %%L in ('type "%ISAACLAB_PATH%environment.yml"') do (
                 set "line=%%L"
                 set "line=!line: =!"
-                if "!line:~0,15!"=="-python=3.11" (
-                    echo   - python=3.10
+                if "!line:~0,15!"=="-python=3.12" (
+                    echo   - python=3.11
                 ) else (
                     echo %%L
                 )
@@ -208,7 +208,7 @@ if %errorlevel% equ 0 (
         rem Replace the original file with the modified version
         move /y "%ISAACLAB_PATH%environment.yml.tmp" "%ISAACLAB_PATH%environment.yml" >nul
     ) else (
-        echo [INFO] Isaac Sim ^>=5.0, installing python=3.11
+        echo [INFO] Isaac Sim 6.0+ detected, installing python=3.12
     )
     call conda env create -y --file %ISAACLAB_PATH%\environment.yml -n %env_name%
 )
@@ -359,6 +359,11 @@ if "%arg%"=="-i" (
     rem install the python packages in isaaclab/source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+
+    rem upgrade pip first to avoid compatibility issues
+    echo [INFO] Upgrading pip...
+    call !python_exe! -m pip install --upgrade pip
+
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch
@@ -382,7 +387,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    call !python_exe! -m pip install --prefer-binary -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
     rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
     rem installed again
     call :ensure_cuda_torch
@@ -395,6 +400,11 @@ if "%arg%"=="-i" (
     rem install the python packages in source directory
     echo [INFO] Installing extensions inside the Isaac Lab repository...
     call :extract_python_exe
+
+    rem upgrade pip first to avoid compatibility issues
+    echo [INFO] Upgrading pip...
+    call !python_exe! -m pip install --upgrade pip
+
     rem check if pytorch is installed and its version
     rem install pytorch with cuda 12.8 for blackwell support
     call :ensure_cuda_torch
@@ -418,7 +428,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
+    call !python_exe! -m pip install --prefer-binary -e %ISAACLAB_PATH%\source\isaaclab_rl[!framework_name!]
     rem in rare case if some packages or flaky setup override default torch installation, ensure right torch is
     rem installed again
     call :ensure_cuda_torch

@@ -223,6 +223,11 @@
     "comment": "ZLIBL"
   },
   {
+    "package": "cmeel-tinyxml2",
+    "license": "Zlib",
+    "comment": "Zlib"
+  },
+  {
     "package": "cmeel-urdfdom",
     "license": "UNKNOWN",
     "comment": "BSD"

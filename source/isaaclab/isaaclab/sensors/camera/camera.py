@@ -51,6 +51,8 @@ class Camera(SensorBase):
 
     - ``"rgb"``: A 3-channel rendered color image.
     - ``"rgba"``: A 4-channel rendered color image with alpha channel.
+    - ``"albedo"``: A 4-channel fast diffuse-albedo only path for color image.
+      Note that this path will achieve the best performance when used alone or with depth only.
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: The same as ``"distance_to_image_plane"``.
@@ -121,6 +123,23 @@ class Camera(SensorBase):
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
         carb_settings_iface = carb.settings.get_settings()
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+
+        # This is only introduced in isaac sim 6.0
+        isaac_sim_version = sim_utils.SimulationContext.instance().get_version()
+        if isaac_sim_version[0] >= 6:
+            # Set RTX flag to enable fast path if only depth or albedo is requested
+            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+
+            # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
+            if sim_utils.SimulationContext.instance().has_gui():
+                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in self.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -272,6 +291,9 @@ class Camera(SensorBase):
                 param_name = to_camel_case(param_name, to="CC")
                 # get attribute from the class
                 param_attr = getattr(sensor_prim, f"Get{param_name}Attr")
+                # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
+                if isinstance(param_value, np.floating):
+                    param_value = float(param_value)
                 # set value
                 # note: We have to do it this way because the camera might be on a different
                 #   layer (default cameras are on session layer), and this is the simplest
@@ -306,7 +328,7 @@ class Camera(SensorBase):
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+            orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
@@ -477,8 +499,15 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "albedo":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+
                 # Map special cases to their corresponding annotator names
-                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane", "albedo": "DiffuseAlbedoSD"}
                 # Get the annotator name, falling back to the original name if not a special case
                 annotator_name = special_cases.get(name, name)
                 # Create the annotator node
@@ -577,7 +606,7 @@ class Camera(SensorBase):
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
 
-        Note:
+        .. note::
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """
@@ -611,7 +640,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:

@@ -18,8 +18,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
-    "torch>=2.7",
+    "numpy>=2",
+    "torch>=2.9",
     "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
     "prettytable==3.3.0",
     "toml",
@@ -42,14 +42,16 @@ INSTALL_REQUIRES = [
     "imgui_bundle>=1.92.0",
     "PyOpenGL-accelerate==3.1.10",
     "rerun-sdk>=0.27.1",
+    "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # make sure this is consistent with isaac sim version
-    "pillow==11.3.0",
+    "pillow==12.0.0",
     # livestream
     "starlette==0.49.1",
     # testing
     "pytest",
     "pytest-mock",
     "junitparser",
+    "coverage==7.6.1",
     "flatdict==4.0.1",
     "flaky",
     "packaging",
@@ -63,7 +65,7 @@ INSTALL_REQUIRES += [
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-    f"dex-retargeting==0.4.6 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+    f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
     f"usd-core==25.05.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.1 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
@@ -86,12 +88,11 @@ setup(
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
-        "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

@@ -3,55 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Re-exports the base IMU data class for backwards compatibility."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import torch
+from isaaclab.utils.backend_utils import FactoryBase
+
+from .base_imu_data import BaseImuData
+
+if TYPE_CHECKING:
+    from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
 
 
-@dataclass
-class ImuData:
-    """Data container for the Imu sensor."""
+class ImuData(FactoryBase, BaseImuData):
+    """Factory for creating IMU data instances."""
 
-    pos_w: torch.Tensor = None
-    """Position of the sensor origin in world frame.
-
-    Shape is (N, 3), where ``N`` is the number of environments.
-    """
-
-    quat_w: torch.Tensor = None
-    """Orientation of the sensor origin in quaternion ``(w, x, y, z)`` in world frame.
-
-    Shape is (N, 4), where ``N`` is the number of environments.
-    """
-
-    projected_gravity_b: torch.Tensor = None
-    """Gravity direction unit vector projected on the imu frame.
-
-    Shape is (N,3), where ``N`` is the number of environments.
-    """
-
-    lin_vel_b: torch.Tensor = None
-    """IMU frame angular velocity relative to the world expressed in IMU frame.
-
-    Shape is (N, 3), where ``N`` is the number of environments.
-    """
-
-    ang_vel_b: torch.Tensor = None
-    """IMU frame angular velocity relative to the world expressed in IMU frame.
-
-    Shape is (N, 3), where ``N`` is the number of environments.
-    """
-
-    lin_acc_b: torch.Tensor = None
-    """IMU frame linear acceleration relative to the world expressed in IMU frame.
-
-    Shape is (N, 3), where ``N`` is the number of environments.
-    """
-
-    ang_acc_b: torch.Tensor = None
-    """IMU frame angular acceleration relative to the world expressed in IMU frame.
-
-    Shape is (N, 3), where ``N`` is the number of environments.
-    """
+    def __new__(cls, *args, **kwargs) -> BaseImuData | PhysXImuData:
+        """Create a new instance of an IMU data based on the backend."""
+        return super().__new__(cls, *args, **kwargs)

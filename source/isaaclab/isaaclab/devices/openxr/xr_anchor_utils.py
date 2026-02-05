@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# SPDX-License-Identifier: BSD-3-Clause
 """Utilities for synchronizing XR anchor pose with a reference prim and XR config."""
 
 from __future__ import annotations
@@ -103,7 +101,7 @@ class XrAnchorSynchronizer:
 
             pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
 
-            w, x, y, z = self._xr_cfg.anchor_rot
+            x, y, z, w = self._xr_cfg.anchor_rot
             pxr_cfg_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
 
             pxr_anchor_quat = pxr_cfg_quat
@@ -143,17 +141,17 @@ class XrAnchorSynchronizer:
                             rt_pos[0],
                             rt_pos[1],
                             rt_pos[2],
-                            rt_prim_quat.GetReal(),
                             rt_prim_quat.GetImaginary()[0],
                             rt_prim_quat.GetImaginary()[1],
                             rt_prim_quat.GetImaginary()[2],
+                            rt_prim_quat.GetReal(),
                         ],
                         dtype=np.float64,
                     )
                     # Previous headpose must be provided by caller; fall back to zeros.
                     prev_head = getattr(self, "_previous_headpose", np.zeros(7, dtype=np.float64))
                     np_array_quat = self._xr_cfg.anchor_rotation_custom_func(prev_head, anchor_prim_pose)
-                    w, x, y, z = np_array_quat
+                    x, y, z, w = np_array_quat
                     pxr_anchor_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
 
             pxr_mat = pxrGf.Matrix4d()

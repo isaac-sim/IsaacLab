@@ -86,7 +86,7 @@ class SceneCfg(InteractiveSceneCfg):
             activate_contact_sensors=True,
         ),
         init_state=AssetBaseCfg.InitialStateCfg(
-            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.9238795325, 0.0, -0.3826834324, 0.0)
+            pos=(0.6 + 0.085, 0.0, 0.3), rot=(0.0, -0.3826834324, 0.0, 0.9238795325)
         ),
     )
 
@@ -144,12 +144,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
-    # Define targets for the arm
+    # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(
         [
-            [0.6, 0.15, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.6, -0.3, 0.3, 0.0, 0.92387953, 0.0, 0.38268343],
-            [0.8, 0.0, 0.5, 0.0, 0.92387953, 0.0, 0.38268343],
+            [0.6, 0.15, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
+            [0.6, -0.3, 0.3, 0.0, 0.38268343, 0.0, 0.92387953],
+            [0.8, 0.0, 0.5, 0.0, 0.38268343, 0.0, 0.92387953],
         ],
         device=sim.device,
     )
@@ -313,9 +313,9 @@ def update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = robot.root_physx_view.get_generalized_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = robot.root_physx_view.get_gravity_compensation_forces()[:, arm_joint_ids]
+    jacobian_w = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
+    mass_matrix = robot.root_view.get_generalized_mass_matrices()[:, arm_joint_ids, :][:, :, arm_joint_ids]
+    gravity = robot.root_view.get_gravity_compensation_forces()[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
     root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w))

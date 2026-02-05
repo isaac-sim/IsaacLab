@@ -10,8 +10,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_physx.assets import SurfaceGripper
 
-from isaaclab.assets.surface_gripper import SurfaceGripper
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:

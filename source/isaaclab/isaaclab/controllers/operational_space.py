@@ -183,16 +183,16 @@ class OperationalSpaceController:
             command (torch.Tensor): A concatenated tensor of shape (``num_envs``, ``action_dim``) containing task-space
                 targets (i.e., pose/wrench) and impedance parameters.
             current_ee_pose_b (torch.Tensor, optional): Current end-effector pose, in root frame, of shape
-                (``num_envs``, 7), containing position and quaternion ``(w, x, y, z)``. Required for relative
+                (``num_envs``, 7), containing position and quaternion ``(x, y, z, w)``. Required for relative
                 commands. Defaults to None.
             current_task_frame_pose_b: Current pose of the task frame, in root frame, in which the targets and the
                 (motion/wrench) control axes are defined. It is a tensor of shape (``num_envs``, 7),
-                containing position and the quaternion ``(w, x, y, z)``. Defaults to None.
+                containing position and the quaternion ``(x, y, z, w)``. Defaults to None.
 
         Format:
             Task-space targets, ordered according to 'command_types':
 
-                Absolute pose: shape (``num_envs``, 7), containing position and quaternion ``(w, x, y, z)``.
+                Absolute pose: shape (``num_envs``, 7), containing position and quaternion ``(x, y, z, w)``.
                 Relative pose: shape (``num_envs``, 6), containing delta position and rotation in axis-angle form.
                 Absolute wrench: shape (``num_envs``, 6), containing force and torque.
 
@@ -257,8 +257,9 @@ class OperationalSpaceController:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
         if current_task_frame_pose_b is None:
+            # xyzw format: identity quat is [0, 0, 0, 1]
             current_task_frame_pose_b = torch.tensor(
-                [[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]] * self.num_envs, device=self._device
+                [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * self.num_envs, device=self._device
             )
 
         # Resolve the target commands
@@ -361,7 +362,7 @@ class OperationalSpaceController:
             jacobian_b: The Jacobian matrix of the end-effector in root frame. It is a tensor of shape
                 (``num_envs``, 6, ``num_DoF``).
             current_ee_pose_b: The current end-effector pose in root frame. It is a tensor of shape
-                (``num_envs``, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to ``None``.
+                (``num_envs``, 7), which contains the position and quaternion ``(x, y, z, w)``. Defaults to ``None``.
             current_ee_vel_b: The current end-effector velocity in root frame. It is a tensor of shape
                 (``num_envs``, 6), which contains the linear and angular velocities. Defaults to None.
             current_ee_force_b: The current external force on the end-effector in root frame. It is a tensor of

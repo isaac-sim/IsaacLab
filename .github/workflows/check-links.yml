@@ -18,6 +18,7 @@ on:
       - main
       - develop
       - 'release/**'
+      - 'feature/isaacsim-6-0'
     paths:
       - 'docs/**'
       - '**.md'

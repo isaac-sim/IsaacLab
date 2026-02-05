@@ -19,6 +19,7 @@ Guidelines for modifications:
 
 ---
 
+* Antoine Richard
 * Antonio Serrano-Muñoz
 * Ben Johnston
 * Brian McCann
@@ -45,6 +46,7 @@ Guidelines for modifications:
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
+* Anke Zhao
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
@@ -54,13 +56,14 @@ Guidelines for modifications:
 * Brayden Zhang
 * Brian Bingham
 * Brian McCann
-* Cameron Upright
 * Calvin Yu
+* Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* David Leon
 * David Yang
 * Dhananjay Shendre
 * Dongxuan Fan
@@ -94,24 +97,25 @@ Guidelines for modifications:
 * Johnson Sun
 * Juana Du
 * Kaixi Bao
-* Kris Wilson
-* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
+* Kris Wilson
+* Krishna Lakhi
 * Lionel Gulich
+* Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
-* Lorenz Wellhausen
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
 * Mateo Guaman Castro
 * Maurice Rahme
 * Michael Gussert
-* Michael Noseworthy
 * Michael Lin
+* Michael Noseworthy
 * Miguel Alonso Jr
 * Mihir Kulkarni
+* Mikhail Yurasov
 * Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
@@ -144,17 +148,20 @@ Guidelines for modifications:
 * Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
-* Sixiang Chen
 * Shundo Kishi
+* Sixiang Chen
+* Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
 * Tiffany Chen
 * Trushant Adeshara
+* Tsz Ki GAO
 * Tyler Lum
 * Victor Khaustov
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
+* Weihua Zhang
 * Welf Rehberg
 * Xavier Nal
 * Xiaodi Yuan
@@ -170,11 +177,6 @@ Guidelines for modifications:
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy
-* David Leon
-* Song Yi
-* Weihua Zhang
-* Tsz Ki GAO
-* Anke Zhao
 
 ## Acknowledgements
 

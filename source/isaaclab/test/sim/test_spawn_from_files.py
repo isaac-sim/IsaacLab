@@ -71,11 +71,11 @@ def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
     # pin the urdf importer extension to the older version
     manager = omni.kit.app.get_app().get_extension_manager()
-    if get_isaac_sim_version() >= Version("5.1"):
+    if get_isaac_sim_version() == Version("5.1"):
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
-        manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     else:
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"
+    manager.set_extension_enabled_immediate(pinned_urdf_extension_name, True)
     # retrieve path to urdf importer extension
     extension_id = manager.get_enabled_extension_id(pinned_urdf_extension_name)
     extension_path = manager.get_extension_path(extension_id)

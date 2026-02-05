@@ -6,7 +6,7 @@
 import numpy as np
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
+from isaaclab.utils import math as torch_utils
 
 
 def get_keypoint_offsets(num_keypoints, device):
@@ -30,20 +30,20 @@ def wrap_yaw(angle):
 
 def set_friction(asset, value, num_envs):
     """Update material properties for a given asset."""
-    materials = asset.root_physx_view.get_material_properties()
+    materials = asset.root_view.get_material_properties()
     materials[..., 0] = value  # Static friction.
     materials[..., 1] = value  # Dynamic friction.
     env_ids = torch.arange(num_envs, device="cpu")
-    asset.root_physx_view.set_material_properties(materials, env_ids)
+    asset.root_view.set_material_properties(materials, env_ids)
 
 
 def set_body_inertias(robot, num_envs):
     """Note: this is to account for the asset_options.armature parameter in IGE."""
-    inertias = robot.root_physx_view.get_inertias()
+    inertias = robot.root_view.get_inertias()
     offset = torch.zeros_like(inertias)
     offset[:, :, [0, 4, 8]] += 0.01
     new_inertias = inertias + offset
-    robot.root_physx_view.set_inertias(new_inertias, torch.arange(num_envs))
+    robot.root_view.set_inertias(new_inertias, torch.arange(num_envs))
 
 
 def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
@@ -70,10 +70,10 @@ def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
 def get_held_base_pose(held_pos, held_quat, task_name, fixed_asset_cfg, num_envs, device):
     """Get current poses for keypoint and success computation."""
     held_base_pos_local = get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device)
-    held_base_quat_local = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+    held_base_quat_local = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).unsqueeze(0).repeat(num_envs, 1)
 
-    held_base_quat, held_base_pos = torch_utils.tf_combine(
-        held_quat, held_pos, held_base_quat_local, held_base_pos_local
+    held_base_pos, held_base_quat = torch_utils.combine_frame_transforms(
+        held_pos, held_quat, held_base_pos_local, held_base_quat_local
     )
     return held_base_pos, held_base_quat
 
@@ -94,10 +94,10 @@ def get_target_held_base_pose(fixed_pos, fixed_quat, task_name, fixed_asset_cfg,
         fixed_success_pos_local[:, 2] = head_height + shank_length - thread_pitch * 1.5
     else:
         raise NotImplementedError("Task not implemented")
-    fixed_success_quat_local = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+    fixed_success_quat_local = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).unsqueeze(0).repeat(num_envs, 1)
 
-    target_held_base_quat, target_held_base_pos = torch_utils.tf_combine(
-        fixed_quat, fixed_pos, fixed_success_quat_local, fixed_success_pos_local
+    target_held_base_pos, target_held_base_quat = torch_utils.combine_frame_transforms(
+        fixed_pos, fixed_quat, fixed_success_pos_local, fixed_success_quat_local
     )
     return target_held_base_pos, target_held_base_quat
 

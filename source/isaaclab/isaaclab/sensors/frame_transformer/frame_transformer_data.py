@@ -3,55 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
+"""Re-exports the base frame transformer data class for backwards compatibility."""
 
-import torch
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from isaaclab.utils.backend_utils import FactoryBase
+
+from .base_frame_transformer_data import BaseFrameTransformerData
+
+if TYPE_CHECKING:
+    from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 
 
-@dataclass
-class FrameTransformerData:
-    """Data container for the frame transformer sensor."""
+class FrameTransformerData(FactoryBase, BaseFrameTransformerData):
+    """Factory for creating frame transformer data instances."""
 
-    target_frame_names: list[str] = None
-    """Target frame names (this denotes the order in which that frame data is ordered).
-
-    The frame names are resolved from the :attr:`FrameTransformerCfg.FrameCfg.name` field.
-    This does not necessarily follow the order in which the frames are defined in the config due to
-    the regex matching.
-    """
-
-    target_pos_source: torch.Tensor = None
-    """Position of the target frame(s) relative to source frame.
-
-    Shape is (N, M, 3), where N is the number of environments, and M is the number of target frames.
-    """
-
-    target_quat_source: torch.Tensor = None
-    """Orientation of the target frame(s) relative to source frame quaternion (w, x, y, z).
-
-    Shape is (N, M, 4), where N is the number of environments, and M is the number of target frames.
-    """
-
-    target_pos_w: torch.Tensor = None
-    """Position of the target frame(s) after offset (in world frame).
-
-    Shape is (N, M, 3), where N is the number of environments, and M is the number of target frames.
-    """
-
-    target_quat_w: torch.Tensor = None
-    """Orientation of the target frame(s) after offset (in world frame) quaternion (w, x, y, z).
-
-    Shape is (N, M, 4), where N is the number of environments, and M is the number of target frames.
-    """
-
-    source_pos_w: torch.Tensor = None
-    """Position of the source frame after offset (in world frame).
-
-    Shape is (N, 3), where N is the number of environments.
-    """
-
-    source_quat_w: torch.Tensor = None
-    """Orientation of the source frame after offset (in world frame) quaternion (w, x, y, z).
-
-    Shape is (N, 4), where N is the number of environments.
-    """
+    def __new__(cls, *args, **kwargs) -> BaseFrameTransformerData | PhysXFrameTransformerData:
+        """Create a new instance of a frame transformer data based on the backend."""
+        return super().__new__(cls, *args, **kwargs)

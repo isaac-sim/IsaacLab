@@ -94,7 +94,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
 def root_quat_w(
     env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Asset root orientation (w, x, y, z) in the environment frame.
+    """Asset root orientation (x, y, z, w) in the environment frame.
 
     If :attr:`make_quat_unique` is True, then returned quaternion is made unique by ensuring
     the quaternion has non-negative real component. This is because both ``q`` and ``-q`` represent
@@ -320,7 +320,7 @@ def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
         asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 
     Returns:
-        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).
+        Orientation in the world frame in (x, y, z, w) quaternion form. Shape is (num_envs, 4).
     """
     # extract the used quantities (to enable type-hinting)
     asset: Imu = env.scene[asset_cfg.name]

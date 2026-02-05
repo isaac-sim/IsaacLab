@@ -63,7 +63,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = self.right_hand.root_physx_view.get_dof_limits().to(self.device)
+        joint_pos_limits = self.right_hand.root_view.get_dof_limits().to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 

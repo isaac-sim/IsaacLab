@@ -319,7 +319,7 @@ Related PR: https://github.com/isaac-sim/IsaacLab/pull/4286
 
 For backward compatibility, legacy functions are still available in ``isaaclab.sim.utils.legacy``, but it's recommended to migrate to the new APIs or use USD directly.
 
-**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.2.1...v2.3.2
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.3.1...v2.3.2
 
 v2.3.1
 ======
