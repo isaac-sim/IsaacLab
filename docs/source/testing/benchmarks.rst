@@ -109,7 +109,7 @@ Measure environment stepping performance without training:
    ./scripts/benchmarks/run_non_rl_benchmarks.sh ./output_dir
 
    # Run a single benchmark manually
-   ./isaaclab.sh -p source/isaaclab/isaaclab/test/benchmark/benchmark_core.py \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --num_frames 100 \
@@ -128,7 +128,7 @@ Measure training performance with RSL-RL:
    ./scripts/benchmarks/run_training_benchmarks.sh ./output_dir
 
    # Run manually with RSL-RL
-   ./isaaclab.sh -p source/isaaclab_rl/scripts/train.py \
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --max_iterations 500 \

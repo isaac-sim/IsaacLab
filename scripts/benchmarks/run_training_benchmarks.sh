@@ -7,9 +7,9 @@ NUM_ENV="4096"
 ITERATIONS="500"
 
 for TASK in $TASKS; do
-    if [[ $task == *"RGB-Camera"* ]] || [[ $task == *"Depth-Camera"* ]]; then
-        ./isaaclab.sh -p source/isaaclab/isaaclab/test/benchmark/benchmark_core.py --backend omniperf --output_dir "$OUTPUT_DIR" --task "$TASK" --num_envs "$NUM_ENV" --headless --max_iterations "$ITERATIONS" --enable_cameras
+    if [[ $TASK == *"RGB-Camera"* ]] || [[ $TASK == *"Depth-Camera"* ]]; then
+        ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --benchmark_backend omniperf --output_path "$OUTPUT_DIR" --task "$TASK" --num_envs "$NUM_ENV" --headless --max_iterations "$ITERATIONS" --enable_cameras
     else
-        ./isaaclab.sh -p source/isaaclab/isaaclab/test/benchmark/benchmark_core.py --backend omniperf --output_dir "$OUTPUT_DIR" --task "$TASK" --num_envs "$NUM_ENV" --headless --max_iterations "$ITERATIONS"
+        ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --benchmark_backend omniperf --output_path "$OUTPUT_DIR" --task "$TASK" --num_envs "$NUM_ENV" --headless --max_iterations "$ITERATIONS"
     fi
 done
