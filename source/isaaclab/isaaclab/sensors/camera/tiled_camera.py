@@ -187,7 +187,7 @@ class TiledCamera(Camera):
 
         if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
             rep.AnnotatorRegistry.register_annotator_from_aov(
-                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.float32, output_channels=4
             )
             # Set simple shading mode (if requested) before rendering
             simple_shading_mode = self._resolve_simple_shading_mode()
@@ -195,6 +195,7 @@ class TiledCamera(Camera):
                 carb.settings.get_settings().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
         # Define the annotators based on requested data types
         self._annotators = dict()
+        self._debug_simple_shading_logged: set[str] = set()
         for annotator_type in self.cfg.data_types:
             if annotator_type == "rgba" or annotator_type == "rgb":
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
@@ -272,6 +273,16 @@ class TiledCamera(Camera):
                 tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device)
             else:
                 tiled_data_buffer = tiled_data_buffer.to(device=self.device)
+
+            # Debug simple shading buffer shape/type once per data type
+            if data_type in self.SIMPLE_SHADING_MODES and data_type not in self._debug_simple_shading_logged:
+                shape = getattr(tiled_data_buffer, "shape", None)
+                dtype = getattr(tiled_data_buffer, "dtype", None)
+                print(
+                    f"[DEBUG] TiledCamera simple shading buffer for '{data_type}': "
+                    f"type={type(tiled_data_buffer)}, shape={shape}, dtype={dtype}"
+                )
+                self._debug_simple_shading_logged.add(data_type)
 
             # process data for different segmentation types
             # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
@@ -377,14 +388,11 @@ class TiledCamera(Camera):
             data_dict["albedo"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
             ).contiguous()
-<<<<<<< HEAD
         for data_type in self.SIMPLE_SHADING_MODES:
             if data_type in self.cfg.data_types:
                 data_dict[data_type] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
+                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
                 ).contiguous()
-=======
->>>>>>> develop
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32

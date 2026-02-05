@@ -239,14 +239,13 @@ class CartpoleCameraEnv(DirectRLEnv):
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
-<<<<<<< HEAD
         elif data_type in SIMPLE_SHADING_TYPES:
-            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            camera_data = self._tiled_camera.data.output[data_type]
+            if camera_data.dtype == torch.uint8:
+                camera_data = camera_data / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
-=======
->>>>>>> develop
         elif "depth" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
             camera_data[camera_data == float("inf")] = 0
