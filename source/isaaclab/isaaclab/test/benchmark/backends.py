@@ -278,7 +278,7 @@ class OmniPerfKPIFile(MetricsBackendInterface):
                     phase_data[f"{measurement.name}_mean"] = measurement.mean
                     phase_data[f"{measurement.name}_std"] = measurement.std
                     phase_data[f"{measurement.name}_n"] = measurement.n
-                elif isinstance(measurement, SingleMeasurement):
+                elif type(measurement).__name__ == "SingleMeasurement":
                     log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
                     phase_data[measurement.name] = measurement.value
             workflow_data[phase_name] = phase_data

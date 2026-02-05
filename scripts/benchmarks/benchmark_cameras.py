@@ -223,6 +223,16 @@ parser.add_argument(
     help="Number of objects to spawn into the scene when not using a known task.",
 )
 
+# Benchmark arguments
+parser.add_argument(
+    "--benchmark_backend",
+    type=str,
+    default="omniperf",
+    choices=["json", "osmo", "omniperf"],
+    help="Benchmarking backend options, defaults omniperf",
+)
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
+
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -259,6 +269,7 @@ from isaaclab.sensors import (
     TiledCameraCfg,
     patterns,
 )
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
@@ -746,7 +757,39 @@ def main():
         )
         raise ValueError("Benchmark one camera at a time.")
 
+    # Determine which camera type is being used
+    camera_type = "tiled"
+    num_cameras = args_cli.num_tiled_cameras
+    if args_cli.num_standard_cameras > 0:
+        camera_type = "standard"
+        num_cameras = args_cli.num_standard_cameras
+    elif args_cli.num_ray_caster_cameras > 0:
+        camera_type = "ray_caster"
+        num_cameras = args_cli.num_ray_caster_cameras
+
+    # Create the benchmark
+    benchmark = BaseIsaacLabBenchmark(
+        benchmark_name="benchmark_cameras",
+        backend_type=args_cli.benchmark_backend,
+        output_path=args_cli.output_path,
+        use_recorders=True,
+        output_prefix="benchmark_cameras",
+        workflow_metadata={
+            "metadata": [
+                {"name": "task", "data": args_cli.task},
+                {"name": "camera_type", "data": camera_type},
+                {"name": "num_cameras", "data": num_cameras},
+                {"name": "height", "data": args_cli.height},
+                {"name": "width", "data": args_cli.width},
+                {"name": "experiment_length", "data": args_cli.experiment_length},
+                {"name": "autotune", "data": args_cli.autotune},
+            ]
+        },
+    )
+
     print("[INFO]: Designing the scene")
+    final_analysis = None
+
     if args_cli.task is None:
         print("[INFO]: No task environment provided, creating random scene.")
         sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
@@ -770,7 +813,7 @@ def main():
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run simulator
-        run_simulator(
+        final_analysis = run_simulator(
             sim=sim,
             scene_entities=scene_entities,
             warm_start_length=args_cli.warm_start_length,
@@ -845,6 +888,7 @@ def main():
             )
 
             cur_sys_util = analysis["system_utilization_analytics"]
+            final_analysis = analysis
             print("Triggering reset...")
             env.close()
             sim_utils.create_new_stage()
@@ -855,6 +899,49 @@ def main():
 
         if not args_cli.autotune:
             print("[WARNING]: GPU Util Statistics only correct while autotuning, ignore above.")
+
+    # Log benchmark measurements
+    if final_analysis is not None:
+        timing = final_analysis["timing_analytics"]
+        sys_util = final_analysis["system_utilization_analytics"]
+
+        # Log timing measurements
+        benchmark.add_measurement(
+            "runtime",
+            measurement=SingleMeasurement(
+                name="Average Timestep Duration", value=timing["average_timestep_duration"] * 1000, unit="ms"
+            ),
+        )
+        benchmark.add_measurement(
+            "runtime",
+            measurement=SingleMeasurement(
+                name="Average Simulation Step Duration", value=timing["average_sim_step_duration"] * 1000, unit="ms"
+            ),
+        )
+        benchmark.add_measurement(
+            "runtime",
+            measurement=SingleMeasurement(
+                name="Total Simulation Time", value=timing["total_simulation_time"] * 1000, unit="ms"
+            ),
+        )
+
+        # Log system utilization
+        benchmark.add_measurement(
+            "runtime",
+            measurement=DictMeasurement(
+                name="System Utilization",
+                value={
+                    "cpu_percent": sys_util[0],
+                    "ram_percent": sys_util[1],
+                    "gpu_compute_percent": sys_util[2],
+                    "gpu_memory_percent": sys_util[3],
+                },
+            ),
+        )
+
+    # Finalize benchmark
+    benchmark.update_manual_recorders()
+    benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

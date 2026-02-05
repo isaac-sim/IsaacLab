@@ -13,6 +13,21 @@ from .measurements import MetadataBase, StringMetadata, DictMetadata, IntMetadat
 
 logger = logging.getLogger(__name__)
 
+# Valid measurement and metadata class names (to support both isaaclab and isaacsim types)
+_MEASUREMENT_CLASS_NAMES = {"Measurement", "SingleMeasurement", "StatisticalMeasurement",
+                            "BooleanMeasurement", "DictMeasurement", "ListMeasurement"}
+_METADATA_CLASS_NAMES = {"MetadataBase", "StringMetadata", "IntMetadata", "FloatMetadata", "DictMetadata"}
+
+
+def _is_measurement_type(obj: object) -> bool:
+    """Check if object is a measurement type by class name (supports isaacsim types)."""
+    return type(obj).__name__ in _MEASUREMENT_CLASS_NAMES
+
+
+def _is_metadata_type(obj: object) -> bool:
+    """Check if object is a metadata type by class name (supports isaacsim types)."""
+    return type(obj).__name__ in _METADATA_CLASS_NAMES
+
 
 class BaseIsaacLabBenchmark:
     """Base benchmark class for IsaacLab's benchmarks."""
@@ -25,6 +40,7 @@ class BaseIsaacLabBenchmark:
         use_recorders: bool = True,
         output_prefix: str | None = None,
         workflow_metadata: dict | None = None,
+        frametime_recorders: bool = False,
     ):
         """Initialize common benchmark state and recorders.
 
@@ -35,6 +51,7 @@ class BaseIsaacLabBenchmark:
             use_recorders: Whether to use recorders to collect metrics. Defaults to True.
             output_filename: Filename to use for the output file, defaults to None.
             workflow_metadata: Metadata describing benchmark, defaults to None.
+            frametime_recorders: Whether to use frametime recorders to collect metrics. Defaults to True.
         """
         self.benchmark_name = benchmark_name
 
@@ -70,6 +87,7 @@ class BaseIsaacLabBenchmark:
 
         # Whether to use recorders to collect metrics.
         self._use_recorders = use_recorders
+        self._use_frametime_recorders = frametime_recorders
         if self._use_recorders:
             # Recorders that need to be updated manually since they don't depend on the kit timeline.
             self._manual_recorders: dict[str, MeasurementDataRecorder] = {
@@ -80,16 +98,27 @@ class BaseIsaacLabBenchmark:
             }
 
             # If we're using Kit, then we can use IsaacSim's benchmark services to peak into the frametimes.
-            self._automatic_recorders: dict[str, MeasurementDataRecorder] = {}
-            try:
-                from isaacsim.benchmark.services.datarecorders import physics_frametime
-                from isaacsim.benchmark.services.datarecorders import render_frametime
-                from isaacsim.benchmark.services.datarecorders import app_frametime
-                self._automatic_recorders["PhysicsFrametime"] = physics_frametime()
-                self._automatic_recorders["RenderFrametime"] = render_frametime()
-                self._automatic_recorders["AppFrametime"] = app_frametime()
-            except ImportError:
-                logger.warning("Could not import kit recorders. Kit related measurements will not be available.")
+            self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
+            if self._use_frametime_recorders:
+                try:
+                    # Enable the benchmark services extension first
+                    from isaacsim.core.utils.extensions import enable_extension
+                    enable_extension("isaacsim.benchmark.services")
+
+                    from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
+                    from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
+                    from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
+                    from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
+                    self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
+                    self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
+                    self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
+                    self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
+                except ImportError as e:
+                    logger.warning(f"Could not import kit recorders: {e}. Kit related measurements will not be available.")
+
+                # Start collecting frametime recorders.
+                for recorder in self._frametime_recorders.values():
+                    recorder.start_collecting()
 
         # Set the start time of the benchmark.
         logger.info("Starting")
@@ -152,33 +181,36 @@ class BaseIsaacLabBenchmark:
             if isinstance(measurement, Sequence):
                 # Check that all the elements are of type Measurement
                 for m in measurement:
-                    if not isinstance(m, Measurement):
+                    if not _is_measurement_type(m):
                         raise ValueError(f"Measurement element {m} is not of type Measurement")
                 self._phases[phase_name].measurements.extend(measurement)
             else:
                 # Check that the element is of type Measurement
-                if not isinstance(measurement, Measurement):
+                if not _is_measurement_type(measurement):
                     raise ValueError(f"Measurement element {measurement} is not of type Measurement")
                 self._phases[phase_name].measurements.append(measurement)
         if metadata:
             if isinstance(metadata, Sequence):
                 # Check that all the elements are of type MetadataBase
                 for m in metadata:
-                    if not isinstance(m, MetadataBase):
+                    if not _is_metadata_type(m):
                         raise ValueError(f"Metadata element {m} is not of type MetadataBase")
                 self._phases[phase_name].metadata.extend(metadata)
             else:
                 # Check that the element is of type MetadataBase
-                if not isinstance(metadata, MetadataBase):
+                if not _is_metadata_type(metadata):
                     raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
                 self._phases[phase_name].metadata.append(metadata)
 
 
     def _finalize_impl(self) -> None:
+        # Stop collecting frametime recorders.
+        for recorder in self._frametime_recorders.values():
+            recorder.stop_collecting()
+
         # Add measurements and metadata from recorders to the phases.
         if self._use_recorders:
-            recorders: dict[str, MeasurementDataRecorder] = {**self._manual_recorders, **self._automatic_recorders}
-            for recorder_name, measurement_data in recorders.items():
+            for recorder_name, measurement_data in self._manual_recorders.items():
                 data = measurement_data.get_data()
                 # Add measurements to runtime phase if present
                 if data.measurements:
@@ -189,6 +221,11 @@ class BaseIsaacLabBenchmark:
                         self.add_measurement("version_info", metadata=data.metadata)
                     else:
                         self.add_measurement("hardware_info", metadata=data.metadata)
+            for recorder_name, measurement_data in self._frametime_recorders.items():
+                data = measurement_data.get_data()
+                # Add measurements to runtime phase if present
+                if data.measurements:
+                    self.add_measurement("frametime", measurement=data.measurements)
 
         # Check that there are phases to write.
         if not self._phases:
@@ -204,4 +241,4 @@ class BaseIsaacLabBenchmark:
 
         self._metrics.finalize(self.output_path, self.output_prefix)
         self._manual_recorders = None
-        self._automatic_recorders = None
+        self._frametime_recorders = None
