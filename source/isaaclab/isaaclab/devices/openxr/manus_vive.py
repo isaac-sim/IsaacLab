@@ -3,8 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Manus and Vive for teleoperation and interaction.
+"""Manus and Vive for teleoperation and interaction.
+
+.. deprecated::
+    :class:`ManusVive` and :class:`ManusViveCfg` are deprecated.
+    Please use :class:`isaaclab_teleop.IsaacTeleopDevice` and
+    :class:`isaaclab_teleop.IsaacTeleopCfg` instead.
 """
 
 from __future__ import annotations
@@ -70,6 +74,13 @@ class ManusVive(DeviceBase):
             cfg: Configuration object for Manus+Vive settings.
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
+        import warnings
+
+        warnings.warn(
+            "ManusVive is deprecated. Please use isaaclab_teleop.IsaacTeleopDevice instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(retargeters)
         # Enforce minimum Isaac Sim version (>= 5.1)
         isaac_sim_version = get_isaac_sim_version()

@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OpenXR-powered device for teleoperation and interaction."""
+"""OpenXR-powered device for teleoperation and interaction.
+
+.. deprecated::
+    :class:`OpenXRDevice` and :class:`OpenXRDeviceCfg` are deprecated.
+    Please use :class:`isaaclab_teleop.IsaacTeleopDevice` and
+    :class:`isaaclab_teleop.IsaacTeleopCfg` instead.
+"""
 
 from __future__ import annotations
 
@@ -79,6 +85,13 @@ class OpenXRDevice(DeviceBase):
             cfg: Configuration object for OpenXR settings.
             retargeters: List of retargeter instances to use for transforming raw tracking data.
         """
+        import warnings
+
+        warnings.warn(
+            "OpenXRDevice is deprecated. Please use isaaclab_teleop.IsaacTeleopDevice instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(retargeters)
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()

@@ -3,12 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory to create teleoperation devices from configuration."""
+"""Factory to create teleoperation devices from configuration.
+
+.. deprecated::
+    This module is deprecated. Please use :class:`isaaclab_teleop.IsaacTeleopDevice`
+    instead of :func:`create_teleop_device`.
+"""
 
 from __future__ import annotations
 
 import inspect
 import logging
+import warnings
 from collections.abc import Callable
 from typing import cast
 
@@ -24,6 +30,9 @@ def create_teleop_device(
 ) -> DeviceBase:
     """Create a teleoperation device based on configuration.
 
+    .. deprecated::
+        Use :class:`isaaclab_teleop.IsaacTeleopDevice` instead.
+
     Args:
         device_name: The name of the device to create (must exist in devices_cfg)
         devices_cfg: Dictionary of device configurations
@@ -37,6 +46,11 @@ def create_teleop_device(
         ValueError: If the device name is not found in the configuration
         ValueError: If the device configuration type is not supported
     """
+    warnings.warn(
+        "create_teleop_device is deprecated. Please use isaaclab_teleop.IsaacTeleopDevice instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if device_name not in devices_cfg:
         raise ValueError(f"Device '{device_name}' not found in teleop device configurations")
 
