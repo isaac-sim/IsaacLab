@@ -1046,7 +1046,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead and manage the default joint friction
         coefficient manually."""
         warnings.warn(
-            "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use "
             "`joint_friction_coeff` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1060,7 +1060,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`joint_viscous_friction_coeff` instead and manage the default joint
         viscous friction coefficient manually."""
         warnings.warn(
-            "The `default_joint_viscous_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_joint_viscous_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use "
             "`joint_viscous_friction_coeff` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1074,7 +1074,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`joint_pos_limits` instead and manage the default joint position
         limits manually."""
         warnings.warn(
-            "The `default_joint_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_joint_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use "
             "`joint_pos_limits` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1088,7 +1088,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_stiffness` instead and manage the default fixed tendon
         stiffness manually."""
         warnings.warn(
-            "The `default_fixed_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_stiffness` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1102,7 +1102,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_damping` instead and manage the default fixed tendon
         damping manually."""
         warnings.warn(
-            "The `default_fixed_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_damping` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1116,7 +1116,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_limit_stiffness` instead and manage the default fixed
         tendon limit stiffness manually."""
         warnings.warn(
-            "The `default_fixed_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1130,7 +1130,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_rest_length` instead and manage the default fixed tendon
         rest length manually."""
         warnings.warn(
-            "The `default_fixed_tendon_rest_length` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_rest_length` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_rest_length` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1144,7 +1144,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_offset` instead and manage the default fixed tendon
         offset manually."""
         warnings.warn(
-            "The `default_fixed_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_offset` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1158,7 +1158,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead and manage the default fixed tendon
         position limits manually."""
         warnings.warn(
-            "The `default_fixed_tendon_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_fixed_tendon_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use "
             "`fixed_tendon_pos_limits` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1172,7 +1172,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`spatial_tendon_stiffness` instead and manage the default spatial
         tendon stiffness manually."""
         warnings.warn(
-            "The `default_spatial_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_spatial_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
             "`spatial_tendon_stiffness` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1186,7 +1186,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`spatial_tendon_damping` instead and manage the default spatial tendon
         damping manually."""
         warnings.warn(
-            "The `default_spatial_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_spatial_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use "
             "`spatial_tendon_damping` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1200,7 +1200,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`spatial_tendon_limit_stiffness` instead and manage the default
         spatial tendon limit stiffness manually."""
         warnings.warn(
-            "The `default_spatial_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_spatial_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
             "`spatial_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
@@ -1214,7 +1214,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`spatial_tendon_offset` instead and manage the default spatial tendon
         offset manually."""
         warnings.warn(
-            "The `default_spatial_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "The `default_spatial_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use "
             "`spatial_tendon_offset` instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
