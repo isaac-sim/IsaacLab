@@ -1,14 +1,27 @@
 import copy
 import json
-import tempfile
-from pathlib import Path
 import logging
+import tempfile
 from abc import ABC, abstractmethod
+from datetime import datetime
+import os
 
 from .measurements import TestPhase, TestPhaseEncoder, SingleMeasurement, StatisticalMeasurement
 
 logger = logging.getLogger(__name__)
 
+
+def get_default_output_filename(prefix: str = "benchmark") -> str:
+    """Generate default output filename with current date and time.
+
+    Args:
+        prefix: Prefix for the filename (e.g., "articulation_benchmark").
+
+    Returns:
+        Filename string with timestamp (without extension).
+    """
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return f"{prefix}_{datetime_str}"
 
 class MetricsBackendInterface(ABC):
     """Abstract base class for metrics backends."""
@@ -89,19 +102,19 @@ class JSONFileMetrics(MetricsBackendInterface):
         """
         self.data.append(copy.deepcopy(test_phase))
 
-    def finalize(self, metrics_output_folder: str, randomize_filename_prefix: bool = False, **kwargs) -> None:
+    def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write metrics data to a JSON file.
 
         Args:
-            metrics_output_folder: Folder for output files.
-            randomize_filename_prefix: True to randomize output file prefix. Defaults to False.
+            output_path: Output path in which metrics file will be stored.
+            output_filename: Output filename.
             **kwargs: Additional backend-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics")
+            backend.finalize("/tmp/metrics", "metrics")
         """
         if not self.data:
             logger.warning("No test data to write. Skipping metrics file generation.")
@@ -128,18 +141,10 @@ class JSONFileMetrics(MetricsBackendInterface):
 
         json_data = json.dumps(self.data, indent=4, cls=TestPhaseEncoder)
 
-        # Generate the output filename
-        if randomize_filename_prefix:
-            _, metrics_filename_out = tempfile.mkstemp(
-                dir=metrics_output_folder, prefix=f"metrics_{self.test_name}", suffix=".json"
-            )
-            metrics_path = Path(metrics_filename_out)
-        else:
-            metrics_path = Path(metrics_output_folder) / f"metrics_{self.test_name}.json"
-
+        metrics_path = os.path.join(output_path, f"{output_filename}.json")
         with open(metrics_path, "w") as f:
-            logger.info(f"Writing metrics to {metrics_path}")
             f.write(json_data)
+        print(f"Results written to: {metrics_path}")
 
         self.data.clear()
 
@@ -167,22 +172,22 @@ class OsmoKPIFile(MetricsBackendInterface):
         """
         self._test_phases.append(test_phase)
 
-    def finalize(self, metrics_output_folder: str, randomize_filename_prefix: bool = False, **kwargs) -> None:
+    def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write metrics to output file(s).
 
         Each test phase's SingleMeasurement metrics and metadata are written to an output JSON file, at path
-        `[metrics_output_folder]/[optional random prefix]kpis_{test_name}_{test_phase}.json`.
+        `[output_path]/[output_filename].json`.
 
         Args:
-            metrics_output_folder: Output folder in which metrics files will be stored.
-            randomize_filename_prefix: True to randomize filename prefix. Defaults to False.
+            output_path: Output path in which metrics files will be stored.
+            output_filename: Output filename.
             **kwargs: Additional backend-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics")
+            backend.finalize("/tmp/metrics", "kpis")
         """
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
@@ -200,21 +205,13 @@ class OsmoKPIFile(MetricsBackendInterface):
                 if isinstance(measurement, SingleMeasurement):
                     osmo_kpis[measurement.name] = measurement.value
                     log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
-            # Log all KPIs to console
-            logger.info("\n" + "\n".join(log_statements))
-            # Generate the output filename
-            if randomize_filename_prefix:
-                _, metrics_filename_out = tempfile.mkstemp(
-                    dir=metrics_output_folder, prefix=f"kpis_{test_name}_{phase_name}", suffix=".json"
-                )
-                metrics_path = Path(metrics_filename_out)
-            else:
-                metrics_path = Path(metrics_output_folder) / f"kpis_{test_name}_{phase_name}.json"
+            # Generate the output filename with timestamp
+            metrics_path = os.path.join(output_path, f"{output_filename}.json")
             # Dump key-value pairs (fields) to the JSON document
             json_data = json.dumps(osmo_kpis, indent=4)
             with open(metrics_path, "w") as f:
-                logger.info(f"Writing KPIs to {metrics_path}")
                 f.write(json_data)
+            print(f"Results written to: {metrics_path}")
 
 
 class OmniPerfKPIFile(MetricsBackendInterface):
@@ -237,22 +234,22 @@ class OmniPerfKPIFile(MetricsBackendInterface):
         """
         self._test_phases.append(test_phase)
 
-    def finalize(self, metrics_output_folder: str, randomize_filename_prefix: bool = False, **kwargs) -> None:
+    def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write metrics to output file(s).
 
         Measurement metrics and metadata are written to an output JSON file, at path
-        `[metrics_output_folder]/[optional random prefix]omniperf_{test_name}.json`.
+        `[output_path]/[output_filename].json`.
 
         Args:
-            metrics_output_folder: Output folder in which metrics file will be stored.
-            randomize_filename_prefix: True to randomize filename prefix. Defaults to False.
+            output_path: Output path in which metrics file will be stored.
+            output_filename: Output filename.
             **kwargs: Additional backend-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics")
+            backend.finalize("/tmp/metrics", "omniperf")
         """
         if not self._test_phases:
             logger.warning("No test phases to write. Skipping metrics file generation.")
@@ -284,22 +281,11 @@ class OmniPerfKPIFile(MetricsBackendInterface):
                 elif isinstance(measurement, SingleMeasurement):
                     log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
                     phase_data[measurement.name] = measurement.value
-            # Log all metrics to console
-            logger.info("\n" + "\n".join(log_statements))
-
             workflow_data[phase_name] = phase_data
 
-        # Generate the output filename
-        if randomize_filename_prefix:
-            _, metrics_filename_out = tempfile.mkstemp(
-                dir=metrics_output_folder, prefix=f"omniperf_{test_name}", suffix=".json"
-            )
-            metrics_path = Path(metrics_filename_out)
-        else:
-            metrics_path = Path(metrics_output_folder) / f"omniperf_{test_name}.json"
-
+        metrics_path = os.path.join(output_path, f"{output_filename}.json")
         # Dump key-value pairs (fields) to the JSON document
         json_data = json.dumps(workflow_data, indent=4)
         with open(metrics_path, "w") as f:
-            logger.info(f"Writing metrics to {metrics_path}")
             f.write(json_data)
+        print(f"Results written to: {metrics_path}")

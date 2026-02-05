@@ -470,4 +470,3 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
     def finalize(self) -> None:
         """Finalize the benchmark and write results."""
         self._finalize_impl()
-        print(f"\nResults written to: {self.output_file_path}")

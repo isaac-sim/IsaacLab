@@ -5,25 +5,13 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from . import backends
+from .backends import get_default_output_filename
 from .interfaces import MeasurementDataRecorder
 from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 from .measurements import MetadataBase, StringMetadata, DictMetadata, IntMetadata, FloatMetadata, Measurement, TestPhase
 
 
 logger = logging.getLogger(__name__)
-
-
-def get_default_output_filename(prefix: str = "benchmark") -> str:
-    """Generate default output filename with current date and time.
-
-    Args:
-        prefix: Prefix for the filename (e.g., "articulation_benchmark").
-
-    Returns:
-        Filename string with timestamp.
-    """
-    datetime_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return f"{prefix}_{datetime_str}.json"
 
 
 class BaseIsaacLabBenchmark:
@@ -61,7 +49,6 @@ class BaseIsaacLabBenchmark:
             output_prefix = "benchmark"
             logger.warning(f"No output prefix provided, using default prefix: benchmark")
         self.output_prefix = get_default_output_filename(output_prefix)
-        self.output_file_path = os.path.join(self.output_path, self.output_prefix)
 
         # Get metrics backend
         logger.info("Using metrics backend = %s", backend_type)
@@ -215,6 +202,6 @@ class BaseIsaacLabBenchmark:
         for phase in self._phases.values():
             self._metrics.add_metrics(phase)
 
-        self._metrics.finalize(self.output_path)
+        self._metrics.finalize(self.output_path, self.output_prefix)
         self._manual_recorders = None
         self._automatic_recorders = None
