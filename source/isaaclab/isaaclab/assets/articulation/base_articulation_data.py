@@ -1004,7 +1004,7 @@ class BaseArticulationData(ABC):
         """Deprecated property. Please use :attr:`joint_stiffness` instead and manage the default joint stiffness
         manually."""
         warnings.warn(
-            "The `default_joint_stiffness` property will be deprecated in a IsaacLab 4.0. Please use `joint_stiffness`"
+            "The `default_joint_stiffness` property will be deprecated in a IsaacLab 4.0. Please use `joint_stiffness` "
             "instead. The default value will need to be managed manually.",
             DeprecationWarning,
             stacklevel=2,
