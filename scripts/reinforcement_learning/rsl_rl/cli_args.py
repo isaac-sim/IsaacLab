@@ -100,6 +100,13 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
 
     # Handle configurations for rsl-rl < 4.0.0
     if version.parse(installed_version) < version.parse("4.0.0"):
+        # exit if no policy configuration is present
+        if not hasattr(agent_cfg, "policy") or isinstance(agent_cfg.policy, type(MISSING)):
+            raise ValueError(
+                "The `policy` configuration is required for rsl-rl < 4.0.0. Please specify the `policy` configuration"
+                " or update rsl-rl."
+            )
+
         # handle deprecated obs_normalization argument
         if hasattr(agent_cfg, "empirical_normalization") and not isinstance(
             agent_cfg.empirical_normalization, type(MISSING)
@@ -113,6 +120,17 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
             if isinstance(agent_cfg.policy.critic_obs_normalization, type(MISSING)):
                 agent_cfg.policy.critic_obs_normalization = agent_cfg.empirical_normalization
             agent_cfg.empirical_normalization = MISSING
+
+        # remove optimizer argument for PPO only available in rsl-rl >= 4.0.0
+        from isaaclab_rl.rsl_rl import RslRlPpoAlgorithmCfg
+
+        if hasattr(agent_cfg.algorithm, "optimizer") and isinstance(agent_cfg.algorithm, RslRlPpoAlgorithmCfg):
+            if agent_cfg.algorithm.optimizer != "adam":
+                print(
+                    "[WARNING]: The `optimizer` parameter for PPO is only available for rsl-rl >= 4.0.0. Consider"
+                    " updating rsl-rl to use this feature. Defaulting to `adam` optimizer."
+                )
+            del agent_cfg.algorithm.optimizer
 
         # warn about model configurations only used in rsl-rl >= 4.0.0
         if hasattr(agent_cfg, "actor") and not isinstance(agent_cfg.actor, type(MISSING)):
@@ -147,6 +165,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                 "[WARNING]: The `policy` configuration is deprecated for rsl-rl >= 4.0.0. Please use, e.g., `actor` and"
                 " `critic` model configurations instead."
             )
+
             # handle deprecated obs_normalization argument
             if hasattr(agent_cfg, "empirical_normalization") and not isinstance(
                 agent_cfg.empirical_normalization, type(MISSING)
