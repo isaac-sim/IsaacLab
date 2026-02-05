@@ -528,7 +528,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
-    ):
+    ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_state_to_sim` instead."""
         warnings.warn(
             "The `write_object_link_state_to_sim` method will be deprecated in a future release. Please use"
@@ -543,7 +543,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_pose: torch.Tensor,
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
-    ):
+    ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim` instead."""
         warnings.warn(
             "The `write_object_pose_to_sim` method will be deprecated in a future release. Please use"
