@@ -294,6 +294,11 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     """
 
 
+#############################
+# Deprecated configurations #
+#############################
+
+
 @configclass
 class RslRlPpoActorCriticCfg:
     """Configuration for the PPO actor-critic networks.

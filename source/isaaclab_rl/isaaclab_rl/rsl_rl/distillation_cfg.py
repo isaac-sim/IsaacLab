@@ -72,6 +72,11 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
     """
 
 
+#############################
+# Deprecated configurations #
+#############################
+
+
 @configclass
 class RslRlDistillationStudentTeacherCfg:
     """Configuration for the distillation student-teacher networks.
