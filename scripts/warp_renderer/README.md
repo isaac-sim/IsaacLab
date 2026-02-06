@@ -29,17 +29,18 @@ You can add `--save_images` to save the rendered images.
 
 If you look at `example.py` you'll see these lines:
 ```python
-from isaaclab.renderers import NewtonWarpRenderer
-
-renderer = NewtonWarpRenderer(scene, width, height)
-
-# ...
-
-def run_simulator(...):
-    # ...
-    renderer.update()
-    renderer.render()
-    if save_images:
-        renderer.save_image(f"warp_renderer/rgb.{step:04d}.png")
+tiled_camera_cfg: TiledCameraCfg = TiledCameraCfg(
+    prim_path="/World/envs/env_.*/Camera",
+    offset=TiledCameraCfg.OffsetCfg(pos=(-3.0, 0.0, 1.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+    data_types=["rgb"],
+    spawn=isaaclab_sim.PinholeCameraCfg(focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)),
+    width=400,
+    height=300,
+    renderer="newton"
+)
+scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg, scene)
 ```
-Once the renderer is created, the `update()` method will write all transforms from the IsaacLab Fabric USD Stage to the Newton Warp Renderer buffers, which are then rendered by the `render()` method.
+
+If the `renderer` parameter of `TiledCameraCfg` is `"newton"` the `NewtonWarpRenderer` will be used by the `TiledCamera`.
+
+Please note: The `TiledCamera` constructor now takes an additional parameter `scene` to initialize the `NewtonWarpRenderer` with.
