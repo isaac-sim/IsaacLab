@@ -64,6 +64,7 @@ class RslRlRNNModelCfg(RslRlMLPModelCfg):
     """The number of RNN layers."""
 
 
+@configclass
 class RslRlCNNModelCfg(RslRlMLPModelCfg):
     """Configuration for CNN model."""
 
