@@ -548,16 +548,17 @@ class AppLauncher:
             if self._livestream == 1:
                 # WebRTC public network
                 self._livestream_args += [
-                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
-                    "--/app/livestream/port=49100",
+                    f"--/exts/omni.kit.livestream.app/primaryStream/publicIp={public_ip_env}",
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
                     "--enable",
-                    "omni.services.livestream.nvcf",
+                    "omni.kit.livestream.app",
                 ]
             elif self._livestream == 2:
                 # WebRTC private network
                 self._livestream_args += [
                     "--enable",
-                    "omni.services.livestream.nvcf",
+                    "omni.kit.livestream.app",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
