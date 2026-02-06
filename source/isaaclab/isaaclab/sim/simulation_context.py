@@ -819,6 +819,10 @@ class SimulationContext(_SimulationContext):
         if self.carb_settings.get("/rtx/rendermode").lower() == "raytracedlighting":
             self.carb_settings.set_string("/rtx/rendermode", "RaytracedLighting")
 
+        # Apply interactive pathtracing-specific settings when PathTracing mode is active
+        if self.carb_settings.get("/rtx/rendermode").lower() == "pathtracing":
+            self.set_setting("/rtx/pathtracing/lightcache/cached/alwaysReuse", True)
+
     def _set_additional_physx_params(self):
         """Sets additional PhysX parameters that are not directly supported by the parent class."""
         # obtain the physics scene api
