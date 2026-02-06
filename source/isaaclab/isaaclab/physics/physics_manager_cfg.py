@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from dataclasses import MISSING
 
 from isaaclab.utils import configclass
+from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager
@@ -50,3 +51,12 @@ class PhysicsManagerCfg:
 
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
+
+    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
+    """Default physics material settings for rigid bodies. Default is None (uses RigidBodyMaterialCfg defaults).
+
+    The physics engine defaults to this physics material for all the rigid body prims that do not have any
+    physics material specified on them.
+
+    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
+    """

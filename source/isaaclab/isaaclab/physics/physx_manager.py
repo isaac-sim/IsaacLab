@@ -15,7 +15,6 @@ import logging
 import os
 import re
 import time
-import weakref
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, ClassVar
@@ -31,7 +30,7 @@ from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
 
-from .physics_manager import PhysicsManager
+from .physics_manager import PhysicsManager, PhysicsEvent, CallbackHandle
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -44,7 +43,11 @@ logger = logging.getLogger(__name__)
 
 
 class IsaacEvents(Enum):
-    """Events dispatched during simulation lifecycle."""
+    """Events dispatched during simulation lifecycle.
+
+    Note: This enum is kept for backward compatibility. New code should use
+    PhysicsEvent from physics_manager for cross-backend compatibility.
+    """
 
     PHYSICS_WARMUP = "isaac.physics_warmup"
     SIMULATION_VIEW_CREATED = "isaac.simulation_view_created"
@@ -54,6 +57,16 @@ class IsaacEvents(Enum):
     PRE_PHYSICS_STEP = "isaac.pre_physics_step"
     POST_PHYSICS_STEP = "isaac.post_physics_step"
     TIMELINE_STOP = "isaac.timeline_stop"
+
+
+# Mapping from unified PhysicsEvent to PhysX-specific IsaacEvents
+_PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
+    PhysicsEvent.MODEL_INIT: IsaacEvents.PHYSICS_WARMUP,  # PhysX warmup ~= model init
+    PhysicsEvent.PHYSICS_READY: IsaacEvents.PHYSICS_READY,
+    PhysicsEvent.PRE_STEP: IsaacEvents.PRE_PHYSICS_STEP,
+    PhysicsEvent.POST_STEP: IsaacEvents.POST_PHYSICS_STEP,
+    PhysicsEvent.POST_RESET: IsaacEvents.POST_RESET,
+}
 
 
 class AnimationRecorder:
@@ -255,7 +268,7 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
         cls._invalidate_views()
         cls._subscriptions.clear()
-        cls._callbacks.clear()
+        cls.clear_callbacks()  # Use unified callback cleanup
 
         if cls._physx_sim is not None:
             cls._physx_sim.detach_stage()
@@ -294,53 +307,54 @@ class PhysxManager(PhysicsManager):
         return not cls._assets_loaded
 
     # ------------------------------------------------------------------
-    # Callback Registration
+    # Callback Registration (override base class for PhysX integration)
     # ------------------------------------------------------------------
 
     @classmethod
-    def register_callback(cls, callback: Callable, event: IsaacEvents, order: int = 0, name: str | None = None) -> int:
-        """Register a callback for a simulation event."""
-        cid = cls._callback_id
-        cls._callback_id += 1
+    def register_callback(
+        cls, callback: Callable, event: PhysicsEvent | IsaacEvents, order: int = 0,
+        name: str | None = None, wrap_weak_ref: bool = True,
+    ) -> CallbackHandle:
+        """Register a callback. Accepts both PhysicsEvent and IsaacEvents."""
+        if isinstance(event, IsaacEvents):
+            # Direct IsaacEvents: wrap and subscribe directly
+            cid = cls._callback_id
+            cls._callback_id += 1
+            cb = cls._wrap_weak_ref(callback) if wrap_weak_ref else callback
+            sub = cls._subscribe_isaac(cb, event, order, name)
+            cls._callbacks[cid] = (event, cb, order, name, sub)
+            return CallbackHandle(cid, cls)
+        return super().register_callback(callback, event, order, name, wrap_weak_ref)
 
-        # Wrap bound methods with weak references
-        if hasattr(callback, "__self__"):
-            obj_ref = weakref.proxy(callback.__self__)
-            method_name = callback.__name__
+    @classmethod
+    def _subscribe_to_event(
+        cls, callback_id: int, callback: Callable, event: PhysicsEvent, order: int, name: str | None
+    ) -> Any:
+        """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
+        isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
+        return cls._subscribe_isaac(callback, isaac_event, order, name) if isaac_event else None
 
-            def cb(e: Any, o: Any = obj_ref, m: str = method_name) -> Any:
-                return getattr(o, m)(e)
-        else:
-            cb = callback
+    @classmethod
+    def _subscribe_isaac(cls, callback: Callable, event: IsaacEvents, order: int, name: str | None) -> Any:
+        """Subscribe to an IsaacEvents event."""
 
-        def make_physics_cb(inner_cb: Callable) -> Callable:
-            def physics_cb(dt: float) -> Any:
-                return inner_cb(dt) if cls._view_created else None
-            return physics_cb
+        def guarded(cb: Callable) -> Callable:
+            def wrapper(dt: float) -> Any:
+                return cb(dt) if cls._view_created else None
+            return wrapper
 
         if event in (IsaacEvents.PHYSICS_WARMUP, IsaacEvents.PHYSICS_READY, IsaacEvents.POST_RESET,
                      IsaacEvents.SIMULATION_VIEW_CREATED, IsaacEvents.PRIM_DELETION):
-            cls._callbacks[cid] = cls._event_bus.observe_event(event_name=event.value, order=order, on_event=cb)
+            return cls._event_bus.observe_event(event_name=event.value, order=order, on_event=callback)
         elif event == IsaacEvents.POST_PHYSICS_STEP:
-            cls._callbacks[cid] = cls._physx.subscribe_physics_on_step_events(
-                make_physics_cb(cb), pre_step=False, order=order
-            )
+            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=False, order=order)
         elif event == IsaacEvents.PRE_PHYSICS_STEP:
-            cls._callbacks[cid] = cls._physx.subscribe_physics_on_step_events(
-                make_physics_cb(cb), pre_step=True, order=order
-            )
+            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=True, order=order)
         elif event == IsaacEvents.TIMELINE_STOP:
-            cls._callbacks[cid] = cls._timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.STOP), cb, order=order, name=name
+            return cls._timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.STOP), callback, order=order, name=name
             )
-        else:
-            raise ValueError(f"Unsupported event: {event}")
-
-        return cid
-
-    @classmethod
-    def deregister_callback(cls, callback_id: int) -> None:
-        cls._callbacks.pop(callback_id, None)
+        return None
 
     # ------------------------------------------------------------------
     # Internal: Setup & Configuration

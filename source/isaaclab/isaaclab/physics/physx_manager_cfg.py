@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
 from .physics_manager_cfg import PhysicsManagerCfg
 from .physx_manager import PhysxManager
@@ -57,15 +56,6 @@ class PhysxManagerCfg(PhysicsManagerCfg):
 
     It is recommended to set this flag to :obj:`True` when running the simulation with a large number
     of primitives in the scene.
-    """
-
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is None (uses RigidBodyMaterialCfg defaults).
-
-    The physics engine defaults to this physics material for all the rigid body prims that do not have any
-    physics material specified on them.
-
-    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
 
     # ------------------------------------------------------------------

@@ -5,7 +5,7 @@
 
 """Implementation backends for simulation interfaces."""
 
-from .physics_manager import PhysicsManager
+from .physics_manager import PhysicsManager, PhysicsEvent, CallbackHandle
 from .physics_manager_cfg import PhysicsManagerCfg
 from .physx_manager import PhysxManager, IsaacEvents
 from .physx_manager_cfg import PhysxManagerCfg
@@ -15,6 +15,8 @@ from .physx_manager_cfg import PhysxManagerCfg
 
 __all__ = [
     "PhysicsManager",
+    "PhysicsEvent",
+    "CallbackHandle",
     "PhysicsManagerCfg",
     "PhysxManager",
     "IsaacEvents",
