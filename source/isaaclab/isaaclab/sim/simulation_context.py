@@ -171,7 +171,7 @@ class SimulationContext:
 
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled."""
-        return self.physics_manager.is_fabric_enabled()
+        return self.carb_settings.get_as_bool("/isaaclab/fabric_enabled")
 
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""

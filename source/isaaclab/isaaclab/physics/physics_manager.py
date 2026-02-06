@@ -311,11 +311,6 @@ class PhysicsManager(ABC):
         return None
 
     @classmethod
-    def is_fabric_enabled(cls) -> bool:
-        """Check if fabric interface is enabled. Override in subclasses."""
-        return False
-
-    @classmethod
     def play(cls) -> None:
         """Start or resume physics simulation. Default is no-op."""
         pass

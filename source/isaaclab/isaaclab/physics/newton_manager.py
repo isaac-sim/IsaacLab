@@ -158,8 +158,7 @@ class NewtonManager(PhysicsManager):
         cls.clear()
         super().close()
 
-    # get_physics_dt(), get_device(), get_physics_sim_view(), is_fabric_enabled()
-    # are inherited from PhysicsManager base class
+    # get_physics_dt(), get_device(), get_physics_sim_view() inherited from PhysicsManager
 
     @classmethod
     def clear(cls):

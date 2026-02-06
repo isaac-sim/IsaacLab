@@ -266,10 +266,6 @@ class PhysxManager(PhysicsManager):
         return cls._view
 
     @classmethod
-    def is_fabric_enabled(cls) -> bool:
-        return cls._fabric is not None
-
-    @classmethod
     def assets_loading(cls) -> bool:
         return not cls._assets_loaded
 
@@ -442,7 +438,7 @@ class PhysxManager(PhysicsManager):
         for key in ["updateToUsd", "updateParticlesToUsd", "updateVelocitiesToUsd",
                     "updateForceSensorsToUsd", "updateResidualsToUsd"]:
             settings.set_bool(f"/physics/{key}", not use_fabric)
-        settings.set_bool("/isaaclab/physics/fabric_enabled", use_fabric)
+        settings.set_bool("/isaaclab/fabric_enabled", use_fabric)
         settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
 
     @classmethod
