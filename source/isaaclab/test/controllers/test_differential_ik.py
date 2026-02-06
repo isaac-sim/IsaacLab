@@ -20,6 +20,7 @@ from isaacsim.core.cloner import GridCloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,
@@ -43,7 +44,7 @@ def sim():
     # Constants
     num_envs = 1
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = sim_utils.SimulationContext(sim_cfg)
     # TODO: Remove this once we have a better way to handle this.
     sim._app_control_on_stop_handle = None

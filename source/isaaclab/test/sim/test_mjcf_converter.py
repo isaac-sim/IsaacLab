@@ -19,6 +19,7 @@ import pytest
 from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
@@ -31,7 +32,7 @@ def test_setup_teardown():
 
     # Setup: Create simulation context
     dt = 0.01
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")

@@ -21,6 +21,7 @@ from isaacsim.core.cloner import GridCloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
@@ -48,7 +49,7 @@ def sim():
     # Constants
     num_envs = 16
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = sim_utils.SimulationContext(sim_cfg)
     # TODO: Remove this once we have a better way to handle this.
     sim._app_control_on_stop_handle = None

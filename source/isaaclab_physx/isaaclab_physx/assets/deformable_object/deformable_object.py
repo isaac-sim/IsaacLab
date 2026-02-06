@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 from pxr import PhysxSchema, UsdShade
 
 import isaaclab.sim as sim_utils

@@ -60,7 +60,7 @@ def test_stage_in_memory_with_shapes(sim):
     num_clones = 10
 
     # grab stage in memory and set as current stage via the with statement
-    stage_in_memory = sim.get_initial_stage()
+    stage_in_memory = sim.stage
     with sim_utils.use_stage(stage_in_memory):
         # create cloned cone stage
         for i in range(num_clones):
@@ -151,7 +151,7 @@ def test_stage_in_memory_with_usds(sim):
     ]
 
     # grab stage in memory and set as current stage via the with statement
-    stage_in_memory = sim.get_initial_stage()
+    stage_in_memory = sim.stage
     with sim_utils.use_stage(stage_in_memory):
         # create cloned robot stage
         for i in range(num_clones):
@@ -213,7 +213,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     num_clones = 100
 
     # grab stage in memory and set as current stage via the with statement
-    stage_in_memory = sim.get_initial_stage()
+    stage_in_memory = sim.stage
     with sim_utils.use_stage(stage_in_memory):
         # set up paths
         base_env_path = "/World/envs"

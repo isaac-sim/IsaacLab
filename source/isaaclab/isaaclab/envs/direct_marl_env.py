@@ -123,7 +123,7 @@ class DirectMARLEnv(gym.Env):
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 attach_stage_to_usd_context()
@@ -133,7 +133,7 @@ class DirectMARLEnv(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+        if self.sim.carb_settings.get("/isaaclab/has_gui"):
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -156,7 +156,7 @@ class DirectMARLEnv(gym.Env):
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 # since the reset can trigger callbacks which use the stage,
                 # we need to set the stage context here
-                with use_stage(self.sim.get_initial_stage()):
+                with use_stage(self.sim.stage):
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
@@ -172,7 +172,7 @@ class DirectMARLEnv(gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+        if self.sim.carb_settings.get("/isaaclab/has_gui") and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -375,7 +375,7 @@ class DirectMARLEnv(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -493,18 +493,16 @@ class DirectMARLEnv(gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.has_rtx_sensors() and not recompute:
+        if not self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors") and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+            if not self.sim.carb_settings.get("/isaaclab/has_gui") and not bool(self.sim.carb_settings.get("/isaaclab/render/offscreen")):
                 raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
-                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
+                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
@@ -550,9 +548,7 @@ class DirectMARLEnv(gym.Env):
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()
                     self.sim.stop()
-                    self.sim.clear()
 
-            self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window

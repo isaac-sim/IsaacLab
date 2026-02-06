@@ -15,10 +15,10 @@ import torch
 import warp as wp
 
 import omni
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics import PhysicsManager
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.views import XformPrimView
@@ -144,7 +144,7 @@ class RayCaster(SensorBase):
         super()._initialize_impl()
         # obtain global simulation view
 
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = PhysicsManager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
             available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])

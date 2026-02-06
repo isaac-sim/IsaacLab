@@ -22,6 +22,7 @@ import omni.kit.app
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.utils.version import get_isaac_sim_version
@@ -53,7 +54,7 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
     yield sim, config
     # Teardown
     sim._disable_app_control_on_stop_handle = True  # prevent timeout

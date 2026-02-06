@@ -46,6 +46,7 @@ import math
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollection, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -327,7 +328,7 @@ def main() -> None:
         None: The function drives the simulation for its side-effects.
     """
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))

@@ -29,6 +29,7 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.timer import Timer
@@ -63,7 +64,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()

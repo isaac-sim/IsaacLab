@@ -17,7 +17,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.utils.math as math_utils

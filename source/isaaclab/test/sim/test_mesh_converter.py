@@ -23,6 +23,7 @@ import omni
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
@@ -66,7 +67,7 @@ def sim():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
     yield sim
     # stop simulation
     sim.stop()

@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
@@ -47,7 +48,7 @@ from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])
@@ -73,7 +74,7 @@ def main():
     # Fetch relevant parameters to make the quadcopter hover in place
     prop_body_ids = robot.find_bodies("m.*_prop")[0]
     robot_mass = robot.root_view.get_masses().sum()
-    gravity = torch.tensor(sim.cfg.gravity, device=sim.device).norm()
+    gravity = torch.tensor(sim.cfg.physics_manager_cfg.gravity, device=sim.device).norm()
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
