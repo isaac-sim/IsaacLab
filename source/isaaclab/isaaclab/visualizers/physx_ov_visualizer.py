@@ -421,10 +421,8 @@ class PhysxOVVisualizer(Visualizer):
         return self._timeline.is_playing()
 
     def is_stopped(self) -> bool:
-        """Check whether the simulation is stopped."""
-        if self._timeline is None:
-            return True
-        return self._timeline.is_stopped()
+        """Check whether the visualizer is stopped (closed)."""
+        return self._is_closed
 
     def play(self) -> None:
         """Start playing the simulation."""
@@ -446,12 +444,8 @@ class PhysxOVVisualizer(Visualizer):
     # ------------------------------------------------------------------
 
     def is_running(self) -> bool:
-        """Check if visualizer is still running (app is alive, not whether playing)."""
+        """Check if visualizer is still running (independent of pause state)."""
         return self._is_initialized and not self._is_closed
-
-    def is_stopped(self) -> bool:
-        """Check if visualizer is stopped (closed)."""
-        return self._is_closed
 
     def supports_markers(self) -> bool:
         """Supports markers via USD prims."""

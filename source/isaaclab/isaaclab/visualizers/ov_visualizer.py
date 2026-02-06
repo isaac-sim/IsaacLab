@@ -213,35 +213,28 @@ class OVVisualizer(Visualizer):
             torch.cuda.set_device(self._simulation_context.device)
 
     def is_running(self) -> bool:
-        """Check if visualizer is still running."""
-        return self.is_playing()
-
-    def is_playing(self) -> bool:
-        """Check whether the simulation is playing."""
-        if self._timeline is None:
+        """Check if visualizer is still running (independent of pause state)."""
+        if not self._is_initialized or self._is_closed:
             return False
-        return self._timeline.is_playing()
+        if self._simulation_app is not None and hasattr(self._simulation_app, "is_running"):
+            return self._simulation_app.is_running()  # type: ignore[union-attr]
+        return self._simulation_app_running
 
     def is_stopped(self) -> bool:
-        """Check whether the simulation is stopped."""
-        if self._timeline is None:
-            return True
-        return self._timeline.is_stopped()
+        """Check if visualizer is stopped (closed)."""
+        return self._is_closed
 
     def play(self) -> None:
-        """Start playing the simulation."""
-        if self._timeline is not None:
-            self._timeline.play()
+        """Start playing the simulation (no-op for OV - always playing)."""
+        pass
 
     def pause(self) -> None:
-        """Pause the simulation."""
-        if self._timeline is not None:
-            self._timeline.pause()
+        """Pause the simulation (no-op for OV)."""
+        pass
 
     def stop(self) -> None:
-        """Stop the simulation."""
-        if self._timeline is not None:
-            self._timeline.stop()
+        """Stop the simulation (no-op for OV)."""
+        pass
 
     def is_training_paused(self) -> bool:
         """Check if training is paused (always False for OV)."""

@@ -367,10 +367,10 @@ class NewtonVisualizer(Visualizer):
         self._is_closed = True
 
     def is_running(self) -> bool:
-        """Check if visualizer window is still open."""
+        """Check if visualizer window is still open (independent of pause state)."""
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return False
-        return self._viewer.is_running()
+        return True
 
     def is_stopped(self) -> bool:
         """Check if visualizer window is closed."""

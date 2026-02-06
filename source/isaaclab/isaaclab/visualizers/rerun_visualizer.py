@@ -259,20 +259,16 @@ class RerunVisualizer(Visualizer):
         self._is_initialized = False
 
     def is_running(self) -> bool:
-        """Check if visualizer is running.
+        """Check if visualizer is running (independent of pause state).
 
         Returns:
-            True if viewer is initialized and running, False otherwise.
+            True if viewer is initialized and not closed, False otherwise.
         """
-        if self._viewer is None:
-            return False
-        return self._viewer.is_running()
+        return self._is_initialized and not self._is_closed and self._viewer is not None
 
     def is_stopped(self) -> bool:
-        """Check if visualizer is stopped."""
-        if self._viewer is None:
-            return True
-        return False
+        """Check if visualizer is stopped (closed)."""
+        return self._is_closed
 
     def is_training_paused(self) -> bool:
         """Check if training is paused.
