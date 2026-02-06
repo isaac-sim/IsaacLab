@@ -53,18 +53,10 @@ class NewtonManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    # Simulation context and config
-    _sim: "SimulationContext | None" = None
     _cfg: "NewtonManagerCfg | None" = None
 
-    # Physics timing
-    _dt: float = 1.0 / 200.0
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
-    _sim_time: float = 0.0
-
-    # Device and environment
-    _device: str = "cuda:0"
     _num_envs: int | None = None
 
     # Newton model and state
@@ -107,16 +99,14 @@ class NewtonManager(PhysicsManager):
         Args:
             sim_context: Parent simulation context.
         """
-        cls._sim = sim_context
-        cls._cfg = sim_context.cfg.physics_manager_cfg  # type: ignore[assignment]
+        super().initialize(sim_context)
 
-        # Set simulation parameters from config
-        cls._dt = cls._cfg.dt
-        cls._device = cls._cfg.device
-        cls._gravity_vector = cls._cfg.gravity
+        # Newton-specific setup
+        cls._device = cls._cfg.device  # type: ignore[union-attr]
+        cls._gravity_vector = cls._cfg.gravity  # type: ignore[union-attr]
 
         # USD fabric sync only needed for OV rendering
-        viz_str = cls._sim.get_setting("/isaaclab/visualizer") or ""
+        viz_str = cls._sim.get_setting("/isaaclab/visualizer") or ""  # type: ignore[union-attr]
         requested = [v.strip() for v in viz_str.split(",") if v.strip()]
         cls._clone_physics_only = "omniverse" not in requested
 
@@ -166,32 +156,14 @@ class NewtonManager(PhysicsManager):
     def close(cls) -> None:
         """Clean up Newton physics resources."""
         cls.clear()
-        cls._sim = None
-        cls._cfg = None
+        super().close()
 
-    @classmethod
-    def get_physics_dt(cls) -> float:
-        """Get the physics timestep in seconds."""
-        return cls._dt
-
-    @classmethod
-    def get_device(cls) -> str:
-        """Get the physics simulation device."""
-        return cls._device
-
-    @classmethod
-    def get_physics_sim_view(cls):
-        """Get the physics simulation view (not applicable for Newton)."""
-        return None
-
-    @classmethod
-    def is_fabric_enabled(cls) -> bool:
-        """Check if fabric interface is enabled (not applicable for Newton)."""
-        return False
+    # get_physics_dt(), get_device(), get_physics_sim_view(), is_fabric_enabled()
+    # are inherited from PhysicsManager base class
 
     @classmethod
     def clear(cls):
-        """Clear all Newton state."""
+        """Clear all Newton-specific state (callbacks cleared by super().close())."""
         cls._builder = None
         cls._model = None
         cls._solver = None
@@ -206,8 +178,6 @@ class NewtonManager(PhysicsManager):
         cls._report_contacts = False
         cls._graph = None
         cls._newton_stage_path = None
-        cls._sim_time = 0.0
-        cls.clear_callbacks()  # Use unified callback system
         cls._usdrt_stage = None
         cls._up_axis = "Z"
         cls._model_changes = set()
@@ -283,7 +253,7 @@ class NewtonManager(PhysicsManager):
 
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", enable=True, format="ms"):
             cls._num_substeps = cls._cfg.num_substeps
-            cls._solver_dt = cls._dt / cls._num_substeps
+            cls._solver_dt = cls.get_physics_dt() / cls._num_substeps
 
             # Create solver from config
             solver_cfg = cls._cfg.solver_cfg
@@ -388,8 +358,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_dt(cls) -> float:
-        """Get the physics timestep."""
-        return cls._dt
+        """Get the physics timestep. Alias for get_physics_dt()."""
+        return cls.get_physics_dt()
 
     @classmethod
     def get_solver_dt(cls) -> float:

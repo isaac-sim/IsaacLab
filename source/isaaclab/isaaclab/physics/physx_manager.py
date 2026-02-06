@@ -59,13 +59,12 @@ class IsaacEvents(Enum):
     TIMELINE_STOP = "isaac.timeline_stop"
 
 
-# Mapping from unified PhysicsEvent to PhysX-specific IsaacEvents
 _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
-    PhysicsEvent.MODEL_INIT: IsaacEvents.PHYSICS_WARMUP,  # PhysX warmup ~= model init
+    PhysicsEvent.MODEL_INIT: IsaacEvents.PHYSICS_WARMUP,
     PhysicsEvent.PHYSICS_READY: IsaacEvents.PHYSICS_READY,
     PhysicsEvent.PRE_STEP: IsaacEvents.PRE_PHYSICS_STEP,
     PhysicsEvent.POST_STEP: IsaacEvents.POST_PHYSICS_STEP,
-    PhysicsEvent.POST_RESET: IsaacEvents.POST_RESET,
+    PhysicsEvent.STOP: IsaacEvents.TIMELINE_STOP,
 }
 
 
@@ -151,37 +150,24 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    # Omniverse interfaces (acquired once at class load)
+    _cfg: ClassVar["PhysxManagerCfg | None"] = None
+
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _physx: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
     _physx_sim: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
 
-    # Simulation views
     _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
     _view_warp: ClassVar[omni.physics.tensors.SimulationView | None] = None
-
-    # State
-    _sim: ClassVar["SimulationContext | None"] = None
-    _cfg: ClassVar["PhysxManagerCfg | None"] = None
-    _device: ClassVar[str] = "cpu"
     _warmup_needed: ClassVar[bool] = True
     _view_created: ClassVar[bool] = False
     _assets_loaded: ClassVar[bool] = True
-    _stage_id: ClassVar[int] = -1  # Track current stage to detect actual stage changes
-
-    # Callbacks and subscriptions
-    _callbacks: ClassVar[dict[int, Any]] = {}
-    _callback_id: ClassVar[int] = 0
+    _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
-
-    # Fabric
     _fabric: ClassVar[Any] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
 
-    # Backward Compatibility (required by isaacsim.core.simulation_manager)
-    # These fields are not used by IsaacLab but accessed by external Isaac Sim code
     class _SimManagerStub:
         """No-op stub for Isaac Sim APIs expecting simulation_manager_interface."""
 
@@ -197,33 +183,27 @@ class PhysxManager(PhysicsManager):
         def __getattr__(self, name: str) -> Callable[..., Any]:
             return lambda *a, **kw: None
 
+    # field stubs for Isaac Sim APIs expecting simulation_manager_interface
     _simulation_manager_interface: ClassVar[_SimManagerStub] = _SimManagerStub()
-
     _physics_scene_apis: ClassVar[dict[str, Any]] = {}
-
-    _message_bus = _event_bus  # Alias for _event_bus
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    _message_bus = _event_bus
 
     @classmethod
     def initialize(cls, sim_context: "SimulationContext") -> None:
         """Initialize the physics manager."""
         from isaaclab.sim.utils.stage import get_current_stage_id
 
-        cls._sim = sim_context
-        cls._cfg = sim_context.cfg.physics_manager_cfg  # type: ignore
-        cls._stage_id = get_current_stage_id()  # Track stage to detect actual changes
-
+        super().initialize(sim_context)
+        cls._stage_id = get_current_stage_id()
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context.carb_settings)
 
-        # Force an update cycle for dt configuration
-        cls._sim.set_setting("/app/player/playSimulations", False)
+        # force update cycle to apply dt
+        cls._sim.set_setting("/app/player/playSimulations", False)  # type: ignore[union-attr]
         omni.kit.app.get_app().update()
-        cls._sim.set_setting("/app/player/playSimulations", True)
+        cls._sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -268,13 +248,10 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
         cls._invalidate_views()
         cls._subscriptions.clear()
-        cls.clear_callbacks()  # Use unified callback cleanup
 
         if cls._physx_sim is not None:
             cls._physx_sim.detach_stage()
 
-        cls._sim = None
-        cls._cfg = None
         cls._fabric = None
         cls._update_fabric = None
         cls._anim_recorder = None
@@ -282,21 +259,11 @@ class PhysxManager(PhysicsManager):
         cls._view_created = False
         cls._assets_loaded = True
 
-    # ------------------------------------------------------------------
-    # Accessors
-    # ------------------------------------------------------------------
+        super().close()
 
     @classmethod
     def get_physics_sim_view(cls) -> omni.physics.tensors.SimulationView | None:
         return cls._view
-
-    @classmethod
-    def get_physics_dt(cls) -> float:
-        return cls._cfg.dt if cls._cfg else 1 / 60
-
-    @classmethod
-    def get_device(cls) -> str:
-        return cls._device
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -306,10 +273,6 @@ class PhysxManager(PhysicsManager):
     def assets_loading(cls) -> bool:
         return not cls._assets_loaded
 
-    # ------------------------------------------------------------------
-    # Callback Registration (override base class for PhysX integration)
-    # ------------------------------------------------------------------
-
     @classmethod
     def register_callback(
         cls, callback: Callable, event: PhysicsEvent | IsaacEvents, order: int = 0,
@@ -317,7 +280,6 @@ class PhysxManager(PhysicsManager):
     ) -> CallbackHandle:
         """Register a callback. Accepts both PhysicsEvent and IsaacEvents."""
         if isinstance(event, IsaacEvents):
-            # Direct IsaacEvents: wrap and subscribe directly
             cid = cls._callback_id
             cls._callback_id += 1
             cb = cls._wrap_weak_ref(callback) if wrap_weak_ref else callback
@@ -356,10 +318,6 @@ class PhysxManager(PhysicsManager):
             )
         return None
 
-    # ------------------------------------------------------------------
-    # Internal: Setup & Configuration
-    # ------------------------------------------------------------------
-
     @classmethod
     def _setup_subscriptions(cls) -> None:
         """Subscribe to timeline events."""
@@ -388,7 +346,7 @@ class PhysxManager(PhysicsManager):
         cfg = cls._cfg
         device = cls._sim.device
 
-        # Carb settings
+        # global carb settings
         settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
         settings.set_bool("/physics/physxDispatcher", True)
         settings.set_bool("/physics/disableContactProcessing", True)
@@ -396,7 +354,7 @@ class PhysxManager(PhysicsManager):
         settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
         settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
 
-        # Device configuration
+        # device setup
         is_gpu = "cuda" in device
         if is_gpu:
             parts = device.split(":")
@@ -409,37 +367,35 @@ class PhysxManager(PhysicsManager):
             settings.set_bool("/physics/suppressReadback", False)
             cls._device = "cpu"
 
-        # PhysX scene configuration
+        # physx scene api
         stage = cls._sim.stage
         scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
         PhysxSchema.PhysxSceneAPI.Apply(scene_prim)
         scene_api = PhysxSchema.PhysxSceneAPI(scene_prim)
 
-        # Timestep
+        # timestep and frame rate
         steps_per_sec = int(1.0 / cfg.dt)
         scene_api.CreateTimeStepsPerSecondAttr(steps_per_sec)
         render_interval = max(cls._sim.cfg.render_interval, 1)
         settings.set_int("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)
 
-        # GPU dynamics and broadphase
+        # gpu dynamics
         scene_api.CreateBroadphaseTypeAttr("GPU" if is_gpu else "MBP")
         scene_api.CreateEnableGPUDynamicsAttr(is_gpu)
 
-        # CCD (disabled for GPU)
+        # ccd (not supported on gpu)
         enable_ccd = cfg.enable_ccd and not is_gpu
         if cfg.enable_ccd and is_gpu:
             logger.warning("CCD disabled when GPU dynamics is enabled.")
         scene_api.CreateEnableCCDAttr(enable_ccd)
 
-        # Solver type
+        # solver
         scene_api.CreateSolverTypeAttr("TGS" if cfg.solver_type == 1 else "PGS")
-
-        # Articulation contact ordering
         scene_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             cfg.solve_articulation_contact_last
         )
 
-        # Apply remaining config attributes
+        # apply remaining cfg attributes to scene
         skip = {"solver_type", "enable_ccd", "solve_articulation_contact_last", "dt", "device",
                 "render_interval", "gravity", "physics_prim_path", "use_fabric", "physics_material", "class_type"}
         for key, value in cfg.to_dict().items():  # type: ignore
@@ -447,13 +403,13 @@ class PhysxManager(PhysicsManager):
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
                 sim_utils.safe_set_attribute_on_usd_schema(scene_api, attr_name, value, camel_case=True)
 
-        # Default physics material
+        # default physics material
         if cfg.physics_material:
             mat_path = f"{cfg.physics_prim_path}/defaultMaterial"
             cfg.physics_material.func(mat_path, cfg.physics_material)
             sim_utils.bind_physics_material(cfg.physics_prim_path, mat_path)
 
-        # Warnings
+        # warnings
         if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
             logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
         if not cfg.enable_stabilization and cfg.dt > 0.0333:
@@ -469,6 +425,7 @@ class PhysxManager(PhysicsManager):
         use_fabric = cls._cfg.use_fabric
         ext_mgr = omni.kit.app.get_app().get_extension_manager()
 
+        # enable/disable fabric extension
         if use_fabric:
             if not ext_mgr.is_extension_enabled("omni.physx.fabric"):
                 ext_mgr.set_extension_enabled_immediate("omni.physx.fabric", True)
@@ -481,16 +438,12 @@ class PhysxManager(PhysicsManager):
             cls._fabric = None
             cls._update_fabric = None
 
-        # Update USD sync settings
+        # disable usd sync when fabric is enabled
         for key in ["updateToUsd", "updateParticlesToUsd", "updateVelocitiesToUsd",
                     "updateForceSensorsToUsd", "updateResidualsToUsd"]:
             settings.set_bool(f"/physics/{key}", not use_fabric)
         settings.set_bool("/isaaclab/physics/fabric_enabled", use_fabric)
         settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
-
-    # ------------------------------------------------------------------
-    # Internal: Physics Lifecycle
-    # ------------------------------------------------------------------
 
     @classmethod
     def _warmup_and_create_views(cls) -> None:
@@ -498,7 +451,7 @@ class PhysxManager(PhysicsManager):
         if not cls._warmup_needed:
             return
 
-        # Physics warmup
+        # warmup physx
         cls._physx.force_load_physics_from_usd()
         cls._physx.start_simulation()
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
@@ -506,10 +459,10 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
 
-        # Create views
         if cls._view_created:
             return
 
+        # create tensor views
         from isaaclab.sim.utils.stage import get_current_stage_id
         stage_id = get_current_stage_id()
 
@@ -537,10 +490,6 @@ class PhysxManager(PhysicsManager):
         cls._view_warp = None
         cls._view_created = False
 
-    # ------------------------------------------------------------------
-    # Internal: Event Handlers
-    # ------------------------------------------------------------------
-
     @classmethod
     def _on_play(cls, event: Any) -> None:
         if carb.settings.get_settings().get_as_bool("/app/player/playSimulations"):
@@ -553,12 +502,10 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:
-        # Check if this is actually a different stage (not just attaching same in-memory stage)
         from isaaclab.sim.utils.stage import get_current_stage_id
 
         new_stage_id = get_current_stage_id()
         if new_stage_id == cls._stage_id:
-            # Same stage being attached to USD context - don't clear state
             return
 
         cls._stage_id = new_stage_id

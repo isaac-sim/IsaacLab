@@ -25,24 +25,30 @@ class PhysicsEvent(Enum):
     These are general events that apply across all physics backends.
     Backend-specific events (e.g., PhysX timeline events) are handled
     by the respective manager classes.
+
+    Lifecycle order: MODEL_INIT -> PHYSICS_READY -> (PRE_STEP -> POST_STEP)* -> STOP
     """
 
-    # Initialization
     MODEL_INIT = "model_init"
-    """Model/scene is being initialized (before physics starts)."""
+    """Physics model is being constructed.
+    Fired during scene building, before simulation can run. Use this to register
+    physics representations (rigid bodies, joints, constraints) with the solver.
+    """
 
     PHYSICS_READY = "physics_ready"
-    """Physics is fully initialized and ready to simulate."""
+    """Physics is initialized and queryable.
+    Fired after all physics data structures are created and the simulation is
+    ready to step. Assets can now read initial state (positions, velocities).
+    """
 
-    # Simulation lifecycle
     PRE_STEP = "pre_step"
-    """Called before each physics step."""
+    """About to advance physics by one timestep."""
 
     POST_STEP = "post_step"
     """Called after each physics step."""
 
-    POST_RESET = "post_reset"
-    """Called after simulation reset."""
+    STOP = "stop"
+    """Simulation is stopping."""
 
 
 class CallbackHandle:
@@ -67,19 +73,20 @@ class PhysicsManager(ABC):
     Physics managers handle the lifecycle of a physics simulation backend,
     including initialization, stepping, and cleanup.
 
-    This base class provides a unified callback management system that works
-    across different physics backends (PhysX, Newton).
+    This base class provides:
+    - Unified callback management system
+    - Common state variables (_sim, _cfg, _device)
+    - Default accessor implementations
 
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    # Callback storage: callback_id -> (event, callback, order, name, subscription)
-    _callbacks: ClassVar[dict[int, tuple[PhysicsEvent, Callable, int, str | None, Any]]] = {}
+    _sim: ClassVar["SimulationContext | None"] = None
+    _cfg: ClassVar[Any] = None
+    _device: ClassVar[str] = "cuda:0"
+    _sim_time: ClassVar[float] = 0.0
+    _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
-
-    # ------------------------------------------------------------------
-    # Callback Management API
-    # ------------------------------------------------------------------
 
     @classmethod
     def register_callback(
@@ -116,11 +123,9 @@ class PhysicsManager(ABC):
         cid = cls._callback_id
         cls._callback_id += 1
 
-        # Wrap bound methods with weak references to prevent leaks
         if wrap_weak_ref:
             callback = cls._wrap_weak_ref(callback)
 
-        # Let subclass handle platform-specific subscription
         subscription = cls._subscribe_to_event(cid, callback, event, order, name)
 
         cls._callbacks[cid] = (event, callback, order, name, subscription)
@@ -150,7 +155,6 @@ class PhysicsManager(ABC):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        # Get callbacks for this event, sorted by order
         matching = [
             (cid, cb, order)
             for cid, (ev, cb, order, name, sub) in cls._callbacks.items()
@@ -162,7 +166,6 @@ class PhysicsManager(ABC):
             try:
                 callback(payload)
             except ReferenceError:
-                # Weak reference expired, remove callback
                 cls.deregister_callback(cid)
             except Exception as e:
                 logger.error(f"Callback {cid} for {event.value} failed: {e}")
@@ -174,10 +177,6 @@ class PhysicsManager(ABC):
             cls.deregister_callback(cid)
         cls._callbacks.clear()
         cls._callback_id = 0
-
-    # ------------------------------------------------------------------
-    # Callback Helpers (for subclasses)
-    # ------------------------------------------------------------------
 
     @classmethod
     def _wrap_weak_ref(cls, callback: Callable) -> Callable:
@@ -223,7 +222,6 @@ class PhysicsManager(ABC):
         Returns:
             Platform-specific subscription object (stored for cleanup).
         """
-        # Default: no platform subscription, use dispatch_event()
         return None
 
     @classmethod
@@ -242,22 +240,21 @@ class PhysicsManager(ABC):
             event: The event that was subscribed to.
             subscription: The subscription object from _subscribe_to_event().
         """
-        # Default: nothing to clean up
         pass
-
-    # ------------------------------------------------------------------
-    # Physics Lifecycle (Abstract)
-    # ------------------------------------------------------------------
 
     @classmethod
     @abstractmethod
     def initialize(cls, sim_context: "SimulationContext") -> None:
         """Initialize the physics manager with simulation context.
 
+        Subclasses should call super().initialize() first, then do backend-specific setup.
+
         Args:
             sim_context: Parent simulation context.
         """
-        pass
+        cls._sim = sim_context
+        cls._cfg = sim_context.cfg.physics_manager_cfg
+        cls._sim_time = 0.0
 
     @classmethod
     @abstractmethod
@@ -282,34 +279,41 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    @abstractmethod
     def close(cls) -> None:
-        """Clean up physics resources."""
-        pass
+        """Clean up physics resources.
+
+        Subclasses should call super().close() after backend-specific cleanup.
+        """
+        cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+        cls.clear_callbacks()
+        cls._sim = None
+        cls._cfg = None
+        cls._sim_time = 0.0
 
     @classmethod
-    @abstractmethod
     def get_physics_dt(cls) -> float:
         """Get the physics timestep in seconds."""
-        pass
+        return cls._cfg.dt if cls._cfg else 1.0 / 60.0
 
     @classmethod
-    @abstractmethod
     def get_device(cls) -> str:
         """Get the physics simulation device."""
-        pass
+        return cls._device
 
     @classmethod
-    @abstractmethod
-    def get_physics_sim_view(cls):
-        """Get the physics simulation view."""
-        pass
+    def get_simulation_time(cls) -> float:
+        """Get the current simulation time in seconds."""
+        return cls._sim_time
 
     @classmethod
-    @abstractmethod
+    def get_physics_sim_view(cls) -> Any:
+        """Get the physics simulation view. Override in subclasses."""
+        return None
+
+    @classmethod
     def is_fabric_enabled(cls) -> bool:
-        """Check if fabric interface is enabled."""
-        pass
+        """Check if fabric interface is enabled. Override in subclasses."""
+        return False
 
     @classmethod
     def play(cls) -> None:
