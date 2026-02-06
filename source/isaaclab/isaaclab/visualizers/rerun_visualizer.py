@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import rerun as rr
 import rerun.blueprint as rrb
@@ -18,6 +19,9 @@ from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 class NewtonViewerRerun(ViewerRerun):
@@ -69,9 +73,8 @@ class RerunVisualizer(Visualizer):
         self._state = None
         self._is_initialized = False
         self._sim_time = 0.0
-        self._scene_data_provider = None
 
-    def initialize(self, scene_data_provider: Any) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
             logger.warning("[RerunVisualizer] Already initialized.")
             return
@@ -80,55 +83,47 @@ class RerunVisualizer(Visualizer):
             raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        self._model = self._scene_data_provider.get_newton_model()
-        self._state = self._scene_data_provider.get_newton_state()
-        metadata = self._scene_data_provider.get_metadata()
+        self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state()
+        metadata = scene_data_provider.get_metadata()
 
-        try:
-            if self.cfg.record_to_rrd:
-                logger.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
+        if self.cfg.record_to_rrd:
+            logger.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
 
-            self._viewer = NewtonViewerRerun(
-                app_id=self.cfg.app_id,
-                web_port=self.cfg.web_port,
-                keep_historical_data=self.cfg.keep_historical_data,
-                keep_scalar_history=self.cfg.keep_scalar_history,
-                record_to_rrd=self.cfg.record_to_rrd,
-                metadata=metadata,
-            )
+        self._viewer = NewtonViewerRerun(
+            app_id=self.cfg.app_id,
+            web_port=self.cfg.web_port,
+            keep_historical_data=self.cfg.keep_historical_data,
+            keep_scalar_history=self.cfg.keep_scalar_history,
+            record_to_rrd=self.cfg.record_to_rrd,
+            metadata=metadata,
+        )
 
-            self._viewer.set_model(self._model)
-            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+        self._viewer.set_model(self._model)
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
-            try:
-                cam_pos = self.cfg.camera_position
-                cam_target = self.cfg.camera_target
-
-                blueprint = rrb.Blueprint(
-                    rrb.Spatial3DView(
-                        name="3D View",
-                        origin="/",
-                        eye_controls=rrb.EyeControls3D(
-                            position=cam_pos,
-                            look_target=cam_target,
-                        ),
+        cam_pos = self.cfg.camera_position
+        cam_target = self.cfg.camera_target
+        with contextlib.suppress(Exception):
+            blueprint = rrb.Blueprint(
+                rrb.Spatial3DView(
+                    name="3D View",
+                    origin="/",
+                    eye_controls=rrb.EyeControls3D(
+                        position=cam_pos,
+                        look_target=cam_target,
                     ),
-                    collapse_panels=True,
-                )
-                rr.send_blueprint(blueprint)
+                ),
+                collapse_panels=True,
+            )
+            rr.send_blueprint(blueprint)
+            logger.info(f"[RerunVisualizer] Set initial camera view: position={cam_pos}, target={cam_target}")
 
-                logger.info(f"[RerunVisualizer] Set initial camera view: position={cam_pos}, target={cam_target}")
-            except Exception as exc:
-                logger.warning(f"[RerunVisualizer] Could not set initial camera view: {exc}")
+        num_envs = metadata.get("num_envs", 0)
+        physics_backend = metadata.get("physics_backend", "unknown")
+        logger.info(f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})")
 
-            num_envs = metadata.get("num_envs", 0)
-            physics_backend = metadata.get("physics_backend", "unknown")
-            logger.info(f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})")
-
-            self._is_initialized = True
-        except Exception as exc:
-            logger.error(f"[RerunVisualizer] Failed to initialize viewer: {exc}")
-            raise
+        self._is_initialized = True
 
     def step(self, dt: float, state: Any | None = None) -> None:
         self._state = self._scene_data_provider.get_newton_state()
@@ -142,21 +137,18 @@ class RerunVisualizer(Visualizer):
         if not self._is_initialized or self._viewer is None:
             return
 
-        try:
-            if self.cfg.record_to_rrd:
-                logger.info(f"[RerunVisualizer] Finalizing recording to: {self.cfg.record_to_rrd}")
-            self._viewer.close()
-            logger.info("[RerunVisualizer] Closed successfully.")
-            if self.cfg.record_to_rrd:
-                import os
+        if self.cfg.record_to_rrd:
+            logger.info(f"[RerunVisualizer] Finalizing recording to: {self.cfg.record_to_rrd}")
+        self._viewer.close()
+        logger.info("[RerunVisualizer] Closed successfully.")
+        if self.cfg.record_to_rrd:
+            import os
 
-                if os.path.exists(self.cfg.record_to_rrd):
-                    size = os.path.getsize(self.cfg.record_to_rrd)
-                    logger.info(f"[RerunVisualizer] Recording saved: {self.cfg.record_to_rrd} ({size} bytes)")
-                else:
-                    logger.warning(f"[RerunVisualizer] Recording file not found: {self.cfg.record_to_rrd}")
-        except Exception as exc:
-            logger.warning(f"[RerunVisualizer] Error during close: {exc}")
+            if os.path.exists(self.cfg.record_to_rrd):
+                size = os.path.getsize(self.cfg.record_to_rrd)
+                logger.info(f"[RerunVisualizer] Recording saved: {self.cfg.record_to_rrd} ({size} bytes)")
+            else:
+                logger.warning(f"[RerunVisualizer] Recording file not found: {self.cfg.record_to_rrd}")
 
         self._viewer = None
         self._is_initialized = False

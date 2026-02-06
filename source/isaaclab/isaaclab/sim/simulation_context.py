@@ -558,12 +558,19 @@ class SimulationContext(_SimulationContext):
         elif not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
 
-        self._scene_data_provider = SceneDataProvider(
-            backend=self.cfg.physics_backend,
-            visualizer_cfgs=visualizer_cfgs,
-            stage=self.stage,
-            simulation_context=self,
-        )
+        if self.cfg.physics_backend == "newton":
+            from .scene_data_providers import NewtonSceneDataProvider
+
+            self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self.stage)
+        elif self.cfg.physics_backend == "omni":
+            from .scene_data_providers import OVSceneDataProvider
+
+            self._scene_data_provider = OVSceneDataProvider(
+                visualizer_cfgs, self.stage, self, force_newton_sync=False
+            )
+        else:
+            logger.warning(f"Unknown physics backend '{self.cfg.physics_backend}'. Visualizers disabled.")
+            return
 
         for viz_cfg in visualizer_cfgs:
             try:

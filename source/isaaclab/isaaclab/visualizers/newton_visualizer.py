@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -19,6 +19,9 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -205,9 +208,8 @@ class NewtonVisualizer(Visualizer):
         self._model = None
         self._state = None
         self._update_frequency = cfg.update_frequency
-        self._scene_data_provider = None
 
-    def initialize(self, scene_data_provider: Any) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
             return
 
@@ -215,9 +217,9 @@ class NewtonVisualizer(Visualizer):
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        self._model = self._scene_data_provider.get_newton_model()
-        self._state = self._scene_data_provider.get_newton_state()
-        metadata = self._scene_data_provider.get_metadata()
+        self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state()
+        metadata = scene_data_provider.get_metadata()
 
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
@@ -286,10 +288,7 @@ class NewtonVisualizer(Visualizer):
                 if self._state is not None:
                     self._viewer.log_state(self._state)
                     if contacts is not None and hasattr(self._viewer, "log_contacts"):
-                        try:
-                            self._viewer.log_contacts(contacts, self._state)
-                        except Exception as exc:
-                            logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
+                        self._viewer.log_contacts(contacts, self._state)
                 self._viewer.end_frame()
             else:
                 self._viewer._update()

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .visualizer_cfg import VisualizerCfg
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 class Visualizer(ABC):
@@ -23,12 +24,13 @@ class Visualizer(ABC):
     def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer with config."""
         self.cfg = cfg
+        self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
 
     @abstractmethod
-    def initialize(self, scene_data_provider: Any) -> None:
-        """Initialize visualizer with a scene data provider."""
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+        """Initialize visualizer resources."""
         raise NotImplementedError
 
     @abstractmethod
