@@ -11,7 +11,6 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import re
 import torch
@@ -294,11 +293,7 @@ class SensorBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:  # type: ignore
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
+            self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

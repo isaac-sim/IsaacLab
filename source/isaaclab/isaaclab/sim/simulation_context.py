@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
 import gc
 import logging
 import traceback
@@ -19,7 +18,7 @@ import isaaclab.sim.utils.stage as stage_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics.physics_manager import PhysicsManager
-from isaaclab.sim.utils import create_new_stage_in_memory, raise_callback_exception_if_any
+from isaaclab.sim.utils import create_new_stage_in_memory
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.visualizers import Visualizer
 from isaaclab.visualizers.physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
@@ -124,9 +123,6 @@ class SimulationContext:
         # Initialize visualizers
         self._init_visualizers()
 
-        # Global exception storage for callback stack
-        builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore[attr-defined]
-
         # Simulation state
         self._is_playing = False
         self._is_stopped = True
@@ -216,17 +212,6 @@ class SimulationContext:
         """Returns the list of active visualizers."""
         return self._visualizers
 
-    def has_visualizer(self, viz_type: str) -> bool:
-        """Check if a visualizer of the given type is active.
-
-        Args:
-            viz_type: Visualizer type string (e.g., "omniverse", "newton", "rerun").
-
-        Returns:
-            True if a visualizer of that type is active.
-        """
-        return any(getattr(v, "visualizer_type", None) == viz_type for v in self._visualizers)
-
     def get_rendering_dt(self) -> float:
         """Returns the rendering time step."""
         return self._viz_dt
@@ -241,7 +226,6 @@ class SimulationContext:
     def forward(self) -> None:
         """Update kinematics and sync scene data without stepping physics."""
         self.physics_manager.forward()
-        raise_callback_exception_if_any()
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
@@ -254,7 +238,6 @@ class SimulationContext:
             viz.reset(soft)
         self._is_playing = True
         self._is_stopped = False
-        raise_callback_exception_if_any()
 
     def step(self, render: bool = True) -> None:
         """Step physics, update visualizers, and optionally render.
@@ -265,8 +248,6 @@ class SimulationContext:
         self.physics_manager.step()
         if render:
             self.render()
-
-        raise_callback_exception_if_any()
 
     def render(self, mode: int | None = None) -> None:
         """Render the scene via all active visualizers.
@@ -279,8 +260,6 @@ class SimulationContext:
             if not viz.is_rendering_paused() and viz.is_running():
                 viz.step(self.get_rendering_dt(), state=None)
 
-        raise_callback_exception_if_any()
-
     def play(self) -> None:
         """Start or resume the simulation."""
         self.physics_manager.play()
@@ -288,7 +267,6 @@ class SimulationContext:
             viz.play()
         self._is_playing = True
         self._is_stopped = False
-        raise_callback_exception_if_any()
 
     def pause(self) -> None:
         """Pause the simulation (can be resumed with play)."""
@@ -296,7 +274,6 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.pause()
         self._is_playing = False
-        raise_callback_exception_if_any()
 
     def stop(self) -> None:
         """Stop the simulation completely."""
@@ -305,7 +282,6 @@ class SimulationContext:
             viz.stop()
         self._is_playing = False
         self._is_stopped = True
-        raise_callback_exception_if_any()
 
     def is_playing(self) -> bool:
         """Returns True if simulation is playing (not paused or stopped)."""
@@ -384,7 +360,8 @@ class SimulationContext:
 
         sim_utils.clear_stage(stage=cls._instance.stage, predicate=_predicate)
 
-# CONTEXT MANAGE
+
+# CONTEXT MANAGER
 @contextmanager
 def build_simulation_context(
     create_new_stage: bool = True,
