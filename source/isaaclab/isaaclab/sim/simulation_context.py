@@ -19,7 +19,6 @@ import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.sim as sim_utils
 from isaaclab.physics.physics_manager import PhysicsManager
 from isaaclab.sim.utils import create_new_stage_in_memory
-from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.visualizers import Visualizer
 from isaaclab.visualizers.physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
 from .simulation_cfg import SimulationCfg
@@ -72,17 +71,14 @@ class SimulationContext:
 
     def __new__(cls, cfg: SimulationCfg | None = None):
         """Enforce singleton pattern."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+        if cls._instance is not None:
+            return cls._instance
+        return super().__new__(cls)
 
     @classmethod
     def instance(cls) -> "SimulationContext | None":
         """Get the singleton instance, or None if not created."""
         return cls._instance
-
-    # INITIALIZATION
 
     def __init__(self, cfg: SimulationCfg | None = None):
         """Initialize the simulation context.
@@ -90,8 +86,8 @@ class SimulationContext:
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
         """
-        if self._initialized:
-            return
+        if type(self)._instance is not None:
+            return  # Already initialized
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
@@ -126,7 +122,7 @@ class SimulationContext:
         # Simulation state
         self._is_playing = False
         self._is_stopped = True
-        self._initialized = True
+        type(self)._instance = self  # Mark as valid singleton only after successful init
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -221,10 +217,8 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
-    # SIMULATION LIFECYCLE
-
     def forward(self) -> None:
-        """Update kinematics and sync scene data without stepping physics."""
+        """Update kinematics without stepping physics."""
         self.physics_manager.forward()
 
     def reset(self, soft: bool = False) -> None:
@@ -250,11 +244,7 @@ class SimulationContext:
             self.render()
 
     def render(self, mode: int | None = None) -> None:
-        """Render the scene via all active visualizers.
-
-        Args:
-            mode: Render mode (unused, kept for API compatibility).
-        """
+        """Render the scene via all active visualizers."""
         self.physics_manager.forward()
         for viz in self._visualizers:
             if not viz.is_rendering_paused() and viz.is_running():
@@ -291,11 +281,6 @@ class SimulationContext:
         """Returns True if simulation is stopped (not just paused)."""
         return self._is_stopped
 
-    def get_version(self) -> tuple[int, int, int]:
-        """Returns the version of the simulator (major, minor, patch)."""
-        ver = get_isaac_sim_version()
-        return ver.major, ver.minor, ver.micro
-
     def set_setting(self, name: str, value: Any) -> None:
         """Set a Carbonite setting value."""
         self._settings_helper.set(name, value)
@@ -304,49 +289,36 @@ class SimulationContext:
         """Get a Carbonite setting value."""
         return self._settings_helper.get(name)
 
-    # CLEANUP
     @classmethod
-    def clear_instance(cls, clear_stage: bool = True) -> None:
-        """Clean up resources and clear the singleton instance.
-
-        Args:
-            clear_stage: If True, clear stage prims before closing. Defaults to True.
-        """
-        if cls._instance is None:
-            return
-
-        if not cls._instance._initialized:
-            logger.warning("Simulation context not initialized.")
-            return
-
-        # Optionally clear stage contents first
-        if clear_stage:
+    def clear_instance(cls) -> None:
+        """Clean up resources and clear the singleton instance."""
+        if cls._instance is not None:
+            # Clear stage contents first
             cls.clear_stage()
 
-        # Close physics manager
-        cls._instance.physics_manager.close()
+            # Close physics manager
+            cls._instance.physics_manager.close()
 
-        # Close all visualizers
-        for viz in cls._instance._visualizers:
-            viz.close()
-        cls._instance._visualizers.clear()
+            # Close all visualizers
+            for viz in cls._instance._visualizers:
+                viz.close()
+            cls._instance._visualizers.clear()
 
-        # Remove stage from cache
-        stage_cache = UsdUtils.StageCache.Get()
-        stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
-        if stage_id > 0:
-            stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
+            # Remove stage from cache
+            stage_cache = UsdUtils.StageCache.Get()
+            stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
+            if stage_id > 0:
+                stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
 
-        # Clear thread-local stage context
-        if hasattr(stage_utils._context, "stage"):
-            delattr(stage_utils._context, "stage")
+            # Clear thread-local stage context
+            if hasattr(stage_utils._context, "stage"):
+                delattr(stage_utils._context, "stage")
 
-        # Clear instance
-        cls._instance._initialized = False
-        cls._instance = None
+            # Clear instance
+            cls._instance = None
 
-        gc.collect()
-        logger.info("SimulationContext cleared")
+            gc.collect()
+            logger.info("SimulationContext cleared")
 
     @classmethod
     def clear_stage(cls) -> None:
@@ -361,7 +333,6 @@ class SimulationContext:
         sim_utils.clear_stage(stage=cls._instance.stage, predicate=_predicate)
 
 
-# CONTEXT MANAGER
 @contextmanager
 def build_simulation_context(
     create_new_stage: bool = True,

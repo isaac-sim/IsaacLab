@@ -126,15 +126,6 @@ Property Tests.
 
 
 @pytest.mark.isaacsim_ci
-def test_sim_version():
-    """Test obtaining the version."""
-    sim = SimulationContext()
-    version = sim.get_version()
-    assert len(version) > 0
-    assert version[0] >= 4
-
-
-@pytest.mark.isaacsim_ci
 def test_carb_setting():
     """Test setting carb settings."""
     sim = SimulationContext()
@@ -142,8 +133,8 @@ def test_carb_setting():
     sim.set_setting("/physics/physxDispatcher", False)
     assert sim.get_setting("/physics/physxDispatcher") is False
     # unknown carb setting
-    sim.set_setting("/myExt/using_omniverse_version", sim.get_version())
-    assert tuple(sim.get_setting("/myExt/using_omniverse_version")) == tuple(sim.get_version())
+    sim.set_setting("/myExt/test_value", 42)
+    assert sim.get_setting("/myExt/test_value") == 42
 
 
 @pytest.mark.isaacsim_ci
