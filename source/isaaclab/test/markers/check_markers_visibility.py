@@ -40,6 +40,7 @@ simulation_app = app_launcher.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.utils import configclass
@@ -129,7 +130,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

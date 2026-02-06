@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -94,7 +95,7 @@ def define_markers() -> VisualizationMarkers:
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])

@@ -29,6 +29,7 @@ simulation_app = app_launcher.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import RayCasterCfg, patterns
 from isaaclab.sim import SimulationContext
@@ -80,7 +81,7 @@ def main():
     """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.005))
+    sim = SimulationContext(sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
     sim.set_camera_view(eye=[5, 5, 5], target=[0.0, 0.0, 0.0])
 

@@ -20,6 +20,7 @@ import pytest
 import omni.physx
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 

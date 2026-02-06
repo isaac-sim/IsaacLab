@@ -37,6 +37,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 ##
 # Pre-defined configs
@@ -143,7 +144,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01))
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01)))
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # design scene

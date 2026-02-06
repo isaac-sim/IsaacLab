@@ -24,6 +24,7 @@ import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
@@ -124,7 +125,7 @@ def setup(sensor_type: str = "cube"):
     dt = 0.01
 
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Ground-plane

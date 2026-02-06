@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBuffer

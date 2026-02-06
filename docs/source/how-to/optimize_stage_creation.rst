@@ -60,8 +60,7 @@ be called after the stage is created.
     sim = SimulationContext(cfg=SimulationCfg(create_stage_in_memory=True))
 
     # grab stage in memory and set stage context
-    stage_in_memory = sim.get_initial_stage()
-    with stage_utils.use_stage(stage_in_memory):
+    with stage_utils.use_stage(sim.stage):
         # create cartpole scene
         scene_cfg = CartpoleSceneCfg(num_envs=1024)
         scene = InteractiveScene(scene_cfg)

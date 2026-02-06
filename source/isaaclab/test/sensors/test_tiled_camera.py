@@ -27,6 +27,7 @@ from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
@@ -51,7 +52,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim_cfg = sim_utils.SimulationCfg(device=device, physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()

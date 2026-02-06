@@ -26,6 +26,7 @@ import omni.replicator.core as rep
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
@@ -69,7 +70,7 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt)
+    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Ground-plane
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)

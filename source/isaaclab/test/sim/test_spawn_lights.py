@@ -18,6 +18,7 @@ import pytest
 from pxr import Usd, UsdLux
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.string import to_camel_case
 
@@ -30,7 +31,7 @@ def sim():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
     # Wait for spawning
     sim_utils.update_stage()
 

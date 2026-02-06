@@ -123,18 +123,8 @@ class BaseEnvWindow:
             # create stack for controls
             self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
             with self.ui_window_elements["sim_vstack"]:
-                # create rendering mode dropdown
-                render_mode_cfg = {
-                    "label": "Rendering Mode",
-                    "type": "dropdown",
-                    "default_val": self.env.sim.render_mode.value,
-                    "items": [member.name for member in self.env.sim.RenderMode if member.value >= 0],
-                    "tooltip": "Select a rendering mode\n" + self.env.sim.RenderMode.__doc__,
-                    "on_clicked_fn": lambda value: self.env.sim.set_render_mode(self.env.sim.RenderMode[value]),
-                }
-                self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
-                    **render_mode_cfg
-                )
+                # Note: Rendering mode dropdown removed - rendering is now managed through visualizer config
+                pass
 
                 # create animation recording box
                 record_animate_cfg = {

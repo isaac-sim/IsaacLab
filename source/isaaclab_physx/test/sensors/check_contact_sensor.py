@@ -40,6 +40,7 @@ from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.timer import Timer
@@ -74,7 +75,7 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=0.005))
+    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
