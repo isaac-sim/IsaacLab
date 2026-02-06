@@ -303,14 +303,18 @@ class AssetBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            # Obtain Simulation Context
-            sim = sim_utils.SimulationContext.instance()
-            if sim is None:
-                raise RuntimeError("Simulation Context is not initialized!")
-            # Obtain device and backend
-            self._device = sim.device
-            # initialize the asset
-            self._initialize_impl()
+            try:
+                # Obtain Simulation Context
+                sim = sim_utils.SimulationContext.instance()
+                if sim is None:
+                    raise RuntimeError("Simulation Context is not initialized!")
+                # Obtain device and backend
+                self._device = sim.device
+                # initialize the asset
+                self._initialize_impl()
+            except Exception as e:
+                # Store exception to be raised after callback completes
+                PhysxManager.store_callback_exception(e)
             # set flag
             self._is_initialized = True
 

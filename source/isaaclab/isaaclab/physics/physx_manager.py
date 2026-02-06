@@ -167,6 +167,7 @@ class PhysxManager(PhysicsManager):
     _fabric: ClassVar[Any] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
+    _callback_exception: ClassVar[Exception | None] = None
 
     class _SimManagerStub:
         """No-op stub for Isaac Sim APIs expecting simulation_manager_interface."""
@@ -217,6 +218,8 @@ class PhysxManager(PhysicsManager):
         if cls._view is not None:
             cls._view._backend.initialize_kinematic_bodies()
 
+        cls.raise_callback_exception_if_any()
+
     @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics and fabric for rendering."""
@@ -242,6 +245,8 @@ class PhysxManager(PhysicsManager):
         if "cuda" in cls._device:
             torch.cuda.set_device(cls._device)
 
+        cls.raise_callback_exception_if_any()
+
     @classmethod
     def close(cls) -> None:
         """Clean up physics resources."""
@@ -258,6 +263,7 @@ class PhysxManager(PhysicsManager):
         cls._warmup_needed = True
         cls._view_created = False
         cls._assets_loaded = True
+        cls._callback_exception = None
 
         super().close()
 
@@ -268,6 +274,28 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def assets_loading(cls) -> bool:
         return not cls._assets_loaded
+
+    @classmethod
+    def store_callback_exception(cls, exception: Exception) -> None:
+        """Store an exception from a callback to be raised later.
+
+        Omniverse event systems catch exceptions internally. Use this to store
+        exceptions that should be surfaced after the event dispatch completes.
+        """
+        if cls._callback_exception is None:
+            cls._callback_exception = exception
+
+    @classmethod
+    def raise_callback_exception_if_any(cls) -> None:
+        """Raise any stored callback exception and clear it.
+
+        Call this after operations that may trigger callbacks (reset, step, etc.)
+        to propagate exceptions from Omniverse event callbacks.
+        """
+        if cls._callback_exception is not None:
+            exc = cls._callback_exception
+            cls._callback_exception = None
+            raise exc
 
     @classmethod
     def register_callback(

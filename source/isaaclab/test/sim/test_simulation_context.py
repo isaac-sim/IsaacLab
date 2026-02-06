@@ -12,7 +12,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import builtins
 import numpy as np
 import pytest
 import weakref
@@ -996,15 +995,8 @@ def test_multiple_isaac_event_callbacks():
             PhysxManager.deregister_callback(id3)
 
 
-"""
-Exception Handling in Callbacks Tests.
-"""
-
-
-@pytest.mark.isaacsim_ci
 def test_exception_in_callback_on_reset():
-    """Test that exceptions in callbacks during reset are properly captured and raised."""
-
+    """Test that exceptions stored during reset are raised."""
     cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
@@ -1012,112 +1004,45 @@ def test_exception_in_callback_on_reset():
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/Cube", cube_cfg)
 
-    # create a callback that raises an exception
-    def on_physics_ready_with_exception(event):
-        try:
-            raise RuntimeError("Test exception in callback during reset!")
-        except Exception as e:
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
+    test_error_message = "Test exception on reset"
 
-    # register callback that will raise an exception
-    callback_id = PhysxManager.register_callback(
-        lambda event: on_physics_ready_with_exception(event), event=IsaacEvents.PHYSICS_READY
-    )
+    def failing_callback(event):
+        PhysxManager.store_callback_exception(RuntimeError(test_error_message))
+
+    handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.PHYSICS_READY)
 
     try:
-        # reset should capture and re-raise the exception
-        with pytest.raises(RuntimeError, match="Test exception in callback during reset!"):
+        with pytest.raises(RuntimeError, match=test_error_message):
             sim.reset()
-
-        # verify the exception was cleared after being raised
-        assert builtins.ISAACLAB_CALLBACK_EXCEPTION is None  # type: ignore
-
     finally:
-        # cleanup callback
-        if callback_id is not None:
-            PhysxManager.deregister_callback(callback_id)
-        # ensure exception is cleared
-        builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
+        if handle is not None:
+            PhysxManager.deregister_callback(handle)
+        SimulationContext.clear_instance()
 
 
-@pytest.mark.isaacsim_ci
-def test_exception_in_callback_on_play():
-    """Test that exceptions in callbacks during play are properly captured and raised."""
-
+def test_exception_in_callback_on_step():
+    """Test that exceptions stored during step are raised."""
     cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
     sim = SimulationContext(cfg)
 
-    # create callback tracker
-    callback_state = {"called": False}
+    # create simple scene
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg.func("/World/Cube", cube_cfg)
 
-    def on_play_with_exception(event):
-        try:
-            callback_state["called"] = True
-            raise ValueError("Test exception in play callback!")
-        except Exception as e:
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
+    # reset first to initialize
+    sim.reset()
 
-    # register callback via timeline
-    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-    play_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-        int(omni.timeline.TimelineEventType.PLAY), lambda event: on_play_with_exception(event), order=20
-    )
+    test_error_message = "Test exception on step"
+
+    def failing_callback(event):
+        PhysxManager.store_callback_exception(RuntimeError(test_error_message))
+
+    handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.POST_PHYSICS_STEP)
 
     try:
-        # play should capture and re-raise the exception
-        with pytest.raises(ValueError, match="Test exception in play callback!"):
-            sim.play()
-
-        # verify callback was called
-        assert callback_state["called"]
-
-        # verify the exception was cleared
-        assert builtins.ISAACLAB_CALLBACK_EXCEPTION is None  # type: ignore
-
+        with pytest.raises(RuntimeError, match=test_error_message):
+            sim.step()
     finally:
-        # cleanup
-        if play_handle is not None:
-            play_handle.unsubscribe()
-        # ensure exception is cleared
-        builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
-
-
-@pytest.mark.isaacsim_ci
-def test_exception_in_callback_on_stop():
-    """Test that exceptions in callbacks during stop are properly captured and raised."""
-
-    cfg = SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01))
-    sim = SimulationContext(cfg)
-
-    # start the simulation first
-    sim.play()
-
-    def on_stop_with_exception(event):
-        try:
-            raise OSError("Test exception in stop callback!")
-        except Exception as e:
-            builtins.ISAACLAB_CALLBACK_EXCEPTION = e  # type: ignore
-
-    # register callback via timeline
-    timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-    stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-        int(omni.timeline.TimelineEventType.STOP), lambda event: on_stop_with_exception(event), order=20
-    )
-
-    try:
-        # disable app control to prevent hanging
-        sim._disable_app_control_on_stop_handle = True  # type: ignore
-
-        # stop should capture and re-raise the exception
-        with pytest.raises(OSError, match="Test exception in stop callback!"):
-            sim.stop()
-
-        # verify the exception was cleared
-        assert builtins.ISAACLAB_CALLBACK_EXCEPTION is None  # type: ignore
-
-    finally:
-        # cleanup
-        if stop_handle is not None:
-            stop_handle.unsubscribe()
-        # ensure exception is cleared
-        builtins.ISAACLAB_CALLBACK_EXCEPTION = None  # type: ignore
+        if handle is not None:
+            PhysxManager.deregister_callback(handle)
+        SimulationContext.clear_instance()

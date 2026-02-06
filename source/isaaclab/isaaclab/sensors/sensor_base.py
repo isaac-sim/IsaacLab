@@ -293,7 +293,11 @@ class SensorBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            self._initialize_impl()
+            try:
+                self._initialize_impl()
+            except Exception as e:
+                # Store exception to be raised after callback completes
+                PhysxManager.store_callback_exception(e)
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

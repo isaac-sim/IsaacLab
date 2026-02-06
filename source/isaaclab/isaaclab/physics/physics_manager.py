@@ -132,17 +132,18 @@ class PhysicsManager(ABC):
         return CallbackHandle(cid, cls)
 
     @classmethod
-    def deregister_callback(cls, callback_id: int) -> None:
+    def deregister_callback(cls, callback_id: int | CallbackHandle) -> None:
         """Remove a registered callback.
 
         Args:
-            callback_id: The ID returned by register_callback().
+            callback_id: The ID or CallbackHandle returned by register_callback().
         """
-        if callback_id not in cls._callbacks:
+        cid = callback_id.id if isinstance(callback_id, CallbackHandle) else callback_id
+        if cid not in cls._callbacks:
             return
 
-        event, callback, order, name, subscription = cls._callbacks.pop(callback_id)
-        cls._unsubscribe_from_event(callback_id, event, subscription)
+        event, callback, order, name, subscription = cls._callbacks.pop(cid)
+        cls._unsubscribe_from_event(cid, event, subscription)
 
     @classmethod
     def dispatch_event(cls, event: PhysicsEvent, payload: Any = None) -> None:
