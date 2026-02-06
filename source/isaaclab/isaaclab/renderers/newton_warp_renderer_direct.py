@@ -1,19 +1,27 @@
-from isaaclab.scene import InteractiveScene
-import isaaclab.sim as isaaclab_sim
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
+import re
 from dataclasses import dataclass, field
-from pxr import Usd, UsdGeom
 
-from newton.sensors import SensorTiledCamera
 import numpy as np
 import warp as wp
-import usdrt
-import re
+from newton.sensors import SensorTiledCamera
 
+import usdrt
+from pxr import Usd, UsdGeom
+
+import isaaclab.sim as isaaclab_sim
 from isaaclab.renderers.newton_warp_renderer import CameraManager
+from isaaclab.scene import InteractiveScene
+
 
 @wp.kernel(enable_backward=False)
-def compute_triangle_count(num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.int32), out_face_offsets: wp.array(dtype=wp.int32)):
+def compute_triangle_count(
+    num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.int32), out_face_offsets: wp.array(dtype=wp.int32)
+):
     offset = wp.int32(0)
     for i in range(num_face_counts):
         out_face_offsets[i] = offset
@@ -22,7 +30,13 @@ def compute_triangle_count(num_face_counts: wp.int32, face_counts: wp.array(dtyp
 
 
 @wp.kernel(enable_backward=False)
-def triangulate_faces(num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.int32), face_indices: wp.array(dtype=wp.int32), face_offsets: wp.array(dtype=wp.int32), out_triangles: wp.array(dtype=wp.int32)):
+def triangulate_faces(
+    num_face_counts: wp.int32,
+    face_counts: wp.array(dtype=wp.int32),
+    face_indices: wp.array(dtype=wp.int32),
+    face_offsets: wp.array(dtype=wp.int32),
+    out_triangles: wp.array(dtype=wp.int32),
+):
     offset = face_offsets[wp.tid()]
     num_triangles = face_counts[wp.tid()] - 2
     tri = wp.atomic_add(face_offsets, num_face_counts + 1, num_triangles * 3)
@@ -34,14 +48,26 @@ def triangulate_faces(num_face_counts: wp.int32, face_counts: wp.array(dtype=wp.
 
 
 @wp.kernel(enable_backward=False)
-def update_transforms(fabric_matrices: wp.fabricarray(dtype=wp.mat44d), mapping: wp.array(dtype=wp.int32), transforms: wp.array(dtype=wp.transformf)):
+def update_transforms(
+    fabric_matrices: wp.fabricarray(dtype=wp.mat44d),
+    mapping: wp.array(dtype=wp.int32),
+    transforms: wp.array(dtype=wp.transformf),
+):
     tid = wp.tid()
     if mapping[tid] > -1:
         m = fabric_matrices[mapping[tid]]
 
-        orientation = wp.mat33f(wp.float32(m[0, 0]), wp.float32(m[1, 0]), wp.float32(m[2, 0]),
-                                wp.float32(m[0, 1]), wp.float32(m[1, 1]), wp.float32(m[2, 1]),
-                                wp.float32(m[0, 2]), wp.float32(m[1, 2]), wp.float32(m[2, 2]))
+        orientation = wp.mat33f(
+            wp.float32(m[0, 0]),
+            wp.float32(m[1, 0]),
+            wp.float32(m[2, 0]),
+            wp.float32(m[0, 1]),
+            wp.float32(m[1, 1]),
+            wp.float32(m[2, 1]),
+            wp.float32(m[0, 2]),
+            wp.float32(m[1, 2]),
+            wp.float32(m[2, 2]),
+        )
 
         position = wp.vec3f(wp.float32(m[3, 0]), wp.float32(m[3, 1]), wp.float32(m[3, 2]))
 
@@ -97,7 +123,9 @@ class NewtonWarpRendererDirect:
         self.render_context.shape_enabled = wp.array(np.arange(self.render_context.num_shapes_total), dtype=wp.uint32)
         self.render_context.shape_sizes = wp.array(shape_sizes, dtype=wp.vec3f)
         self.render_context.shape_transforms = wp.array(shape_transforms, dtype=wp.transformf)
-        self.render_context.shape_materials = wp.array(np.full(self.render_context.num_shapes_total, fill_value=-1, dtype=np.int32), dtype=wp.int32)
+        self.render_context.shape_materials = wp.array(
+            np.full(self.render_context.num_shapes_total, fill_value=-1, dtype=np.int32), dtype=wp.int32
+        )
         self.render_context.shape_world_index = wp.array(shape_world_indices, dtype=wp.int32)
         self.render_context.utils.compute_mesh_bounds()
         self.render_context.utils.create_default_light(False)
@@ -107,8 +135,18 @@ class NewtonWarpRendererDirect:
 
     def update(self):
         self.__update_fabric_selection()
-        fabric_matrices = wp.fabricarray(self.__fabric_selection.__fabric_arrays_interface__, "omni:fabric:worldMatrix", dtype=wp.mat44d)
-        wp.launch(update_transforms, len(self.__fabric_selection_mapping), [fabric_matrices, wp.array(self.__fabric_selection_mapping, dtype=wp.int32), self.render_context.shape_transforms])
+        fabric_matrices = wp.fabricarray(
+            self.__fabric_selection.__fabric_arrays_interface__, "omni:fabric:worldMatrix", dtype=wp.mat44d
+        )
+        wp.launch(
+            update_transforms,
+            len(self.__fabric_selection_mapping),
+            [
+                fabric_matrices,
+                wp.array(self.__fabric_selection_mapping, dtype=wp.int32),
+                self.render_context.shape_transforms,
+            ],
+        )
 
     def render(self, sensor_name: str):
         if camera_data := self.camera_manager.camera_data.get(sensor_name):
@@ -119,7 +157,9 @@ class NewtonWarpRendererDirect:
             self.__render(camera_data)
 
     def __render(self, camera_data: CameraManager.CameraData):
-        self.render_context.render(self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image)
+        self.render_context.render(
+            self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image
+        )
 
     def __update_fabric_selection(self):
         stage_id = isaaclab_sim.get_current_stage_id()
@@ -131,7 +171,11 @@ class NewtonWarpRendererDirect:
 
         update_mapping = False
         if self.__fabric_selection is None:
-            self.__fabric_selection = stage.SelectPrims(require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)], want_paths=True, device=wp.get_device().alias)
+            self.__fabric_selection = stage.SelectPrims(
+                require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)],
+                want_paths=True,
+                device=wp.get_device().alias,
+            )
             update_mapping = True
         else:
             update_mapping = self.__fabric_selection.PrepareForReuse()
@@ -147,7 +191,9 @@ class NewtonWarpRendererDirect:
                         except ValueError:
                             self.__fabric_selection_mapping.append(-1)
 
-    def __collect_prims(self, stage: Usd.Stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)") -> int:
+    def __collect_prims(
+        self, stage: Usd.Stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)"
+    ) -> int:
         env_pattern = re.compile(env_regex)
 
         num_worlds = -1
@@ -170,7 +216,7 @@ class NewtonWarpRendererDirect:
                 continue
 
             shape_type = SensorTiledCamera.RenderShapeType.NONE
-            
+
             if prim.IsA(UsdGeom.Mesh):
                 shape_type = SensorTiledCamera.RenderShapeType.MESH
             elif prim.IsA(UsdGeom.Sphere):
@@ -187,7 +233,7 @@ class NewtonWarpRendererDirect:
                 shape_type = SensorTiledCamera.RenderShapeType.PLANE
 
             if shape_type != SensorTiledCamera.RenderShapeType.NONE:
-                if not prim_path in self.prim_data:
+                if prim_path not in self.prim_data:
                     self.prim_data[prim_path] = NewtonWarpRendererDirect.PrimData(world_id > -1, shape_type, prim)
                 self.prim_data[prim_path].prims.append((world_id, prim))
 
@@ -209,7 +255,11 @@ class NewtonWarpRendererDirect:
         num_triangles = wp_face_offsets.numpy()[num_face_counts].item()
         wp_triangle_indices = wp.empty(num_triangles * 3, dtype=wp.int32)
 
-        wp.launch(kernel=triangulate_faces, dim=num_face_counts, inputs=[num_face_counts, face_vertex_counts, face_vertex_indices, wp_face_offsets, wp_triangle_indices])
+        wp.launch(
+            kernel=triangulate_faces,
+            dim=num_face_counts,
+            inputs=[num_face_counts, face_vertex_counts, face_vertex_indices, wp_face_offsets, wp_triangle_indices],
+        )
 
         return wp.Mesh(points=points, velocities=None, indices=wp_triangle_indices)
 

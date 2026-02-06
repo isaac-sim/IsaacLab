@@ -3,94 +3,58 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data provider for visualizers and renderers."""
+"""Scene data provider interface for visualizers and renderers."""
 
 from __future__ import annotations
 
-import logging
+from abc import ABC, abstractmethod
 from typing import Any
 
-logger = logging.getLogger(__name__)
 
+class SceneDataProvider(ABC):
+    """Backend-agnostic scene data provider interface."""
 
-class SceneDataProvider:
-    """Creates appropriate data provider based on physics backend."""
-
-    def __init__(
-        self,
-        backend: str,
-        visualizer_cfgs: list[Any] | None,
-        stage=None,
-        simulation_context=None,
-    ) -> None:
-        self._backend = backend
-        self._provider = None
-
-        if backend == "newton":
-            from .newton_scene_data_provider import NewtonSceneDataProvider
-
-            self._provider = NewtonSceneDataProvider(visualizer_cfgs)
-        elif backend == "omni":
-            if stage is None or simulation_context is None:
-                logger.warning("OV scene data provider requires stage and simulation context.")
-                self._provider = None
-            else:
-                from .ov_scene_data_provider import OVSceneDataProvider
-
-                self._provider = OVSceneDataProvider(visualizer_cfgs, stage, simulation_context)
-        else:
-            logger.warning(f"Unknown physics backend '{backend}'.")
-
+    @abstractmethod
     def update(self) -> None:
-        if self._provider is not None:
-            self._provider.update()
+        """Refresh any cached scene data."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_newton_model(self) -> Any | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_newton_model()
+        """Return Newton model handle when available."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_newton_state(self) -> Any | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_newton_state()
+        """Return Newton state handle when available."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_usd_stage(self) -> Any | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_usd_stage()
+        """Return USD stage handle when available."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_metadata(self) -> dict[str, Any]:
-        if self._provider is None:
-            return {}
-        return self._provider.get_metadata()
+        """Return backend metadata (num_envs, gravity, etc.)."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_transforms(self) -> dict[str, Any] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_transforms()
+        """Return body transforms, if supported."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_velocities(self) -> dict[str, Any] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_velocities()
+        """Return body velocities, if supported."""
+        raise NotImplementedError
 
+    @abstractmethod
     def get_contacts(self) -> dict[str, Any] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_contacts()
+        """Return contacts, if supported."""
+        raise NotImplementedError
 
-    def get_camera_data(self) -> dict[str, Any] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_camera_data()
-
+    @abstractmethod
     def get_camera_transforms(self) -> dict[str, Any] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_camera_transforms()
-
-    def get_camera_configs(self) -> list[dict[str, Any]] | None:
-        if self._provider is None:
-            return None
-        return self._provider.get_camera_configs()
+        """Return per-camera, per-env transforms, if supported."""
+        raise NotImplementedError

@@ -1,14 +1,19 @@
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
-from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import TiledCamera
-import isaaclab.sim as isaaclab_sim
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
 
+import os
 from dataclasses import dataclass, field
-from pxr import Usd
 
 import newton
 import warp as wp
-import os
+
+from pxr import Usd
+
+import isaaclab.sim as isaaclab_sim
+from isaaclab.scene import InteractiveScene
+from isaaclab.sensors import TiledCamera
 
 
 class CameraManager:
@@ -25,7 +30,7 @@ class CameraManager:
         self.scene = scene
         self.num_cameras = 1
         self.camera_data: dict[str, CameraManager.CameraData] = {}
-        
+
         for name, sensor in self.scene.sensors.items():
             camera_data = CameraManager.CameraData()
             camera_data.prims = isaaclab_sim.find_matching_prims(sensor.cfg.prim_path)
@@ -38,23 +43,30 @@ class CameraManager:
         self.render_context = render_context
         for name in self.scene.sensors:
             camera_fovs = wp.array([20.0] * self.num_cameras, dtype=wp.float32)
-            self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(self.camera_data[name].width, self.camera_data[name].height, camera_fovs)
-            self.camera_data[name].color_image = render_context.create_color_image_output(self.camera_data[name].width, self.camera_data[name].height, self.num_cameras)
-    
+            width = self.camera_data[name].width
+            height = self.camera_data[name].height
+            self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(
+                width, height, camera_fovs
+            )
+            self.camera_data[name].color_image = render_context.create_color_image_output(
+                width, height, self.num_cameras
+            )
+
     def get_camera_transforms(self, camera_data: CameraData) -> wp.array(dtype=wp.transformf):
         camera_transforms = []
         for prim in camera_data.prims:
             camera_transforms.append(self.__resolve_camera_transform(prim))
         return wp.array([camera_transforms], dtype=wp.transformf)
-    
+
     def save_images(self, filename: str):
         if self.render_context is None:
             return
 
         for name, camera_data in self.camera_data.items():
             color_data = self.render_context.utils.flatten_color_image_to_rgba(camera_data.color_image)
-            
+
             from PIL import Image
+
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             Image.fromarray(color_data.numpy()).save(filename % name)
 
@@ -96,7 +108,12 @@ class NewtonWarpRenderer:
             if mapping := self.physx_to_newton_body_mapping.get(name):
                 physx_pos = wp.from_torch(articulation.data.body_pos_w)
                 physx_quat = wp.from_torch(articulation.data.body_quat_w)
-                wp.launch(NewtonWarpRenderer.__update_transforms, mapping.shape, [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q])
+                inputs = [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q]
+                wp.launch(
+                    NewtonWarpRenderer.__update_transforms,
+                    mapping.shape,
+                    inputs,
+                )
 
     def render(self, sensor_name: str):
         if camera_data := self.camera_manager.camera_data.get(sensor_name):
@@ -107,7 +124,13 @@ class NewtonWarpRenderer:
             self.__render(camera_data)
 
     def __render(self, camera_data: CameraManager.CameraData):
-        self.newton_sensor.render(self.newton_state, self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image)
+        camera_transforms = self.camera_manager.get_camera_transforms(camera_data)
+        self.newton_sensor.render(
+            self.newton_state,
+            camera_transforms,
+            camera_data.camera_rays,
+            camera_data.color_image,
+        )
 
     def __update_mapping(self):
         if self.physx_to_newton_body_mapping:
@@ -122,10 +145,19 @@ class NewtonWarpRenderer:
                     prim_path = prim.GetPath().AppendChild(body_name).pathString
                     body_indices.append(self.newton_model.body_key.index(prim_path))
                 articulation_mapping.append(body_indices)
-            self.physx_to_newton_body_mapping[name] = wp.array(articulation_mapping, dtype=wp.int32)
+            self.physx_to_newton_body_mapping[name] = wp.array(
+                articulation_mapping,
+                dtype=wp.int32,
+            )
 
     @wp.kernel(enable_backward=False)
-    def __update_transforms(mapping: wp.array(dtype=wp.int32, ndim=2), newton_body_world: wp.array(dtype=wp.int32), physx_pos: wp.array(dtype=wp.float32, ndim=3), physx_quat: wp.array(dtype=wp.float32, ndim=3), out_transform: wp.array(dtype=wp.transformf)):
+    def __update_transforms(
+        mapping: wp.array(dtype=wp.int32, ndim=2),
+        newton_body_world: wp.array(dtype=wp.int32),
+        physx_pos: wp.array(dtype=wp.float32, ndim=3),
+        physx_quat: wp.array(dtype=wp.float32, ndim=3),
+        out_transform: wp.array(dtype=wp.transformf),
+    ):
         physx_world_id, physx_body_id = wp.tid()
 
         newton_body_index = mapping[physx_world_id, physx_body_id]

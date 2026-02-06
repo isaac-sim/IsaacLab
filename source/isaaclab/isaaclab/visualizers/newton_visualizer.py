@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -19,6 +19,9 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 class NewtonViewerGL(ViewerGL):
@@ -207,17 +210,16 @@ class NewtonVisualizer(Visualizer):
         self._update_frequency = cfg.update_frequency
         self._scene_data_provider = None
 
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
             return
+        if scene_data_provider is None:
+            raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
-        if not scene_data or "scene_data_provider" not in scene_data:
-            raise RuntimeError("Newton visualizer requires scene_data_provider.")
-
-        self._scene_data_provider = scene_data["scene_data_provider"]
-        self._model = self._scene_data_provider.get_newton_model()
-        self._state = self._scene_data_provider.get_newton_state()
-        metadata = self._scene_data_provider.get_metadata()
+        self._scene_data_provider = scene_data_provider
+        self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state()
+        metadata = scene_data_provider.get_metadata()
 
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,

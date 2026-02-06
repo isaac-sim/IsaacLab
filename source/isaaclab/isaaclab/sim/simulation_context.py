@@ -558,26 +558,22 @@ class SimulationContext(_SimulationContext):
         elif not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
 
-        self._scene_data_provider = SceneDataProvider(
-            backend=self.cfg.physics_backend,
-            visualizer_cfgs=visualizer_cfgs,
-            stage=self.stage,
-            simulation_context=self,
-        )
+        if self.cfg.physics_backend == "newton":
+            from .scene_data_providers import NewtonSceneDataProvider
+
+            self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs)
+        elif self.cfg.physics_backend == "omni":
+            from .scene_data_providers import OVSceneDataProvider
+
+            self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
+        else:
+            logger.warning(f"Unknown physics backend '{self.cfg.physics_backend}'. Visualizers disabled.")
+            return
 
         for viz_cfg in visualizer_cfgs:
             try:
                 visualizer = viz_cfg.create_visualizer()
-                scene_data: dict[str, Any] = {"scene_data_provider": self._scene_data_provider}
-
-                # OV visualizer gets USD stage
-                if viz_cfg.visualizer_type == "omniverse":
-                    if self._scene_data_provider:
-                        scene_data["usd_stage"] = self._scene_data_provider.get_usd_stage()
-                    else:
-                        scene_data["usd_stage"] = self.stage
-
-                visualizer.initialize(scene_data)
+                visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
                 logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {viz_cfg.visualizer_type})")
             except Exception as exc:

@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
+
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -23,12 +25,13 @@ class Visualizer(ABC):
     def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer with config."""
         self.cfg = cfg
+        self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
 
     @abstractmethod
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize visualizer with scene data (model, state, usd_stage, etc.)."""
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+        """Initialize visualizer resources."""
         raise NotImplementedError
 
     @abstractmethod
