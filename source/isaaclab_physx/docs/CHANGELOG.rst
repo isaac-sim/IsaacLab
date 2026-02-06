@@ -7,7 +7,7 @@ Changelog
 Removed
 ^^^^^^^
 
-* All the deprecated properties and shorthands in the assets. They now live in the base classes.
+* Removed all the deprecated properties and shorthands in the assets. They now live in the base classes.
 
 
 0.1.3 (2026-02-03)
