@@ -9,6 +9,7 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
+import warnings
 from typing import Any, Literal  # Literal used by RenderCfg
 
 from isaaclab.utils import configclass
@@ -16,6 +17,17 @@ from isaaclab.utils import configclass
 from isaaclab.physics.physics_manager_cfg import PhysicsManagerCfg
 from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.visualizers import VisualizerCfg
+
+
+# Mapping of deprecated SimulationCfg fields to their new location in physics_manager_cfg
+_DEPRECATED_FIELDS = {
+    "dt": "physics_manager_cfg.dt",
+    "gravity": "physics_manager_cfg.gravity",
+    "physics_prim_path": "physics_manager_cfg.physics_prim_path",
+    "physics_material": "physics_manager_cfg.physics_material",
+    "use_fabric": "physics_manager_cfg.use_fabric",
+    "physx": "physics_manager_cfg (PhysxManagerCfg attributes directly)",
+}
 
 
 @configclass
@@ -165,7 +177,21 @@ class RenderCfg:
 
 @configclass
 class SimulationCfg:
-    """Configuration for simulation physics."""
+    """Configuration for simulation physics.
+
+    .. note::
+        The following fields have been moved to ``physics_manager_cfg`` and are deprecated:
+
+        - ``dt`` → ``physics_manager_cfg.dt``
+        - ``gravity`` → ``physics_manager_cfg.gravity``
+        - ``physics_prim_path`` → ``physics_manager_cfg.physics_prim_path``
+        - ``physics_material`` → ``physics_manager_cfg.physics_material``
+        - ``use_fabric`` → ``physics_manager_cfg.use_fabric``
+        - ``physx`` → Use ``PhysxManagerCfg`` attributes directly
+
+        Using the old field names will issue a deprecation warning and forward
+        the values to the new location.
+    """
 
     device: str = "cuda:0"
     """The device to run the simulation on. Default is ``"cuda:0"``.
@@ -226,3 +252,74 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
     """The list of visualizer configurations. Default is None."""
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Intercept deprecated attribute assignment and forward to physics_manager_cfg."""
+        # Mapping of deprecated fields to their new location
+        deprecated_map = {
+            "dt": "physics_manager_cfg.dt",
+            "gravity": "physics_manager_cfg.gravity",
+            "physics_prim_path": "physics_manager_cfg.physics_prim_path",
+            "physics_material": "physics_manager_cfg.physics_material",
+            "use_fabric": "physics_manager_cfg.use_fabric",
+        }
+
+        if name in deprecated_map:
+            # Check if physics_manager_cfg is already set (avoid recursion during init)
+            try:
+                physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
+                if hasattr(physics_cfg, name):
+                    setattr(physics_cfg, name, value)
+                    warnings.warn(
+                        f"SimulationCfg.{name} is deprecated. "
+                        f"Use {deprecated_map[name]} instead.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    return
+            except AttributeError:
+                # physics_manager_cfg not yet set, fall through to normal setattr
+                pass
+        # Default behavior
+        object.__setattr__(self, name, value)
+
+    def __getattr__(self, name: str) -> Any:
+        """Intercept deprecated attribute access and forward to physics_manager_cfg."""
+        # Mapping of deprecated fields to their new location
+        deprecated_map = {
+            "dt": "physics_manager_cfg.dt",
+            "gravity": "physics_manager_cfg.gravity",
+            "physics_prim_path": "physics_manager_cfg.physics_prim_path",
+            "physics_material": "physics_manager_cfg.physics_material",
+            "use_fabric": "physics_manager_cfg.use_fabric",
+        }
+
+        if name in deprecated_map:
+            try:
+                physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
+                if hasattr(physics_cfg, name):
+                    warnings.warn(
+                        f"SimulationCfg.{name} is deprecated. "
+                        f"Use {deprecated_map[name]} instead.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    return getattr(physics_cfg, name)
+            except AttributeError:
+                pass
+
+        # Provide access to 'physx' as a proxy to physics_manager_cfg for PhysX settings
+        if name == "physx":
+            try:
+                physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
+                warnings.warn(
+                    "SimulationCfg.physx is deprecated. Set PhysX attributes "
+                    "directly on physics_manager_cfg (PhysxManagerCfg).",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                return physics_cfg
+            except AttributeError:
+                pass
+
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")

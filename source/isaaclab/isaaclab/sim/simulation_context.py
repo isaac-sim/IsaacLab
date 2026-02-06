@@ -160,10 +160,6 @@ class SimulationContext:
         """Returns the physics simulation view."""
         return self.physics_manager.get_physics_sim_view()
 
-    def is_fabric_enabled(self) -> bool:
-        """Returns whether the fabric interface is enabled."""
-        return self.carb_settings.get_as_bool("/isaaclab/fabric_enabled")
-
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
