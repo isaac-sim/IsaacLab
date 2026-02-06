@@ -94,6 +94,14 @@ class NewtonSceneDataProvider:
         except Exception:
             return None
 
-    def get_mesh_data(self) -> dict[str, Any] | None:
-        """ADAPTED: Extract mesh data from Newton shapes (future work)."""
+    def get_camera_data(self) -> dict[str, Any] | None:
+        """UNAVAILABLE: Newton backend doesn't provide USD cameras."""
+        return None
+
+    def get_camera_transforms(self) -> dict[str, Any] | None:
+        """UNAVAILABLE: Newton backend doesn't provide USD cameras."""
+        return None
+
+    def get_camera_configs(self) -> list[dict[str, Any]] | None:
+        """UNAVAILABLE: Newton backend doesn't provide USD camera configs."""
         return None

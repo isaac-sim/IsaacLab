@@ -15,7 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class OVSceneDataProvider:
-    """Scene data provider for Omni PhysX backend."""
+    """Scene data provider for Omni PhysX backend.
+
+    Supports:
+    - body poses via PhysX tensor views, with XformPrimView fallback
+    - camera poses & intrinsics
+    - USD stage handles
+    - Newton model/state handles
+    - TODO: mesh data access
+    """
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
@@ -27,25 +35,11 @@ class OVSceneDataProvider:
         self._rigid_body_view = None
         self._articulation_view = None
         self._xform_views: dict[str, Any] = {}
-        self._body_key_index_map: dict[str, int] = {}
         self._view_body_index_map: dict[str, list[int]] = {}
 
-        # Determine which visualizers need Newton state sync
-        self._has_newton_visualizer = False
-        self._has_rerun_visualizer = False
-        self._has_ov_visualizer = False
-        if visualizer_cfgs:
-            for cfg in visualizer_cfgs:
-                viz_type = getattr(cfg, "visualizer_type", None)
-                if viz_type == "newton":
-                    self._has_newton_visualizer = True
-                elif viz_type == "rerun":
-                    self._has_rerun_visualizer = True
-                elif viz_type == "omniverse":
-                    self._has_ov_visualizer = True
-
+        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
         # Explicit mode flag for Newton synchronization
-        self._needs_newton_sync = self._has_newton_visualizer or self._has_rerun_visualizer
+        self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
         self._metadata = {
             "physics_backend": "omni",
@@ -57,6 +51,7 @@ class OVSceneDataProvider:
         self._device = getattr(self._simulation_context, "device", "cuda:0")
         self._newton_model = None
         self._newton_state = None
+        self._camera_data_cache: dict[str, Any] | None = None
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
         self._set_body_q_kernel = None
@@ -71,44 +66,36 @@ class OVSceneDataProvider:
             logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
     def _get_num_envs(self) -> int:
-        try:
-            import carb
+        """Read num_envs from settings; returns 0 if unset/unavailable."""
+        import carb
 
-            carb_settings_iface = carb.settings.get_settings()
-            num_envs = carb_settings_iface.get("/isaaclab/scene/num_envs")
-            if num_envs:
-                return int(num_envs)
-        except Exception:
-            return 0
-        return 0
+        carb_settings_iface = carb.settings.get_settings()
+        num_envs = carb_settings_iface.get("/isaaclab/scene/num_envs")
+        return int(num_envs) if num_envs else 0
 
     @staticmethod
     def _wildcard_env_paths(paths: list[str]) -> list[str]:
-        wildcard_paths = []
-        for path in paths:
-            if "/World/envs/env_0" in path:
-                wildcard_paths.append(path.replace("/World/envs/env_0", "/World/envs/env_*"))
+        """Convert /World/envs/env_0 paths to a wildcard pattern when possible."""
+        wildcard_paths = [
+            path.replace("/World/envs/env_0", "/World/envs/env_*") for path in paths if "/World/envs/env_0" in path
+        ]
         return list(dict.fromkeys(wildcard_paths)) if wildcard_paths else paths
 
     def _refresh_newton_model_if_needed(self) -> None:
+        """Rebuild Newton model/state and PhysX views if env count changes."""
         num_envs = self._get_num_envs()
         if num_envs <= 0:
             return
 
-        if self._newton_model is None or self._newton_state is None:
+        needs_rebuild = self._newton_model is None or self._newton_state is None
+        needs_rebuild = needs_rebuild or (self._metadata.get("num_envs", 0) != num_envs)
+        if needs_rebuild:
             self._build_newton_model_from_usd()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
-            return
-
-        if self._metadata.get("num_envs", 0) != num_envs:
-            self._build_newton_model_from_usd()
-            self._setup_rigid_body_view()
-            self._setup_articulation_view()
-            return
 
     def _build_newton_model_from_usd(self) -> None:
-        """Build Newton model from USD and extract scene structure."""
+        """Build Newton model from USD and cache body/articulation paths."""
         try:
             from newton import ModelBuilder
 
@@ -122,7 +109,6 @@ class OVSceneDataProvider:
             self._articulation_paths = list(self._newton_model.articulation_key)
 
             self._xform_views.clear()
-            self._body_key_index_map = {path: i for i, path in enumerate(self._rigid_body_paths)}
             self._view_body_index_map = {}
         except ModuleNotFoundError as exc:
             logger.error(
@@ -169,10 +155,12 @@ class OVSceneDataProvider:
             self._articulation_view = None
 
     def _get_view_world_poses(self, view):
-        """Read world poses from PhysX tensor API view (ArticulationView or RigidBodyView).
+        """Read world poses from a PhysX view.
 
-        Tries multiple method names for compatibility across PhysX API versions.
-        Returns (positions, orientations) tuple or (None, None) if unavailable.
+        Tries multiple method names for compatibility and returns
+        (positions, orientations) or (None, None). The returned tensors
+        are expected to be shaped [..., 3] and [..., 4] (xyzw or wxyz
+        depending on source).
         """
         if view is None:
             return None, None
@@ -214,13 +202,14 @@ class OVSceneDataProvider:
             match = re.search(r"/World/envs/env_(\d+)(/.*)", path)
             return (int(match.group(1)), match.group(2)) if match else (None, path)
 
-        # Build map: (env_id, relative_path) -> view_index
+        # Build map: (env_id, relative_path) -> view_index to align view order.
         view_map: dict[tuple[int | None, str], int] = {}
         for view_idx, path in enumerate(prim_paths):
             env_id, rel = split_env(path)
             view_map[(env_id, rel)] = view_idx
 
-        # Build reordering: newton_body_index -> view_index
+        # Build reordering: newton_body_index -> view_index so we can scatter
+        # PhysX view outputs into Newton body ordering.
         order: list[int | None] = [None] * len(self._rigid_body_paths)
         for body_idx, path in enumerate(self._rigid_body_paths):
             env_id, rel = split_env(path)
@@ -233,6 +222,7 @@ class OVSceneDataProvider:
             self._view_body_index_map[key] = order  # type: ignore[arg-type]
 
     def _get_view_velocities(self, view):
+        """Read linear/angular velocities from a PhysX view."""
         if view is None:
             return None, None
 
@@ -258,7 +248,7 @@ class OVSceneDataProvider:
         return None, None
 
     def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
-        """Read poses from a PhysX view and write uncovered bodies to output tensors."""
+        """Fill poses from a PhysX view for bodies not yet covered."""
         import torch
 
         if view is None:
@@ -275,6 +265,7 @@ class OVSceneDataProvider:
         pos = pos.to(device=self._device, dtype=torch.float32)
         quat = quat.to(device=self._device, dtype=torch.float32)
 
+        # Scatter view outputs into the canonical Newton body order.
         count = 0
         for newton_idx, view_idx in enumerate(order):
             if view_idx is not None and not covered[newton_idx]:
@@ -286,7 +277,10 @@ class OVSceneDataProvider:
         return count
 
     def _apply_xform_poses(self, positions: Any, orientations: Any, covered: Any, xform_mask: Any) -> int:
-        """Use XformPrimView fallback for remaining uncovered bodies."""
+        """Fill remaining poses using XformPrimView (USD fallback).
+
+        This is slower but more robust when PhysX views don't cover all bodies.
+        """
         import torch
 
         from isaaclab.sim.views import XformPrimView
@@ -295,6 +289,7 @@ class OVSceneDataProvider:
         if not uncovered:
             return 0
 
+        # Query each uncovered prim path directly from USD.
         count = 0
         for idx in uncovered:
             path = self._rigid_body_paths[idx]
@@ -317,7 +312,7 @@ class OVSceneDataProvider:
         return count
 
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
-        """Convert XformPrimView quaternions from wxyz to xyzw where needed."""
+        """Convert XformPrimView quaternions from wxyz to xyzw for flagged indices."""
         if not xform_mask.any():
             return orientations
 
@@ -332,7 +327,7 @@ class OVSceneDataProvider:
         return orientations_xyzw
 
     def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:
-        """Merge pose data from ArticulationView, RigidBodyView, and XformPrimView."""
+        """Merge pose data from articulation, rigid-body, and xform views."""
         if self._newton_state is None or not self._rigid_body_paths:
             return None
 
@@ -343,24 +338,38 @@ class OVSceneDataProvider:
             logger.warning(f"Body count mismatch: body_key={num_bodies}, state={self._newton_state.body_q.shape[0]}")
             return None
 
+        # Allocate outputs in Newton body order.
         positions = torch.zeros((num_bodies, 3), dtype=torch.float32, device=self._device)
         orientations = torch.zeros((num_bodies, 4), dtype=torch.float32, device=self._device)
         covered = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
         xform_mask = torch.zeros(num_bodies, dtype=torch.bool, device=self._device)
 
-        artic = self._apply_view_poses(self._articulation_view, "articulation_view", positions, orientations, covered)
-        rigid = self._apply_view_poses(self._rigid_body_view, "rigid_body_view", positions, orientations, covered)
-        xform = self._apply_xform_poses(positions, orientations, covered, xform_mask)
+        # Apply sources in preferred order: articulation, rigid bodies, then USD fallback.
+        articulation_count = self._apply_view_poses(
+            self._articulation_view, "articulation_view", positions, orientations, covered
+        )
+        rigid_count = self._apply_view_poses(
+            self._rigid_body_view, "rigid_body_view", positions, orientations, covered
+        )
+        xform_count = self._apply_xform_poses(positions, orientations, covered, xform_mask)
 
         if not covered.all():
             logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
             return None
 
-        active = sum([artic > 0, rigid > 0, xform > 0])
+        active = sum([articulation_count > 0, rigid_count > 0, xform_count > 0])
         source = (
             "merged"
             if active > 1
-            else ("articulation_view" if artic else "rigid_body_view" if rigid else "xform_view" if xform else "none")
+            else (
+                "articulation_view"
+                if articulation_count
+                else "rigid_body_view"
+                if rigid_count
+                else "xform_view"
+                if xform_count
+                else "none"
+            )
         )
 
         return positions, orientations, source, xform_mask
@@ -422,21 +431,49 @@ class OVSceneDataProvider:
             logger.debug(f"Failed to sync transforms to Newton: {exc}")
 
     def get_newton_model(self) -> Any | None:
+        """Return Newton model when sync is enabled."""
         return self._newton_model if self._needs_newton_sync else None
 
     def get_newton_state(self) -> Any | None:
+        """Return Newton state when sync is enabled."""
         return self._newton_state if self._needs_newton_sync else None
 
     def get_usd_stage(self) -> Any:
+        """Return the USD stage handle."""
         return self._stage
 
-    def get_mesh_data(self) -> dict[str, Any] | None:
-        return None
+    def get_camera_data(self) -> dict[str, Any] | None:
+        """Return cached camera discovery data from the stage."""
+        if self._stage is None:
+            return None
+        if self._camera_data_cache is None:
+            self._camera_data_cache = self._collect_camera_data(self._stage)
+        return dict(self._camera_data_cache)
+
+    def get_camera_transforms(self) -> dict[str, Any] | None:
+        """Return per-camera, per-env transforms (positions, orientations)."""
+        if self._stage is None:
+            return None
+        camera_data = self.get_camera_data()
+        if not camera_data:
+            return None
+        return self._collect_camera_transforms(self._stage, camera_data)
+
+    def get_camera_configs(self) -> list[dict[str, Any]] | None:
+        """Return camera intrinsics/configs for discovered cameras."""
+        if self._stage is None:
+            return None
+        camera_data = self.get_camera_data()
+        if not camera_data:
+            return None
+        return self._collect_camera_configs(self._stage, camera_data)
 
     def get_metadata(self) -> dict[str, Any]:
+        """Return backend metadata (num_envs, gravity, etc.)."""
         return dict(self._metadata)
 
     def get_transforms(self) -> dict[str, Any] | None:
+        """Return merged body transforms from available PhysX views."""
         try:
             result = self._read_poses_from_best_source()
             if result is None:
@@ -449,6 +486,7 @@ class OVSceneDataProvider:
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:
+        """Return linear/angular velocities from available PhysX views."""
         for source, view in (
             ("articulation_view", self._articulation_view),
             ("rigid_body_view", self._rigid_body_view),
@@ -461,3 +499,103 @@ class OVSceneDataProvider:
     def get_contacts(self) -> dict[str, Any] | None:
         """Contacts not yet supported for OV backend."""
         return None
+
+    @staticmethod
+    def _collect_camera_data(stage, env_regex: str = r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)"):
+        """Collect camera prims across envs and build shared templates."""
+        from pxr import UsdGeom
+
+        env_pattern = re.compile(env_regex)
+        shared_paths: list[str] = []
+        instances: dict[str, list[tuple[int, str]]] = {}
+        num_envs = -1
+
+        stage_prims: list = [stage.GetPseudoRoot()]
+        while stage_prims:
+            prim = stage_prims.pop(0)
+            prim_path = prim.GetPath().pathString
+
+            world_id = 0
+            template_path = prim_path
+            if match := env_pattern.match(prim_path):
+                world_id = int(match.group("id"))
+                template_path = match.group("root") + "%d" + match.group("path")
+                if world_id > num_envs:
+                    num_envs = world_id
+
+            imageable = UsdGeom.Imageable(prim)
+            if imageable and imageable.ComputeVisibility() == UsdGeom.Tokens.invisible:
+                continue
+
+            if prim.IsA(UsdGeom.Camera):
+                if template_path not in instances:
+                    instances[template_path] = []
+                instances[template_path].append((world_id, prim_path))
+                if template_path not in shared_paths:
+                    shared_paths.append(template_path)
+
+            if child_prims := prim.GetFilteredChildren(UsdGeom.TraverseInstanceProxies()):
+                stage_prims.extend(child_prims)
+
+        return {"shared_paths": shared_paths, "instances": instances, "num_envs": num_envs + 1}
+
+    @staticmethod
+    def _collect_camera_transforms(stage, camera_data: dict[str, Any]):
+        """Resolve camera transforms for each shared path and env."""
+        import isaaclab.sim as isaaclab_sim
+
+        shared_paths = camera_data.get("shared_paths") or []
+        instances = camera_data.get("instances") or {}
+        num_envs = camera_data.get("num_envs", 0)
+
+        positions: list[list[list[float] | None]] = []
+        orientations: list[list[list[float] | None]] = []
+
+        for template_path in shared_paths:
+            per_world_pos: list[list[float] | None] = [None] * num_envs
+            per_world_ori: list[list[float] | None] = [None] * num_envs
+            for world_id, prim_path in instances.get(template_path, []):
+                if world_id < 0 or world_id >= num_envs:
+                    continue
+                prim = stage.GetPrimAtPath(prim_path)
+                if not prim.IsValid():
+                    continue
+                pos, ori = isaaclab_sim.resolve_prim_pose(prim)
+                per_world_pos[world_id] = [float(pos[0]), float(pos[1]), float(pos[2])]
+                per_world_ori[world_id] = [float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3])]
+            positions.append(per_world_pos)
+            orientations.append(per_world_ori)
+
+        return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
+
+    @staticmethod
+    def _collect_camera_configs(stage, camera_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Read camera intrinsics from one instance per shared path."""
+        from pxr import UsdGeom
+
+        shared_paths = camera_data.get("shared_paths") or []
+        instances = camera_data.get("instances") or {}
+
+        configs: list[dict[str, Any]] = []
+        for template_path in shared_paths:
+            prim_path = None
+            for _, instance_path in instances.get(template_path, []):
+                prim_path = instance_path
+                break
+            if not prim_path:
+                continue
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim.IsValid():
+                continue
+            camera = UsdGeom.Camera(prim)
+            configs.append(
+                {
+                    "template_path": template_path,
+                    "prim_path": prim_path,
+                    "focal_length": float(camera.GetFocalLengthAttr().Get()),
+                    "horizontal_aperture": float(camera.GetHorizontalApertureAttr().Get()),
+                    "vertical_aperture": float(camera.GetVerticalApertureAttr().Get()),
+                    "clipping_range": tuple(camera.GetClippingRangeAttr().Get()),
+                }
+            )
+        return configs

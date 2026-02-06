@@ -80,7 +80,17 @@ class SceneDataProvider:
             return None
         return self._provider.get_contacts()
 
-    def get_mesh_data(self) -> dict[str, Any] | None:
+    def get_camera_data(self) -> dict[str, Any] | None:
         if self._provider is None:
             return None
-        return self._provider.get_mesh_data()
+        return self._provider.get_camera_data()
+
+    def get_camera_transforms(self) -> dict[str, Any] | None:
+        if self._provider is None:
+            return None
+        return self._provider.get_camera_transforms()
+
+    def get_camera_configs(self) -> list[dict[str, Any]] | None:
+        if self._provider is None:
+            return None
+        return self._provider.get_camera_configs()
