@@ -51,7 +51,7 @@ class SceneCfg(InteractiveSceneCfg):
     robot.prim_path = "{ENV_REGEX_NS}/Robot"
 
 
-def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, renderer: NewtonWarpRenderer, save_images: bool):
+def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, num_steps: int, save_images: bool):
     robot: Articulation = scene["robot"]
     for step in range(num_steps):
         if step % 500 == 0:
@@ -78,10 +78,12 @@ def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, 
         sim.step()
         scene.update(sim.get_physics_dt())
 
-        renderer.update()
-        renderer.render_all()
         if save_images:
-            renderer.camera_manager.save_images(f"__warp_renderer/%s_rgb.{step:04d}.png")
+            if isinstance(scene.sensors["tiled_camera"], TiledCamera):
+                if isinstance(scene.sensors["tiled_camera"].renderer, NewtonWarpRenderer):
+                    scene.sensors["tiled_camera"].renderer.camera_manager.save_images(f"__warp_renderer/%s_rgb.{step:04d}.png")
+        scene.sensors["tiled_camera"].data
+
 
 def main():
     with measure_time("Simulation Context creation time"):
@@ -100,11 +102,10 @@ def main():
             data_types=["rgb"],
             spawn=isaaclab_sim.PinholeCameraCfg(focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)),
             width=400,
-            height=400,
+            height=300,
+            renderer="newton"
         )
-        scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg)
-
-        renderer = NewtonWarpRenderer(scene)
+        scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg, scene)
 
         # stage = isaaclab_sim.get_current_stage()
         # stage.Export("/home/dhasenbring/development/isaac/IsaacLab/stage.usda")
@@ -113,7 +114,7 @@ def main():
         sim.reset()
 
     with measure_time("Average sim step time", iterations=args.steps):
-        run_simulator(sim, scene, args.steps, renderer, args.save_images)
+        run_simulator(sim, scene, args.steps, args.save_images)
 
 
 if __name__ == "__main__":

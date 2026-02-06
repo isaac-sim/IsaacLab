@@ -1,14 +1,20 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
-from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import TiledCamera
 import isaaclab.sim as isaaclab_sim
 
 from dataclasses import dataclass, field
 from pxr import Usd
 
-import newton
 import warp as wp
+import newton
+import torch
 import os
+
+if TYPE_CHECKING:
+    from isaaclab.sensors import SensorBase
+    from isaaclab.scene import InteractiveScene
 
 
 class CameraManager:
@@ -17,6 +23,7 @@ class CameraManager:
         camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         color_image: wp.array(dtype=wp.uint32, ndim=4) = None
         prims: list[Usd.Prim] = field(default_factory=lambda: [])
+        name: str | None = None
         width: int = 100
         height: int = 100
 
@@ -24,22 +31,23 @@ class CameraManager:
         self.render_context: newton.sensors.SensorTiledCamera.RenderContext | None = None
         self.scene = scene
         self.num_cameras = 1
-        self.camera_data: dict[str, CameraManager.CameraData] = {}
+        self.camera_data: dict[SensorBase, CameraManager.CameraData] = {}
         
         for name, sensor in self.scene.sensors.items():
             camera_data = CameraManager.CameraData()
+            camera_data.name = name
             camera_data.prims = isaaclab_sim.find_matching_prims(sensor.cfg.prim_path)
-            if isinstance(sensor, TiledCamera):
-                camera_data.width = sensor.cfg.width
-                camera_data.height = sensor.cfg.height
-            self.camera_data[name] = camera_data
+            camera_data.width = getattr(sensor.cfg, "width", camera_data.width)
+            camera_data.height = getattr(sensor.cfg, "height", camera_data.height)
+            self.camera_data[sensor] = camera_data
 
     def create_outputs(self, render_context: newton.sensors.SensorTiledCamera.RenderContext):
         self.render_context = render_context
-        for name in self.scene.sensors:
-            camera_fovs = wp.array([20.0] * self.num_cameras, dtype=wp.float32)
-            self.camera_data[name].camera_rays = render_context.utils.compute_pinhole_camera_rays(self.camera_data[name].width, self.camera_data[name].height, camera_fovs)
-            self.camera_data[name].color_image = render_context.create_color_image_output(self.camera_data[name].width, self.camera_data[name].height, self.num_cameras)
+        for name, sensor in self.scene.sensors.items():
+            if camera_data := self.camera_data.get(sensor):
+                camera_fovs = wp.array([20.0] * self.num_cameras, dtype=wp.float32)
+                camera_data.camera_rays = render_context.utils.compute_pinhole_camera_rays(camera_data.width, camera_data.height, camera_fovs)
+                camera_data.color_image = render_context.create_color_image_output(camera_data.width, camera_data.height, self.num_cameras)
     
     def get_camera_transforms(self, camera_data: CameraData) -> wp.array(dtype=wp.transformf):
         camera_transforms = []
@@ -51,12 +59,12 @@ class CameraManager:
         if self.render_context is None:
             return
 
-        for name, camera_data in self.camera_data.items():
+        for sensor, camera_data in self.camera_data.items():
             color_data = self.render_context.utils.flatten_color_image_to_rgba(camera_data.color_image)
             
             from PIL import Image
             os.makedirs(os.path.dirname(filename), exist_ok=True)
-            Image.fromarray(color_data.numpy()).save(filename % name)
+            Image.fromarray(color_data.numpy()).save(filename % camera_data.name)
 
     def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
         position, orientation = isaaclab_sim.resolve_prim_pose(prim)
@@ -98,13 +106,20 @@ class NewtonWarpRenderer:
                 physx_quat = wp.from_torch(articulation.data.body_quat_w)
                 wp.launch(NewtonWarpRenderer.__update_transforms, mapping.shape, [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q])
 
-    def render(self, sensor_name: str):
-        if camera_data := self.camera_manager.camera_data.get(sensor_name):
+    def render(self, sensor: SensorBase):
+        if camera_data := self.camera_manager.camera_data.get(sensor):
             self.__render(camera_data)
 
     def render_all(self):
         for name, camera_data in self.camera_manager.camera_data.items():
             self.__render(camera_data)
+
+    def convert_output(self, sensor: SensorBase, output_name: str, output_data: torch.Tensor):
+        if camera_data := self.camera_manager.camera_data.get(sensor):
+            if output_name == "rgba":
+                wp.launch(NewtonWarpRenderer.__convert_output_rgba, camera_data.color_image.shape, [camera_data.color_image, wp.from_torch(output_data)])
+            else:
+                print(f"NewtonWarpRenderer - Output conversion for {output_name} is not yet implemented")
 
     def __render(self, camera_data: CameraManager.CameraData):
         self.newton_sensor.render(self.newton_state, self.camera_manager.get_camera_transforms(camera_data), camera_data.camera_rays, camera_data.color_image)
@@ -138,3 +153,13 @@ class NewtonWarpRenderer:
         quat = wp.quatf(quat_raw[1], quat_raw[2], quat_raw[3], quat_raw[0])
 
         out_transform[newton_body_index] = wp.transformf(pos, quat)
+
+    @wp.kernel(enable_backward=False)
+    def __convert_output_rgba(input_data: wp.array(dtype=wp.uint32, ndim=4), output_data: wp.array(dtype=wp.uint8, ndim=4)):
+        world_id, cameras_id, y, x = wp.tid()
+
+        color = input_data[world_id, cameras_id, y, x]
+        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(0)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(8)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(16)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(24)) & wp.uint32(0xFF))
