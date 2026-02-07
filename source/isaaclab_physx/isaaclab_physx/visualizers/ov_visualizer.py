@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Omniverse visualizer for Isaac Lab simulation contexts."""
 
 from __future__ import annotations
@@ -256,18 +251,6 @@ class OVVisualizer(Visualizer):
     def is_stopped(self) -> bool:
         """Check if visualizer is stopped (closed)."""
         return self._is_closed
-
-    def play(self) -> None:
-        """Start playing (no-op - timeline managed by SimulationContext)."""
-        pass
-
-    def pause(self) -> None:
-        """Pause (no-op - timeline managed by SimulationContext)."""
-        pass
-
-    def stop(self) -> None:
-        """Stop (no-op - timeline managed by SimulationContext)."""
-        pass
 
     def supports_markers(self) -> bool:
         """Supports markers via USD prims."""
