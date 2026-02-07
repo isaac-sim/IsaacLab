@@ -285,6 +285,11 @@ class PhysxManager(PhysicsManager):
         return cls._view
 
     @classmethod
+    def get_physics_sim_device(cls) -> str:
+        """Get the physics simulation device (Isaac Sim compatibility alias)."""
+        return PhysicsManager.get_device()
+
+    @classmethod
     def assets_loading(cls) -> bool:
         return not cls._assets_loaded
 
@@ -336,6 +341,14 @@ class PhysxManager(PhysicsManager):
         """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
         isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
         return cls._subscribe_isaac(callback, isaac_event, order, name) if isaac_event else None
+
+    @classmethod
+    def _unsubscribe_from_event(
+        cls, callback_id: int, event: PhysicsEvent | IsaacEvents, subscription: Any
+    ) -> None:
+        """Unsubscribe from PhysX/Isaac events."""
+        if subscription is not None and hasattr(subscription, "unsubscribe"):
+            subscription.unsubscribe()
 
     @classmethod
     def _subscribe_isaac(cls, callback: Callable, event: IsaacEvents, order: int, name: str | None) -> Any:

@@ -20,7 +20,6 @@ from pxr import UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.physics import PhysicsManager
 from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
@@ -144,7 +143,7 @@ class RayCaster(SensorBase):
         super()._initialize_impl()
         # obtain global simulation view
 
-        self._physics_sim_view = PhysicsManager.get_physics_sim_view()
+        self._physics_sim_view = sim_utils.SimulationContext.instance().physics_manager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
             available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
