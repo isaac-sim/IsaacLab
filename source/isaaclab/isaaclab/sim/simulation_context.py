@@ -90,7 +90,6 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self.device = self.cfg.device
 
         # Get existing stage or create new one in memory
         stage_cache = UsdUtils.StageCache.Get()
@@ -144,7 +143,7 @@ class SimulationContext:
             physics_scene = UsdPhysics.Scene.Define(self.stage, cfg.physics_prim_path)
 
             # Pre-create gravity tensor to avoid torch heap corruption issues (torch 2.1+)
-            gravity = torch.tensor(cfg.gravity, dtype=torch.float32, device=cfg.device)
+            gravity = torch.tensor(cfg.gravity, dtype=torch.float32, device=self.cfg.device)
             gravity_magnitude = torch.norm(gravity).item()
 
             if gravity_magnitude == 0.0:
@@ -159,6 +158,16 @@ class SimulationContext:
     def physics_sim_view(self):
         """Returns the physics simulation view."""
         return self.physics_manager.get_physics_sim_view()
+
+    @property
+    def device(self) -> str:
+        """Returns the device on which the simulation is running."""
+        return self.physics_manager.get_device()
+
+    @property
+    def backend(self) -> str:
+        """Returns the tensor backend being used ("numpy" or "torch")."""
+        return self.physics_manager.get_backend()
 
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
@@ -363,8 +372,8 @@ def build_simulation_context(
             from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-            physics_manager_cfg = PhysxManagerCfg(dt=dt, device=device, gravity=gravity)
-            sim_cfg = SimulationCfg(physics_manager_cfg=physics_manager_cfg)
+            physics_manager_cfg = PhysxManagerCfg(dt=dt, gravity=gravity)
+            sim_cfg = SimulationCfg(device=device, physics_manager_cfg=physics_manager_cfg)
 
         sim = SimulationContext(sim_cfg)
 

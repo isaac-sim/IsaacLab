@@ -36,12 +36,12 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
     """Test that the simulation context is built when no simulation cfg is passed in."""
     with build_simulation_context(gravity_enabled=gravity_enabled, device=device, dt=dt) as sim:
         if gravity_enabled:
-            assert sim.cfg.gravity == (0.0, 0.0, -9.81)
+            assert sim.cfg.physics_manager_cfg.gravity == (0.0, 0.0, -9.81)
         else:
-            assert sim.cfg.gravity == (0.0, 0.0, 0.0)
+            assert sim.cfg.physics_manager_cfg.gravity == (0.0, 0.0, 0.0)
 
         assert sim.cfg.device == device
-        assert sim.cfg.dt == dt
+        assert sim.cfg.physics_manager_cfg.dt == dt
 
         # Ensure that dome light didn't get added automatically as we are headless
         assert not sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
@@ -76,18 +76,23 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
 @pytest.mark.isaacsim_ci
 def test_build_simulation_context_cfg():
     """Test that the simulation context is built with the correct cfg and values don't get overridden."""
+    from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
     dt = 0.001
     # Non-standard gravity
     gravity = (0.0, 0.0, -1.81)
     device = "cuda:0"
 
     cfg = SimulationCfg(
-        gravity=gravity,
         device=device,
-        dt=dt,
+        physics_manager_cfg=PhysxManagerCfg(
+            gravity=gravity,
+            dt=dt,
+        ),
     )
 
     with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01, device="cpu") as sim:
-        assert sim.cfg.gravity == gravity
+        # Values from sim_cfg should not be overridden by build_simulation_context args
+        assert sim.cfg.physics_manager_cfg.gravity == gravity
         assert sim.cfg.device == device
-        assert sim.cfg.dt == dt
+        assert sim.cfg.physics_manager_cfg.dt == dt

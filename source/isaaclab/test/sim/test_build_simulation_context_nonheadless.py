@@ -34,12 +34,12 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
     """Test that the simulation context is built when no simulation cfg is passed in."""
     with build_simulation_context(gravity_enabled=gravity_enabled, device=device, dt=dt) as sim:
         if gravity_enabled:
-            assert sim.cfg.gravity == (0.0, 0.0, -9.81)
+            assert sim.cfg.physics_manager_cfg.gravity == (0.0, 0.0, -9.81)
         else:
-            assert sim.cfg.gravity == (0.0, 0.0, 0.0)
+            assert sim.cfg.physics_manager_cfg.gravity == (0.0, 0.0, 0.0)
 
         assert sim.cfg.device == device
-        assert sim.cfg.dt == dt
+        assert sim.cfg.physics_manager_cfg.dt == dt
 
 
 @pytest.mark.parametrize("add_ground_plane", [True, False])
@@ -58,7 +58,10 @@ def test_build_simulation_context_ground_plane(add_ground_plane):
 def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_lighting):
     """Test that the simulation context is built with the correct lighting."""
     with build_simulation_context(add_lighting=add_lighting, auto_add_lighting=auto_add_lighting) as sim:
-        if auto_add_lighting or add_lighting:
+        has_gui = sim.get_setting("/isaaclab/has_gui")
+        # Dome light is added if add_lighting=True OR (auto_add_lighting=True AND has_gui)
+        should_have_light = add_lighting or (auto_add_lighting and has_gui)
+        if should_have_light:
             # Ensure that dome light got added
             assert sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
         else:
@@ -68,18 +71,23 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
 
 def test_build_simulation_context_cfg():
     """Test that the simulation context is built with the correct cfg and values don't get overridden."""
+    from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
     dt = 0.001
     # Non-standard gravity
     gravity = (0.0, 0.0, -1.81)
     device = "cuda:0"
 
     cfg = SimulationCfg(
-        gravity=gravity,
         device=device,
-        dt=dt,
+        physics_manager_cfg=PhysxManagerCfg(
+            gravity=gravity,
+            dt=dt,
+        ),
     )
 
     with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01, device="cpu") as sim:
-        assert sim.cfg.gravity == gravity
+        # Values from sim_cfg should not be overridden by build_simulation_context args
+        assert sim.cfg.physics_manager_cfg.gravity == gravity
         assert sim.cfg.device == device
-        assert sim.cfg.dt == dt
+        assert sim.cfg.physics_manager_cfg.dt == dt

@@ -26,6 +26,8 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
+import warnings
+
 from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
@@ -33,3 +35,23 @@ from .simulation_context import SimulationContext, build_simulation_context  # n
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
 from .views import *  # noqa: F401, F403
+
+# Deprecated alias for PhysxCfg -> PhysxManagerCfg
+# This supports old code that uses `from isaaclab.sim import PhysxCfg`
+try:
+    from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg as _PhysxManagerCfg
+
+    class PhysxCfg(_PhysxManagerCfg):
+        """DEPRECATED: Use PhysxManagerCfg from isaaclab_physx.physics instead."""
+
+        def __init__(self, *args, **kwargs):
+            warnings.warn(
+                "PhysxCfg is deprecated. Use PhysxManagerCfg from isaaclab_physx.physics instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            super().__init__(*args, **kwargs)
+
+except ImportError:
+    # isaaclab_physx not installed
+    PhysxCfg = None  # type: ignore
