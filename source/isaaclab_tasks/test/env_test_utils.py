@@ -16,6 +16,7 @@ import carb
 import omni.usd
 
 from isaaclab.envs.utils.spaces import sample_space
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -216,6 +217,8 @@ def _check_random_actions(
         else:
             if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
                 e.obj.close()
+        # Always clear the simulation context singleton to allow next test to run
+        SimulationContext.clear_instance()
         pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
 
     # disable control on stop

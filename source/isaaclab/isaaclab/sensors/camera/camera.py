@@ -136,15 +136,15 @@ class Camera(SensorBase):
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
-        isaac_sim_version = sim_utils.SimulationContext.instance().get_version()
-        if isaac_sim_version[0] >= 6:
-            # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
-            needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
-            if not needs_color_render:
+        isaac_sim_version = get_isaac_sim_version()
+        if isaac_sim_version.major >= 6:
+            # Set RTX flag to enable fast path if only depth or albedo is requested
+            supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
+            if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
                 carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
 
             # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if sim_utils.SimulationContext.instance().has_gui():
+            if carb_settings_iface.get("/isaaclab/has_gui"):
                 carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
             if "albedo" in self.cfg.data_types:
