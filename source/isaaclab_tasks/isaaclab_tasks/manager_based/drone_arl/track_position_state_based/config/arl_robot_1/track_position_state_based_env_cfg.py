@@ -218,12 +218,12 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 10
         self.episode_length_s = 5.0
         # simulation settings
-        self.sim.dt = 0.01
+        self.sim.physics_manager_cfg.dt = 0.01
         self.sim.render_interval = self.decimation
-        self.sim.physics_material = sim_utils.RigidBodyMaterialCfg(
+        self.sim.physics_manager_cfg.physics_material = sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physics_manager_cfg.gpu_max_rigid_patch_count = 10 * 2**15

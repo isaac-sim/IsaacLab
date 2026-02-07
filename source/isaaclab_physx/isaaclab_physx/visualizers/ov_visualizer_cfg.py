@@ -81,7 +81,3 @@ class OVVisualizerCfg(VisualizerCfg):
         from .ov_visualizer import OVVisualizer
 
         return OVVisualizer(self)
-
-
-# Backward compatibility alias
-PhysxOVVisualizerCfg = OVVisualizerCfg

@@ -276,7 +276,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         )
 
         # Set the simulation parameters
-        self.sim.dt = 1 / 60
+        self.sim.physics_manager_cfg.dt = 1 / 60
         self.sim.render_interval = 6
 
         self.decimation = 3

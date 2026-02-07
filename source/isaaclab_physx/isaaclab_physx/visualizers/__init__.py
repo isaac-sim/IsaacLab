@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 # Import config classes (no circular dependency)
-from .ov_visualizer_cfg import OVVisualizerCfg, PhysxOVVisualizerCfg
+from .ov_visualizer_cfg import OVVisualizerCfg
 
 from isaaclab.visualizers import _VISUALIZER_REGISTRY
 
@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "OVVisualizerCfg",
-    "PhysxOVVisualizerCfg",  # Backward compatibility
 ]
 
 
@@ -47,5 +46,5 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
     if name == "isaacsim_ov":
         from .ov_visualizer_cfg import OVVisualizerCfg
 
-        _VISUALIZER_REGISTRY["isaacsim_ov"] = OVVisualizerCfg
+        _VISUALIZER_REGISTRY["omniverse"] = OVVisualizerCfg
         return OVVisualizerCfg

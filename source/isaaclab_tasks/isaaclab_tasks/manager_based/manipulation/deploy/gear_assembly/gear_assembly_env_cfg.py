@@ -17,8 +17,9 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.simulation_cfg import PhysxCfg, SimulationCfg
+from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab_physx.physics import PhysxManagerCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg
 
@@ -301,7 +302,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     sim: SimulationCfg = SimulationCfg(
-        physx=PhysxCfg(
+        physics_manager_cfg=PhysxManagerCfg(
             # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
             gpu_collision_stack_size=2**30,
             gpu_max_rigid_contact_count=2**23,
@@ -317,7 +318,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation
-        self.sim.dt = 1.0 / 120.0
+        self.sim.physics_manager_cfg.dt = 1.0 / 120.0
 
         self.gear_offsets = {
             "gear_small": [0.076125, 0.0, 0.0],

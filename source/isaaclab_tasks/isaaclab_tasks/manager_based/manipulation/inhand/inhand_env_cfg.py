@@ -17,9 +17,10 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.simulation_cfg import PhysxCfg, SimulationCfg
+from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
+from isaaclab_physx.physics import PhysxManagerCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as Gnoise
 
@@ -315,11 +316,11 @@ class InHandObjectEnvCfg(ManagerBasedRLEnvCfg):
     scene: InHandObjectSceneCfg = InHandObjectSceneCfg(num_envs=8192, env_spacing=0.6)
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        physx=PhysxCfg(
+        physics_manager_cfg=PhysxManagerCfg(
+            physics_material=RigidBodyMaterialCfg(
+                static_friction=1.0,
+                dynamic_friction=1.0,
+            ),
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**20,
             gpu_max_rigid_patch_count=2**23,
@@ -340,7 +341,7 @@ class InHandObjectEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1.0 / 120.0
+        self.sim.physics_manager_cfg.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         # change viewer settings
         self.viewer.eye = (2.0, 2.0, 2.0)

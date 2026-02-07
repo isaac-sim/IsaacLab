@@ -760,6 +760,3 @@ class OVVisualizer(Visualizer):
             self._sim.set_setting("/app/runLoops/main/rateLimitFrequency", rendering_hz)
             self._timeline.set_target_framerate(rendering_hz)
 
-
-# Backward compatibility alias
-PhysxOVVisualizer = OVVisualizer

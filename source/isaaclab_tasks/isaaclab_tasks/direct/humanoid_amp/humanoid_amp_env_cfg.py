@@ -12,8 +12,9 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab_physx.physics import PhysxManagerCfg
 
 from isaaclab_assets import HUMANOID_28_CFG
 
@@ -50,9 +51,9 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
         render_interval=decimation,
-        physx=PhysxCfg(
+        physics_manager_cfg=PhysxManagerCfg(
+            dt=1 / 60,
             gpu_found_lost_pairs_capacity=2**23,
             gpu_total_aggregate_pairs_capacity=2**23,
         ),
