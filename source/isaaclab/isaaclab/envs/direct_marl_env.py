@@ -375,7 +375,9 @@ class DirectMARLEnv(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
+        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool(
+            "/isaaclab/render/rtx_sensors"
+        )
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -500,7 +502,9 @@ class DirectMARLEnv(gym.Env):
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if not self.sim.carb_settings.get("/isaaclab/has_gui") and not bool(self.sim.carb_settings.get("/isaaclab/render/offscreen")):
+            if not self.sim.carb_settings.get("/isaaclab/has_gui") and not bool(
+                self.sim.carb_settings.get("/isaaclab/render/offscreen")
+            ):
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."

@@ -15,12 +15,13 @@ import torch
 
 import carb
 import omni.physics.tensors.impl.api as physx
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .contact_sensor_data import ContactSensorData
 

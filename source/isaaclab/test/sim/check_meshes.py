@@ -40,9 +40,9 @@ import random
 import numpy as np
 import torch
 import tqdm
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

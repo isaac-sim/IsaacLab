@@ -248,7 +248,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             rep_writer.write(rep_output)
 
         # Draw pointcloud if there is a GUI and --draw has been passed
-        if sim.carb_settings.get("/isaaclab/has_gui") and args_cli.draw and "distance_to_image_plane" in camera.data.output.keys():
+        if (
+            sim.carb_settings.get("/isaaclab/has_gui")
+            and args_cli.draw
+            and "distance_to_image_plane" in camera.data.output.keys()
+        ):
             # Derive pointcloud from camera at camera_index
             pointcloud = create_pointcloud_from_depth(
                 intrinsic_matrix=camera.data.intrinsic_matrices[camera_index],

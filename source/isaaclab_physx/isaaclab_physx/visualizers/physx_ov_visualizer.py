@@ -8,24 +8,28 @@
 from __future__ import annotations
 
 import enum
-import flatdict
 import logging
 import os
+import weakref
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+import flatdict
 import toml
 import torch
-import weakref
-from typing import TYPE_CHECKING, Any, Callable
 
 import omni.kit.app
 import omni.timeline
+
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.visualizers import Visualizer
 
 if TYPE_CHECKING:
     import carb
 
-    from .physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
     from isaaclab.sim.simulation_context import SimulationContext
+
+    from .physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +86,7 @@ class TimelineControl:
     def __init__(
         self,
         app_interface: omni.kit.app.IApp,
-        carb_settings: "carb.settings.ISettings",
+        carb_settings: carb.settings.ISettings,
         on_stop_callback: Callable[[], None] | None = None,
     ):
         """Initialize timeline control.
@@ -223,17 +227,17 @@ class PhysxOVVisualizer(Visualizer):
     Lifecycle: __init__(cfg) -> initialize(scene_data) -> step() (repeated) -> close()
     """
 
-    def __init__(self, cfg: "PhysxOVVisualizerCfg"):
+    def __init__(self, cfg: PhysxOVVisualizerCfg):
         """Initialize PhysX OV visualizer with configuration.
 
         Args:
             cfg: Configuration for the visualizer.
         """
         super().__init__(cfg)
-        self.cfg: "PhysxOVVisualizerCfg" = cfg
+        self.cfg: PhysxOVVisualizerCfg = cfg
 
         # Will be set during initialize()
-        self._sim: "SimulationContext | None" = None
+        self._sim: SimulationContext | None = None
         self._app_iface = None
         self._timeline: TimelineControl | None = None
 
@@ -504,9 +508,7 @@ class PhysxOVVisualizer(Visualizer):
             camera_path = self.cfg.camera_prim_path
 
             # Use Isaac Sim utility to set camera view
-            vp_utils.set_camera_view(
-                eye=list(eye), target=list(target), camera_prim_path=camera_path
-            )
+            vp_utils.set_camera_view(eye=list(eye), target=list(target), camera_prim_path=camera_path)
 
             logger.info(f"[PhysxOVVisualizer] Camera set: pos={eye}, target={target}, camera={camera_path}")
 

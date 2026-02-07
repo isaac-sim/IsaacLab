@@ -19,12 +19,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import omni.kit.app
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab_physx.physics import IsaacEvents, PhysxManager
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:

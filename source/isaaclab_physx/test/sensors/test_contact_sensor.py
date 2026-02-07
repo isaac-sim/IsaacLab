@@ -20,6 +20,7 @@ from enum import Enum
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import carb
 from pxr import PhysxSchema
@@ -28,7 +29,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg

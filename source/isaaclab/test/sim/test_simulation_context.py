@@ -12,15 +12,16 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import weakref
+
 import numpy as np
 import pytest
-import weakref
+from isaaclab_physx.physics import IsaacEvents, PhysxManager, PhysxManagerCfg
 
 import omni.timeline
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab_physx.physics import PhysxManager, PhysxManagerCfg, IsaacEvents
 
 
 @pytest.fixture(autouse=True)
@@ -809,9 +810,7 @@ def test_isaac_event_prim_deletion():
             callback_state["deleted_path"] = event.payload.get("prim_path")
 
     # register callback for PRIM_DELETION event
-    callback_id = PhysxManager.register_callback(
-        lambda event: on_prim_deletion(event), event=IsaacEvents.PRIM_DELETION
-    )
+    callback_id = PhysxManager.register_callback(lambda event: on_prim_deletion(event), event=IsaacEvents.PRIM_DELETION)
 
     try:
         # verify callback hasn't been called yet
@@ -845,9 +844,7 @@ def test_isaac_event_timeline_stop():
         callback_state["timeline_stop_called"] = True
 
     # register callback for TIMELINE_STOP event
-    callback_id = PhysxManager.register_callback(
-        lambda event: on_timeline_stop(event), event=IsaacEvents.TIMELINE_STOP
-    )
+    callback_id = PhysxManager.register_callback(lambda event: on_timeline_stop(event), event=IsaacEvents.TIMELINE_STOP)
 
     try:
         # verify callback hasn't been called yet

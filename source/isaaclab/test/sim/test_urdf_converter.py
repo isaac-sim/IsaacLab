@@ -16,13 +16,13 @@ import os
 
 import numpy as np
 import pytest
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from packaging.version import Version
 
 import omni.kit.app
 from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 from isaaclab.utils.version import get_isaac_sim_version

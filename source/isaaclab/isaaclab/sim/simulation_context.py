@@ -10,16 +10,17 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-import carb
 import torch
+
+import carb
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
-import isaaclab.sim.utils.stage as stage_utils
-
 import isaaclab.sim as sim_utils
+import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage_in_memory
 from isaaclab.visualizers import Visualizer
+
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -187,6 +188,7 @@ class SimulationContext:
             # Get or create visualizer configs
             cfg_list = self.cfg.visualizer_cfgs
             from isaaclab_physx.visualizers import PhysxOVVisualizerCfg
+
             type_map = {"omniverse": PhysxOVVisualizerCfg}
             viz_cfgs = []
             if cfg_list is None:

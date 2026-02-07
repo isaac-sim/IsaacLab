@@ -15,13 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors import ContactSensor, ContactSensorCfg

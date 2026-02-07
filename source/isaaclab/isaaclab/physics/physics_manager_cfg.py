@@ -7,12 +7,11 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from dataclasses import MISSING
-
-from isaaclab.utils import configclass
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .physics_manager import PhysicsManager

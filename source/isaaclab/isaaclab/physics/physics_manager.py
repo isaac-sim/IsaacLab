@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 import weakref
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -54,7 +55,7 @@ class PhysicsEvent(Enum):
 class CallbackHandle:
     """Handle for a registered callback, allowing deregistration."""
 
-    def __init__(self, callback_id: int, manager: type["PhysicsManager"]):
+    def __init__(self, callback_id: int, manager: type[PhysicsManager]):
         self._id = callback_id
         self._manager = manager
 
@@ -81,7 +82,7 @@ class PhysicsManager(ABC):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    _sim: ClassVar["SimulationContext | None"] = None
+    _sim: ClassVar[SimulationContext | None] = None
     _cfg: ClassVar[Any] = None
     _device: ClassVar[str] = "cuda:0"
     _sim_time: ClassVar[float] = 0.0
@@ -113,10 +114,7 @@ class PhysicsManager(ABC):
         Example:
             >>> def on_physics_ready(payload):
             ...     print("Physics is ready!")
-            >>> handle = PhysxManager.register_callback(
-            ...     on_physics_ready,
-            ...     PhysicsEvent.PHYSICS_READY
-            ... )
+            >>> handle = PhysxManager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY)
             >>> # Later, to remove:
             >>> handle.deregister()
         """
@@ -156,11 +154,7 @@ class PhysicsManager(ABC):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [
-            (cid, cb, order)
-            for cid, (ev, cb, order, name, sub) in cls._callbacks.items()
-            if ev == event
-        ]
+        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in cls._callbacks.items() if ev == event]
         matching.sort(key=lambda x: x[2])
 
         for cid, callback, order in matching:
@@ -245,7 +239,7 @@ class PhysicsManager(ABC):
 
     @classmethod
     @abstractmethod
-    def initialize(cls, sim_context: "SimulationContext") -> None:
+    def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
 
         Subclasses should call super().initialize() first, then do backend-specific setup.
