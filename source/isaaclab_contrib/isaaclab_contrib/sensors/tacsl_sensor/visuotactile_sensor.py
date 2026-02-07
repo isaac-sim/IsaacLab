@@ -832,7 +832,7 @@ class VisuoTactileSensor(SensorBase):
             vt_world = relative_velocity_world - normals_world * torch.sum(
                 normals_world * relative_velocity_world, dim=-1, keepdim=True
             )
-            vt_norm = torch.norm(vt_world, dim=-1)
+            vt_norm = torch.linalg.norm(vt_world, dim=-1)
 
             # Compute friction force: F_t = min(k_t * |v_t|, mu * F_n)
             ft_static_norm = self.cfg.tangential_stiffness * vt_norm

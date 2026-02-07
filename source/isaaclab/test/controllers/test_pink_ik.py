@@ -397,7 +397,7 @@ def verify_errors(errors, test_setup, tolerances):
 
     for hand in ["left", "right"]:
         # Check PD controller errors
-        pd_error_norm = torch.norm(errors[f"{hand}_pd_error"], dim=1)
+        pd_error_norm = torch.linalg.norm(errors[f"{hand}_pd_error"], dim=1)
         torch.testing.assert_close(
             pd_error_norm,
             zero_tensor,
@@ -410,7 +410,7 @@ def verify_errors(errors, test_setup, tolerances):
         )
 
         # Check IK position errors
-        pos_error_norm = torch.norm(errors[f"{hand}_pos_error"], dim=1)
+        pos_error_norm = torch.linalg.norm(errors[f"{hand}_pos_error"], dim=1)
         torch.testing.assert_close(
             pos_error_norm,
             zero_tensor,

@@ -185,7 +185,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(gear_quat_world, self.gear_grasp_offsets_buffer)
 
         # Compute distances
-        distances = torch.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
+        distances = torch.linalg.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
 
         # Check distance threshold
         self.reset_flags[:] = distances > distance_threshold

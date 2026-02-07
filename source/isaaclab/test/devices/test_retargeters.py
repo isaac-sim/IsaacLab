@@ -106,7 +106,7 @@ class TestSe3AbsRetargeter(unittest.TestCase):
         self.assertIsInstance(result, torch.Tensor)
         self.assertEqual(result.shape, (7,))
         np.testing.assert_allclose(result[:3].numpy(), wrist_pose[:3], rtol=1e-5)
-        self.assertAlmostEqual(torch.norm(result[3:]).item(), 1.0, places=4)
+        self.assertAlmostEqual(torch.linalg.norm(result[3:]).item(), 1.0, places=4)
 
     def test_pinch_position(self):
         self.cfg.use_wrist_position = False

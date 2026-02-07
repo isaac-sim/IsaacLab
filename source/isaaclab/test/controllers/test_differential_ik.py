@@ -172,8 +172,8 @@ def _run_ik_controller(
                 pos_error, rot_error = compute_pose_error(
                     ee_pos_b, ee_quat_b, ee_pose_b_des[:, 0:3], ee_pose_b_des[:, 3:7]
                 )
-                pos_error_norm = torch.norm(pos_error, dim=-1)
-                rot_error_norm = torch.norm(rot_error, dim=-1)
+                pos_error_norm = torch.linalg.norm(pos_error, dim=-1)
+                rot_error_norm = torch.linalg.norm(rot_error, dim=-1)
                 # desired error (zer)
                 des_error = torch.zeros_like(pos_error_norm)
                 # check convergence

@@ -492,7 +492,7 @@ class FrameTransformer(BaseFrameTransformer):
             - The lengths of each connecting line. Shape is (N,).
         """
         direction = end_pos - start_pos
-        lengths = torch.norm(direction, dim=-1)
+        lengths = torch.linalg.norm(direction, dim=-1)
         positions = (start_pos + end_pos) / 2
 
         # Get default direction (along z-axis)
@@ -503,7 +503,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Calculate rotation from default direction to target direction
         rotation_axis = torch.linalg.cross(default_direction, direction_norm)
-        rotation_axis_norm = torch.norm(rotation_axis, dim=-1)
+        rotation_axis_norm = torch.linalg.norm(rotation_axis, dim=-1)
 
         # Handle case where vectors are parallel
         mask = rotation_axis_norm > 1e-6

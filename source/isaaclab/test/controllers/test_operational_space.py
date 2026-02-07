@@ -1643,8 +1643,8 @@ def _check_convergence(
             pos_error, rot_error = compute_pose_error(
                 ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
             )
-            pos_error_norm = torch.norm(pos_error * pos_mask, dim=-1)
-            rot_error_norm = torch.norm(rot_error * rot_mask, dim=-1)
+            pos_error_norm = torch.linalg.norm(pos_error * pos_mask, dim=-1)
+            rot_error_norm = torch.linalg.norm(rot_error * rot_mask, dim=-1)
             # desired error (zer)
             des_error = torch.zeros_like(pos_error_norm)
             # check convergence
@@ -1655,8 +1655,8 @@ def _check_convergence(
             pos_error, rot_error = compute_pose_error(
                 ee_pose_b[:, 0:3], ee_pose_b[:, 3:7], ee_target_pose_b[:, 0:3], ee_target_pose_b[:, 3:7]
             )
-            pos_error_norm = torch.norm(pos_error * pos_mask, dim=-1)
-            rot_error_norm = torch.norm(rot_error * rot_mask, dim=-1)
+            pos_error_norm = torch.linalg.norm(pos_error * pos_mask, dim=-1)
+            rot_error_norm = torch.linalg.norm(rot_error * rot_mask, dim=-1)
             # desired error (zer)
             des_error = torch.zeros_like(pos_error_norm)
             # check convergence
@@ -1671,7 +1671,7 @@ def _check_convergence(
                 R_task_b = matrix_from_quat(task_frame_pose_b[:, 3:])
                 force_target_b[:] = (R_task_b @ force_target_b[:].unsqueeze(-1)).squeeze(-1)
             force_error = ee_force_b - force_target_b
-            force_error_norm = torch.norm(
+            force_error_norm = torch.linalg.norm(
                 force_error * force_mask, dim=-1
             )  # ignore torque part as we cannot measure it
             des_error = torch.zeros_like(force_error_norm)

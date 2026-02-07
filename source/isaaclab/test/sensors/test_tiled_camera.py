@@ -717,7 +717,7 @@ def test_normals_only_camera(setup_camera, device):
             for i in range(4):
                 assert im_data[i].mean() > 0.0
             # check normal norm is approximately 1
-            norms = torch.norm(im_data, dim=-1)
+            norms = torch.linalg.norm(im_data, dim=-1)
             assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
     assert camera.data.output["normals"].dtype == torch.float
     del camera

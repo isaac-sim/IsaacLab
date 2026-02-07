@@ -314,7 +314,7 @@ class DisassemblyEnv(DirectRLEnv):
         rot_actions = actions[:, 3:6]
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
@@ -366,7 +366,7 @@ class DisassemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = self.fixed_pos_action_frame + pos_error_clipped
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, p=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
