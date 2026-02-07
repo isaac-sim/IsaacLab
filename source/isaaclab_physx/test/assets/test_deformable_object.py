@@ -263,12 +263,12 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.parametrize("randomize_rot", [True, False])
 @flaky(max_runs=3, min_passes=1)
 @pytest.mark.isaacsim_ci
-def test_set_nodal_state_with_applied_transform(sim, num_cubes, randomize_pos, randomize_rot):
+def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
     carb_settings_iface = carb.settings.get_settings()
     carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
-    # Create a new simulation context with gravity disabled
+    # Create simulation context with gravity disabled (no fixture needed)
     with build_simulation_context(auto_add_lighting=True, gravity_enabled=False) as sim:
         sim._app_control_on_stop_handle = None
         cube_object = generate_cubes_scene(num_cubes=num_cubes)
