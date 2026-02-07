@@ -10,9 +10,6 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
-
-import omni.physx
-
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext

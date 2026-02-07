@@ -261,6 +261,21 @@ class PhysxManager(PhysicsManager):
         cls.raise_callback_exception_if_any()
 
     @classmethod
+    def play(cls) -> None:
+        """Start or resume the timeline."""
+        cls._timeline.play()
+
+    @classmethod
+    def pause(cls) -> None:
+        """Pause the timeline."""
+        cls._timeline.pause()
+
+    @classmethod
+    def stop(cls) -> None:
+        """Stop the timeline."""
+        cls._timeline.stop()
+
+    @classmethod
     def close(cls) -> None:
         """Clean up physics resources."""
         cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})

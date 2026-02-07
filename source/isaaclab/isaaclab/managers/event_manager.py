@@ -191,6 +191,13 @@ class EventManager(ManagerBase):
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
+        # ensure class-based terms are resolved before applying
+        # the timeline PLAY callback may not have fired yet, so we resolve synchronously
+        # note: skip for "prestartup" mode as those terms are handled in _prepare_terms
+        # and scene entities don't exist yet
+        if mode != "prestartup" and not self._is_scene_entities_resolved:
+            self._resolve_terms_callback(None)
+
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")

@@ -237,6 +237,8 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
+        # Start the timeline so the play button is pressed
+        self.physics_manager.play()
         self._is_playing = True
         self._is_stopped = False
 
