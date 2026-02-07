@@ -24,7 +24,6 @@ import torch
 from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import omni.replicator.core as rep
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -1883,6 +1882,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
+        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

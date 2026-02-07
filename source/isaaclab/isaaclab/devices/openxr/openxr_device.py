@@ -35,7 +35,7 @@ XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 
-from isaacsim.core.prims import SingleXFormPrim
+import isaaclab.sim as sim_utils
 
 
 class OpenXRDevice(DeviceBase):
@@ -105,8 +105,11 @@ class OpenXRDevice(DeviceBase):
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        _ = SingleXFormPrim(
-            self._xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
+        sim_utils.create_prim(
+            self._xr_anchor_headset_path,
+            prim_type="Xform",
+            position=self._xr_cfg.anchor_pos,
+            orientation=self._xr_cfg.anchor_rot,
         )
 
         if hasattr(carb, "settings"):
