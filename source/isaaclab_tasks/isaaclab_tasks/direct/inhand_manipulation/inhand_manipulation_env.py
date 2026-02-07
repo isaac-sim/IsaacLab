@@ -179,7 +179,7 @@ class InHandManipulationEnv(DirectRLEnv):
         self._compute_intermediate_values()
 
         # reset when cube has fallen
-        goal_dist = torch.linalg.norm(self.object_pos - self.in_hand_pos, p=2, dim=-1)
+        goal_dist = torch.linalg.norm(self.object_pos - self.in_hand_pos, ord=2, dim=-1)
         out_of_reach = goal_dist >= self.cfg.fall_dist
 
         if self.cfg.max_consecutive_success > 0:
@@ -371,7 +371,7 @@ def rotation_distance(object_rot, target_rot):
     # Orientation alignment for the cube in hand and goal cube
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
     return 2.0 * torch.asin(
-        torch.clamp(torch.linalg.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0)
+        torch.clamp(torch.linalg.norm(quat_diff[:, 1:4], ord=2, dim=-1), max=1.0)
     )  # changed quat convention
 
 
@@ -397,7 +397,7 @@ def compute_rewards(
     fall_penalty: float,
     av_factor: float,
 ):
-    goal_dist = torch.linalg.norm(object_pos - target_pos, p=2, dim=-1)
+    goal_dist = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
     rot_dist = rotation_distance(object_rot, target_rot)
 
     dist_rew = goal_dist * dist_reward_scale
