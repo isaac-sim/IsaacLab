@@ -358,9 +358,7 @@ class PhysxManager(PhysicsManager):
         return cls._subscribe_isaac(callback, isaac_event, order, name) if isaac_event else None
 
     @classmethod
-    def _unsubscribe_from_event(
-        cls, callback_id: int, event: PhysicsEvent | IsaacEvents, subscription: Any
-    ) -> None:
+    def _unsubscribe_from_event(cls, callback_id: int, event: PhysicsEvent | IsaacEvents, subscription: Any) -> None:
         """Unsubscribe from PhysX/Isaac events."""
         if subscription is not None and hasattr(subscription, "unsubscribe"):
             subscription.unsubscribe()

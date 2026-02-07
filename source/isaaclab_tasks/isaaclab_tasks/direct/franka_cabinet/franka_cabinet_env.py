@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from isaaclab_physx.physics import PhysxManagerCfg
 
 from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
@@ -21,7 +22,6 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import sample_uniform
-from isaaclab_physx.physics import PhysxManagerCfg
 
 
 @configclass

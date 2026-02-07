@@ -256,10 +256,8 @@ def _check_random_actions(
     finally:
         # Always ensure cleanup happens, regardless of success or failure
         if env is not None:
-            try:
-                env.close()
-            except Exception:
-                pass
+            env.close()
+
         # Always clear the simulation context singleton to allow next test to run
         SimulationContext.clear_instance()
 

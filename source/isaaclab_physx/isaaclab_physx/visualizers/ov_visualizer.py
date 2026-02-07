@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers.
 # All rights reserved.
 #
@@ -125,31 +130,21 @@ class OVVisualizer(Visualizer):
             return
 
         if scene_data is None:
-            raise ValueError(
-                "OVVisualizer requires scene_data with 'simulation_context'"
-            )
+            raise ValueError("OVVisualizer requires scene_data with 'simulation_context'")
 
         self._sim = scene_data.get("simulation_context")
         if self._sim is None:
-            raise ValueError(
-                "OVVisualizer requires 'simulation_context' in scene_data"
-            )
+            raise ValueError("OVVisualizer requires 'simulation_context' in scene_data")
 
         # Acquire application interface
         self._app_iface = omni.kit.app.get_app_interface()
 
         # Detect render flags from carb settings
         local_gui = self._sim.carb_settings.get("/app/window/enabled")
-        livestream_gui = self._sim.carb_settings.get(
-            "/app/livestream/enabled"
-        )
+        livestream_gui = self._sim.carb_settings.get("/app/livestream/enabled")
         xr_gui = self._sim.carb_settings.get("/app/xr/enabled")
-        self._offscreen_render = bool(
-            self._sim.carb_settings.get("/isaaclab/render/offscreen")
-        )
-        self._render_viewport = bool(
-            self._sim.carb_settings.get("/isaaclab/render/active_viewport")
-        )
+        self._offscreen_render = bool(self._sim.carb_settings.get("/isaaclab/render/offscreen"))
+        self._render_viewport = bool(self._sim.carb_settings.get("/isaaclab/render/active_viewport"))
 
         # Flag for whether any GUI will be rendered
         self._has_gui = bool(local_gui or livestream_gui or xr_gui)
@@ -183,9 +178,7 @@ class OVVisualizer(Visualizer):
             self._sim.cfg.enable_scene_query_support = True
 
         # Set initial camera view
-        self.set_camera_view(
-            self.cfg.camera_position, self.cfg.camera_target
-        )
+        self.set_camera_view(self.cfg.camera_position, self.cfg.camera_target)
 
         self._is_initialized = True
         logger.info("[OVVisualizer] Initialized")
@@ -320,9 +313,7 @@ class OVVisualizer(Visualizer):
             target: The location of the camera target.
         """
         if not self._is_initialized:
-            logger.warning(
-                "[OVVisualizer] Cannot set camera - not initialized."
-            )
+            logger.warning("[OVVisualizer] Cannot set camera - not initialized.")
             return
 
         try:
@@ -353,8 +344,7 @@ class OVVisualizer(Visualizer):
         # Check if mode change is possible -- not possible when no GUI
         if not self._has_gui:
             logger.warning(
-                f"Cannot change render mode when GUI is disabled. "
-                f"Using the default render mode: {self.render_mode}."
+                f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
             )
             return
 
@@ -377,10 +367,7 @@ class OVVisualizer(Visualizer):
                     self._viewport_window.visible = False
                 self._render_throttle_counter = 0
             else:
-                raise ValueError(
-                    f"Unsupported render mode: {mode}! "
-                    "Please check `RenderMode` for details."
-                )
+                raise ValueError(f"Unsupported render mode: {mode}! Please check `RenderMode` for details.")
             self.render_mode = mode
 
     def close(self) -> None:
