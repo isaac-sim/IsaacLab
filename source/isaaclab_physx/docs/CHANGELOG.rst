@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.1.4 (2026-02-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab_physx.physics.PhysxManager` to properly handle physics initialization
+  order. ``attach_stage()`` is now called before ``start_simulation()`` to ensure GPU buffers are
+  correctly allocated.
+* Removed ``device`` field from :class:`~isaaclab_physx.physics.PhysxManagerCfg`. Device is now
+  inherited from :attr:`SimulationCfg.device`.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.physics.PhysxManager` as the concrete PhysX backend implementation
+  of :class:`~isaaclab.physics.PhysicsManager`.
+* Added :class:`~isaaclab_physx.physics.IsaacEvents` enum for PhysX-specific simulation events.
+* Added monkey-patching of ``isaacsim.core.simulation_manager.SimulationManager`` in package init
+  to ensure Isaac Sim uses :class:`~isaaclab_physx.physics.PhysxManager` for callback handling.
+
+
 0.1.3 (2026-02-03)
 ~~~~~~~~~~~~~~~~~~~
 
