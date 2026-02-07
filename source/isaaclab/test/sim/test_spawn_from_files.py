@@ -13,12 +13,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from packaging.version import Version
 
 import omni.kit.app
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version

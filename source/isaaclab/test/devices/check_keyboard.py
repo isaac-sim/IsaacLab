@@ -23,8 +23,9 @@ simulation_app = app_launcher.app
 
 import ctypes
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
+from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 

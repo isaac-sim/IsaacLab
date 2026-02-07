@@ -68,9 +68,9 @@ simulation_app = app_launcher.app
 import random
 
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import AssetBase
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg

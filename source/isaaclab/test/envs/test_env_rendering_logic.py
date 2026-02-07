@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import omni.usd
 
@@ -27,7 +28,6 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
 )
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
 
@@ -48,7 +48,9 @@ def create_manager_based_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
+        sim: SimulationCfg = SimulationCfg(
+            render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005)
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -65,7 +67,9 @@ def create_manager_based_rl_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
+        sim: SimulationCfg = SimulationCfg(
+            render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005)
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -86,7 +90,9 @@ def create_direct_rl_env(render_interval: int):
         action_space: int = 0
         observation_space: int = 0
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005))
+        sim: SimulationCfg = SimulationCfg(
+            render_interval=render_interval, physics_manager_cfg=PhysxManagerCfg(dt=0.005)
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):

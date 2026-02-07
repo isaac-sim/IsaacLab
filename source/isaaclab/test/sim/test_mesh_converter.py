@@ -18,12 +18,12 @@ import random
 import tempfile
 
 import pytest
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import omni
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg

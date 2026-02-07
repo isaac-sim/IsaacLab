@@ -9,11 +9,11 @@ import math
 from collections.abc import Sequence
 
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from isaaclab.sim import SimulationCfg

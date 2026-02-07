@@ -64,10 +64,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import check_file_path

@@ -9,13 +9,14 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
+import contextlib
 import warnings
 from typing import Any, Literal  # Literal used by RenderCfg
 
-from isaaclab.utils import configclass
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from isaaclab.physics.physics_manager_cfg import PhysicsManagerCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 
@@ -63,8 +64,9 @@ class RenderCfg:
     """
 
     enable_translucency: bool | None = None
-    """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance. Default is False.
+    """Enables translucency for specular transmissive surfaces such as glass.
 
+    This comes at the cost of some performance. Default is False.
     This is set by the variable: ``/rtx/translucency/enabled``.
     """
 
@@ -86,8 +88,9 @@ class RenderCfg:
     - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
       DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
       native quality images.
-    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same Super Resolution
-      technology developed for DLSS, reconstructing a native resolution image to maximize image quality.
+    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same
+      Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize
+      image quality.
 
     This is set by the variable: ``/rtx/post/dlss/execMode``.
     """
@@ -178,8 +181,8 @@ class RenderCfg:
     """A general dictionary for users to supply all carb rendering settings with native names.
 
     The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.
-    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb), ``rtx.translucency.enabled: False`` (.kit),
-    or ``rtx_translucency_enabled: False`` (python).
+    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb),
+    ``rtx.translucency.enabled: False`` (.kit), or ``rtx_translucency_enabled: False`` (python).
     """
 
     rendering_mode: Literal["performance", "balanced", "quality"] | None = None
@@ -285,7 +288,7 @@ class SimulationCfg:
 
     physx: Any | None = None
     """DEPRECATED: Use physics_manager_cfg (PhysxManagerCfg) directly instead.
-    
+
     After initialization, this field is set to physics_manager_cfg for backward compatibility.
     """
 
@@ -311,10 +314,8 @@ class SimulationCfg:
         # This allows runtime access like self.sim.dt to work via __getattr__
         for field_name in deprecated_fields:
             if field_name != "physics_material":  # physics_material needs object access
-                try:
+                with contextlib.suppress(AttributeError):
                     delattr(self, field_name)
-                except AttributeError:
-                    pass
 
         # Set physics_material to point to physics_manager_cfg.physics_material for backward-compatible access
         if hasattr(self.physics_manager_cfg, "physics_material"):
@@ -395,8 +396,7 @@ class SimulationCfg:
                 if hasattr(physics_cfg, name):
                     setattr(physics_cfg, name, value)
                     warnings.warn(
-                        f"SimulationCfg.{name} is deprecated. "
-                        f"Use {deprecated_map[name]} instead.",
+                        f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
                         DeprecationWarning,
                         stacklevel=2,
                     )
@@ -423,8 +423,7 @@ class SimulationCfg:
                 physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
                 if hasattr(physics_cfg, name):
                     warnings.warn(
-                        f"SimulationCfg.{name} is deprecated. "
-                        f"Use {deprecated_map[name]} instead.",
+                        f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
                         DeprecationWarning,
                         stacklevel=2,
                     )

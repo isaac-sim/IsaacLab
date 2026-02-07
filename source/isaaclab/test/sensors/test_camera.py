@@ -23,13 +23,13 @@ import numpy as np
 import pytest
 import scipy.spatial.transform as tf
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import omni.replicator.core as rep
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils import convert_dict_to_backend
 from isaaclab.utils.timer import Timer

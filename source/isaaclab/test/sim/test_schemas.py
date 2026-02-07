@@ -15,12 +15,12 @@ simulation_app = AppLauncher(headless=True).app
 import math
 
 import pytest
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case

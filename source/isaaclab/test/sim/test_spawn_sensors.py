@@ -14,11 +14,11 @@ simulation_app = AppLauncher(headless=True).app
 
 
 import pytest
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
 from isaaclab.utils.string import to_camel_case

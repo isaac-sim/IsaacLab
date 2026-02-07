@@ -37,11 +37,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg

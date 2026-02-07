@@ -32,6 +32,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 

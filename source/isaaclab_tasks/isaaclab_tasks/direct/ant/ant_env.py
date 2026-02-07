@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg

@@ -37,10 +37,11 @@ simulation_app = app_launcher.app
 
 import random
 
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,

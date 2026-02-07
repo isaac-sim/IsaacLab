@@ -473,7 +473,9 @@ class ManagerBasedEnv:
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
+        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool(
+            "/isaaclab/render/rtx_sensors"
+        )
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):

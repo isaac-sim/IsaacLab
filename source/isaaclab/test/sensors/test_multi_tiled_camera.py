@@ -22,13 +22,13 @@ import numpy as np
 import pytest
 import torch
 from flaky import flaky
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 import omni.replicator.core as rep
 from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
 

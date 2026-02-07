@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -25,6 +24,8 @@ from isaaclab.utils.math import (
     quat_from_angle_axis,
     subtract_frame_transforms,
 )
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 

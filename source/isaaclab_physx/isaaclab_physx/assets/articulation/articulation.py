@@ -16,7 +16,6 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.utils.math as math_utils
@@ -27,6 +26,8 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
 

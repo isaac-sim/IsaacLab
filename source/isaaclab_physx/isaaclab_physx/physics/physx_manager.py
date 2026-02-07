@@ -15,9 +15,12 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+import torch
 
 import carb
 import omni.kit.app
@@ -25,12 +28,10 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-import torch
 from pxr import PhysxSchema, Sdf
 
 import isaaclab.sim as sim_utils
-
-from isaaclab.physics import PhysicsManager, PhysicsEvent, CallbackHandle
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -124,8 +125,14 @@ class AnimationRecorder:
         if ovd_files and self._physx_pvd:
             input_ovd = max(ovd_files, key=os.path.getctime)
             self._physx_pvd.ovd_to_usd_over_with_layer_creation(
-                input_ovd, stage_path, self._output_dir, "baked_animation_recording.usda",
-                self._start_time, self._stop_time, True, False
+                input_ovd,
+                stage_path,
+                self._output_dir,
+                "baked_animation_recording.usda",
+                self._start_time,
+                self._stop_time,
+                True,
+                False,
             )
             self._update_usda_start_time(os.path.join(self._output_dir, "baked_animation_recording.usda"))
 
@@ -150,7 +157,7 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    _cfg: ClassVar["PhysxManagerCfg | None"] = None
+    _cfg: ClassVar[PhysxManagerCfg | None] = None
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
@@ -190,7 +197,7 @@ class PhysxManager(PhysicsManager):
     _message_bus = _event_bus
 
     @classmethod
-    def initialize(cls, sim_context: "SimulationContext") -> None:
+    def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
         from isaaclab.sim.utils.stage import get_current_stage_id
 
@@ -305,8 +312,12 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def register_callback(
-        cls, callback: Callable, event: PhysicsEvent | IsaacEvents, order: int = 0,
-        name: str | None = None, wrap_weak_ref: bool = True,
+        cls,
+        callback: Callable,
+        event: PhysicsEvent | IsaacEvents,
+        order: int = 0,
+        name: str | None = None,
+        wrap_weak_ref: bool = True,
     ) -> CallbackHandle:
         """Register a callback. Accepts both PhysicsEvent and IsaacEvents."""
         if isinstance(event, IsaacEvents):
@@ -333,10 +344,16 @@ class PhysxManager(PhysicsManager):
         def guarded(cb: Callable) -> Callable:
             def wrapper(dt: float) -> Any:
                 return cb(dt) if cls._view_created else None
+
             return wrapper
 
-        if event in (IsaacEvents.PHYSICS_WARMUP, IsaacEvents.PHYSICS_READY, IsaacEvents.POST_RESET,
-                     IsaacEvents.SIMULATION_VIEW_CREATED, IsaacEvents.PRIM_DELETION):
+        if event in (
+            IsaacEvents.PHYSICS_WARMUP,
+            IsaacEvents.PHYSICS_READY,
+            IsaacEvents.POST_RESET,
+            IsaacEvents.SIMULATION_VIEW_CREATED,
+            IsaacEvents.PRIM_DELETION,
+        ):
             return cls._event_bus.observe_event(event_name=event.value, order=order, on_event=callback)
         elif event == IsaacEvents.POST_PHYSICS_STEP:
             return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=False, order=order)
@@ -428,8 +445,19 @@ class PhysxManager(PhysicsManager):
         )
 
         # apply remaining cfg attributes to scene
-        skip = {"solver_type", "enable_ccd", "solve_articulation_contact_last", "dt", "device",
-                "render_interval", "gravity", "physics_prim_path", "use_fabric", "physics_material", "class_type"}
+        skip = {
+            "solver_type",
+            "enable_ccd",
+            "solve_articulation_contact_last",
+            "dt",
+            "device",
+            "render_interval",
+            "gravity",
+            "physics_prim_path",
+            "use_fabric",
+            "physics_material",
+            "class_type",
+        }
         for key, value in cfg.to_dict().items():  # type: ignore
             if key not in skip:
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
@@ -464,6 +492,7 @@ class PhysxManager(PhysicsManager):
             if not ext_mgr.is_extension_enabled("omni.physx.fabric"):
                 ext_mgr.set_extension_enabled_immediate("omni.physx.fabric", True)
             from omni.physxfabric import get_physx_fabric_interface
+
             cls._fabric = get_physx_fabric_interface()
             cls._update_fabric = getattr(cls._fabric, "force_update", cls._fabric.update)
         else:
@@ -473,8 +502,13 @@ class PhysxManager(PhysicsManager):
             cls._update_fabric = None
 
         # disable usd sync when fabric is enabled
-        for key in ["updateToUsd", "updateParticlesToUsd", "updateVelocitiesToUsd",
-                    "updateForceSensorsToUsd", "updateResidualsToUsd"]:
+        for key in [
+            "updateToUsd",
+            "updateParticlesToUsd",
+            "updateVelocitiesToUsd",
+            "updateForceSensorsToUsd",
+            "updateResidualsToUsd",
+        ]:
             settings.set_bool(f"/physics/{key}", not use_fabric)
         settings.set_bool("/isaaclab/fabric_enabled", use_fabric)
         settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
@@ -487,6 +521,7 @@ class PhysxManager(PhysicsManager):
 
         # Get stage ID first (needed for both warmup and view creation)
         from isaaclab.sim.utils.stage import get_current_stage_id
+
         stage_id = get_current_stage_id()
 
         # Attach stage to PhysX BEFORE loading/starting - critical for GPU pipeline

@@ -14,13 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,

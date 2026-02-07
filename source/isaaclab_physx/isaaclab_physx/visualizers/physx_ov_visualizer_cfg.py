@@ -72,7 +72,7 @@ class PhysxOVVisualizerCfg(VisualizerCfg):
     window_height: int = 720
     """Viewport height in pixels."""
 
-    def create_visualizer(self) -> "PhysxOVVisualizer":
+    def create_visualizer(self) -> PhysxOVVisualizer:
         """Create PhysxOVVisualizer instance from this config.
 
         Returns:
