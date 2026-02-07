@@ -196,6 +196,7 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
@@ -484,6 +485,13 @@ class PhysxManager(PhysicsManager):
         if not cls._warmup_needed:
             return
 
+        # Get stage ID first (needed for both warmup and view creation)
+        from isaaclab.sim.utils.stage import get_current_stage_id
+        stage_id = get_current_stage_id()
+
+        # Attach stage to PhysX BEFORE loading/starting - critical for GPU pipeline
+        cls._physx_sim.attach_stage(stage_id)
+
         # warmup physx
         cls._physx.force_load_physics_from_usd()
         cls._physx.start_simulation()
@@ -495,13 +503,7 @@ class PhysxManager(PhysicsManager):
         if cls._view_created:
             return
 
-        # create tensor views
-        from isaaclab.sim.utils.stage import get_current_stage_id
-        stage_id = get_current_stage_id()
-
-        # attach stage to PhysX before creating views
-        cls._physx_sim.attach_stage(stage_id)
-
+        # Create tensor views
         cls._view = omni.physics.tensors.create_simulation_view("torch", stage_id=stage_id)
         cls._view_warp = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
 
@@ -510,6 +512,7 @@ class PhysxManager(PhysicsManager):
         if cls._view_warp:
             cls._view_warp.set_subspace_roots("/")
 
+        # Final update after view creation
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
 
