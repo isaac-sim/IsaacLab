@@ -187,9 +187,9 @@ class SimulationContext:
         if len(requested) > 0:
             # Get or create visualizer configs
             cfg_list = self.cfg.visualizer_cfgs
-            from isaaclab_physx.visualizers import PhysxOVVisualizerCfg
+            from isaaclab_physx.visualizers import OVVisualizerCfg
 
-            type_map = {"omniverse": PhysxOVVisualizerCfg}
+            type_map = {"omniverse": OVVisualizerCfg}
             viz_cfgs = []
             if cfg_list is None:
                 for viz_type in requested:

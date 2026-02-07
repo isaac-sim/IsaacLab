@@ -3,19 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# # All rights reserved.
-# #
-# # SPDX-License-Identifier: BSD-3-Clause
-
-# """Sub-package for visualizer configurations and implementations.
+"""Sub-package for visualizer configurations and implementations."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 # Import config classes (no circular dependency)
-from .physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
+from .ov_visualizer_cfg import OVVisualizerCfg, PhysxOVVisualizerCfg
 
 from isaaclab.visualizers import _VISUALIZER_REGISTRY
 
@@ -23,11 +18,11 @@ if TYPE_CHECKING:
     from isaaclab.visualizers import Visualizer
 
 __all__ = [
-    "PhysxOVVisualizerCfg",
+    "OVVisualizerCfg",
+    "PhysxOVVisualizerCfg",  # Backward compatibility
 ]
 
 
-# # Register only selected visualizers to reduce unnecessary imports
 def get_visualizer_class(name: str) -> type[Visualizer] | None:
     """Get a visualizer class by name (lazy-loaded).
 
@@ -50,7 +45,7 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
         return _VISUALIZER_REGISTRY[name]
 
     if name == "isaacsim_ov":
-        from .physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
+        from .ov_visualizer_cfg import OVVisualizerCfg
 
-        _VISUALIZER_REGISTRY["isaacsim_ov"] = PhysxOVVisualizerCfg
-        return PhysxOVVisualizerCfg
+        _VISUALIZER_REGISTRY["isaacsim_ov"] = OVVisualizerCfg
+        return OVVisualizerCfg

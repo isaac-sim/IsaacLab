@@ -12,18 +12,18 @@ from typing import TYPE_CHECKING
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from .physx_ov_visualizer import RenderMode
+from .ov_visualizer import RenderMode
 
 if TYPE_CHECKING:
-    from .physx_ov_visualizer import PhysxOVVisualizer
+    from .ov_visualizer import OVVisualizer
 
 
 @configclass
-class PhysxOVVisualizerCfg(VisualizerCfg):
+class OVVisualizerCfg(VisualizerCfg):
     """Configuration for Omniverse visualizer in PhysX-based SimulationContext.
 
     This configuration extends :class:`VisualizerCfg` and is used by the
-    :class:`PhysxOVVisualizer` class which manages viewport/rendering for
+    :class:`OVVisualizer` class which manages viewport/rendering for
     PhysX-based SimulationContext workflows.
     """
 
@@ -72,12 +72,16 @@ class PhysxOVVisualizerCfg(VisualizerCfg):
     window_height: int = 720
     """Viewport height in pixels."""
 
-    def create_visualizer(self) -> PhysxOVVisualizer:
-        """Create PhysxOVVisualizer instance from this config.
+    def create_visualizer(self) -> OVVisualizer:
+        """Create OVVisualizer instance from this config.
 
         Returns:
-            PhysxOVVisualizer instance configured with this config.
+            OVVisualizer instance configured with this config.
         """
-        from .physx_ov_visualizer import PhysxOVVisualizer
+        from .ov_visualizer import OVVisualizer
 
-        return PhysxOVVisualizer(self)
+        return OVVisualizer(self)
+
+
+# Backward compatibility alias
+PhysxOVVisualizerCfg = OVVisualizerCfg

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from isaaclab.sim.simulation_context import SimulationContext
 
-    from .physx_ov_visualizer_cfg import PhysxOVVisualizerCfg
+    from .ov_visualizer_cfg import OVVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +213,7 @@ class TimelineControl:
             self._on_stop_callback()
 
 
-class PhysxOVVisualizer(Visualizer):
+class OVVisualizer(Visualizer):
     """Omniverse visualizer managing viewport/rendering for PhysX workflow.
 
     This class extends the base :class:`Visualizer` and handles:
@@ -227,14 +227,14 @@ class PhysxOVVisualizer(Visualizer):
     Lifecycle: __init__(cfg) -> initialize(scene_data) -> step() (repeated) -> close()
     """
 
-    def __init__(self, cfg: PhysxOVVisualizerCfg):
-        """Initialize PhysX OV visualizer with configuration.
+    def __init__(self, cfg: OVVisualizerCfg):
+        """Initialize OV visualizer with configuration.
 
         Args:
             cfg: Configuration for the visualizer.
         """
         super().__init__(cfg)
-        self.cfg: PhysxOVVisualizerCfg = cfg
+        self.cfg: OVVisualizerCfg = cfg
 
         # Will be set during initialize()
         self._sim: SimulationContext | None = None
@@ -266,15 +266,15 @@ class PhysxOVVisualizer(Visualizer):
                 - 'usd_stage': The USD stage (optional, can get from sim context)
         """
         if self._is_initialized:
-            logger.warning("[PhysxOVVisualizer] Already initialized.")
+            logger.warning("[OVVisualizer] Already initialized.")
             return
 
         if scene_data is None:
-            raise ValueError("PhysxOVVisualizer requires scene_data with 'simulation_context'")
+            raise ValueError("OVVisualizer requires scene_data with 'simulation_context'")
 
         self._sim = scene_data.get("simulation_context")
         if self._sim is None:
-            raise ValueError("PhysxOVVisualizer requires 'simulation_context' in scene_data")
+            raise ValueError("OVVisualizer requires 'simulation_context' in scene_data")
 
         # Acquire application interface
         self._app_iface = omni.kit.app.get_app_interface()
@@ -345,7 +345,7 @@ class PhysxOVVisualizer(Visualizer):
         self.set_camera_view(self.cfg.camera_position, self.cfg.camera_target)
 
         self._is_initialized = True
-        logger.info("[PhysxOVVisualizer] Initialized")
+        logger.info("[OVVisualizer] Initialized")
 
     def step(self, dt: float, state: Any | None = None) -> None:
         """Update visualization for one step (render the scene).
@@ -497,7 +497,7 @@ class PhysxOVVisualizer(Visualizer):
                 the value from config or "/OmniverseKit_Persp".
         """
         if not self._is_initialized:
-            logger.warning("[PhysxOVVisualizer] Cannot set camera view - visualizer not initialized.")
+            logger.warning("[OVVisualizer] Cannot set camera view - visualizer not initialized.")
             return
 
         try:
@@ -510,10 +510,10 @@ class PhysxOVVisualizer(Visualizer):
             # Use Isaac Sim utility to set camera view
             vp_utils.set_camera_view(eye=list(eye), target=list(target), camera_prim_path=camera_path)
 
-            logger.info(f"[PhysxOVVisualizer] Camera set: pos={eye}, target={target}, camera={camera_path}")
+            logger.info(f"[OVVisualizer] Camera set: pos={eye}, target={target}, camera={camera_path}")
 
         except Exception as e:
-            logger.warning(f"[PhysxOVVisualizer] Could not set camera: {e}")
+            logger.warning(f"[OVVisualizer] Could not set camera: {e}")
 
     def set_render_mode(self, mode: RenderMode) -> None:
         """Change the current render mode of the simulation.
@@ -759,3 +759,7 @@ class PhysxOVVisualizer(Visualizer):
             self._sim.set_setting("/app/runLoops/main/rateLimitEnabled", True)
             self._sim.set_setting("/app/runLoops/main/rateLimitFrequency", rendering_hz)
             self._timeline.set_target_framerate(rendering_hz)
+
+
+# Backward compatibility alias
+PhysxOVVisualizer = OVVisualizer
