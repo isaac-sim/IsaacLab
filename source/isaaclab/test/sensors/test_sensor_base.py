@@ -106,11 +106,8 @@ def create_dummy_sensor(request, device):
 
     yield sensor_cfg, sim, dt
 
-    # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
-    # clear the stage
-    sim.clear_all_callbacks()
+    # stop simulation and clean up
+    sim.stop()
     sim.clear_instance()
 
 
