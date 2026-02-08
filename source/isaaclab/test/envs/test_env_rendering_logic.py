@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.visualizers import RenderMode
 
 import omni.usd
 
@@ -28,7 +29,7 @@ from isaaclab.envs import (
     ManagerBasedRLEnvCfg,
 )
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 
@@ -181,7 +182,8 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
 
     # check that we are in partial rendering mode for the environment
     # this is enabled due to app launcher setting "enable_cameras=True"
-    assert env.sim.render_mode == SimulationContext.RenderMode.PARTIAL_RENDERING
+    # Access render mode through the first visualizer (OVVisualizer)
+    assert env.sim.visualizers[0].render_mode == RenderMode.PARTIAL_RENDERING
 
     # add physics and render callbacks
     env.sim.add_physics_callback("physics_step", physics_cb)
