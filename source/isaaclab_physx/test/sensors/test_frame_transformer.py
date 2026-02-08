@@ -75,18 +75,13 @@ class MySceneCfg(InteractiveSceneCfg):
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    # Create a new stage
-    sim_utils.create_new_stage()
-    # Load kit helper
-    sim = sim_utils.SimulationContext(
-        sim_utils.SimulationCfg(device="cpu", physics_manager_cfg=PhysxManagerCfg(dt=0.005))
-    )
-    # Set main camera
-    sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
-    yield sim
-    # Cleanup
-    sim.clear_all_callbacks()
-    sim.clear_instance()
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics_manager_cfg=PhysxManagerCfg(dt=0.005))
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        # Set main camera
+        sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
+        yield sim
+    # Cleanup is handled by build_simulation_context
 
 
 def test_frame_transformer_feet_wrt_base(sim):

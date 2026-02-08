@@ -85,7 +85,6 @@ def setup_simulation():
     # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
     sim._timeline.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

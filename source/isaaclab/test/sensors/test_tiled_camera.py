@@ -61,7 +61,6 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     sim._timeline.stop()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

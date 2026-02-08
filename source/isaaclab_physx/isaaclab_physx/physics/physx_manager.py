@@ -264,16 +264,22 @@ class PhysxManager(PhysicsManager):
     def play(cls) -> None:
         """Start or resume the timeline."""
         cls._timeline.play()
+        # Pump events so timeline callbacks fire synchronously
+        omni.kit.app.get_app().update()
 
     @classmethod
     def pause(cls) -> None:
         """Pause the timeline."""
         cls._timeline.pause()
+        # Pump events so timeline callbacks fire synchronously
+        omni.kit.app.get_app().update()
 
     @classmethod
     def stop(cls) -> None:
         """Stop the timeline."""
         cls._timeline.stop()
+        # Pump events so timeline callbacks fire synchronously
+        omni.kit.app.get_app().update()
 
     @classmethod
     def close(cls) -> None:

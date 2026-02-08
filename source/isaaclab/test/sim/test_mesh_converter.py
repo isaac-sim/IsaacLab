@@ -72,8 +72,6 @@ def sim():
     # stop simulation
     sim.stop()
     # cleanup stage and context
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

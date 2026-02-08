@@ -39,8 +39,6 @@ def sim():
     yield sim
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
