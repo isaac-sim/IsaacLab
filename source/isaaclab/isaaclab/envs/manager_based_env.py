@@ -525,6 +525,9 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # Stop simulation first to allow physics to clean up properly
+            self.sim.stop()
+
             # destructor is order-sensitive
             del self.viewport_camera_controller
             del self.action_manager

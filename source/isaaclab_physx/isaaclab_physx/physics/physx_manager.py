@@ -284,12 +284,19 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def close(cls) -> None:
         """Clean up physics resources."""
-        cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
+        # Detach PhysX from the stage FIRST to prevent shape/actor cleanup errors
+        # This disconnects PhysX from USD before any deletion events are fired
+        if cls._physx_sim is not None:
+            cls._physx_sim.detach_stage()
+            # Pump the app to flush pending PhysX cleanup operations
+            omni.kit.app.get_app().update()
+
+        # Now invalidate views (they're already disconnected from PhysX)
         cls._invalidate_views()
         cls._subscriptions.clear()
 
-        if cls._physx_sim is not None:
-            cls._physx_sim.detach_stage()
+        # Notify listeners that prims are being deleted (safe now since PhysX is detached)
+        cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
 
         cls._fabric = None
         cls._update_fabric = None

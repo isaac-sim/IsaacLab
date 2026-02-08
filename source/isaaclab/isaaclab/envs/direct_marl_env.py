@@ -538,6 +538,9 @@ class DirectMARLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # Stop simulation first to allow physics to clean up properly
+            self.sim.stop()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -545,13 +548,6 @@ class DirectMARLEnv(gym.Env):
             del self.scene
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
-
-            # clear callbacks and instance
-            if get_isaac_sim_version().major >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
 
             self.sim.clear_instance()
 

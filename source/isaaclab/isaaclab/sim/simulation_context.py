@@ -302,11 +302,12 @@ class SimulationContext:
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
         if cls._instance is not None:
-            # Clear stage contents first
-            cls.clear_stage()
-
-            # Close physics manager
+            # Close physics manager FIRST to detach PhysX from the stage
+            # This must happen before clearing USD prims to avoid PhysX cleanup errors
             cls._instance.physics_manager.close()
+
+            # Now safe to clear stage contents (PhysX is detached)
+            cls.clear_stage()
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
@@ -331,15 +332,14 @@ class SimulationContext:
 
     @classmethod
     def clear_stage(cls) -> None:
-        """Clear the current USD stage (preserving /World and PhysicsScene)."""
+        """Clear the current USD stage.
+
+        Uses the default predicate which skips root, /Render, no_delete prims,
+        hidden prims, and ancestral prims (from USD references).
+        """
         if cls._instance is None:
             return
-
-        def _predicate(prim: Usd.Prim) -> bool:
-            path = prim.GetPath().pathString  # type: ignore[union-attr]
-            return path != "/World" and prim.GetTypeName() != "PhysicsScene"
-
-        sim_utils.clear_stage(predicate=_predicate)
+        sim_utils.clear_stage()
 
 
 @contextmanager
