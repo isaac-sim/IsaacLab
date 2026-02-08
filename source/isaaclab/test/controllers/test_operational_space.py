@@ -223,7 +223,7 @@ def sim():
     )
 
     # Cleanup
-    sim.stop()    
+    sim.stop()
     sim.clear_instance()
 
 

@@ -114,12 +114,12 @@ def get_pose_error(
             quat_dot.expand(-1, 4) >= 0, ctrl_target_fingertip_midpoint_quat, -ctrl_target_fingertip_midpoint_quat
         )
 
-        fingertip_midpoint_quat_norm = quat_mul(
-            fingertip_midpoint_quat, quat_conjugate(fingertip_midpoint_quat)
-        )[:, 3]  # W component is at index 3 in XYZW format
-        fingertip_midpoint_quat_inv = quat_conjugate(
-            fingertip_midpoint_quat
-        ) / fingertip_midpoint_quat_norm.unsqueeze(-1)
+        fingertip_midpoint_quat_norm = quat_mul(fingertip_midpoint_quat, quat_conjugate(fingertip_midpoint_quat))[
+            :, 3
+        ]  # W component is at index 3 in XYZW format
+        fingertip_midpoint_quat_inv = quat_conjugate(fingertip_midpoint_quat) / fingertip_midpoint_quat_norm.unsqueeze(
+            -1
+        )
         quat_error = quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_midpoint_quat_inv)
 
         # Convert to axis-angle error

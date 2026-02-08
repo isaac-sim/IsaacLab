@@ -170,8 +170,8 @@ class BaseEnvWindow:
             "tooltip": "Select a rendering mode\n" + (RenderMode.__doc__ or ""),
             "on_clicked_fn": on_render_mode_changed,
         }
-        self.ui_window_elements["render_dropdown"] = (
-            isaacsim.gui.components.ui_utils.dropdown_builder(**render_mode_cfg)
+        self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
+            **render_mode_cfg
         )
 
     def _build_viewer_frame(self):

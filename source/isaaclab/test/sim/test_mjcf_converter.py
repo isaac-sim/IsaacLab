@@ -48,7 +48,7 @@ def test_setup_teardown():
     yield sim, config
 
     # Teardown: Cleanup simulation
-    sim.stop()    
+    sim.stop()
     sim.clear_instance()
 
 

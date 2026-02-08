@@ -32,7 +32,7 @@ def sim():
     sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
     sim_utils.update_stage()
     yield sim
-    sim.stop()    
+    sim.stop()
     sim.clear_instance()
 
 

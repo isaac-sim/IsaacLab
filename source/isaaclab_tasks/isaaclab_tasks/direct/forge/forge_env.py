@@ -87,9 +87,7 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_pos = self.noisy_fingertip_pos.clone()
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = quat_mul(
-            self.noisy_fingertip_quat, quat_conjugate(self.prev_fingertip_quat)
-        )
+        rot_diff_quat = quat_mul(self.noisy_fingertip_quat, quat_conjugate(self.prev_fingertip_quat))
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
@@ -170,9 +168,7 @@ class ForgeEnv(FactoryEnv):
         # Assumes joint limit is in (+x, -y)-quadrant of world frame.
         rot_actions[:, 2] = np.deg2rad(-180.0) + np.deg2rad(270.0) * (rot_actions[:, 2] + 1.0) / 2.0  # Joint limit.
         # (1.c) Get desired orientation target.
-        bolt_frame_quat = quat_from_euler_xyz(
-            roll=rot_actions[:, 0], pitch=rot_actions[:, 1], yaw=rot_actions[:, 2]
-        )
+        bolt_frame_quat = quat_from_euler_xyz(roll=rot_actions[:, 0], pitch=rot_actions[:, 1], yaw=rot_actions[:, 2])
 
         rot_180_euler = torch.tensor([np.pi, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
         quat_bolt_to_ee = quat_from_euler_xyz(

@@ -241,9 +241,7 @@ class DisassemblyEnv(DirectRLEnv):
         self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = quat_mul(
-            self.fingertip_midpoint_quat, quat_conjugate(self.prev_fingertip_quat)
-        )
+        rot_diff_quat = quat_mul(self.fingertip_midpoint_quat, quat_conjugate(self.prev_fingertip_quat))
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
@@ -640,9 +638,7 @@ class DisassemblyEnv(DirectRLEnv):
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_orn_euler = fixed_orn_init_yaw + fixed_orn_yaw_range * rand_sample
         fixed_orn_euler[:, 0:2] = 0.0  # Only change yaw.
-        fixed_orn_quat = quat_from_euler_xyz(
-            fixed_orn_euler[:, 0], fixed_orn_euler[:, 1], fixed_orn_euler[:, 2]
-        )
+        fixed_orn_quat = quat_from_euler_xyz(fixed_orn_euler[:, 0], fixed_orn_euler[:, 1], fixed_orn_euler[:, 2])
         fixed_state[:, 3:7] = fixed_orn_quat
         # (1.c.) Velocity
         fixed_state[:, 7:] = 0.0  # vel

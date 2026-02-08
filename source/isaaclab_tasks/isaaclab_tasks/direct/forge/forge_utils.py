@@ -44,7 +44,5 @@ def change_FT_frame(source_F, source_T, source_frame, target_frame):
     )
 
     target_F = quat_apply(target_T_source_quat, source_F)
-    target_T = quat_apply(
-        target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1))
-    )
+    target_T = quat_apply(target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1)))
     return target_F, target_T
