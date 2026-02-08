@@ -389,16 +389,17 @@ class ArticulationData(BaseArticulationData):
                 (self._root_view.count, self._root_view.joint_dof_count), dtype=wp.vec2f, device=self.device
             )
 
-        wp.launch(
-            make_joint_pos_limits_from_lower_and_upper_limits,
-            dim=(self._root_view.count, self._root_view.joint_dof_count),
-            inputs=[
-                self._sim_bind_joint_pos_limits_lower,
-                self._sim_bind_joint_pos_limits_upper,
-                self._joint_pos_limits,
-            ],
-            device=self.device,
-        )
+        if self._root_view.joint_dof_count > 0:
+            wp.launch(
+                make_joint_pos_limits_from_lower_and_upper_limits,
+                dim=(self._root_view.count, self._root_view.joint_dof_count),
+                inputs=[
+                    self._sim_bind_joint_pos_limits_lower,
+                    self._sim_bind_joint_pos_limits_upper,
+                    self._joint_pos_limits,
+                ],
+                device=self.device,
+            )
         return self._joint_pos_limits
 
     @property
@@ -927,6 +928,8 @@ class ArticulationData(BaseArticulationData):
     @property
     def joint_acc(self) -> wp.array(dtype=wp.float32):
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
+        if self._root_view.joint_dof_count == 0:
+            return self._joint_acc.data
         if self._joint_acc.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
             wp.launch(
@@ -2239,7 +2242,20 @@ class ArticulationData(BaseArticulationData):
                 "joint_target_vel", NewtonManager.get_control()
             )[:, 0]
         else:
-            raise ValueError("Number of joints is not supported.")
+            # No joints (e.g., free-floating rigid body) - set bindings to None
+            self._sim_bind_joint_pos_limits_lower = None
+            self._sim_bind_joint_pos_limits_upper = None
+            self._sim_bind_joint_stiffness_sim = None
+            self._sim_bind_joint_damping_sim = None
+            self._sim_bind_joint_armature = None
+            self._sim_bind_joint_friction_coeff = None
+            self._sim_bind_joint_vel_limits_sim = None
+            self._sim_bind_joint_effort_limits_sim = None
+            self._sim_bind_joint_pos = None
+            self._sim_bind_joint_vel = None
+            self._sim_bind_joint_effort = None
+            self._sim_bind_joint_position_target = None
+            self._sim_bind_joint_velocity_target = None
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -2288,8 +2304,12 @@ class ArticulationData(BaseArticulationData):
         self._computed_effort = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
         self._applied_effort = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
         # -- joint properties for the actuator models
-        self._actuator_stiffness = wp.clone(self._sim_bind_joint_stiffness_sim)
-        self._actuator_damping = wp.clone(self._sim_bind_joint_damping_sim)
+        if n_dof > 0:
+            self._actuator_stiffness = wp.clone(self._sim_bind_joint_stiffness_sim)
+            self._actuator_damping = wp.clone(self._sim_bind_joint_damping_sim)
+        else:
+            self._actuator_stiffness = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._actuator_damping = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
         # -- other data that are filled based on explicit actuator models
         self._joint_dynamic_friction = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
         self._joint_viscous_friction = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
@@ -2299,7 +2319,10 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_pos_limits = wp.zeros((n_view, n_dof), dtype=wp.vec2f, device=self.device)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(NewtonManager.get_state_0()))[:, 0]
+        if n_dof > 0:
+            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(NewtonManager.get_state_0()))[:, 0]
+        else:
+            self._previous_joint_vel = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
 
         # Initialize the lazy buffers.
