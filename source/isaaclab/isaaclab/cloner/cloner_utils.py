@@ -301,7 +301,13 @@ def newton_replicate(
         p = ModelBuilder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         inverse_env_xform = get_inverse_env_xform(stage, src_path)
-        p.add_usd(stage, root_path=src_path, load_visual_shapes=True, skip_mesh_approximation=True, xform=inverse_env_xform,)
+        p.add_usd(
+            stage,
+            root_path=src_path,
+            load_visual_shapes=True,
+            skip_mesh_approximation=True,
+            xform=inverse_env_xform,
+        )
         if simplify_meshes:
             p.approximate_meshes("convex_hull")
         protos[src_path] = p
@@ -496,16 +502,15 @@ def get_inverse_env_xform(stage, src_path: str):
     xform_cache = UsdGeom.XformCache()
     world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(src_path))
 
-    # Extract translation and rotation
-    translation = world_xform.ExtractTranslation()
-    rotation = world_xform.ExtractRotationQuat()
+    # Get the inverse of the world transform
+    inv_xform = world_xform.GetInverse()
 
-    # Convert Gf.Quatd to Warp format (x, y, z, w)
-    quat_imag = rotation.GetImaginary()
-    world_transform = wp.transform(
-        (translation[0], translation[1], translation[2]),
-        (quat_imag[0], quat_imag[1], quat_imag[2], rotation.GetReal()),
-    )
+    # Extract translation and rotation from inverse
+    inv_translation = inv_xform.ExtractTranslation()
+    inv_rotation = inv_xform.ExtractRotationQuat()
 
-    # Properly compute the inverse transform
-    return wp.transform_inverse(world_transform)
+    inv_pos = (inv_translation[0], inv_translation[1], inv_translation[2])
+    inv_quat = (inv_rotation.GetImaginary()[0], inv_rotation.GetImaginary()[1], 
+                inv_rotation.GetImaginary()[2], inv_rotation.GetReal())
+
+    return wp.transform(inv_pos, inv_quat)
