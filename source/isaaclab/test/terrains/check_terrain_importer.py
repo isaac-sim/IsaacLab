@@ -65,7 +65,6 @@ simulation_app = app_launcher.app
 import torch
 
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.simulation_manager import SimulationManager
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -166,7 +165,7 @@ def main():
     sim.reset()
 
     # Create a PhysX rigid body view for physics simulation
-    physics_sim_view = SimulationManager.get_physics_sim_view()
+    physics_sim_view = sim.physics_manager.get_physics_sim_view()
     ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
 
     # Cache initial velocities (all zeros)

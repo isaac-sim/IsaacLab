@@ -5,9 +5,14 @@
 import numpy as np
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-
-from isaaclab.utils.math import axis_angle_from_quat
+from isaaclab.utils.math import (
+    axis_angle_from_quat,
+    euler_xyz_from_quat,
+    quat_conjugate,
+    quat_from_angle_axis,
+    quat_from_euler_xyz,
+    quat_mul,
+)
 
 from isaaclab_tasks.direct.factory import factory_utils
 from isaaclab_tasks.direct.factory.factory_env import FactoryEnv
@@ -71,8 +76,8 @@ class ForgeEnv(FactoryEnv):
         rot_noise_angle = torch.randn((self.num_envs,), dtype=torch.float32, device=self.device) * np.deg2rad(
             rot_noise_level_deg
         )
-        self.noisy_fingertip_quat = torch_utils.quat_mul(
-            self.fingertip_midpoint_quat, torch_utils.quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
+        self.noisy_fingertip_quat = quat_mul(
+            self.fingertip_midpoint_quat, quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
         )
         self.noisy_fingertip_quat[:, [0, 3]] = 0.0
         self.noisy_fingertip_quat = self.noisy_fingertip_quat * self.flip_quats.unsqueeze(-1)
@@ -82,8 +87,8 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_pos = self.noisy_fingertip_pos.clone()
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = torch_utils.quat_mul(
-            self.noisy_fingertip_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
+        rot_diff_quat = quat_mul(
+            self.noisy_fingertip_quat, quat_conjugate(self.prev_fingertip_quat)
         )
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
@@ -165,16 +170,16 @@ class ForgeEnv(FactoryEnv):
         # Assumes joint limit is in (+x, -y)-quadrant of world frame.
         rot_actions[:, 2] = np.deg2rad(-180.0) + np.deg2rad(270.0) * (rot_actions[:, 2] + 1.0) / 2.0  # Joint limit.
         # (1.c) Get desired orientation target.
-        bolt_frame_quat = torch_utils.quat_from_euler_xyz(
+        bolt_frame_quat = quat_from_euler_xyz(
             roll=rot_actions[:, 0], pitch=rot_actions[:, 1], yaw=rot_actions[:, 2]
         )
 
         rot_180_euler = torch.tensor([np.pi, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
-        quat_bolt_to_ee = torch_utils.quat_from_euler_xyz(
+        quat_bolt_to_ee = quat_from_euler_xyz(
             roll=rot_180_euler[:, 0], pitch=rot_180_euler[:, 1], yaw=rot_180_euler[:, 2]
         )
 
-        ctrl_target_fingertip_preclipped_quat = torch_utils.quat_mul(quat_bolt_to_ee, bolt_frame_quat)
+        ctrl_target_fingertip_preclipped_quat = quat_mul(quat_bolt_to_ee, bolt_frame_quat)
 
         # Step (2): Clip targets if they are too far from current EE pose.
         # (2.a): Clip position targets.
@@ -187,8 +192,8 @@ class ForgeEnv(FactoryEnv):
         # sure we avoid the joint limit.
 
         # (2.b.i) Get current and desired Euler angles.
-        curr_roll, curr_pitch, curr_yaw = torch_utils.get_euler_xyz(self.fingertip_midpoint_quat)
-        desired_roll, desired_pitch, desired_yaw = torch_utils.get_euler_xyz(ctrl_target_fingertip_preclipped_quat)
+        curr_roll, curr_pitch, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat)
+        desired_roll, desired_pitch, desired_yaw = euler_xyz_from_quat(ctrl_target_fingertip_preclipped_quat)
         desired_xyz = torch.stack([desired_roll, desired_pitch, desired_yaw], dim=1)
 
         # (2.b.ii) Correct the direction of motion to avoid joint limit.
@@ -217,7 +222,7 @@ class ForgeEnv(FactoryEnv):
         clipped_pitch = torch.clip(delta_pitch, -self.rot_threshold[:, 1], self.rot_threshold[:, 1])
         desired_xyz[:, 1] = curr_pitch + clipped_pitch
 
-        ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
+        ctrl_target_fingertip_midpoint_quat = quat_from_euler_xyz(
             roll=desired_xyz[:, 0], pitch=desired_xyz[:, 1], yaw=desired_xyz[:, 2]
         )
 
@@ -280,12 +285,12 @@ class ForgeEnv(FactoryEnv):
 
         # Relative yaw to bolt.
         unrot_180_euler = torch.tensor([-np.pi, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
-        unrot_quat = torch_utils.quat_from_euler_xyz(
+        unrot_quat = quat_from_euler_xyz(
             roll=unrot_180_euler[:, 0], pitch=unrot_180_euler[:, 1], yaw=unrot_180_euler[:, 2]
         )
 
-        fingertip_quat_rel_bolt = torch_utils.quat_mul(unrot_quat, self.fingertip_midpoint_quat)
-        fingertip_yaw_bolt = torch_utils.get_euler_xyz(fingertip_quat_rel_bolt)[-1]
+        fingertip_quat_rel_bolt = quat_mul(unrot_quat, self.fingertip_midpoint_quat)
+        fingertip_yaw_bolt = euler_xyz_from_quat(fingertip_quat_rel_bolt)[-1]
         fingertip_yaw_bolt = torch.where(
             fingertip_yaw_bolt > torch.pi / 2, fingertip_yaw_bolt - 2 * torch.pi, fingertip_yaw_bolt
         )

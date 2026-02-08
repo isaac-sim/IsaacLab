@@ -14,12 +14,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.utils.math import quat_apply, quat_inv
+from isaaclab.sim import SimulationContext
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
@@ -179,7 +179,7 @@ class VisuoTactileSensor(SensorBase):
         super()._initialize_impl()
 
         # Obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = SimulationContext.instance().physics_manager.get_physics_sim_view()
 
         # Initialize camera-based tactile sensing
         if self.cfg.enable_camera_tactile:
@@ -674,17 +674,16 @@ class VisuoTactileSensor(SensorBase):
             Points in contact object local coordinates and inverse quaternions
         """
         # Get inverse transformation (per environment)
-        # wxyz in torch
-        contact_object_quat_inv, contact_object_pos_inv = torch_utils.tf_inverse(
-            contact_object_quat_w, contact_object_pos_w
-        )
+        # xyzw quaternion convention
+        contact_object_quat_inv = quat_inv(contact_object_quat_w)
+        contact_object_pos_inv = -quat_apply(contact_object_quat_inv, contact_object_pos_w)
         num_pts = self.num_tactile_points
 
         contact_object_quat_expanded = contact_object_quat_inv.unsqueeze(1).expand(-1, num_pts, 4)
         contact_object_pos_expanded = contact_object_pos_inv.unsqueeze(1).expand(-1, num_pts, 3)
 
-        # Apply transformation
-        points_sdf = torch_utils.tf_apply(contact_object_quat_expanded, contact_object_pos_expanded, world_points)
+        # Apply transformation: rotate then translate
+        points_sdf = quat_apply(contact_object_quat_expanded, world_points) + contact_object_pos_expanded
 
         return points_sdf, contact_object_quat_inv
 

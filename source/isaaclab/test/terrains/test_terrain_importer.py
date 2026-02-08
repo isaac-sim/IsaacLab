@@ -20,7 +20,6 @@ import torch
 import trimesh
 
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -173,7 +172,7 @@ def test_ball_drop(device):
         sim.reset()
 
         # Create a view over all the balls using PhysX view
-        physics_sim_view = SimulationManager.get_physics_sim_view()
+        physics_sim_view = sim.physics_manager.get_physics_sim_view()
         ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
 
         # Run simulator
@@ -206,7 +205,7 @@ def test_ball_drop_geom_sphere(device):
         sim.reset()
 
         # Create a view over all the balls using PhysX view
-        physics_sim_view = SimulationManager.get_physics_sim_view()
+        physics_sim_view = sim.physics_manager.get_physics_sim_view()
         ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
 
         # Run simulator
