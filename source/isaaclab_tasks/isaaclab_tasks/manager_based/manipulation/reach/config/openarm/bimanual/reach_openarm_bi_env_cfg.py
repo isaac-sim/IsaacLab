@@ -332,4 +332,4 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 24.0
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1.0 / 60.0
+        self.sim.physics.dt = 1.0 / 60.0

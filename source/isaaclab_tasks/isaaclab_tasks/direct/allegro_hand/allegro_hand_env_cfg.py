@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -32,7 +32,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 120,
             physics_material=RigidBodyMaterialCfg(
                 static_friction=1.0,

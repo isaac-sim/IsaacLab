@@ -35,7 +35,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaacsim.core.cloner import GridCloner
 
@@ -75,7 +75,7 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.005)))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=0.005)))
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 

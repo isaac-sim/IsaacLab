@@ -13,35 +13,20 @@ import contextlib
 import warnings
 from typing import Any, Literal  # Literal used by RenderCfg
 
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.physics.physics_manager_cfg import PhysicsManagerCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-
-# Deprecated alias for PhysxCfg -> PhysxManagerCfg
-# This supports old code that uses `from isaaclab.sim.simulation_cfg import PhysxCfg`
-class PhysxCfg(PhysxManagerCfg):
-    """DEPRECATED: Use PhysxManagerCfg from isaaclab_physx.physics instead."""
-
-    def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "PhysxCfg is deprecated. Use PhysxManagerCfg from isaaclab_physx.physics instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
-
-
-# Mapping of deprecated SimulationCfg fields to their new location in physics_manager_cfg
+# Mapping of deprecated SimulationCfg fields to their new location in physics
 _DEPRECATED_FIELDS = {
-    "dt": "physics_manager_cfg.dt",
-    "gravity": "physics_manager_cfg.gravity",
-    "physics_prim_path": "physics_manager_cfg.physics_prim_path",
-    "physics_material": "physics_manager_cfg.physics_material",
-    "use_fabric": "physics_manager_cfg.use_fabric",
-    "physx": "physics_manager_cfg (PhysxManagerCfg attributes directly)",
+    "dt": "physics.dt",
+    "gravity": "physics.gravity",
+    "physics_prim_path": "physics.physics_prim_path",
+    "physics_material": "physics.physics_material",
+    "use_fabric": "physics.use_fabric",
+    "physx": "physics (PhysxCfg attributes directly)",
 }
 
 
@@ -197,14 +182,14 @@ class SimulationCfg:
     """Configuration for simulation physics.
 
     .. note::
-        The following fields have been moved to ``physics_manager_cfg`` and are deprecated:
+        The following fields have been moved to ``physics`` and are deprecated:
 
-        - ``dt`` → ``physics_manager_cfg.dt``
-        - ``gravity`` → ``physics_manager_cfg.gravity``
-        - ``physics_prim_path`` → ``physics_manager_cfg.physics_prim_path``
-        - ``physics_material`` → ``physics_manager_cfg.physics_material``
-        - ``use_fabric`` → ``physics_manager_cfg.use_fabric``
-        - ``physx`` → Use ``PhysxManagerCfg`` attributes directly
+        - ``dt`` → ``physics.dt``
+        - ``gravity`` → ``physics.gravity``
+        - ``physics_prim_path`` → ``physics.physics_prim_path``
+        - ``physics_material`` → ``physics.physics_material``
+        - ``use_fabric`` → ``physics.use_fabric``
+        - ``physx`` → Use ``PhysxCfg`` attributes directly
 
         Using the old field names will issue a deprecation warning and forward
         the values to the new location.
@@ -238,8 +223,8 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    physics_manager_cfg: PhysicsManagerCfg = PhysxManagerCfg()
-    """Physics manager configuration. Default is PhysxManagerCfg().
+    physics: PhysicsCfg = PhysxCfg()
+    """Physics manager configuration. Default is PhysxCfg().
 
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
@@ -272,28 +257,28 @@ class SimulationCfg:
 
     # Deprecated fields - accepted in constructor for backward compatibility
     dt: float | None = None
-    """DEPRECATED: Use physics_manager_cfg.dt instead."""
+    """DEPRECATED: Use physics.dt instead."""
 
     gravity: tuple[float, float, float] | None = None
-    """DEPRECATED: Use physics_manager_cfg.gravity instead."""
+    """DEPRECATED: Use physics.gravity instead."""
 
     physics_prim_path: str | None = None
-    """DEPRECATED: Use physics_manager_cfg.physics_prim_path instead."""
+    """DEPRECATED: Use physics.physics_prim_path instead."""
 
     physics_material: Any | None = None
-    """DEPRECATED: Use physics_manager_cfg.physics_material instead."""
+    """DEPRECATED: Use physics.physics_material instead."""
 
     use_fabric: bool | None = None
-    """DEPRECATED: Use physics_manager_cfg.use_fabric instead."""
+    """DEPRECATED: Use physics.use_fabric instead."""
 
     physx: Any | None = None
-    """DEPRECATED: Use physics_manager_cfg (PhysxManagerCfg) directly instead.
+    """DEPRECATED: Use physics (PhysxCfg) directly instead.
 
-    After initialization, this field is set to physics_manager_cfg for backward compatibility.
+    After initialization, this field is set to physics for backward compatibility.
     """
 
     def __post_init__(self):
-        """Forward deprecated constructor arguments to physics_manager_cfg."""
+        """Forward deprecated constructor arguments to physics."""
         deprecated_fields = ["dt", "gravity", "physics_prim_path", "physics_material", "use_fabric"]
 
         for field_name in deprecated_fields:
@@ -302,13 +287,13 @@ class SimulationCfg:
             if value is not None:
                 warnings.warn(
                     f"SimulationCfg({field_name}=...) is deprecated. "
-                    f"Use SimulationCfg(physics_manager_cfg=PhysxManagerCfg({field_name}=...)) instead.",
-                    DeprecationWarning,
+                    f"Use SimulationCfg(physics=PhysxCfg({field_name}=...)) instead.",
+                    FutureWarning,
                     stacklevel=4,
                 )
-                # Forward to physics_manager_cfg
-                if hasattr(self.physics_manager_cfg, field_name):
-                    setattr(self.physics_manager_cfg, field_name, value)
+                # Forward to physics
+                if hasattr(self.physics, field_name):
+                    setattr(self.physics, field_name, value)
 
         # Delete deprecated fields so __getattr__ is called when accessing them
         # This allows runtime access like self.sim.dt to work via __getattr__
@@ -317,18 +302,17 @@ class SimulationCfg:
                 with contextlib.suppress(AttributeError):
                     delattr(self, field_name)
 
-        # Set physics_material to point to physics_manager_cfg.physics_material for backward-compatible access
-        if hasattr(self.physics_manager_cfg, "physics_material"):
-            object.__setattr__(self, "physics_material", self.physics_manager_cfg.physics_material)
+        # Set physics_material to point to physics.physics_material for backward-compatible access
+        if hasattr(self.physics, "physics_material"):
+            object.__setattr__(self, "physics_material", self.physics.physics_material)
 
-        # Handle physx=PhysxCfg(...) - copy PhysX-specific attributes to physics_manager_cfg
+        # Handle physx=PhysxCfg(...) - copy PhysX-specific attributes to physics
         # The old PhysxCfg only had PhysX-specific settings, not dt/gravity/etc.
         physx_cfg = getattr(self, "physx", None)
         if physx_cfg is not None:
             warnings.warn(
-                "SimulationCfg(physx=...) is deprecated. "
-                "Use SimulationCfg(physics_manager_cfg=PhysxManagerCfg(...)) instead.",
-                DeprecationWarning,
+                "SimulationCfg(physx=...) is deprecated. Use SimulationCfg(physics=PhysxCfg(...)) instead.",
+                FutureWarning,
                 stacklevel=4,
             )
             # PhysX-specific fields that should be copied (not general physics settings)
@@ -372,66 +356,74 @@ class SimulationCfg:
                         else:
                             default = None
                         # Only copy if different from default
-                        if value != default and hasattr(self.physics_manager_cfg, field.name):
-                            setattr(self.physics_manager_cfg, field.name, value)
+                        if value != default and hasattr(self.physics, field.name):
+                            setattr(self.physics, field.name, value)
 
-        # Set physx to physics_manager_cfg for backward-compatible access (sim.physx.some_setting)
-        object.__setattr__(self, "physx", self.physics_manager_cfg)
+        # Note: 'physx' is handled in __getattr__ for backward-compatible access with deprecation warning
+        # Delete the physx field so __getattr__ is called when accessing it
+        with contextlib.suppress(AttributeError):
+            delattr(self, "physx")
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """Intercept deprecated attribute assignment and forward to physics_manager_cfg."""
+        """Intercept deprecated attribute assignment and forward to physics."""
         # Mapping of deprecated fields to their new location
         deprecated_map = {
-            "dt": "physics_manager_cfg.dt",
-            "gravity": "physics_manager_cfg.gravity",
-            "physics_prim_path": "physics_manager_cfg.physics_prim_path",
-            "physics_material": "physics_manager_cfg.physics_material",
-            "use_fabric": "physics_manager_cfg.use_fabric",
+            "dt": "physics.dt",
+            "gravity": "physics.gravity",
+            "physics_prim_path": "physics.physics_prim_path",
+            "physics_material": "physics.physics_material",
+            "use_fabric": "physics.use_fabric",
         }
 
         if name in deprecated_map and value is not None:
             # Only forward non-None values (None means "not set" for deprecated fields)
             try:
-                physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
-                if hasattr(physics_cfg, name):
-                    setattr(physics_cfg, name, value)
+                physics = object.__getattribute__(self, "physics")
+                if hasattr(physics, name):
+                    setattr(physics, name, value)
                     warnings.warn(
                         f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
-                        DeprecationWarning,
+                        FutureWarning,
                         stacklevel=2,
                     )
                     return
             except AttributeError:
-                # physics_manager_cfg not yet set, fall through to normal setattr
+                # physics not yet set, fall through to normal setattr
                 pass
         # Default behavior
         object.__setattr__(self, name, value)
 
     def __getattr__(self, name: str) -> Any:
-        """Intercept deprecated attribute access and forward to physics_manager_cfg."""
+        """Intercept deprecated attribute access and forward to physics."""
         # Mapping of deprecated fields to their new location
         deprecated_map = {
-            "dt": "physics_manager_cfg.dt",
-            "gravity": "physics_manager_cfg.gravity",
-            "physics_prim_path": "physics_manager_cfg.physics_prim_path",
-            "physics_material": "physics_manager_cfg.physics_material",
-            "use_fabric": "physics_manager_cfg.use_fabric",
+            "dt": "physics.dt",
+            "gravity": "physics.gravity",
+            "physics_prim_path": "physics.physics_prim_path",
+            "physics_material": "physics.physics_material",
+            "use_fabric": "physics.use_fabric",
         }
 
         if name in deprecated_map:
             try:
-                physics_cfg = object.__getattribute__(self, "physics_manager_cfg")
-                if hasattr(physics_cfg, name):
+                physics = object.__getattribute__(self, "physics")
+                if hasattr(physics, name):
                     warnings.warn(
                         f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
-                        DeprecationWarning,
+                        FutureWarning,
                         stacklevel=2,
                     )
-                    return getattr(physics_cfg, name)
+                    return getattr(physics, name)
             except AttributeError:
                 pass
 
-        # Note: 'physx' is now a field set to physics_manager_cfg in __post_init__
-        # for backward compatibility with sim.physx.some_setting access
+        # Handle 'physx' access for backward compatibility with sim.physx.some_setting
+        if name == "physx":
+            warnings.warn(
+                "SimulationCfg.physx is deprecated. Use physics directly instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            return object.__getattribute__(self, "physics")
 
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")

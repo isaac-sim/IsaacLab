@@ -318,15 +318,15 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.decimation = 10  # 50 Hz
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 0.002  # 500 Hz
+        self.sim.physics.dt = 0.002  # 500 Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics_manager_cfg.physics_material.static_friction = 1.0
-        self.sim.physics_manager_cfg.physics_material.dynamic_friction = 1.0
-        self.sim.physics_manager_cfg.physics_material.friction_combine_mode = "multiply"
-        self.sim.physics_manager_cfg.physics_material.restitution_combine_mode = "multiply"
+        self.sim.physics.physics_material.static_friction = 1.0
+        self.sim.physics.physics_material.dynamic_friction = 1.0
+        self.sim.physics.physics_material.friction_combine_mode = "multiply"
+        self.sim.physics.physics_material.restitution_combine_mode = "multiply"
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
-        self.scene.contact_forces.update_period = self.sim.physics_manager_cfg.dt
+        self.scene.contact_forces.update_period = self.sim.physics.dt
 
         # switch robot to Spot-d
         self.scene.robot = SPOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

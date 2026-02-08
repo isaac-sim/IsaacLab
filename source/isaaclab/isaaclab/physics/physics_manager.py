@@ -250,7 +250,7 @@ class PhysicsManager(ABC):
         # Set on PhysicsManager explicitly so PhysicsManager.get_*() works
         # regardless of which subclass is active (Python class vars are per-class)
         PhysicsManager._sim = sim_context
-        PhysicsManager._cfg = sim_context.cfg.physics_manager_cfg
+        PhysicsManager._cfg = sim_context.cfg.physics
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
 

@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import math
 
 import pytest
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from pxr import UsdPhysics
 
@@ -34,7 +34,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=dt)))
     # Set some default values for test
     arti_cfg = schemas.ArticulationRootPropertiesCfg(
         enabled_self_collisions=False,

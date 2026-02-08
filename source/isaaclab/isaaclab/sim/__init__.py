@@ -36,17 +36,17 @@ from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
 from .views import *  # noqa: F401, F403
 
-# Deprecated alias for PhysxCfg -> PhysxManagerCfg
+# Deprecated alias for PhysxCfg -> PhysxCfg
 # This supports old code that uses `from isaaclab.sim import PhysxCfg`
 try:
-    from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg as _PhysxManagerCfg
+    from isaaclab_physx.physics import PhysxCfg as _PhysxCfg
 
-    class PhysxCfg(_PhysxManagerCfg):
-        """DEPRECATED: Use PhysxManagerCfg from isaaclab_physx.physics instead."""
+    class PhysxCfg(_PhysxCfg):
+        """DEPRECATED: Use PhysxCfg from isaaclab_physx.physics instead."""
 
         def __init__(self, *args, **kwargs):
             warnings.warn(
-                "PhysxCfg is deprecated. Use PhysxManagerCfg from isaaclab_physx.physics instead.",
+                "PhysxCfg is deprecated. Use PhysxCfg from isaaclab_physx.physics instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )

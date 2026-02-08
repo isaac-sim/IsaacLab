@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -53,7 +53,7 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 60,
             gpu_found_lost_pairs_capacity=2**23,
             gpu_total_aggregate_pairs_capacity=2**23,

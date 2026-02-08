@@ -6,7 +6,7 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -303,7 +303,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     sim: SimulationCfg = SimulationCfg(
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
             gpu_collision_stack_size=2**30,
             gpu_max_rigid_contact_count=2**23,
@@ -319,7 +319,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation
-        self.sim.physics_manager_cfg.dt = 1.0 / 120.0
+        self.sim.physics.dt = 1.0 / 120.0
 
         self.gear_offsets = {
             "gear_small": [0.076125, 0.0, 0.0],

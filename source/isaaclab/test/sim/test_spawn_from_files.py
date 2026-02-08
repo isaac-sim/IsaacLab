@@ -13,7 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 from packaging.version import Version
 
 import omni.kit.app
@@ -32,7 +32,7 @@ def sim():
     # Simulation time-step
     dt = 0.1
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt)))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=dt)))
     # Wait for spawning
     sim_utils.update_stage()
 

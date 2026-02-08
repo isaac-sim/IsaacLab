@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.physics import PhysicsManagerCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
 from .physx_manager import PhysxManager
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @configclass
-class PhysxManagerCfg(PhysicsManagerCfg):
+class PhysxCfg(PhysicsCfg):
     """Configuration for PhysX physics manager.
 
     This configuration includes all PhysX-specific settings including solver

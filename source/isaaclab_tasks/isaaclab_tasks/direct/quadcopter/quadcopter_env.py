@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -62,7 +62,7 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 100,
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 friction_combine_mode="multiply",

@@ -17,7 +17,7 @@ import math
 import pytest
 import scipy.spatial.transform as tf
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -75,7 +75,7 @@ class MySceneCfg(InteractiveSceneCfg):
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics_manager_cfg=PhysxManagerCfg(dt=0.005))
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=PhysxCfg(dt=0.005))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # Set main camera

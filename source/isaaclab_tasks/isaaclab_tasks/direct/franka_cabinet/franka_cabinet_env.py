@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from pxr import UsdGeom
 
@@ -35,7 +35,7 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 120,
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 friction_combine_mode="multiply",

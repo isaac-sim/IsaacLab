@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 import torch
 from flaky import flaky
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
@@ -50,7 +50,7 @@ def setup_camera():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=dt))
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()

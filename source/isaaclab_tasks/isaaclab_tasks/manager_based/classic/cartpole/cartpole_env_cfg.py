@@ -177,5 +177,5 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1 / 120
+        self.sim.physics.dt = 1 / 120
         self.sim.render_interval = self.decimation

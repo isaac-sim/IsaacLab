@@ -21,7 +21,7 @@ import os
 import numpy as np
 import pytest
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 from pxr import Gf
@@ -50,7 +50,7 @@ def setup_simulation():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=dt))
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # Ground-plane
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)

@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -130,7 +129,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 120,
             physics_material=RigidBodyMaterialCfg(
                 static_friction=1.0,
@@ -245,7 +244,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 60,
             physics_material=RigidBodyMaterialCfg(
                 static_friction=1.0,

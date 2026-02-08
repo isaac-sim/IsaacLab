@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -107,7 +107,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
     episode_length_s = 5.0
     sim: SimulationCfg = SimulationCfg(
         device="cuda:0",
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             dt=1 / 120,
             gravity=(0.0, 0.0, -9.81),
             solver_type=1,

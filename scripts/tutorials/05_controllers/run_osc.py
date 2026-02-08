@@ -37,7 +37,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg
@@ -463,7 +463,7 @@ def convert_to_task_frame(osc: OperationalSpaceController, command: torch.tensor
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.01))
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=PhysxCfg(dt=0.01))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

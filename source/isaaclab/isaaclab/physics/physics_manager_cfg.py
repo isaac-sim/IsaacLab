@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @configclass
-class PhysicsManagerCfg:
+class PhysicsCfg:
     """Abstract base configuration for physics managers.
 
     This base class contains common simulation parameters shared across
@@ -49,3 +49,10 @@ class PhysicsManagerCfg:
 
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
+
+
+# Backward compatibility alias
+PhysicsCfg = PhysicsCfg
+""".. deprecated:: 2.4
+    Use :class:`PhysicsCfg` instead.
+"""

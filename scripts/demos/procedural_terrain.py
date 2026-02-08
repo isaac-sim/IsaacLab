@@ -68,7 +68,7 @@ simulation_app = app_launcher.app
 import random
 
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
@@ -155,7 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 def main():
     """Main function."""
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics_manager_cfg=PhysxManagerCfg(dt=0.01))
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=PhysxCfg(dt=0.01))
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])

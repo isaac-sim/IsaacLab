@@ -17,7 +17,7 @@ import pathlib
 
 import pytest
 import torch
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -203,7 +203,7 @@ class MySceneCfg(InteractiveSceneCfg):
 def setup_sim():
     """Create a simulation context and scene."""
     sim_cfg = sim_utils.SimulationCfg(
-        physics_manager_cfg=PhysxManagerCfg(dt=0.001, solver_type=0)
+        physics=PhysxCfg(dt=0.001, solver_type=0)
     )  # 0: PGS, 1: TGS --> use PGS for more accurate results
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None

@@ -6,11 +6,11 @@
 """Implementation backends for simulation interfaces."""
 
 from .physx_manager import PhysxManager, IsaacEvents
-from .physx_manager_cfg import PhysxManagerCfg
+from .physx_manager_cfg import PhysxCfg
 
 
 __all__ = [
     "PhysxManager",
     "IsaacEvents",
-    "PhysxManagerCfg",
+    "PhysxCfg",
 ]

@@ -36,7 +36,7 @@ from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
-    from .physx_manager_cfg import PhysxManagerCfg
+    from .physx_cfg import PhysxCfg
 
 __all__ = ["IsaacEvents", "PhysxManager"]
 
@@ -157,7 +157,7 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    _cfg: ClassVar[PhysxManagerCfg | None] = None
+    _cfg: ClassVar[PhysxCfg | None] = None
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()

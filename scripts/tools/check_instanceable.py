@@ -64,7 +64,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-from isaaclab_physx.physics.physx_manager_cfg import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaacsim.core.cloner import GridCloner
 
@@ -80,7 +80,7 @@ def main():
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(physics_manager_cfg=PhysxManagerCfg(dt=0.01)))
+    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=0.01)))
 
     # get stage handle
     stage = sim_utils.get_current_stage()

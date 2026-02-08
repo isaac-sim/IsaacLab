@@ -6,11 +6,11 @@
 """Implementation backends for simulation interfaces."""
 
 from .physics_manager import PhysicsManager, PhysicsEvent, CallbackHandle
-from .physics_manager_cfg import PhysicsManagerCfg
+from .physics_manager_cfg import PhysicsCfg
 
 __all__ = [
     "PhysicsManager",
     "PhysicsEvent",
     "CallbackHandle",
-    "PhysicsManagerCfg",
+    "PhysicsCfg",
 ]

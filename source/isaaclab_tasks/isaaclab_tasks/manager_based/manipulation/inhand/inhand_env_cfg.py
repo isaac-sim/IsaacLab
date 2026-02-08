@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxManagerCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -317,7 +317,7 @@ class InHandObjectEnvCfg(ManagerBasedRLEnvCfg):
     scene: InHandObjectSceneCfg = InHandObjectSceneCfg(num_envs=8192, env_spacing=0.6)
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
-        physics_manager_cfg=PhysxManagerCfg(
+        physics=PhysxCfg(
             physics_material=RigidBodyMaterialCfg(
                 static_friction=1.0,
                 dynamic_friction=1.0,
@@ -342,7 +342,7 @@ class InHandObjectEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics_manager_cfg.dt = 1.0 / 120.0
+        self.sim.physics.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         # change viewer settings
         self.viewer.eye = (2.0, 2.0, 2.0)
