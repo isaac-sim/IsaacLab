@@ -288,6 +288,36 @@ def close_stage(callback_fn: Callable[[bool, str], None] | None = None) -> bool:
     return result
 
 
+def is_prim_deletable(prim: Usd.Prim) -> bool:
+    """Check if a prim can be safely deleted.
+
+    This function checks various conditions to determine if a prim should be deleted:
+    - Root prim ("/") cannot be deleted
+    - Prims under "/Render" namespace are preserved
+    - Prims with "no_delete" metadata are preserved
+    - Prims hidden in stage window are preserved
+    - Ancestral prims (from USD references) cannot be deleted
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if the prim can be deleted, False otherwise.
+    """
+    prim_path = prim.GetPath().pathString
+    if prim_path == "/":
+        return False
+    if prim_path.startswith("/Render"):
+        return False
+    if prim.GetMetadata("no_delete"):
+        return False
+    if prim.GetMetadata("hide_in_stage_window"):
+        return False
+    if omni.usd.check_ancestral(prim):
+        return False
+    return True
+
+
 def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     """Deletes all prims in the stage without populating the undo command buffer.
 
@@ -316,31 +346,14 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     from .prims import delete_prim
     from .queries import get_all_matching_child_prims
 
-    def _default_predicate(prim: Usd.Prim) -> bool:
-        """Check if the prim should be deleted."""
-        prim_path = prim.GetPath().pathString
-        if prim_path == "/":
-            return False
-        if prim_path.startswith("/Render"):
-            return False
-        if prim.GetMetadata("no_delete"):
-            return False
-        if prim.GetMetadata("hide_in_stage_window"):
-            return False
-        if omni.usd.check_ancestral(prim):
-            return False
-        return True
-
     def _predicate_from_path(prim: Usd.Prim) -> bool:
         if predicate is None:
-            return _default_predicate(prim)
-        return predicate(prim)
+            return is_prim_deletable(prim)
+        # Custom predicate must also pass the deletable check
+        return predicate(prim) and is_prim_deletable(prim)
 
     # get all prims to delete
-    if predicate is None:
-        prims = get_all_matching_child_prims("/", _default_predicate)
-    else:
-        prims = get_all_matching_child_prims("/", _predicate_from_path)
+    prims = get_all_matching_child_prims("/", _predicate_from_path)
     # convert prims to prim paths
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims

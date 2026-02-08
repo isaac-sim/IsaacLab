@@ -332,14 +332,23 @@ class SimulationContext:
 
     @classmethod
     def clear_stage(cls) -> None:
-        """Clear the current USD stage.
+        """Clear the current USD stage (preserving /World and PhysicsScene).
 
-        Uses the default predicate which skips root, /Render, no_delete prims,
-        hidden prims, and ancestral prims (from USD references).
+        Uses a predicate that preserves /World and PhysicsScene while also
+        respecting the default deletability checks (ancestral prims, etc.).
         """
         if cls._instance is None:
             return
-        sim_utils.clear_stage()
+
+        def _predicate(prim: Usd.Prim) -> bool:
+            path = prim.GetPath().pathString
+            if path == "/World":
+                return False
+            if prim.GetTypeName() == "PhysicsScene":
+                return False
+            return True
+
+        sim_utils.clear_stage(predicate=_predicate)
 
 
 @contextmanager
