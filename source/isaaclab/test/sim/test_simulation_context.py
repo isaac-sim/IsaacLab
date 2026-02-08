@@ -64,7 +64,7 @@ def test_init(device):
     # verify device property
     assert sim.device == device
     # verify no RTX sensors are available
-    assert not sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
+    assert not sim.has_rtx_sensors
 
     # obtain physics scene from USD
     from pxr import UsdPhysics
@@ -141,10 +141,8 @@ def test_carb_setting():
 def test_headless_mode():
     """Test that render mode is headless since we are running in headless mode."""
     sim = SimulationContext()
-    # check default render mode
-    assert not sim.carb_settings.get("/isaaclab/has_gui") and not bool(
-        sim.carb_settings.get("/isaaclab/render/offscreen")
-    )
+    # check default render mode (no GUI and no offscreen rendering)
+    assert not sim.has_gui and not sim.has_offscreen_render
 
 
 """
@@ -368,7 +366,7 @@ def test_fabric_setting(use_fabric):
     sim = SimulationContext(cfg)
 
     # check fabric is enabled via physics setting
-    assert sim.carb_settings.get_as_bool("/isaaclab/fabric_enabled") == use_fabric
+    assert sim.get_setting("/isaaclab/fabric_enabled") == use_fabric
 
 
 @pytest.mark.isaacsim_ci

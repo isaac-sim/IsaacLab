@@ -135,11 +135,11 @@ class OVVisualizer(Visualizer):
         self._app_iface = omni.kit.app.get_app_interface()
 
         # Detect render flags from carb settings
-        local_gui = self._sim.carb_settings.get("/app/window/enabled")
-        livestream_gui = self._sim.carb_settings.get("/app/livestream/enabled")
-        xr_gui = self._sim.carb_settings.get("/app/xr/enabled")
-        self._offscreen_render = bool(self._sim.carb_settings.get("/isaaclab/render/offscreen"))
-        self._render_viewport = bool(self._sim.carb_settings.get("/isaaclab/render/active_viewport"))
+        local_gui = self._sim.get_setting("/app/window/enabled")
+        livestream_gui = self._sim.get_setting("/app/livestream/enabled")
+        xr_gui = self._sim.get_setting("/app/xr/enabled")
+        self._offscreen_render = bool(self._sim.get_setting("/isaaclab/render/offscreen"))
+        self._render_viewport = bool(self._sim.get_setting("/isaaclab/render/active_viewport"))
 
         # Flag for whether any GUI will be rendered
         self._has_gui = bool(local_gui or livestream_gui or xr_gui)
@@ -265,7 +265,7 @@ class OVVisualizer(Visualizer):
         if self._sim is None:
             return None
 
-        settings = self._sim.carb_settings
+        settings = self._sim._carb_settings
 
         def _from_frequency():
             freq = settings.get("/app/runLoops/main/rateLimitFrequency")

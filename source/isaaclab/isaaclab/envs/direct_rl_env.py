@@ -139,7 +139,7 @@ class DirectRLEnv(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.carb_settings.get("/isaaclab/has_gui"):
+        if self.sim.has_gui:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -178,7 +178,7 @@ class DirectRLEnv(gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.carb_settings.get("/isaaclab/has_gui") and self.cfg.ui_window_class_type is not None:
+        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -318,11 +318,11 @@ class DirectRLEnv(gym.Env):
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
+        if self.sim.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
-        if self.cfg.wait_for_textures and self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors"):
+        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
             pm = self.sim.physics_manager
             if hasattr(pm, "assets_loading"):
@@ -365,10 +365,8 @@ class DirectRLEnv(gym.Env):
         self._pre_physics_step(action)
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.carb_settings.get("/isaaclab/has_gui") or self.sim.carb_settings.get_as_bool(
-            "/isaaclab/render/rtx_sensors"
-        )
+        # note: uses cached property to avoid settings lookup every step
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -401,10 +399,7 @@ class DirectRLEnv(gym.Env):
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if (
-                self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors")
-                and self.cfg.num_rerenders_on_reset > 0
-            ):
+            if self.sim.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -467,17 +462,15 @@ class DirectRLEnv(gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.carb_settings.get_as_bool("/isaaclab/render/rtx_sensors") and not recompute:
+        # if we have rtx sensors, we do not need to render again since step already rendered
+        if not self.sim.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if not self.sim.carb_settings.get("/isaaclab/has_gui") and not bool(
-                self.sim.carb_settings.get("/isaaclab/render/offscreen")
-            ):
+            if not self.sim.has_gui and not self.sim.has_offscreen_render:
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."

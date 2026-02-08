@@ -207,7 +207,7 @@ class PhysxManager(PhysicsManager):
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
-        cls._anim_recorder = AnimationRecorder(sim_context.carb_settings)
+        cls._anim_recorder = AnimationRecorder(sim_context._carb_settings)
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -431,7 +431,7 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim.carb_settings
+        settings = sim._carb_settings
         device = sim.device
 
         # global carb settings
@@ -522,7 +522,7 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim.carb_settings
+        settings = sim._carb_settings
         use_fabric = cfg.use_fabric
         ext_mgr = omni.kit.app.get_app().get_extension_manager()
 

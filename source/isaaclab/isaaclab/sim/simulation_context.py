@@ -106,8 +106,8 @@ class SimulationContext:
         stage_utils._context.stage = self.stage
 
         # Acquire settings interface and create helper
-        self.carb_settings = carb.settings.get_settings()
-        self._settings_helper = SettingsHelper(self.carb_settings)
+        self._carb_settings = carb.settings.get_settings()
+        self._settings_helper = SettingsHelper(self._carb_settings)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -117,6 +117,11 @@ class SimulationContext:
 
         # Initialize visualizers
         self._init_visualizers()
+
+        # Cache commonly-used settings (these don't change during runtime)
+        self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
+        self._has_rtx_sensors = bool(self.get_setting("/isaaclab/render/rtx_sensors"))
+        self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
 
         # Simulation state
         self._is_playing = False
@@ -169,6 +174,26 @@ class SimulationContext:
     def backend(self) -> str:
         """Returns the tensor backend being used ("numpy" or "torch")."""
         return self.physics_manager.get_backend()
+
+    @property
+    def has_gui(self) -> bool:
+        """Returns whether GUI is enabled (cached at init)."""
+        return self._has_gui
+
+    @property
+    def has_rtx_sensors(self) -> bool:
+        """Returns whether RTX sensors are enabled (cached at init)."""
+        return self._has_rtx_sensors
+
+    @property
+    def has_offscreen_render(self) -> bool:
+        """Returns whether offscreen rendering is enabled (cached at init)."""
+        return self._has_offscreen_render
+
+    @property
+    def is_rendering(self) -> bool:
+        """Returns whether rendering is active (GUI or RTX sensors)."""
+        return self._has_gui or self._has_rtx_sensors
 
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
