@@ -284,7 +284,7 @@ class TestGPUInfoRecorder:
         assert "total_memory_gb" in device_0
         assert "compute_capability" in device_0
         assert "multi_processor_count" in device_0
-        assert "memory_allocated_mean_bytes" in device_0
+        assert "memory_used_mean_bytes" in device_0
         assert "memory_allocated_std_bytes" in device_0
         assert "memory_n" in device_0
 
