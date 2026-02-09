@@ -485,8 +485,6 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            # TODO: Here, we copy. But do we need to? What are the risks? If this is a pointer to the staging buffers,
-            # this could be good, and we could just capture the pointer early on without ever needing to update ours.
             self._root_link_pose_w.data = self._root_view.get_root_transforms()
             self._root_link_pose_w.timestamp = self._sim_timestamp
 
@@ -558,7 +556,16 @@ class ArticulationData(BaseArticulationData):
         the linear and angular velocities are of the articulation root's center of mass frame.
         """
         if self._root_state_w.timestamp < self._sim_timestamp:
-            self._root_state_w.data = torch.cat((self.root_link_pose_w, self.root_com_vel_w), dim=-1)
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                    self._root_state_w.data,
+                ],
+                device=self.device,
+            )
             self._root_state_w.timestamp = self._sim_timestamp
 
         return self._root_state_w.data
@@ -571,7 +578,16 @@ class ArticulationData(BaseArticulationData):
         world.
         """
         if self._root_link_state_w.timestamp < self._sim_timestamp:
-            self._root_link_state_w.data = torch.cat((self.root_link_pose_w, self.root_link_vel_w), dim=-1)
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                    self._root_link_state_w.data,
+                ],
+                device=self.device,
+            )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
         return self._root_link_state_w.data
@@ -585,7 +601,16 @@ class ArticulationData(BaseArticulationData):
         orientation of the principle inertia. Shape is (num_instances, 13).
         """
         if self._root_com_state_w.timestamp < self._sim_timestamp:
-            self._root_com_state_w.data = torch.cat((self.root_com_pose_w, self.root_com_vel_w), dim=-1)
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._root_view.count,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                    self._root_com_state_w.data,
+                ],
+                device=self.device,
+            )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
         return self._root_com_state_w.data
@@ -597,12 +622,14 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_mass(self) -> wp.array:
         """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
-        return self._body_mass.to(self.device)
+        self._body_mass = self._root_view.get_masses().to(self.device).clone()
+        return self._body_mass
 
     @property
     def body_inertia(self) -> wp.array:
         """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
-        return self._body_inertia.to(self.device)
+        self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+        return self._body_inertia
 
     @property
     def body_link_pose_w(self) -> wp.array:
@@ -615,10 +642,8 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # perform forward kinematics (shouldn't cause overhead if it happened already)
             self._physics_sim_view.update_articulations_kinematic()
-            # read data from simulation
-            poses = self._root_view.get_link_transforms().clone()
             # set the buffer data and timestamp
-            self._body_link_pose_w.data = poses
+            self._body_link_pose_w.data = self._root_view.get_link_transforms()
             self._body_link_pose_w.timestamp = self._sim_timestamp
 
         return self._body_link_pose_w.data

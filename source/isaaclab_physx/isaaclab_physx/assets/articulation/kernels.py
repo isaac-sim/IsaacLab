@@ -38,3 +38,33 @@ def get_root_com_pose_from_root_link_pose(
     i = wp.tid()
     com_pose[i] = get_root_com_pose_from_root_link_pose_func(link_pose[i], body_com_pose[0, i])
 
+@wp.kernel
+def concat_root_pose_and_vel_to_state_func(
+    pose: wp.transformf,
+    vel: wp.spatial_vectorf,
+    state: vec13f,
+):
+    # Pose: [pos, quat]
+    state[0] = pose[0]
+    state[1] = pose[1]
+    state[2] = pose[2]
+    state[3] = pose[3]
+    state[4] = pose[4]
+    state[5] = pose[5]
+    state[6] = pose[6]
+    # Velocity: [lin_vel, ang_vel]
+    state[7] = vel[0]
+    state[8] = vel[1]
+    state[9] = vel[2]
+    state[10] = vel[3]
+    state[11] = vel[4]
+    state[12] = vel[5]
+
+@wp.kernel
+def concat_root_pose_and_vel_to_state(
+    pose: wp.array(dtype=wp.transformf),
+    vel: wp.array(dtype=wp.spatial_vectorf),
+    state: wp.array(dtype=vec13f),
+):
+    i = wp.tid()
+    concat_root_pose_and_vel_to_state_func(pose[i], vel[i], state[i])
