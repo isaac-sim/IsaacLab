@@ -154,6 +154,6 @@ class NewtonWarpRenderer:
 
         color = input_data[world_id, cameras_id, y, x]
         output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(0)) & wp.uint32(0xFF))
-        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(8)) & wp.uint32(0xFF))
-        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(16)) & wp.uint32(0xFF))
-        output_data[world_id, y, x, 0] = wp.uint8((color >> wp.uint32(24)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 1] = wp.uint8((color >> wp.uint32(8)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 2] = wp.uint8((color >> wp.uint32(16)) & wp.uint32(0xFF))
+        output_data[world_id, y, x, 3] = wp.uint8((color >> wp.uint32(24)) & wp.uint32(0xFF))
