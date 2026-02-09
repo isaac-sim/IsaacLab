@@ -49,10 +49,3 @@ class PhysicsCfg:
 
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
-
-
-# Backward compatibility alias
-PhysicsCfg = PhysicsCfg
-""".. deprecated:: 2.4
-    Use :class:`PhysicsCfg` instead.
-"""
