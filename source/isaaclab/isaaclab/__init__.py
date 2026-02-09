@@ -28,6 +28,6 @@ except ImportError:
         __version__ = ISAACLAB_METADATA["package"]["version"]
     except (ImportError, FileNotFoundError):
         # Tomllib is not part of the standard library before Python 3.11.
-        # Stub is good enough for installation puposes.
+        # Stub is good enough for installation purposes.
         ISAACLAB_METADATA = {"package": {"version": "0.0.0"}}
         __version__ = "0.0.0"
