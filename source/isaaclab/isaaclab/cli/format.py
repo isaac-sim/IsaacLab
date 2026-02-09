@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 
-from .utils import ISAACLAB_ROOT, extract_python_exe, run_command
+from .utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
 def format_code():
@@ -39,10 +39,10 @@ def format_code():
             pass
 
     if not pre_commit_installed:
-        print("[INFO] Installing pre-commit module...")
+        print_info("Installing pre-commit module...")
         run_command([python_exe, "-m", "pip", "install", "pre-commit"])
 
-    print("[INFO] Formatting the repository...")
+    print_info("Formatting the repository...")
 
     try:
         # Run pre-commit as a module since we may have just installed it.

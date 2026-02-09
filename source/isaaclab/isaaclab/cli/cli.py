@@ -17,6 +17,7 @@ from .utils import (
     extract_python_exe,
     is_arm,
     is_windows,
+    print_info,
     run_command,
     run_docker_helper,
     run_python_command,
@@ -161,7 +162,6 @@ Examples:
         # Python execution.
         # Args.python is a list of remaining args.
         python_exe = extract_python_exe()
-        print(f"[INFO] Using python from: {python_exe}")
         # The first arg might be the script or -m, pass all.
         cmd = [python_exe] + args.python
         env = os.environ.copy()
@@ -175,7 +175,7 @@ Examples:
         # Sim execution.
         sim_exe = extract_isaacsim_exe()
 
-        print(f"[INFO] Running isaac-sim from: {sim_exe}")
+        print_info(f"Running isaac-sim from: {sim_exe}")
 
         cmd = sim_exe
 
@@ -187,12 +187,12 @@ Examples:
         run_command(cmd, check=False)
 
     elif args.new is not None:
-        print("[INFO] Installing template dependencies...")
+        print_info("Installing template dependencies...")
         python_exe = extract_python_exe()
         reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
         run_command([python_exe, "-m", "pip", "install", "-q", "-r", str(reqs)])
 
-        print("[INFO] Running template generator...")
+        print_info("Running template generator...")
         cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
         run_python_command(cli_script, args.new)
 

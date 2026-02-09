@@ -11,6 +11,9 @@ from .utils import (
     ISAACLAB_ROOT,
     is_isaacsim_version_5_x,
     is_windows,
+    print_error,
+    print_info,
+    print_warning,
     run_command,
 )
 
@@ -19,9 +22,9 @@ def setup_uv_env(env_name):
     """setup uv environment for Isaac Lab"""
     # Check if uv is installed.
     if not shutil.which("uv"):
-        print("[ERROR] uv could not be found. Please install uv and try again.")
-        print("[ERROR] uv can be installed here:")
-        print("[ERROR] https://docs.astral.sh/uv/getting-started/installation/")
+        print_error("uv could not be found. Please install uv and try again.")
+        print_error("uv can be installed here:")
+        print_error("https://docs.astral.sh/uv/getting-started/installation/")
         sys.exit(1)
 
     # Check if already in a uv environment - use precise pattern matching.
@@ -41,7 +44,7 @@ def setup_uv_env(env_name):
         except Exception:
             # Not installed, symlink missing.
             if not (ISAACLAB_ROOT / "_isaac_sim").exists():
-                print(f"[WARNING] _isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
+                print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
                 print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
                 print(
                     "\tIf you are using a binary installation of Isaac Sim, please ensure "
@@ -58,10 +61,10 @@ def setup_uv_env(env_name):
 
     # Check if the environment exists.
     if not env_path.exists():
-        print(f"[INFO] Creating uv environment named '{env_name}'...")
+        print_info(f"Creating uv environment named '{env_name}'...")
         run_command(["uv", "venv", "--clear", "--python", py_ver, str(env_path)])
     else:
-        print(f"[INFO] uv environment '{env_name}' already exists.")
+        print_info(f"uv environment '{env_name}' already exists.")
 
     # Install activation hooks.
     if is_windows():
@@ -82,7 +85,7 @@ def setup_uv_env(env_name):
                 if (ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh").exists():
                     f.write(f". {ISAACLAB_ROOT}/_isaac_sim/setup_conda_env.sh\n")
 
-    print(f"[INFO] Created uv environment named '{env_name}'.\n")
+    print_info(f"Created uv environment named '{env_name}'.\n")
     if is_windows():
         print(f"\t\t1. To activate the environment, run:                {env_name}\\Scripts\\activate")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")

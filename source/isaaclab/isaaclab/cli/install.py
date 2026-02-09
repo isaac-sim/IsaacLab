@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 
-from .utils import ISAACLAB_ROOT, extract_python_exe, is_arm, is_windows, run_command
+from .utils import ISAACLAB_ROOT, extract_python_exe, is_arm, is_windows, print_info, print_warning, run_command
 
 
 def install_system_deps():
@@ -17,11 +17,11 @@ def install_system_deps():
 
     # Check if cmake is already installed.
     if shutil.which("cmake"):
-        print("[INFO] cmake is already installed.")
+        print_info("cmake is already installed.")
     else:
         # Check if running as root.
         if os.geteuid() != 0:
-            print("[INFO] Installing system dependencies...")
+            print_info("Installing system dependencies...")
         cmd = ["apt-get", "update"]
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
@@ -82,7 +82,7 @@ def ensure_cuda_torch():
         return
 
     # Clean install torch.
-    print(f"[INFO] Installing torch=={torch_ver} and torchvision=={tv_ver} ({cuda_tag}) from {index_url}...")
+    print_info(f"Installing torch=={torch_ver} and torchvision=={tv_ver} ({cuda_tag}) from {index_url}...")
 
     run_command(
         [
@@ -118,7 +118,7 @@ def install_isaaclab_extensions():
     source_dir = ISAACLAB_ROOT / "source"
 
     if not source_dir.exists():
-        print(f"[WARNING] Source directory not found: {source_dir}")
+        print_warning(f"Source directory not found: {source_dir}")
         return
 
     # recursively look into directories and install them
@@ -126,7 +126,7 @@ def install_isaaclab_extensions():
     # source directory
     for item in source_dir.iterdir():
         if item.is_dir() and (item / "setup.py").exists():
-            print(f"[INFO] Installing extension: {item.name}")
+            print_info(f"Installing extension: {item.name}")
             # If the directory contains setup.py then install the python module.
             run_command(
                 [
@@ -151,10 +151,10 @@ def install_extra_frameworks(framework_name="all"):
 
     # Check if specified which rl-framework to install.
     if framework_name == "none":
-        print("[INFO] No rl-framework will be installed.")
+        print_info("No rl-framework will be installed.")
         return
 
-    print(f"[INFO] Installing rl-framework: {framework_name}")
+    print_info(f"Installing rl-framework: {framework_name}")
 
     # Install the learning frameworks specified.
     # Using --prefer-binary as per script.
@@ -193,29 +193,29 @@ def install(install_type="all"):
     install_system_deps()
 
     # Install the python packages in IsaacLab/source directory.
-    print("[INFO] Installing extensions inside the Isaac Lab repository...")
+    print_info("Installing extensions inside the Isaac Lab repository...")
     python_exe = extract_python_exe()
 
     # Show which environment is being used.
     if os.environ.get("VIRTUAL_ENV"):
-        print(f"[INFO] Using uv/venv environment: {os.environ['VIRTUAL_ENV']}")
+        print_info(f"Using uv/venv environment: {os.environ['VIRTUAL_ENV']}")
     elif os.environ.get("CONDA_PREFIX"):
-        print(f"[INFO] Using conda environment: {os.environ['CONDA_PREFIX']}")
+        print_info(f"Using conda environment: {os.environ['CONDA_PREFIX']}")
     else:
-        print("[INFO] Using Isaac Sim Python or system Python")
+        print_info("Using Isaac Sim Python or system Python")
 
-    print(f"[INFO] Python executable: {python_exe}")
+    print_info(f"Python executable: {python_exe}")
 
     # if on ARM arch, temporarily clear LD_PRELOAD
     # LD_PRELOAD is restored below, after installation
     saved_ld_preload = None
     if is_arm() and "LD_PRELOAD" in os.environ:
-        print("[INFO] ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
+        print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
         saved_ld_preload = os.environ.pop("LD_PRELOAD")
 
     try:
         # Upgrade pip first to avoid compatibility issues.
-        print("[INFO] Upgrading pip...")
+        print_info("Upgrading pip...")
         run_command([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
 
         # Install pytorch (version based on arch).
@@ -224,7 +224,7 @@ def install(install_type="all"):
         install_isaaclab_extensions()
 
         # Install the python packages for supported reinforcement learning frameworks.
-        print("[INFO] Installing extra requirements such as learning frameworks...")
+        print_info("Installing extra requirements such as learning frameworks...")
         install_extra_frameworks(install_type)
 
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.

@@ -16,6 +16,12 @@ ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 
+# ANSI colors.
+_ANSI_COLOR_RESET = "\033[0m"
+_ANSI_COLOR_INFO = "\033[36m"  # cyan
+_ANSI_COLOR_WARNING = "\033[33m"  # yellow
+_ANSI_COLOR_ERROR = "\033[31m"  # red
+
 
 def is_windows():
     """Check if the platform is Windows."""
@@ -28,6 +34,36 @@ def is_arm():
     return "aarch64" in machine or "arm64" in machine
 
 
+def _colorize(label, color, stream):
+    """Colorize a label, if the stream supports colors."""
+
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("TERM") == "dumb":
+        return False
+    color_supported = hasattr(stream, "isatty") and stream.isatty()
+
+    if color_supported:
+        return f"{color}{label}{_ANSI_COLOR_RESET}"
+
+    return label
+
+
+def print_info(message, stream=sys.stdout):
+    label = _colorize("[INFO]", _ANSI_COLOR_INFO, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def print_warning(message, stream=sys.stdout):
+    label = _colorize("[WARNING]", _ANSI_COLOR_WARNING, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def print_error(message, stream=sys.stderr):
+    label = _colorize("[ERROR]", _ANSI_COLOR_ERROR, stream)
+    print(f"{label} {message}", file=stream)
+
+
 def run_command(cmd, cwd=None, env=None, shell=False, check=True):
     """Run a command in a subprocess."""
 
@@ -37,7 +73,7 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True):
     try:
         subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check)
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Command failed with exit code {e.returncode}: {e.cmd}")
+        print_error(f"Command failed with exit code {e.returncode}: {e.cmd}")
         sys.exit(e.returncode)
 
 
@@ -94,14 +130,14 @@ def extract_python_exe():
 
     # Nothing found, error out :)
     if not python_exe or not Path(python_exe).exists():
-        print(f"[ERROR] Unable to find any Python executable at path: '{python_exe}'")
+        print_error(f"Unable to find any Python executable at path: '{python_exe}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda or uv environment is not activated.")
         print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
         print(f"\t3. Python executable is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         sys.exit(1)
 
-    print_info(f"Using Python: \"{python_exe}\"")
+    print_info(f'Using Python: "{python_exe}"')
 
     return str(python_exe)
 
@@ -135,7 +171,7 @@ def extract_isaacsim_path():
     # Check if there is a path available.
     if not isaac_path.exists():
         # Throw an error if no path is found.
-        print(f"[ERROR] Unable to find the Isaac Sim directory: '{isaac_path}'")
+        print_error(f"Unable to find the Isaac Sim directory: '{isaac_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
         print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
@@ -173,7 +209,7 @@ def extract_isaacsim_exe():
         except Exception:
             pass
 
-        print(f"[ERROR] No Isaac Sim executable found at path: {isaac_path}")
+        print_error(f"No Isaac Sim executable found at path: {isaac_path}")
         sys.exit(1)
 
     return [str(isaacsim_exe)]
@@ -206,7 +242,7 @@ def run_docker_helper(args):
     """Run the docker container helper script."""
     script_path = ISAACLAB_ROOT / "docker" / "container.sh"
     # On Windows this might fail if no bash, but usually docker implies wsl or similar env.
-    print(f"[INFO] Running docker utility script from: {script_path}")
+    print_info(f"Running docker utility script from: {script_path}")
     if is_windows():
         run_command(["bash", str(script_path)] + args, check=False)
     else:
@@ -227,7 +263,7 @@ def run_python_command(script_path, args, is_module=False):
 def update_vscode_settings():
     """Update the vscode settings from template and Isaac Sim settings"""
 
-    print("[INFO] Setting up vscode settings...")
+    print_info("Setting up vscode settings...")
 
     # Path to setup_vscode.py.
     setup_vscode_script = ISAACLAB_ROOT / ".vscode" / "tools" / "setup_vscode.py"
@@ -236,11 +272,11 @@ def update_vscode_settings():
     if setup_vscode_script.exists():
         run_python_command(setup_vscode_script, [])
     else:
-        print("[WARNING] Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
+        print_warning("Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
 
 
 def build_docs():
-    print("[INFO] Building documentation...")
+    print_info("Building documentation...")
     python_exe = extract_python_exe()
     docs_dir = ISAACLAB_ROOT / "docs"
 
@@ -268,6 +304,6 @@ def build_docs():
     run_command(cmd, cwd=docs_dir)
 
     index_path = out_dir / "index.html"
-    print(f"[INFO] Documentation built at {index_path}")
+    print_info(f"Documentation built at {index_path}")
     if not is_windows():
-        print(f"[INFO] Open with: xdg-open {index_path}")
+        print_info(f"Open with: xdg-open {index_path}")

@@ -13,6 +13,9 @@ from .utils import (
     extract_isaacsim_path,
     is_isaacsim_version_5_x,
     is_windows,
+    print_error,
+    print_info,
+    print_warning,
     run_command,
 )
 
@@ -56,7 +59,7 @@ def setup_conda_env(env_name):
     """setup anaconda environment for Isaac Lab"""
     # Check if conda is installed.
     if not shutil.which("conda"):
-        print("[ERROR] Conda could not be found. Please install conda and try again.")
+        print_error("Conda could not be found. Please install conda and try again.")
         sys.exit(1)
 
     # Check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip.
@@ -74,7 +77,7 @@ def setup_conda_env(env_name):
         check_pip = True  # not installed
 
     if check_symlink and check_pip:
-        print(f"[WARNING] _isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
+        print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
         print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
         print(
             "\tIf you are using a binary installation of Isaac Sim, please ensure the "
@@ -84,10 +87,10 @@ def setup_conda_env(env_name):
     # Check if the environment exists.
     result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True)
     if env_name in result.stdout:
-        print(f"[INFO] Conda environment named '{env_name}' already exists.")
+        print_info(f"Conda environment named '{env_name}' already exists.")
     else:
-        print(f"[INFO] Creating conda environment named '{env_name}'...")
-        print(f"[INFO] Installing dependencies from {ISAACLAB_ROOT}/environment.yml")
+        print_info(f"Creating conda environment named '{env_name}'...")
+        print_info(f"Installing dependencies from {ISAACLAB_ROOT}/environment.yml")
 
         # Patch Python version if needed, but back up first.
         env_yml = ISAACLAB_ROOT / "environment.yml"
@@ -95,9 +98,9 @@ def setup_conda_env(env_name):
         # Prepare patched yml.
         use_311 = is_isaacsim_version_5_x()
         if use_311:
-            print("[INFO] Detected Isaac Sim 5.X -> using python=3.11")
+            print_info("Detected Isaac Sim 5.X -> using python=3.11")
         else:
-            print("[INFO] Isaac Sim 6.0+ detected, installing python=3.12")
+            print_info("Isaac Sim 6.0+ detected, installing python=3.12")
 
         # Write a temp file.
         temp_yml = ISAACLAB_ROOT / "environment_temp.yml"
@@ -125,7 +128,7 @@ def setup_conda_env(env_name):
     # Now configure activation scripts.
     conda_prefix = get_conda_prefix(env_name)
     if not conda_prefix:
-        print(f"[ERROR] Could not determine prefix for env {env_name}")
+        print_error(f"Could not determine prefix for env {env_name}")
         return
 
     # Setup directories to load Isaac Sim variables.
@@ -165,7 +168,7 @@ def setup_conda_env(env_name):
                 f.write("unset EXP_PATH\n")
                 f.write("unset ISAAC_PATH\n")
 
-        print(f"[INFO] Created conda environment named '{env_name}'.\n")
+        print_info(f"Created conda environment named '{env_name}'.\n")
         print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.sh -i")
         print("\t\t3. To perform formatting, run:                      isaaclab.sh -f")
@@ -195,7 +198,7 @@ def setup_conda_env(env_name):
             f.write('set "EXP_PATH="\n')
             f.write('set "ISAAC_PATH="\n')
 
-        print(f"[INFO] Created conda environment named '{env_name}'.\n")
+        print_info(f"Created conda environment named '{env_name}'.\n")
         print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")
         print("\t\t3. To perform formatting, run:                      isaaclab.bat -f")
