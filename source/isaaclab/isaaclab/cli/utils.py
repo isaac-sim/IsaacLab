@@ -101,6 +101,8 @@ def extract_python_exe():
         print(f"\t3. Python executable is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
         sys.exit(1)
 
+    print_info(f"Using Python: \"{python_exe}\"")
+
     return str(python_exe)
 
 
