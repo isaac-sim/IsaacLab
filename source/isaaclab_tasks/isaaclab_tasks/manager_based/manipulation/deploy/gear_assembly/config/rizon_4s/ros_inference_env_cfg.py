@@ -48,7 +48,7 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
 
         # Override robot initial pose for ROS inference (fixed pose, no randomization)
         # Joint positions and pos are inherited from parent, only override rotation to be deterministic
-        self.scene.robot.init_state.rot = (1.0, 0.0, 0.0, 0.0)
+        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)  # Identity quaternion (x, y, z, w)
 
         # Override gear base initial pose (fixed pose for ROS inference)
         # Position configured for Rizon 4s workspace
