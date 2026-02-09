@@ -132,7 +132,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in set_robot_to_grasp_pose configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
         if "gripper_joint_setter_func" not in cfg.params:
             raise ValueError(
@@ -327,7 +327,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 break
 
             # Solve IK using jacobian
-            jacobians = self.robot_asset.root_physx_view.get_jacobians().clone()
+            jacobians = self.robot_asset.root_view.get_jacobians().clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
 
             delta_dof_pos = fc._get_delta_dof_pos(
