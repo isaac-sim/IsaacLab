@@ -882,7 +882,7 @@ class BaseRigidObjectCollectionData(ABC):
             stacklevel=2,
         )
         if self._default_mass is None:
-            self._default_mass = self.body_mass.clone()
+            self._default_mass = wp.clone(self.body_mass, self.device)
         return self._default_mass
 
     @property
@@ -895,5 +895,5 @@ class BaseRigidObjectCollectionData(ABC):
             stacklevel=2,
         )
         if self._default_inertia is None:
-            self._default_inertia = self.body_inertia.clone()
+            self._default_inertia = wp.clone(self.body_inertia, self.device)
         return self._default_inertia

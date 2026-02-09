@@ -13,7 +13,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
 
 from .kernels import *
@@ -622,13 +622,13 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_mass(self) -> wp.array:
         """Body mass ``wp.float32`` in the world frame. Shape is (num_instances, num_bodies)."""
-        self._body_mass = self._root_view.get_masses().to(self.device).clone()
+        self._body_mass.assign(self._root_view.get_masses())
         return self._body_mass
 
     @property
     def body_inertia(self) -> wp.array:
         """Body inertia ``wp.mat33`` in the world frame. Shape is (num_instances, num_bodies, 3, 3)."""
-        self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+        self._body_inertia.assign(self._root_view.get_inertias())
         return self._body_inertia
 
     @property
@@ -657,14 +657,17 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            velocities = self.body_com_vel_w.clone()
-            # adjust linear velocity to link from center of mass
-            velocities[..., :3] += torch.linalg.cross(
-                velocities[..., 3:], quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+            wp.launch(
+                get_body_link_vel_from_body_com_vel,
+                dim=(self._root_view.count, self._root_view.num_bodies),
+                inputs=[
+                    self.body_com_vel_w,
+                    self.body_link_pose_w,
+                    self.body_com_pose_w,
+                    self._body_link_vel_w.data,
+                ],
+                device=self.device,
             )
-            # set the buffer data and timestamp
-            self._body_link_vel_w.data = velocities
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
         return self._body_link_vel_w.data
@@ -678,12 +681,16 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (w, x, y, z) format.
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
-            # apply local transform to center of mass frame
-            pos, quat = combine_frame_transforms(
-                self.body_link_pos_w, self.body_link_quat_w, self.body_com_pos_b, self.body_com_quat_b
+            wp.launch(
+                get_body_com_pose_from_body_link_pose,
+                dim=(self._root_view.count, self._root_view.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_pose_w,
+                    self._body_com_pose_w.data,
+                ],
+                device=self.device,
             )
-            # set the buffer data and timestamp
-            self._body_com_pose_w.data = torch.cat((pos, quat), dim=-1)
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
         return self._body_com_pose_w.data
@@ -711,7 +718,15 @@ class ArticulationData(BaseArticulationData):
         velocities are of the articulation links's center of mass frame.
         """
         if self._body_state_w.timestamp < self._sim_timestamp:
-            self._body_state_w.data = torch.cat((self.body_link_pose_w, self.body_com_vel_w), dim=-1)
+            wp.launch(
+                concat_body_pose_and_vel_to_state,
+                dim=(self._root_view.count, self._root_view.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_vel_w,
+                    self._body_state_w.data,
+                ],
+            )
             self._body_state_w.timestamp = self._sim_timestamp
 
         return self._body_state_w.data
@@ -724,7 +739,15 @@ class ArticulationData(BaseArticulationData):
         The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
         """
         if self._body_link_state_w.timestamp < self._sim_timestamp:
-            self._body_link_state_w.data = torch.cat((self.body_link_pose_w, self.body_link_vel_w), dim=-1)
+            wp.launch(
+                concat_body_pose_and_vel_to_state,
+                dim=(self._root_view.count, self._root_view.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_link_vel_w,
+                    self._body_link_state_w.data,
+                ],
+            )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
         return self._body_link_state_w.data
@@ -739,7 +762,15 @@ class ArticulationData(BaseArticulationData):
         principle inertia.
         """
         if self._body_com_state_w.timestamp < self._sim_timestamp:
-            self._body_com_state_w.data = torch.cat((self.body_com_pose_w, self.body_com_vel_w), dim=-1)
+            wp.launch(
+                concat_body_pose_and_vel_to_state,
+                dim=(self._root_view.count, self._root_view.num_bodies),
+                inputs=[
+                    self.body_com_pose_w,
+                    self.body_com_vel_w,
+                    self._body_com_state_w.data,
+                ],
+            )
             self._body_com_state_w.timestamp = self._sim_timestamp
 
         return self._body_com_state_w.data
@@ -764,13 +795,11 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, 1, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # read data from simulation
-            pose = self._root_view.get_coms().to(self.device)
             # set the buffer data and timestamp
-            self._body_com_pose_b.data = pose
+            self._body_com_pose_b.data.assign(self._root_view.get_coms())
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         return self._body_com_pose_b.data
@@ -822,10 +851,18 @@ class ArticulationData(BaseArticulationData):
         if self._joint_acc.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
-            self._joint_acc.data = (self.joint_vel - self._previous_joint_vel) / time_elapsed
+            wp.launch(
+                get_joint_acc_from_joint_vel,
+                dim=(self._root_view.count, self._root_view.num_joints),
+                inputs=[
+                    self.joint_vel,
+                    self._previous_joint_vel,
+                    self._joint_acc.data,
+                    time_elapsed
+                ],
+                device=self.device,
+            )
             self._joint_acc.timestamp = self._sim_timestamp
-            # update the previous joint velocity
-            self._previous_joint_vel[:] = self.joint_vel
         return self._joint_acc.data
 
     """
@@ -835,7 +872,15 @@ class ArticulationData(BaseArticulationData):
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return quat_apply_inverse(self.root_link_quat_w, self.GRAVITY_VEC_W)
+        if self._projected_gravity_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                quat_apply_inverse_1D_kernel,
+                dim=self._root_view.count,
+                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w, self._projected_gravity_b.data],
+                device=self.device,
+            )
+            self._projected_gravity_b.timestamp = self._sim_timestamp
+        return self._projected_gravity_b.data
 
     @property
     def heading_w(self):
@@ -845,8 +890,15 @@ class ArticulationData(BaseArticulationData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
-        return torch.atan2(forward_w[:, 1], forward_w[:, 0])
+        if self._heading_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                root_heading_w,
+                dim=self._root_view.count,
+                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w, self._heading_w.data],
+                device=self.device,
+            )
+            self._heading_w.timestamp = self._sim_timestamp
+        return self._heading_w.data
 
     @property
     def root_link_lin_vel_b(self) -> wp.array:
@@ -855,7 +907,15 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return quat_apply_inverse(self.root_link_quat_w, self.root_link_lin_vel_w)
+        if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                quat_apply_inverse_1D_kernel,
+                dim=self._root_view.count,
+                inputs=[self.root_link_quat_w, self.root_link_lin_vel_w, self._root_link_lin_vel_b.data],
+                device=self.device,
+            )
+            self._root_link_lin_vel_b.timestamp = self._sim_timestamp
+        return self._root_link_lin_vel_b.data
 
     @property
     def root_link_ang_vel_b(self) -> wp.array:
@@ -864,7 +924,15 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's actor frame with respect to the
         its actor frame.
         """
-        return quat_apply_inverse(self.root_link_quat_w, self.root_link_ang_vel_w)
+        if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                quat_apply_inverse_1D_kernel,
+                dim=self._root_view.count,
+                inputs=[self.root_link_quat_w, self.root_link_ang_vel_w, self._root_link_ang_vel_b.data],
+                device=self.device,
+            )
+            self._root_link_ang_vel_b.timestamp = self._sim_timestamp
+        return self._root_link_ang_vel_b.data
 
     @property
     def root_com_lin_vel_b(self) -> wp.array:
@@ -873,7 +941,15 @@ class ArticulationData(BaseArticulationData):
         This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return quat_apply_inverse(self.root_link_quat_w, self.root_com_lin_vel_w)
+        if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                quat_apply_inverse_1D_kernel,
+                dim=self._root_view.count,
+                inputs=[self.root_link_quat_w, self.root_com_lin_vel_w, self._root_com_lin_vel_b.data],
+                device=self.device,
+            )
+            self._root_com_lin_vel_b.timestamp = self._sim_timestamp
+        return self._root_com_lin_vel_b.data
 
     @property
     def root_com_ang_vel_b(self) -> wp.array:
@@ -882,7 +958,15 @@ class ArticulationData(BaseArticulationData):
         This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
         its actor frame.
         """
-        return quat_apply_inverse(self.root_link_quat_w, self.root_com_ang_vel_w)
+        if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                quat_apply_inverse_1D_kernel,
+                dim=self._root_view.count,
+                inputs=[self.root_link_quat_w, self.root_com_ang_vel_w, self._root_com_ang_vel_b.data],
+                device=self.device,
+            )
+            self._root_com_ang_vel_b.timestamp = self._sim_timestamp
+        return self._root_com_ang_vel_b.data
 
     """
     Sliced properties.
@@ -1055,30 +1139,37 @@ class ArticulationData(BaseArticulationData):
         super()._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer()
-        self._root_link_vel_w = TimestampedBuffer()
-        self._body_link_pose_w = TimestampedBuffer()
-        self._body_link_vel_w = TimestampedBuffer()
+        self._root_link_pose_w = TimestampedBuffer((self._root_view.count), self.device, wp.transformf)
+        self._root_link_vel_w = TimestampedBuffer((self._root_view.count), self.device, wp.spatial_vectorf)
+        self._body_link_pose_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
+        self._body_link_vel_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer()
+        self._body_com_pose_b = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer()
-        self._root_com_vel_w = TimestampedBuffer()
-        self._body_com_pose_w = TimestampedBuffer()
-        self._body_com_vel_w = TimestampedBuffer()
-        self._body_com_acc_w = TimestampedBuffer()
+        self._root_com_pose_w = TimestampedBuffer((self._root_view.count), self.device, wp.transformf)
+        self._root_com_vel_w = TimestampedBuffer((self._root_view.count), self.device, wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
+        self._body_com_vel_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_acc_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer()
-        self._root_link_state_w = TimestampedBuffer()
-        self._root_com_state_w = TimestampedBuffer()
-        self._body_state_w = TimestampedBuffer()
-        self._body_link_state_w = TimestampedBuffer()
-        self._body_com_state_w = TimestampedBuffer()
+        self._root_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
+        self._root_link_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
+        self._root_com_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
+        self._body_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
+        self._body_link_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
+        self._body_com_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
         # -- joint state
-        self._joint_pos = TimestampedBuffer()
-        self._joint_vel = TimestampedBuffer()
-        self._joint_acc = TimestampedBuffer()
-        self._body_incoming_joint_wrench_b = TimestampedBuffer()
+        self._joint_pos = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
+        self._joint_vel = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
+        self._joint_acc = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
+        self._body_incoming_joint_wrench_b = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies, num_dofs), self.device, wp.spatial_vectorf)
+        # -- derived properties (these are cached to avoid repeated memory allocations)
+        self._projected_gravity_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
+        self._heading_w = TimestampedBuffer((self._root_view.count), self.device, wp.float32)
+        self._root_link_lin_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
+        self._root_link_ang_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
+        self._root_com_lin_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
+        self._root_com_ang_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
 
         num_dofs = self._root_view.shared_metatype.dof_count
         num_fixed_tendons = self._root_view.max_fixed_tendons

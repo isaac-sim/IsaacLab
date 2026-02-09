@@ -982,7 +982,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_mass is None:
-            self._default_mass = self.body_mass.clone()
+            self._default_mass = wp.clone(self.body_mass, self.device)
         return self._default_mass
 
     @property
@@ -995,7 +995,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_inertia is None:
-            self._default_inertia = self.body_inertia.clone()
+            self._default_inertia = wp.clone(self.body_inertia, self.device)
         return self._default_inertia
 
     @property
@@ -1009,7 +1009,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_stiffness is None:
-            self._default_joint_stiffness = self.joint_stiffness.clone()
+            self._default_joint_stiffness = wp.clone(self.joint_stiffness, self.device)
         return self._default_joint_stiffness
 
     @property
@@ -1023,7 +1023,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_damping is None:
-            self._default_joint_damping = self.joint_damping.clone()
+            self._default_joint_damping = wp.clone(self.joint_damping, self.device)
         return self._default_joint_damping
 
     @property
@@ -1037,7 +1037,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_armature is None:
-            self._default_joint_armature = self.joint_armature.clone()
+            self._default_joint_armature = wp.clone(self.joint_armature, self.device)
         return self._default_joint_armature
 
     @property
@@ -1051,7 +1051,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_friction_coeff is None:
-            self._default_joint_friction_coeff = self.joint_friction_coeff.clone()
+            self._default_joint_friction_coeff = wp.clone(self.joint_friction_coeff, self.device)
         return self._default_joint_friction_coeff
 
     @property
@@ -1065,7 +1065,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_viscous_friction_coeff is None:
-            self._default_joint_viscous_friction_coeff = self.joint_viscous_friction_coeff.clone()
+            self._default_joint_viscous_friction_coeff = wp.clone(self.joint_viscous_friction_coeff, self.device)
         return self._default_joint_viscous_friction_coeff
 
     @property
@@ -1079,7 +1079,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_pos_limits is None:
-            self._default_joint_pos_limits = self.joint_pos_limits.clone()
+            self._default_joint_pos_limits = wp.clone(self.joint_pos_limits, self.device)
         return self._default_joint_pos_limits
 
     @property
@@ -1093,7 +1093,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_stiffness is None:
-            self._default_fixed_tendon_stiffness = self.fixed_tendon_stiffness.clone()
+            self._default_fixed_tendon_stiffness = wp.clone(self.fixed_tendon_stiffness, self.device)
         return self._default_fixed_tendon_stiffness
 
     @property
@@ -1107,7 +1107,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_damping is None:
-            self._default_fixed_tendon_damping = self.fixed_tendon_damping.clone()
+            self._default_fixed_tendon_damping = wp.clone(self.fixed_tendon_damping, self.device)
         return self._default_fixed_tendon_damping
 
     @property
@@ -1121,7 +1121,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_limit_stiffness is None:
-            self._default_fixed_tendon_limit_stiffness = self.fixed_tendon_limit_stiffness.clone()
+            self._default_fixed_tendon_limit_stiffness = wp.clone(self.fixed_tendon_limit_stiffness, self.device)
         return self._default_fixed_tendon_limit_stiffness
 
     @property
@@ -1135,7 +1135,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_rest_length is None:
-            self._default_fixed_tendon_rest_length = self.fixed_tendon_rest_length.clone()
+            self._default_fixed_tendon_rest_length = wp.clone(self.fixed_tendon_rest_length, self.device)
         return self._default_fixed_tendon_rest_length
 
     @property
@@ -1149,7 +1149,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_offset is None:
-            self._default_fixed_tendon_offset = self.fixed_tendon_offset.clone()
+            self._default_fixed_tendon_offset = wp.clone(self.fixed_tendon_offset, self.device)
         return self._default_fixed_tendon_offset
 
     @property
@@ -1163,7 +1163,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_fixed_tendon_pos_limits is None:
-            self._default_fixed_tendon_pos_limits = self.fixed_tendon_pos_limits.clone()
+            self._default_fixed_tendon_pos_limits = wp.clone(self.fixed_tendon_pos_limits, self.device)
         return self._default_fixed_tendon_pos_limits
 
     @property
@@ -1177,7 +1177,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_spatial_tendon_stiffness is None:
-            self._default_spatial_tendon_stiffness = self.spatial_tendon_stiffness.clone()
+            self._default_spatial_tendon_stiffness = wp.clone(self.spatial_tendon_stiffness, self.device)
         return self._default_spatial_tendon_stiffness
 
     @property
@@ -1191,7 +1191,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_spatial_tendon_damping is None:
-            self._default_spatial_tendon_damping = self.spatial_tendon_damping.clone()
+            self._default_spatial_tendon_damping = wp.clone(self.spatial_tendon_damping, self.device)
         return self._default_spatial_tendon_damping
 
     @property
@@ -1205,7 +1205,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_spatial_tendon_limit_stiffness is None:
-            self._default_spatial_tendon_limit_stiffness = self.spatial_tendon_limit_stiffness.clone()
+            self._default_spatial_tendon_limit_stiffness = wp.clone(self.spatial_tendon_limit_stiffness, self.device)
         return self._default_spatial_tendon_limit_stiffness
 
     @property
@@ -1219,7 +1219,7 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_spatial_tendon_offset is None:
-            self._default_spatial_tendon_offset = self.spatial_tendon_offset.clone()
+            self._default_spatial_tendon_offset = wp.clone(self.spatial_tendon_offset, self.device)
         return self._default_spatial_tendon_offset
 
     @property
