@@ -31,6 +31,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
+from .kernel import *
 
 if TYPE_CHECKING:
     import omni.physics.tensors.impl.api as physx
@@ -191,11 +192,16 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    # FIXME: Support env_mask.
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         # use ellipses object to skip initial indices.
         if env_ids is None:
@@ -354,252 +360,665 @@ class Articulation(BaseArticulation):
     Operations - State Writers.
     """
 
-    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_state_to_sim_index(
+        self, root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_state_to_sim_mask(
+        self, root_state: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root state over selected environment mask into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_link_pose_to_sim_mask(root_state[:, :7], env_mask=env_mask)
+        self.write_root_com_velocity_to_sim_mask(root_state[:, 7:], env_mask=env_mask)
+
+    def write_root_com_state_to_sim_index(
+        self, root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root center of mass state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_com_state_to_sim_mask(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass state over selected environment mask into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_com_pose_to_sim_mask(root_state[:, :7], env_mask=env_mask)
+        self.write_root_com_velocity_to_sim_mask(root_state[:, 7:], env_mask=env_mask)
+
+    def write_root_link_state_to_sim_index(
+        self, root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root link state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_link_state_to_sim_mask(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link state over selected environment mask into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_link_pose_to_sim_mask(root_state[:, :7], env_mask=env_mask)
+        self.write_root_link_velocity_to_sim_mask(root_state[:, 7:], env_mask=env_mask)
+
+    def write_root_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
 
-    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root link pose over selected environment indices into the simulation.
+    def write_root_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root pose over selected environment mask into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
+
+    def write_root_link_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set the root link pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
         physx_env_ids = env_ids
+        if isinstance(env_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if env_ids is None:
-            env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-
-        # Note we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self.data.root_link_pose_w[env_ids] = root_pose.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_link_state_w.data is not None:
-            self.data.root_link_state_w[env_ids, :7] = self.data.root_link_pose_w[env_ids]
-        if self.data._root_state_w.data is not None:
-            self.data.root_state_w[env_ids, :7] = self.data.root_link_pose_w[env_ids]
-
-        root_poses_xyzw = self.data.root_link_pose_w.clone()
-
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            set_root_link_pose_to_sim,
+            dim=len(env_ids),
+            inputs=[
+                self.data._root_link_pose_w.data,
+                physx_env_ids,
+                root_pose.data,
+                self.data._root_link_state_w.data,
+                self.data._root_state_w.data,
+                full_data,
+            ],
+            device=self.device,
+        )
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
-
         # set into simulation
-        self.root_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data, indices=physx_env_ids)
 
-    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_link_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+
+    def write_root_com_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
-        Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        # resolve all indices
-        if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
-
-        # set into internal buffers
-        self.data.root_com_pose_w[local_env_ids] = root_pose.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_com_state_w.data is not None:
-            self.data.root_com_state_w[local_env_ids, :7] = self.data.root_com_pose_w[local_env_ids]
-
-        # get CoM pose in link frame
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
-        # transform input CoM pose to link frame
-        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
-            root_pose[..., :3],
-            root_pose[..., 3:7],
-            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
-            math_utils.quat_inv(com_quat_b),
-        )
-        root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
-
-        # write transformed pose in link frame to sim
-        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
-
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root center of mass velocity over selected environment indices into the simulation.
-
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This method expect partial data or full data.
+        
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
-        """
-        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
-
-    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root center of mass velocity over selected environment indices into the simulation.
-
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
-
-        Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
-            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
         physx_env_ids = env_ids
+        if isinstance(env_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if env_ids is None:
-            env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would call
+        # write_root_link_pose_to_sim after this.
+        wp.launch(
+            set_root_com_pose_to_sim,
+            dim=len(env_ids),
+            inputs=[
+                root_pose,
+                self.data._body_com_pose_b.data,
+                physx_env_ids,
+                self.data._root_com_pose_w.data,
+                self.data._root_link_pose_w.data,
+                self.data._root_com_state_w.data,
+                self.data._root_link_state_w.data,
+                self.data._root_state_w.data,
+                full_data,
+            ],
+            device=self.device,
+        )
+        # Need to invalidate the buffer to trigger the update with the new state.
+        self.data._body_link_pose_w.timestamp = -1.0
+        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._body_state_w.timestamp = -1.0
+        self.data._body_link_state_w.timestamp = -1.0
+        self.data._body_com_state_w.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data, indices=physx_env_ids)
 
-        # Note we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self.data.root_com_vel_w[env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_com_state_w.data is not None:
-            self.data.root_com_state_w[env_ids, 7:] = self.data.root_com_vel_w[env_ids]
-        if self.data._root_state_w.data is not None:
-            self.data.root_state_w[env_ids, 7:] = self.data.root_com_vel_w[env_ids]
-        # make the acceleration zero to prevent reporting old values
-        self.data.body_acc_w[env_ids] = 0.0
+    def write_root_com_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass pose over selected environment mask into the simulation.
 
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principle axes of inertia.
+
+        .. note::
+            This method expect full data.
+        
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+
+    def write_root_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+
+    def write_root_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
+
+    def write_root_com_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if isinstance(env_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        if env_ids is None:
+            physx_env_ids = self._ALL_INDICES
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            set_root_com_velocity_to_sim,
+            dim=len(env_ids),
+            inputs=[
+                root_velocity,
+                physx_env_ids,
+                self.data.root_com_vel_w.data,
+                self.data.body_acc_w.data,
+                self.data._root_state_w.data,
+                self.data._root_com_state_w.data,
+                full_data,
+            ],
+            device=self.device,
+        )
         # set into simulation
         self.root_view.set_root_velocities(self.data.root_com_vel_w, indices=physx_env_ids)
 
-    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
+
+    def write_root_link_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
+        physx_env_ids = env_ids
+        if isinstance(env_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
-
-        # set into internal buffers
-        self.data.root_link_vel_w[local_env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_link_state_w.data is not None:
-            self.data.root_link_state_w[local_env_ids, 7:] = self.data.root_link_vel_w[local_env_ids]
-
-        # get CoM pose in link frame
-        quat = self.data.root_link_quat_w[local_env_ids]
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        # transform input velocity to center of mass frame
-        root_com_velocity = root_velocity.clone()
-        root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
+            physx_env_ids = self._ALL_INDICES
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would call
+        # write_root_link_pose_to_sim after this.
+        wp.launch(
+            set_root_link_velocity_to_sim,
+            dim=len(env_ids),
+            inputs=[
+                root_velocity,
+                self.data._body_com_pose_b.data,
+                self.data._root_link_pose_w.data,
+                physx_env_ids,
+                self.data._root_link_vel_w.data,
+                self.data._root_com_vel_w.data,
+                self.data._body_com_acc_w.data,
+                self.data._root_link_state_w.data,
+                self.data._root_state_w.data,
+                self.data._root_com_state_w.data,
+                full_data,
+            ],
+            device=self.device,
         )
+        # set into simulation
+        self.root_view.set_root_link_velocities(self.data._root_link_vel_w, indices=physx_env_ids)
 
-        # write transformed velocity in CoM frame to sim
-        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
-
-    def write_joint_state_to_sim(
+    def write_root_link_velocity_to_sim_mask(
         self,
-        position: torch.Tensor,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
-    ):
-        """Write joint positions and velocities to the simulation.
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
+
+
+    def write_joint_state_to_sim_index(
+        self,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ):
+        """Write joint positions and velocities over selected environment indices into the simulation.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # set into simulation
-        self.write_joint_position_to_sim(position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim(velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
 
-    def write_joint_position_to_sim(
+    def write_joint_state_to_sim_mask(
         self,
-        position: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ):
-        """Write joint positions to the simulation.
+        """Write joint positions and velocities over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            position: Joint positions. Shape is (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
-        # resolve indices
+        # set into simulation
+        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
+
+    def write_joint_position_to_sim_index(
+        self,
+        position: torch.Tensor,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint positions over selected environment indices into the simulation.
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
         physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
+        physx_joint_ids = joint_ids
         if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        if env_ids is None:
+            physx_env_ids = self._ALL_INDICES
+        if isinstance(joint_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
+        if joint_ids is None:
+            physx_joint_ids = self._ALL_JOINT_INDICES
         # set into internal buffers
-        self.data.joint_pos[env_ids, joint_ids] = position
+        wp.launch(
+            write_joint_data_to_buffer,
+            dim=len(env_ids),
+            inputs=[
+                position,
+                self.data.joint_pos.data,
+                physx_env_ids,
+                physx_joint_ids,
+                full_data,
+            ],
+            device=self.device,
+        )
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self.data._body_com_vel_w.timestamp = -1.0
         self.data._body_link_vel_w.timestamp = -1.0
@@ -613,38 +1032,123 @@ class Articulation(BaseArticulation):
         # set into simulation
         self.root_view.set_dof_positions(self.data.joint_pos, indices=physx_env_ids)
 
-    def write_joint_velocity_to_sim(
+    def write_joint_position_to_sim_mask(
         self,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Write joint positions over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_velocity_to_sim_index(
+        self,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ):
         """Write joint velocities to the simulation.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
+        # resolve all indices
         physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
+        physx_joint_ids = joint_ids
         if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
+            # Convert list to tensor explicitly for warp kernels
+            physx_env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        if env_ids is None:
+            physx_env_ids = self._ALL_INDICES
+        if isinstance(joint_ids, list):
+            # Convert list to tensor explicitly for warp kernels
+            physx_joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
+        if joint_ids is None:
+            physx_joint_ids = self._ALL_JOINT_INDICES
         # set into internal buffers
-        self.data.joint_vel[env_ids, joint_ids] = velocity
-        self.data._previous_joint_vel[env_ids, joint_ids] = velocity
-        self.data.joint_acc[env_ids, joint_ids] = 0.0
+        wp.launch(
+            write_joint_vel_data,
+            dim=len(env_ids),
+            inputs=[
+                velocity,
+                self.data.joint_vel.data,
+                self.data._previous_joint_vel.data,
+                self.data.joint_acc.data,
+                physx_env_ids,
+                physx_joint_ids,
+                full_data,
+            ],
+            device=self.device,
+        )
         # set into simulation
         self.root_view.set_dof_velocities(self.data.joint_vel, indices=physx_env_ids)
+
+    def write_joint_velocity_to_sim_mask(
+        self,
+        velocity: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Write joint velocities over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
 
     """
     Operations - Simulation Parameters Writers.
@@ -655,13 +1159,33 @@ class Articulation(BaseArticulation):
         stiffness: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ):
         """Write joint stiffness into the simulation.
 
+        .. note::
+            When providing the environment indices, we expect the data to be partial. However, when providing the
+            environment mask, we expect the data to be full. This means that if :attr:`env_ids` is provided, then the
+            shape of the data should be (len(:attr:`env_ids`), len(:attr:`joint_ids`)). However, if :attr:`env_mask` is
+            provided, then the shape of the data should be (num_instances, num_joints).
+
+        .. caution::
+            If both :attr:`env_ids` and :attr:`env_mask` are provided, then :attr:`env_mask` takes precedence
+            over :attr:`env_ids`. Similarly, if both :attr:`joint_ids` and :attr:`joint_mask` are provided, then
+            :attr:`joint_mask` takes precedence over :attr:`joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the indices instead of the mask.
+            This is because in PhysX, the tensor API is only supporting indexing, hence masks need to be converted to
+            indices.
+
         Args:
-            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)).
+            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the stiffness for. Defaults to None (all joints).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used. Defaults to None (all indices).
+            joint_mask: Joint mask. If None, then all joints are used. Defaults to None. (all joints).
         """
         # Note This function isn't setting the values for actuator models. (#128)
         # resolve indices
@@ -689,13 +1213,33 @@ class Articulation(BaseArticulation):
         damping: torch.Tensor | float,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
     ):
         """Write joint damping into the simulation.
 
+        .. note::
+            When providing the environment indices, we expect the data to be partial. However, when providing the
+            environment mask, we expect the data to be full. This means that if :attr:`env_ids` is provided, then the
+            shape of the data should be (len(:attr:`env_ids`), len(:attr:`joint_ids`)). However, if :attr:`env_mask` is
+            provided, then the shape of the data should be (num_instances, num_joints).
+
+        .. caution::
+            If both :attr:`env_ids` and :attr:`env_mask` are provided, then :attr:`env_mask` takes precedence
+            over :attr:`env_ids`. Similarly, if both :attr:`joint_ids` and :attr:`joint_mask` are provided, then
+            :attr:`joint_mask` takes precedence over :attr:`joint_ids`.
+
+        .. tip::
+            For maximum performance we recommend providing the indices instead of the mask.
+            This is because in PhysX, the tensor API is only supporting indexing, hence masks need to be converted to
+            indices.
+
         Args:
-            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
+            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_ids: The joint indices to set the damping for. Defaults to None (all joints).
             env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            env_mask: Environment mask. If None, then all indices are used. Defaults to None (all indices).
+            joint_mask: Joint mask. If None, then all joints are used. Defaults to None. (all joints).
         """
         # Note This function isn't setting the values for actuator models. (#128)
         # resolve indices

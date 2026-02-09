@@ -7,24 +7,39 @@
 
 from __future__ import annotations
 
-from .views import MockArticulationView, MockRigidBodyView, MockRigidContactView
+from typing import Literal
+
+from .views import (
+    MockArticulationView,
+    MockArticulationViewWarp,
+    MockRigidBodyView,
+    MockRigidBodyViewWarp,
+    MockRigidContactView,
+    MockRigidContactViewWarp,
+)
+
+Backend = Literal["torch", "warp"]
 
 
 def create_mock_rigid_body_view(
     count: int = 1,
     prim_paths: list[str] | None = None,
     device: str = "cpu",
-) -> MockRigidBodyView:
+    backend: Backend = "torch",
+) -> MockRigidBodyView | MockRigidBodyViewWarp:
     """Create a mock rigid body view.
 
     Args:
         count: Number of rigid body instances.
         prim_paths: USD prim paths for each instance.
         device: Device for tensor allocation.
+        backend: Backend to use ("torch" or "warp").
 
     Returns:
-        A MockRigidBodyView instance.
+        A MockRigidBodyView or MockRigidBodyViewWarp instance.
     """
+    if backend == "warp":
+        return MockRigidBodyViewWarp(count=count, prim_paths=prim_paths, device=device)
     return MockRigidBodyView(count=count, prim_paths=prim_paths, device=device)
 
 
@@ -37,7 +52,8 @@ def create_mock_articulation_view(
     fixed_base: bool = False,
     prim_paths: list[str] | None = None,
     device: str = "cpu",
-) -> MockArticulationView:
+    backend: Backend = "torch",
+) -> MockArticulationView | MockArticulationViewWarp:
     """Create a mock articulation view.
 
     Args:
@@ -49,10 +65,22 @@ def create_mock_articulation_view(
         fixed_base: Whether the articulation has a fixed base.
         prim_paths: USD prim paths for each instance.
         device: Device for tensor allocation.
+        backend: Backend to use ("torch" or "warp").
 
     Returns:
-        A MockArticulationView instance.
+        A MockArticulationView or MockArticulationViewWarp instance.
     """
+    if backend == "warp":
+        return MockArticulationViewWarp(
+            count=count,
+            num_dofs=num_dofs,
+            num_links=num_links,
+            dof_names=dof_names,
+            link_names=link_names,
+            fixed_base=fixed_base,
+            prim_paths=prim_paths,
+            device=device,
+        )
     return MockArticulationView(
         count=count,
         num_dofs=num_dofs,
@@ -71,7 +99,8 @@ def create_mock_rigid_contact_view(
     filter_count: int = 0,
     max_contact_data_count: int = 16,
     device: str = "cpu",
-) -> MockRigidContactView:
+    backend: Backend = "torch",
+) -> MockRigidContactView | MockRigidContactViewWarp:
     """Create a mock rigid contact view.
 
     Args:
@@ -80,10 +109,19 @@ def create_mock_rigid_contact_view(
         filter_count: Number of filter bodies for contact filtering.
         max_contact_data_count: Maximum number of contact data points.
         device: Device for tensor allocation.
+        backend: Backend to use ("torch" or "warp").
 
     Returns:
-        A MockRigidContactView instance.
+        A MockRigidContactView or MockRigidContactViewWarp instance.
     """
+    if backend == "warp":
+        return MockRigidContactViewWarp(
+            count=count,
+            num_bodies=num_bodies,
+            filter_count=filter_count,
+            max_contact_data_count=max_contact_data_count,
+            device=device,
+        )
     return MockRigidContactView(
         count=count,
         num_bodies=num_bodies,
@@ -99,7 +137,8 @@ def create_mock_rigid_contact_view(
 def create_mock_quadruped_view(
     count: int = 1,
     device: str = "cpu",
-) -> MockArticulationView:
+    backend: Backend = "torch",
+) -> MockArticulationView | MockArticulationViewWarp:
     """Create a mock articulation view configured for a quadruped robot.
 
     Configuration:
@@ -110,9 +149,10 @@ def create_mock_quadruped_view(
     Args:
         count: Number of articulation instances.
         device: Device for tensor allocation.
+        backend: Backend to use ("torch" or "warp").
 
     Returns:
-        A MockArticulationView configured for quadruped.
+        A MockArticulationView or MockArticulationViewWarp configured for quadruped.
     """
     dof_names = [
         "FL_hip_joint",
@@ -143,6 +183,16 @@ def create_mock_quadruped_view(
         "RR_thigh",
         "RR_calf",
     ]
+    if backend == "warp":
+        return MockArticulationViewWarp(
+            count=count,
+            num_dofs=12,
+            num_links=13,
+            dof_names=dof_names,
+            link_names=link_names,
+            fixed_base=False,
+            device=device,
+        )
     return MockArticulationView(
         count=count,
         num_dofs=12,
@@ -157,7 +207,8 @@ def create_mock_quadruped_view(
 def create_mock_humanoid_view(
     count: int = 1,
     device: str = "cpu",
-) -> MockArticulationView:
+    backend: Backend = "torch",
+) -> MockArticulationView | MockArticulationViewWarp:
     """Create a mock articulation view configured for a humanoid robot.
 
     Configuration:
@@ -168,9 +219,10 @@ def create_mock_humanoid_view(
     Args:
         count: Number of articulation instances.
         device: Device for tensor allocation.
+        backend: Backend to use ("torch" or "warp").
 
     Returns:
-        A MockArticulationView configured for humanoid.
+        A MockArticulationView or MockArticulationViewWarp configured for humanoid.
     """
     dof_names = [
         # Torso
@@ -229,6 +281,16 @@ def create_mock_humanoid_view(
         "neck",
         "head",
     ]
+    if backend == "warp":
+        return MockArticulationViewWarp(
+            count=count,
+            num_dofs=21,
+            num_links=22,
+            dof_names=dof_names,
+            link_names=link_names,
+            fixed_base=False,
+            device=device,
+        )
     return MockArticulationView(
         count=count,
         num_dofs=21,

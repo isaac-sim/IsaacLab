@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -112,8 +113,11 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the rigid object.
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -167,10 +171,33 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def write_root_state_to_sim(
+    def write_root_state_to_sim_index(
         self,
         root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_state_to_sim_mask(
+        self,
+        root_state: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root state over selected environment indices into the simulation.
@@ -178,29 +205,47 @@ class BaseRigidObject(AssetBase):
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 13).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_com_state_to_sim(
+    def write_root_com_state_to_sim_index(
         self,
         root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_com_state_to_sim_mask(
+        self,
+        root_state: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass state over selected environment indices into the simulation.
@@ -208,29 +253,47 @@ class BaseRigidObject(AssetBase):
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 13).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_link_state_to_sim(
+    def write_root_link_state_to_sim_index(
         self,
         root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root link state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_link_state_to_sim_mask(
+        self,
+        root_state: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link state over selected environment indices into the simulation.
@@ -238,87 +301,139 @@ class BaseRigidObject(AssetBase):
         The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 13). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 13).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13) or (num_instances, 13).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_state: Root state in simulation frame. Shape is (num_instances, 13).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_pose_to_sim(
+    def write_root_pose_to_sim_index(
         self,
         root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 7).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_link_pose_to_sim(
+    def write_root_link_pose_to_sim_index(
         self,
         root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root link pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_link_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 7).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_com_pose_to_sim(
+    def write_root_com_pose_to_sim_index(
         self,
         root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principle axes of inertia.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_com_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
@@ -326,113 +441,171 @@ class BaseRigidObject(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 7). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 7).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_velocity_to_sim(
+    def write_root_velocity_to_sim_index(
         self,
         root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 6).
+        .. note::
+            This sets the velocity of the root's center of mass rather than the roots frame.
 
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (num_instances, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_com_velocity_to_sim(
+    def write_root_com_velocity_to_sim_index(
         self,
         root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 6).
+        .. note::
+            This sets the velocity of the root's center of mass rather than the roots frame.
 
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (num_instances, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def write_root_link_velocity_to_sim(
+    def write_root_link_velocity_to_sim_index(
         self,
         root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the root link velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_root_link_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the root's frame rather than the roots center of mass.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), 6). However, if env_mask is provided, then the shape of the data should be
-        (num_instances, 6).
+        .. note::
+            This sets the velocity of the root's frame rather than the roots center of mass.
 
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (num_instances, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
             env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -442,112 +615,191 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def set_masses(
+    def set_masses_index(
         self,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set masses of all bodies.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
+            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_masses_mask(
+        self,
+        masses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), len(body_ids)). However, if env_mask is provided, then the shape of the data
-        should be (num_instances, num_bodies).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
-            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies).
-            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             env_mask: Environment mask. If None, then all indices are used.
             body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def set_coms(
+    def set_coms_index(
         self,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set center of mass positions of all bodies.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_coms_mask(
+        self,
+        coms: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), len(body_ids), 3). However, if env_mask is provided, then the shape of the data
-        should be (num_instances, num_bodies, 3).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
-            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3) or
-                (num_instances, num_bodies, 3).
-            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None
-                (all environments).
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             env_mask: Environment mask. If None, then all indices are used.
             body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def set_inertias(
+    def set_inertias_index(
         self,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set inertias of all bodies.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
+            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_inertias_mask(
+        self,
+        inertias: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), len(body_ids), 9). However, if env_mask is provided, then the shape of the data
-        should be (num_instances, num_bodies, 9).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
-            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
-                (num_instances, num_bodies, 9).
-            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
             env_mask: Environment mask. If None, then all indices are used.
             body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def set_external_force_and_torque(
+    def set_external_force_and_torque_index(
         self,
         forces: torch.Tensor | wp.array,
         torques: torch.Tensor | wp.array,
         positions: torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Set external force and torque to apply on the asset's bodies in their local frame.
+
+        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
+        time (for instance, during the policy control). This function allows us to store the external force and torque
+        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
+        external wrench at (in the local link frame of the bodies).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        .. note::
+            This function does not apply the external wrench to the simulation. It only fills the buffers with
+            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
+            right before the simulation step.
+
+        Args:
+            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+                Defaults to None.
+            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
+            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
+                the external wrench is applied in the link frame of the bodies.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_external_force_and_torque_mask(
+        self,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
         is_global: bool = False,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -559,38 +811,12 @@ class BaseRigidObject(AssetBase):
         into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
         external wrench at (in the local link frame of the bodies).
 
-        When providing the environment indices, we expect the data to be partial. However, when providing the
-        environment mask, we expect the data to be full. This means that if env_ids is provided, then the shape of the
-        data should be (len(env_ids), len(body_ids), 3). However, if env_mask is provided, then the shape of the data
-        should be (num_instances, num_bodies, 3).
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`. Similarly,
-            if both `body_ids` and `body_mask` are provided, then `body_mask` takes precedence over `body_ids`.
+        .. note::
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend providing the environment mask instead of the environment indices.
-
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-            .. code-block:: python
-
-                # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
-
-        .. caution::
-            If the function is called consecutively with and with different values for ``is_global``, then the
-            all the external wrenches will be applied in the frame specified by the last call.
-
-            .. code-block:: python
-
-                # example of setting external wrench in the global frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
-                # example of setting external wrench in the link frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
-                # Both environments will have the external wrenches applied in the link frame
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
@@ -598,14 +824,10 @@ class BaseRigidObject(AssetBase):
             right before the simulation step.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or
-                (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or
-                (num_instances, num_bodies, 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3) or
-                (num_instances, num_bodies, 3). Defaults to None.
-            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+            forces: External forces in bodies' local frame. Shape is (num_instances, num_bodies, 3).
+            torques: External torques in bodies' local frame. Shape is (num_instances, num_bodies, 3).
+            positions: External wrench positions in bodies' local frame. Shape is (num_instances, num_bodies, 3).
+                Defaults to None.
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
                 the external wrench is applied in the link frame of the bodies.
             env_mask: Environment mask. If None, then all indices are used.
@@ -638,3 +860,198 @@ class BaseRigidObject(AssetBase):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+
+    """
+    Deprecated.
+    """
+
+    def write_root_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_state_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_state_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_state_to_sim_index(root_state, env_ids=env_ids)
+
+    def write_root_com_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_com_state_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_state_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_com_state_to_sim_index(root_state, env_ids=env_ids)
+
+    def write_root_link_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_link_state_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_state_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_state_to_sim_index(root_state, env_ids=env_ids)
+
+    def write_root_pose_to_sim(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_pose_to_sim_index(root_pose, env_ids=env_ids)
+
+    def write_root_link_pose_to_sim(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_link_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+
+    def write_root_com_pose_to_sim(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_com_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids)
+
+    def write_root_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+
+    def write_root_com_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_com_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+
+    def write_root_link_velocity_to_sim(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_link_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_link_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+
+    def set_masses(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_masses_index`."""
+        warnings.warn(
+            "The function 'set_masses' will be deprecated in a future release. Please"
+            " use 'set_masses_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
+
+    def set_coms(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_coms_index`."""
+        warnings.warn(
+            "The function 'set_coms' will be deprecated in a future release. Please"
+            " use 'set_coms_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
+
+    def set_inertias(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_inertias_index`."""
+        warnings.warn(
+            "The function 'set_inertias' will be deprecated in a future release. Please"
+            " use 'set_inertias_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
+
+    def set_external_force_and_torque(
+        self,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`set_external_force_and_torque_index`."""
+        warnings.warn(
+            "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
+            " use 'set_external_force_and_torque_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_external_force_and_torque_index(
+            forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global
+        )

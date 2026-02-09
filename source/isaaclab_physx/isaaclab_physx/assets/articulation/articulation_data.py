@@ -481,7 +481,7 @@ class ArticulationData(BaseArticulationData):
         """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's actor frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
@@ -518,7 +518,7 @@ class ArticulationData(BaseArticulationData):
         """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
 
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
@@ -637,7 +637,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the articulation links' actor frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # perform forward kinematics (shouldn't cause overhead if it happened already)
@@ -678,7 +678,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             wp.launch(
@@ -982,7 +982,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
@@ -1014,7 +1014,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def root_com_quat_w(self) -> wp.array:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation (x, y, z, w) in simulation world frame. Shape is (num_instances, 4).
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
@@ -1078,7 +1078,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the articulation bodies' actor frame.
@@ -1128,7 +1128,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_quat_b(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
+        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
