@@ -74,7 +74,8 @@
     "ros.distro": "noetic",
     // Language specific settings
     "[python]": {
-        "editor.tabSize": 4
+        "editor.tabSize": 4,
+        "editor.defaultFormatter": "charliermarsh.ruff"
     },
     "[restructuredtext]": {
         "editor.tabSize": 2

@@ -5,6 +5,7 @@
 		"ms-vscode.cpptools",
 		"ms-python.python",
         "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
 		"ban.spellright",
 		"ms-iot.vscode-ros",
 		"ExecutableBookProject.myst-highlight",
