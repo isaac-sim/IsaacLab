@@ -5,6 +5,7 @@
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -54,22 +55,31 @@ def extract_python_exe():
             python_exe = Path(conda_prefix) / "python.exe"
         else:
             python_exe = Path(conda_prefix) / "bin" / "python"
+            if not python_exe.exists():
+                python_exe = Path(conda_prefix) / "bin" / "python3"
 
     # Try uv virtual environment python.
-    if not python_exe:
+    if not python_exe or not Path(python_exe).exists():
         venv_prefix = os.environ.get("VIRTUAL_ENV")
         if venv_prefix:
             if is_windows():
                 python_exe = Path(venv_prefix) / "Scripts" / "python.exe"
             else:
                 python_exe = Path(venv_prefix) / "bin" / "python"
+                if not python_exe.exists():
+                    python_exe = Path(venv_prefix) / "bin" / "python3"
 
     # Try kit python.
-    if not python_exe:
+    if not python_exe or not Path(python_exe).exists():
         if is_windows():
             python_exe = DEFAULT_ISAAC_SIM_PATH / "python.bat"
         else:
             python_exe = DEFAULT_ISAAC_SIM_PATH / "python.sh"
+
+    # Try system python.
+    if not python_exe or not Path(python_exe).exists():
+        python_exe = shutil.which("python") or shutil.which("python3")
+        python_exe = Path(python_exe) if python_exe else None
 
     # See if we found it.
     if not python_exe or not Path(python_exe).exists():
