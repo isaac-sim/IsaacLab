@@ -63,8 +63,6 @@ class IsaacEvents(Enum):
 _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
     PhysicsEvent.MODEL_INIT: IsaacEvents.PHYSICS_WARMUP,
     PhysicsEvent.PHYSICS_READY: IsaacEvents.PHYSICS_READY,
-    PhysicsEvent.PRE_STEP: IsaacEvents.PRE_PHYSICS_STEP,
-    PhysicsEvent.POST_STEP: IsaacEvents.POST_PHYSICS_STEP,
     PhysicsEvent.STOP: IsaacEvents.TIMELINE_STOP,
 }
 
@@ -218,8 +216,12 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def reset(cls, soft: bool = False) -> None:
         """Reset the physics simulation."""
-        if not soft and cls._view is None:
-            cls._warmup_and_create_views()
+        if not soft:
+            # Ensure views are created (warmup only happens once per stage)
+            if cls._view is None:
+                cls._warmup_and_create_views()
+            # Always dispatch PHYSICS_READY on hard reset to initialize newly registered sensors
+            cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_READY.value, payload={})
 
         device = PhysicsManager._device
         if "cuda" in device:
@@ -615,9 +617,19 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:
-        from isaaclab.sim.utils.stage import get_current_stage_id
+        from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 
-        new_stage_id = get_current_stage_id()
+        # Guard against stage open events when stage is not yet valid
+        stage = get_current_stage()
+        if stage is None or not stage.GetRootLayer():
+            return
+
+        try:
+            new_stage_id = get_current_stage_id()
+        except Exception:
+            # Stage may not be ready for caching yet
+            return
+
         if new_stage_id == cls._stage_id:
             return
 

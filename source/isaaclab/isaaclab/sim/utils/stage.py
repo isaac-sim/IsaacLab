@@ -80,24 +80,65 @@ def create_new_stage_in_memory() -> Usd.Stage:
         return Usd.Stage.CreateInMemory()
 
 
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is in memory.
+def get_context_stage() -> Usd.Stage | None:
+    """Get the stage attached to the USD context, if any.
 
-    This function compares the stage id of the current USD stage with the stage id of the USD context stage.
+    The "context stage" is the USD stage attached to the Omniverse application's
+    UsdContext. This is the stage that:
+
+    * The viewport renders
+    * The Stage panel in the UI displays
+    * Most Isaac Sim/Omniverse systems operate on by default
+
+    This is different from an "in-memory stage" created via
+    :func:`create_new_stage_in_memory`, which exists only in RAM and is not
+    attached to the context (invisible to viewport/UI until explicitly attached
+    via :func:`attach_stage_to_usd_context`).
 
     Returns:
-        Whether the current stage is in memory.
+        The stage attached to the USD context, or None if no stage is attached.
+
+    Example:
+        >>> import isaaclab.sim as sim_utils
+        >>>
+        >>> stage = sim_utils.get_context_stage()
+        >>> if stage is not None:
+        ...     print("Context has a stage attached")
     """
-    # grab current stage id
-    stage_id = get_current_stage_id()
+    context = omni.usd.get_context()
+    if context is None:
+        return None
+    return context.get_stage()
 
-    # grab context stage id
-    context_stage = omni.usd.get_context().get_stage()
-    with use_stage(context_stage):
-        context_stage_id = get_current_stage_id()
 
-    # check if stage ids are the same
-    return stage_id != context_stage_id
+def is_current_stage_in_memory() -> bool:
+    """Checks if the current stage is NOT attached to the USD context.
+
+    This function compares the current stage (from :func:`get_current_stage`) with
+    the context stage (from :func:`get_context_stage`). If they are different,
+    the current stage is considered "in memory" - meaning it's not the stage
+    that the viewport/UI displays.
+
+    This is useful for determining if we're working with a separate in-memory
+    stage created via :func:`create_new_stage_in_memory` with
+    ``SimulationCfg(create_stage_in_memory=True)``.
+
+    Returns:
+        True if the current stage is different from (not attached to) the context stage.
+        Also returns True if there is no context stage at all.
+    """
+    # Get current stage
+    current_stage = get_current_stage()
+    context_stage = get_context_stage()
+
+    # If no context stage exists, current stage is definitely not attached to it
+    if context_stage is None:
+        return True
+
+    # Compare by identity - are they the same stage object?
+    # Note: We can't just compare IDs because different stage objects could
+    # theoretically have the same ID if one was closed and another opened.
+    return current_stage is not context_stage
 
 
 def open_stage(usd_path: str) -> bool:
@@ -182,24 +223,54 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
 
 
 def update_stage() -> None:
-    """Updates the current stage by triggering an application update cycle.
+    """Triggers a full application update cycle to process USD stage changes.
 
-    This function triggers a single update cycle of the application interface, which
-    in turn updates the stage and all associated systems (rendering, physics, etc.).
-    This is necessary to ensure that changes made to the stage are properly processed
-    and reflected in the simulation.
+    This function calls ``omni.kit.app.get_app_interface().update()`` which triggers
+    a complete application update including:
 
-    Note:
-        This function calls the application update interface rather than directly
-        updating the stage because the stage update is part of the broader
-        application update cycle that includes rendering, physics, and other systems.
+    * Physics simulation step (if ``/app/player/playSimulations`` is True)
+    * Rendering (RTX path tracing, viewport updates)
+    * UI updates (widgets, windows)
+    * Timeline events and callbacks
+    * Extension updates
+    * USD/Fabric synchronization
+
+    When to Use:
+        * **After creating a new stage**: ``create_new_stage()`` → ``update_stage()``
+        * **After spawning prims**: ``cfg.func("/World/Robot", cfg)`` → ``update_stage()``
+        * **After USD authoring**: Creating materials, lights, meshes, etc.
+        * **Before simulation starts**: During setup phase, before ``sim.reset()``
+        * **In test fixtures**: To ensure consistent state before each test
+
+    When NOT to Use:
+        * **During active simulation** (after ``sim.play()``): Can interfere with
+          physics stepping and cause double-stepping or timing issues.
+        * **During sensor updates**: Can reset RTX renderer state mid-cycle,
+          causing incorrect sensor outputs (e.g., ``inf`` depth values).
+        * **Inside physics/render callbacks**: Can cause recursion or timing issues.
+        * **Inside ``sim.step()`` or ``sim.render()``**: These already perform
+          app updates internally with proper safeguards.
+
+    For rendering during simulation without physics stepping, use::
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
-        >>> sim_utils.update_stage()
+        >>> # Setup phase - safe to use
+        >>> sim_utils.create_new_stage()
+        >>> robot_cfg.func("/World/Robot", robot_cfg)
+        >>> sim_utils.update_stage()  # Commit USD changes
+        >>>
+        >>> # Simulation phase - DO NOT use update_stage()
+        >>> sim.reset()
+        >>> sim.play()
+        >>> for _ in range(100):
+        ...     sim.step()  # Handles updates internally
     """
-    # TODO: Why is this updating the simulation and not the stage?
     omni.kit.app.get_app_interface().update()
 
 
@@ -426,11 +497,17 @@ def get_current_stage_id() -> int:
     """
     # get current stage
     stage = get_current_stage()
+    if stage is None:
+        raise RuntimeError("No current stage available. Did you create a stage?")
+
     # retrieve stage ID from stage cache
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
     # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
+        # Ensure stage has a valid root layer before inserting
+        if not stage.GetRootLayer():
+            raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # return stage ID
     return stage_id

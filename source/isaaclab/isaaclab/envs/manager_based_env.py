@@ -185,7 +185,7 @@ class ManagerBasedEnv:
         else:
             # if no window, then we don't need to store the window
             self._window = None
-
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
         # initialize observation buffers
         self.obs_buf = {}
 
@@ -371,7 +371,7 @@ class ManagerBasedEnv:
         self.scene.write_data_to_sim()
         self.sim.forward()
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
@@ -381,11 +381,10 @@ class ManagerBasedEnv:
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors:
+        if self.cfg.wait_for_textures and self.has_rtx_sensors:
             # Wait for assets to finish loading (PhysX-specific)
-            pm = self.sim.physics_manager
-            if hasattr(pm, "assets_loading"):
-                while pm.assets_loading():
+            if hasattr(self.sim.physics_manager, "assets_loading"):
+                while self.sim.physics_manager.assets_loading():
                     self.sim.render()
 
         # return observations
@@ -435,7 +434,7 @@ class ManagerBasedEnv:
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 

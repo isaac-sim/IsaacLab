@@ -213,7 +213,7 @@ class DirectMARLEnv(gym.Env):
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
-
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
@@ -492,7 +492,7 @@ class DirectMARLEnv(gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again since step already rendered
-        if not self.sim.has_rtx_sensors and not recompute:
+        if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:

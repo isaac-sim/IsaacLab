@@ -85,7 +85,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
-
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -221,7 +221,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -264,7 +264,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again since step already rendered
-        if not self.sim.has_rtx_sensors and not recompute:
+        if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:

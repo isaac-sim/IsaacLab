@@ -18,9 +18,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 
-import omni
 import omni.physx
-import omni.usd
 import usdrt
 from isaacsim.core.cloner import GridCloner
 
@@ -117,11 +115,12 @@ def test_stage_in_memory_with_shapes(sim):
         prims = sim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
-        # verify prims do not exist in context stage
-        context_stage = omni.usd.get_context().get_stage()
-        with sim_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
-            assert len(prims) != num_clones
+        # verify prims do not exist in context stage (if one exists)
+        context_stage = sim_utils.get_context_stage()
+        if context_stage is not None:
+            with sim_utils.use_stage(context_stage):
+                prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+                assert len(prims) != num_clones
 
         # attach stage to context
         sim_utils.attach_stage_to_usd_context()
@@ -182,11 +181,12 @@ def test_stage_in_memory_with_usds(sim):
         prims = sim_utils.find_matching_prim_paths(prim_path_regex)
         assert len(prims) == num_clones
 
-        # verify prims do not exist in context stage
-        context_stage = omni.usd.get_context().get_stage()
-        with sim_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
-            assert len(prims) != num_clones
+        # verify prims do not exist in context stage (if one exists)
+        context_stage = sim_utils.get_context_stage()
+        if context_stage is not None:
+            with sim_utils.use_stage(context_stage):
+                prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+                assert len(prims) != num_clones
 
         # attach stage to context
         sim_utils.attach_stage_to_usd_context()
@@ -237,11 +237,12 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         )
         prim_path_regex = "/World/envs/env_.*"
 
-        # verify prims do not exist in context stage
-        context_stage = omni.usd.get_context().get_stage()
-        with sim_utils.use_stage(context_stage):
-            prims = sim_utils.find_matching_prim_paths(prim_path_regex)
-            assert len(prims) != num_clones
+        # verify prims do not exist in context stage (if one exists)
+        context_stage = sim_utils.get_context_stage()
+        if context_stage is not None:
+            with sim_utils.use_stage(context_stage):
+                prims = sim_utils.find_matching_prim_paths(prim_path_regex)
+                assert len(prims) != num_clones
 
         # attach stage to context
         sim_utils.attach_stage_to_usd_context()

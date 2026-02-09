@@ -60,8 +60,7 @@ def setup_camera():
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
     sim.clear_instance()
 
@@ -85,7 +84,7 @@ def test_multi_tiled_camera_init(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -182,7 +181,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -285,7 +284,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()

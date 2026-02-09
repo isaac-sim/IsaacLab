@@ -64,7 +64,7 @@ def test_init(device):
     # verify device property
     assert sim.device == device
     # verify no RTX sensors are available
-    assert not sim.has_rtx_sensors
+    assert not sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # obtain physics scene from USD
     from pxr import UsdPhysics

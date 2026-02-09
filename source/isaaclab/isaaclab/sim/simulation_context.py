@@ -92,10 +92,15 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
-        # Get existing stage or create new one in memory
+        # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
-        all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
-        self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
+        if self.cfg.create_stage_in_memory:
+            # Create a fresh in-memory stage (not attached to USD context)
+            self.stage = create_new_stage_in_memory()
+        else:
+            # Use existing stage from cache, or create in-memory as fallback
+            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
+            self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
 
         # Cache stage in USD cache
         stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
@@ -120,8 +125,8 @@ class SimulationContext:
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
-        self._has_rtx_sensors = bool(self.get_setting("/isaaclab/render/rtx_sensors"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
+        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
 
         # Simulation state
         self._is_playing = False
@@ -181,11 +186,6 @@ class SimulationContext:
         return self._has_gui
 
     @property
-    def has_rtx_sensors(self) -> bool:
-        """Returns whether RTX sensors are enabled (cached at init)."""
-        return self._has_rtx_sensors
-
-    @property
     def has_offscreen_render(self) -> bool:
         """Returns whether offscreen rendering is enabled (cached at init)."""
         return self._has_offscreen_render
@@ -193,7 +193,7 @@ class SimulationContext:
     @property
     def is_rendering(self) -> bool:
         """Returns whether rendering is active (GUI or RTX sensors)."""
-        return self._has_gui or self._has_rtx_sensors
+        return self._has_gui or self.get_setting("/isaaclab/render/rtx_sensors")
 
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
@@ -283,6 +283,10 @@ class SimulationContext:
         for viz in self._visualizers:
             if not viz.is_rendering_paused() and viz.is_running():
                 viz.step(self.get_rendering_dt(), state=None)
+        # Call render callbacks
+        if hasattr(self, "_render_callbacks"):
+            for callback in self._render_callbacks.values():
+                callback(None)  # Pass None as event data
 
     def play(self) -> None:
         """Start or resume the simulation."""

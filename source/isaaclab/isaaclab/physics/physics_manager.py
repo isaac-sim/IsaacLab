@@ -24,10 +24,10 @@ class PhysicsEvent(Enum):
     """Physics simulation lifecycle events.
 
     These are general events that apply across all physics backends.
-    Backend-specific events (e.g., PhysX timeline events) are handled
-    by the respective manager classes.
+    Backend-specific events (e.g., PhysX step events, timeline events) are handled
+    by the respective manager classes via their own event enums (e.g., IsaacEvents).
 
-    Lifecycle order: MODEL_INIT -> PHYSICS_READY -> (PRE_STEP -> POST_STEP)* -> STOP
+    Lifecycle order: MODEL_INIT -> PHYSICS_READY -> STOP
     """
 
     MODEL_INIT = "model_init"
@@ -41,12 +41,6 @@ class PhysicsEvent(Enum):
     Fired after all physics data structures are created and the simulation is
     ready to step. Assets can now read initial state (positions, velocities).
     """
-
-    PRE_STEP = "pre_step"
-    """About to advance physics by one timestep."""
-
-    POST_STEP = "post_step"
-    """Called after each physics step."""
 
     STOP = "stop"
     """Simulation is stopping."""

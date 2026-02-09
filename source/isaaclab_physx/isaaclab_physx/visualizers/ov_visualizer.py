@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import enum
 import logging
+import os
 from typing import TYPE_CHECKING, Any
+
+import flatdict
+import toml
 
 import omni.kit.app
 
+from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.visualizers import Visualizer
 
 from .ov_visualizer_cfg import OVVisualizerCfg
@@ -171,6 +176,9 @@ class OVVisualizer(Visualizer):
         # Override enable scene querying if GUI is enabled
         if self._has_gui:
             self._sim.cfg.enable_scene_query_support = True
+
+        # Apply render settings from RenderCfg (including preset loading)
+        self._apply_render_settings_from_cfg()
 
         # Set initial camera view
         self.set_camera_view(self.cfg.camera_position, self.cfg.camera_target)
@@ -352,6 +360,133 @@ class OVVisualizer(Visualizer):
             else:
                 raise ValueError(f"Unsupported render mode: {mode}! Please check `RenderMode` for details.")
             self.render_mode = mode
+
+    def _apply_render_settings_from_cfg(self) -> None:  # noqa: C901
+        """Apply RTX settings from RenderCfg, including loading preset files.
+
+        This method applies rendering settings in the following order:
+        1. Load and apply preset settings from rendering mode (performance/balanced/quality)
+        2. Apply user-friendly named settings from RenderCfg
+        3. Apply arbitrary carb settings from RenderCfg.carb_settings
+        4. Apply antialiasing mode if specified
+
+        # THINK(Octi): what if there is no visualizer but rtx camera, this should still be set, should this code
+        # be add to visualizer at all? We should consider removing this code from visualizer and and to renderer
+        # implementation once we see how renderer will handle this.
+        """
+        if self._sim is None:
+            return
+
+        render_cfg = getattr(self._sim.cfg, "render", None)
+        if render_cfg is None:
+            return
+
+        # Define mapping of user-friendly RenderCfg names to native carb names
+        rendering_setting_name_mapping = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
+            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
+            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
+            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
+            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
+            "view_tile_limit": "/rtx/viewTile/limit",
+            # RT2 settings
+            "max_bounces": "/rtx/rtpt/maxBounces",
+            "split_glass": "/rtx/rtpt/splitGlass",
+            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
+            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
+        }
+
+        not_carb_settings = ["rendering_mode", "carb_settings", "antialiasing_mode"]
+
+        # Grab the rendering mode using the following priority:
+        # 1. Command line argument --rendering_mode, if provided
+        # 2. rendering_mode from RenderCfg, if set
+        # 3. Default to "balanced" mode, if neither is specified
+        rendering_mode = self._sim.get_setting("/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = getattr(render_cfg, "rendering_mode", None)
+        if not rendering_mode:
+            rendering_mode = "balanced"
+
+        # Set preset settings (same behavior as the CLI arg --rendering_mode)
+        if rendering_mode is not None:
+            # Check if preset is supported
+            supported_rendering_modes = ["performance", "balanced", "quality"]
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes {supported_rendering_modes}."
+                )
+
+            # Grab Isaac Lab apps path
+            isaaclab_app_exp_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), *[".."] * 5, "isaaclab", "apps"
+            )
+            # For Isaac Sim 5.0 compatibility, use the 5.X rendering mode app files in a different folder
+            if get_isaac_sim_version().major < 6:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+
+            # Grab preset settings
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+            if os.path.exists(preset_filename):
+                with open(preset_filename) as file:
+                    preset_dict = toml.load(file)
+                preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+
+                # Set presets
+                for key, value in preset_dict.items():
+                    key = "/" + key.replace(".", "/")  # Convert to carb setting format
+                    self._sim.set_setting(key, value)
+            else:
+                logger.warning(f"[OVVisualizer] Preset file not found: {preset_filename}")
+
+        # Set user-friendly named settings
+        for key, value in vars(render_cfg).items():
+            if value is None or key in not_carb_settings:
+                # Skip unset settings and non-carb settings
+                continue
+            if key not in rendering_setting_name_mapping:
+                # Skip unknown keys (may be custom fields)
+                continue
+            carb_key = rendering_setting_name_mapping[key]
+            self._sim.set_setting(carb_key, value)
+
+        # Set general carb settings
+        carb_settings = getattr(render_cfg, "carb_settings", None)
+        if carb_settings is not None:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")  # Convert from python variable style string
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")  # Convert from .kit file style string
+                if self._sim.get_setting(key) is None:
+                    raise ValueError(f"'{key}' in RenderCfg.carb_settings does not map to a carb setting.")
+                self._sim.set_setting(key, value)
+
+        # Set antialiasing mode
+        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
+        if antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
+            except Exception:
+                pass
+
+        # WAR: Ensure /rtx/renderMode RaytracedLighting is correctly cased
+        rendermode = self._sim.get_setting("/rtx/rendermode")
+        if rendermode is not None and rendermode.lower() == "raytracedlighting":
+            self._sim.set_setting("/rtx/rendermode", "RaytracedLighting")
 
     def close(self) -> None:
         """Clean up visualizer resources."""
