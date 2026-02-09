@@ -7,7 +7,7 @@
 
 import os
 
-# Conveniences to other module directories via relative paths
+# Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 """Path to the extension source directory."""
 
@@ -20,12 +20,14 @@ try:
     """Extension metadata dictionary parsed from the extension.toml file."""
     __version__ = ISAACLAB_METADATA["package"]["version"]
 except ImportError:
-    # Check for tomllib (Python 3.11+)
+    # Check for tomllib (Python 3.11+).
     try:
         import tomllib
         with open(os.path.join(ISAACLAB_EXT_DIR, "config", "extension.toml"), "rb") as f:
             ISAACLAB_METADATA = tomllib.load(f)
         __version__ = ISAACLAB_METADATA["package"]["version"]
     except (ImportError, FileNotFoundError):
+        # Tomllib is not part of the standard library before Python 3.11.
+        # Stub is good enough for installation puposes.
         ISAACLAB_METADATA = {"package": {"version": "0.0.0"}}
         __version__ = "0.0.0"
