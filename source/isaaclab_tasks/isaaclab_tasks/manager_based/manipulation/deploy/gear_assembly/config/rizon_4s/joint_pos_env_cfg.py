@@ -9,7 +9,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
@@ -29,37 +29,44 @@ from isaaclab_assets import FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort: skip
 ##
 
 
-def set_finger_joint_pos_grav_gripper(
+def set_finger_joint_pos_grav(
     joint_pos: torch.Tensor,
     reset_ind_joint_pos: list[int],
     finger_joints: list[int],
     finger_joint_position: float,
 ):
-    """Set finger joint positions for Flexiv Grav gripper.
-
-    The Grav gripper has a single main actuation joint (finger_joint).
-    The finger_joint_position is expected to be in the range [0, 1] where:
-    - 0.0 corresponds to fully closed (-8.88 degrees = -0.155 rad)
-    - 1.0 corresponds to fully opened (45 degrees = 0.785 rad)
+    """Set finger joint positions for Grav gripper.
 
     Args:
         joint_pos: Joint positions tensor
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
-        finger_joints: List of finger joint indices (only first one is used for Grav)
-        finger_joint_position: Target position for finger joints (0-1 normalized)
+        finger_joints: List of all gripper joint indices (6 joints total)
+        finger_joint_position: Target position for main finger joint (in radians)
+
+    Note:
+        Grav gripper joint structure (indices from finger_joints list):
+        [0] finger_joint - main controllable joint
+        [1] left_inner_knuckle_joint - mimic with -1 gearing
+        [2] right_inner_knuckle_joint - mimic with -1 gearing
+        [3] right_outer_knuckle_joint - mimic with -1 gearing
+        [4] left_outer_finger_joint - mimic with +1 gearing
+        [5] right_outer_finger_joint - mimic with +1 gearing
     """
-    # Grav gripper joint limits (in radians)
-    GRAV_CLOSED_POS = math.radians(-8.88)  # -0.155 rad
-    GRAV_OPENED_POS = math.radians(45.0)   # 0.785 rad
-
-    # Map normalized position to actual joint position
-    # finger_joint_position of 0 = closed, 1 = opened
-    actual_pos = GRAV_CLOSED_POS + finger_joint_position * (GRAV_OPENED_POS - GRAV_CLOSED_POS)
-
     for idx in reset_ind_joint_pos:
-        if len(finger_joints) > 0:
-            # Set the main finger_joint
-            joint_pos[idx, finger_joints[0]] = actual_pos
+        if len(finger_joints) < 6:
+            raise ValueError(f"Grav gripper requires at least 6 finger joints, got {len(finger_joints)}")
+
+        # Main controllable joint
+        joint_pos[idx, finger_joints[0]] = finger_joint_position
+
+        # Mimic joints with -1 gearing
+        joint_pos[idx, finger_joints[1]] = finger_joint_position  # left_inner_knuckle_joint
+        joint_pos[idx, finger_joints[2]] = finger_joint_position  # right_inner_knuckle_joint
+        joint_pos[idx, finger_joints[3]] = finger_joint_position  # right_outer_knuckle_joint
+
+        # Mimic joints with +1 gearing
+        joint_pos[idx, finger_joints[4]] = -finger_joint_position  # left_outer_finger_joint
+        joint_pos[idx, finger_joints[5]] = -finger_joint_position  # right_outer_finger_joint
 
 
 ##
@@ -71,30 +78,32 @@ def set_finger_joint_pos_grav_gripper(
 class EventCfg:
     """Configuration for events."""
 
-    robot_joint_stiffness_and_damping = EventTerm(
-        func=mdp.randomize_actuator_gains,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]
-            ),  # only the arm joints are randomized
-            "stiffness_distribution_params": (0.75, 1.5),
-            "damping_distribution_params": (0.3, 3.0),
-            "operation": "scale",
-            "distribution": "log_uniform",
-        },
-    )
+    # NOTE: Domain randomization for actuator gains and joint friction disabled for stability.
+    # Re-enable once the base simulation is stable and working.
+    # robot_joint_stiffness_and_damping = EventTerm(
+    #     func=mdp.randomize_actuator_gains,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg(
+    #             "robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]
+    #         ),
+    #         "stiffness_distribution_params": (0.75, 1.5),
+    #         "damping_distribution_params": (0.3, 3.0),
+    #         "operation": "scale",
+    #         "distribution": "log_uniform",
+    #     },
+    # )
 
-    joint_friction = EventTerm(
-        func=mdp.randomize_joint_parameters,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
-            "friction_distribution_params": (0.3, 0.7),
-            "operation": "add",
-            "distribution": "uniform",
-        },
-    )
+    # joint_friction = EventTerm(
+    #     func=mdp.randomize_joint_parameters,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
+    #         "friction_distribution_params": (0.3, 0.7),
+    #         "operation": "add",
+    #         "distribution": "uniform",
+    #     },
+    # )
 
     small_gear_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -137,8 +146,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("factory_gear_base", body_names=".*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (0.0, 0.0),
+            "dynamic_friction_range": (0.0, 0.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -149,8 +158,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*finger.*"),
-            "static_friction_range": (0.75, 0.75),
-            "dynamic_friction_range": (0.75, 0.75),
+            "static_friction_range": (3.0, 3.0),
+            "dynamic_friction_range": (3.0, 3.0),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -208,18 +217,17 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         super().__post_init__()
 
         # Robot-specific parameters for Flexiv Rizon 4s with Grav gripper
-        # End effector body name - using the gripper finger tip for accurate grasp positioning
-        self.end_effector_body_name = "right_finger_tip"
+        self.end_effector_body_name = "link7"  # End effector body name for IK
         self.num_arm_joints = 7  # Number of arm joints (Rizon 4s has 7 DOF)
-        # Rotation offset for grasp pose (quaternion [w, x, y, z])
-        # Rizon 4s end-effector is along z-direction, so we need to rotate for downward facing
+        # Rotation offset for grasp pose (quaternion [x, y, z, w])
+        # Computed from IK convergence for downward-facing end effector
         self.grasp_rot_offset = [
+            -0.707,
+            0.707,
             0.0,
-            1.0,
             0.0,
-            0.0,
-        ]  # 180 degrees around X axis for downward facing EE
-        self.gripper_joint_setter_func = set_finger_joint_pos_grav_gripper  # Grav gripper joint setter function
+        ]
+        self.gripper_joint_setter_func = set_finger_joint_pos_grav  # Grav gripper joint setter function
 
         # Gear orientation termination thresholds (in degrees)
         self.gear_orientation_roll_threshold_deg = 15.0  # Maximum allowed roll deviation
@@ -261,8 +269,8 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
         # Action configuration for Rizon 4s arm
-        # Using smaller action scale similar to UR10e (0.025) for stability
-        self.joint_action_scale = 0.025
+        # Using smaller action scale for stability
+        self.joint_action_scale = 0.01
         self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
             asset_name="robot",
             joint_names=[
@@ -290,43 +298,38 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                     max_linear_velocity=1000.0,
                     max_angular_velocity=3666.0,
                     enable_gyroscopic_forces=True,
-                    solver_position_iteration_count=16,
+                    solver_position_iteration_count=4,
                     solver_velocity_iteration_count=1,
                     max_contact_impulse=1e32,
                 ),
                 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                    enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
+                    enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
-            # Initial joint positions for Rizon 4s with Grav gripper - configured for gear assembly task
-            # These positions place the arm in a suitable configuration for grasping gears
+            # Joint positions based on IK from center of distribution for randomized gear positions
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
                     "joint1": 0.0,
-                    "joint2": -0.785,  # -45 degrees
+                    "joint2": -0.698,
                     "joint3": 0.0,
-                    "joint4": -1.571,  # -90 degrees
+                    "joint4": 1.571,
                     "joint5": 0.0,
-                    "joint6": 0.785,  # 45 degrees
+                    "joint6": 0.698,
                     "joint7": 0.0,
-                    # Grav gripper - start partially open for grasp
-                    "finger_joint": math.radians(30.0),
-                    # Initialize passive joints
-                    ".*_knuckle_joint": 0.0,
                 },
                 pos=(0.0, 0.0, 0.0),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
 
-        # Grav gripper main actuator configuration for gear manipulation
+        # Grav gripper actuator configuration for gear manipulation
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=2.0,
-            stiffness=40.0,
-            damping=1.0,
+            effort_limit_sim=2.0,
+            velocity_limit_sim=1.0,
+            stiffness=2e3,
+            damping=1e1,
             friction=0.0,
             armature=0.0,
         )
@@ -342,30 +345,45 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             armature=0.0,
         )
 
+        # Override gear initial states for Rizon (closer to robot, centered)
+        self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
+            pos=(-0.6, 0.0, -0.1),
+            rot=(0.0, 0.0, 0.70711, 0.70711),
+        )
+        self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
+            pos=(-0.6, 0.0, -0.1),
+            rot=(0.0, 0.0, 0.70711, 0.70711),
+        )
+        self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
+            pos=(-0.6, 0.0, -0.1),
+            rot=(0.0, 0.0, 0.70711, 0.70711),
+        )
+        self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
+            pos=(-0.6, 0.0, -0.1),
+            rot=(0.0, 0.0, 0.70711, 0.70711),
+        )
+
         # Gear offsets and grasp positions for Rizon 4s with Grav gripper
-        # These offsets are relative to the end effector frame (finger tip)
-        # Z offset accounts for the gripper length from flange to finger tip
+        # These offsets are relative to the end effector frame (link7)
+        # Z offset accounts for the gripper length from link7 to finger tip
         self.gear_offsets_grasp = {
-            "gear_small": [0.0, self.gear_offsets["gear_small"][0], -0.12],
-            "gear_medium": [0.0, self.gear_offsets["gear_medium"][0], -0.12],
-            "gear_large": [0.0, self.gear_offsets["gear_large"][0], -0.12],
+            "gear_small": [0.0, -self.gear_offsets["gear_small"][0], -0.35],
+            "gear_medium": [0.0, -self.gear_offsets["gear_medium"][0], -0.35],
+            "gear_large": [0.0, -self.gear_offsets["gear_large"][0], -0.35],
         }
 
-        # Grasp widths for Grav gripper (normalized 0-1 values)
-        # These values determine the finger opening for different gear sizes
-        # Grav gripper range: -8.88° (closed) to 45° (open)
+        # Grasp widths for Grav gripper (raw radian values for finger_joint)
         self.hand_grasp_width = {
-            "gear_small": 0.7,   # More open for small gear
-            "gear_medium": 0.5,  # Medium opening
-            "gear_large": 0.4,   # Less open for large gear
+            "gear_small": 0.05,
+            "gear_medium": 0.2,
+            "gear_large": 0.28,
         }
 
-        # Close widths for Grav gripper (normalized 0-1 values)
-        # Slightly tighter than grasp width for secure grip
+        # Close widths for Grav gripper (raw radian values for finger_joint)
         self.hand_close_width = {
-            "gear_small": 0.75,
-            "gear_medium": 0.55,
-            "gear_large": 0.45,
+            "gear_small": 0.0,
+            "gear_medium": 0.139626,
+            "gear_large": 0.139626,
         }
 
         # Populate event term parameters
