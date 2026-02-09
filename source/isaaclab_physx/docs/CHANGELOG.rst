@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.4 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed all the deprecated properties and shorthands in the assets. They now live in the base classes.
+
+
 0.1.3 (2026-02-03)
 ~~~~~~~~~~~~~~~~~~~
 

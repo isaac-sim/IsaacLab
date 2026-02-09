@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+3.0.3 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified all the base classes so that they implement the shorthands and the deprecation cycle to IsaacLab 4.0
+
+
 3.0.2 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~
 
