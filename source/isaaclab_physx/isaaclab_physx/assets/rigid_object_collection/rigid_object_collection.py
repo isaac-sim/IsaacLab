@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -933,152 +934,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self._clear_callbacks()
                 return
 
-    @property
-    def num_objects(self) -> int:
-        """Deprecated property. Please use :attr:`num_bodies` instead."""
-        logger.warning(
-            "The `num_bodies` property will be deprecated in a future release. Please use `num_bodies` instead."
-        )
-        return self.num_bodies
-
-    @property
-    def object_names(self) -> list[str]:
-        """Deprecated property. Please use :attr:`body_names` instead."""
-        logger.warning(
-            "The `object_names` property will be deprecated in a future release. Please use `body_names` instead."
-        )
-        return self.body_names
+    """
+    Deprecated properties and methods.
+    """
 
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
-        logger.warning(
-            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        warnings.warn(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_view
-
-    def write_object_state_to_sim(
-        self,
-        object_state: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_state_to_sim` instead."""
-        logger.warning(
-            "The `write_object_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_state_to_sim` instead."
-        )
-        self.write_body_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_com_state_to_sim(
-        self,
-        object_state: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_state_to_sim` instead."""
-        logger.warning(
-            "The `write_object_com_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_state_to_sim` instead."
-        )
-        self.write_body_com_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_link_state_to_sim(
-        self,
-        object_state: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ):
-        """Deprecated method. Please use :meth:`write_body_link_state_to_sim` instead."""
-        logger.warning(
-            "The `write_object_link_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_state_to_sim` instead."
-        )
-        self.write_body_link_state_to_sim(object_state, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_pose_to_sim(
-        self,
-        object_pose: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ):
-        """Deprecated method. Please use :meth:`write_body_pose_to_sim` instead."""
-        logger.warning(
-            "The `write_object_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_pose_to_sim` instead."
-        )
-        self.write_body_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_link_pose_to_sim(
-        self,
-        object_pose: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_link_pose_to_sim` instead."""
-        logger.warning(
-            "The `write_object_link_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_pose_to_sim` instead."
-        )
-        self.write_body_link_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_com_pose_to_sim(
-        self,
-        object_pose: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim` instead."""
-        logger.warning(
-            "The `write_object_com_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_pose_to_sim` instead."
-        )
-        self.write_body_com_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_velocity_to_sim(
-        self,
-        object_velocity: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
-        logger.warning(
-            "The `write_object_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim` instead."
-        )
-        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_com_velocity_to_sim(
-        self,
-        object_velocity: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
-        logger.warning(
-            "The `write_object_com_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim` instead."
-        )
-        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
-
-    def write_object_link_velocity_to_sim(
-        self,
-        object_velocity: torch.Tensor,
-        env_ids: torch.Tensor | None = None,
-        object_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim` instead."""
-        logger.warning(
-            "The `write_object_link_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_velocity_to_sim` instead."
-        )
-        self.write_body_link_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
-
-    def find_objects(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str], list[int]]:
-        """Deprecated method. Please use :meth:`find_bodies` instead."""
-        logger.warning(
-            "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead."
-        )
-        return self.find_bodies(name_keys, preserve_order)
