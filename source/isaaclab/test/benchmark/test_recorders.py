@@ -207,7 +207,7 @@ class TestGPUInfoRecorder:
 
         runtime_data = recorder.get_runtime_data()
         device_runtime = runtime_data["gpu_utilization"]["devices"][0]
-        assert isinstance(device_runtime["memory_allocated_mean_bytes"], float)
+        assert isinstance(device_runtime["memory_used_mean_bytes"], float)
         assert isinstance(device_runtime["memory_allocated_std_bytes"], float)
         assert isinstance(device_runtime["memory_n"], int)
 
