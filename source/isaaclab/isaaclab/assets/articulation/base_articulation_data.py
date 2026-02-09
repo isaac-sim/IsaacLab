@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from abc import ABC, abstractmethod
 
 import torch
@@ -823,144 +824,423 @@ class BaseArticulationData(ABC):
         """
         raise NotImplementedError
 
-    ##
-    # Backward compatibility.
-    ##
+    def _create_buffers(self) -> None:
+        # -- Defaults (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+        self._default_joint_stiffness = None
+        self._default_joint_damping = None
+        self._default_joint_armature = None
+        self._default_joint_friction_coeff = None
+        self._default_joint_viscous_friction_coeff = None
+        self._default_joint_pos_limits = None
+        self._default_fixed_tendon_stiffness = None
+        self._default_fixed_tendon_damping = None
+        self._default_fixed_tendon_limit_stiffness = None
+        self._default_fixed_tendon_rest_length = None
+        self._default_fixed_tendon_offset = None
+        self._default_fixed_tendon_pos_limits = None
+        self._default_spatial_tendon_stiffness = None
+        self._default_spatial_tendon_damping = None
+        self._default_spatial_tendon_limit_stiffness = None
+        self._default_spatial_tendon_offset = None
+
+    """
+    Shorthands for commonly used properties.
+    """
 
     @property
-    @abstractmethod
     def root_pose_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_pose_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_link_pose_w`."""
+        return self.root_link_pose_w
 
     @property
-    @abstractmethod
     def root_pos_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_pos_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_link_pos_w`."""
+        return self.root_link_pos_w
 
     @property
-    @abstractmethod
     def root_quat_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_quat_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_link_quat_w`."""
+        return self.root_link_quat_w
 
     @property
-    @abstractmethod
     def root_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_com_vel_w`."""
+        return self.root_com_vel_w
 
     @property
-    @abstractmethod
     def root_lin_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_lin_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_com_lin_vel_w`."""
+        return self.root_com_lin_vel_w
 
     @property
-    @abstractmethod
     def root_ang_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_ang_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_com_ang_vel_w`."""
+        return self.root_com_ang_vel_w
 
     @property
-    @abstractmethod
     def root_lin_vel_b(self) -> torch.Tensor:
-        """Same as :attr:`root_com_lin_vel_b`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_com_lin_vel_b`."""
+        return self.root_com_lin_vel_b
 
     @property
-    @abstractmethod
     def root_ang_vel_b(self) -> torch.Tensor:
-        """Same as :attr:`root_com_ang_vel_b`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`root_com_ang_vel_b`."""
+        return self.root_com_ang_vel_b
 
     @property
-    @abstractmethod
     def body_pose_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_pose_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_link_pose_w`."""
+        return self.body_link_pose_w
 
     @property
-    @abstractmethod
     def body_pos_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_pos_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_link_pos_w`."""
+        return self.body_link_pos_w
 
     @property
-    @abstractmethod
     def body_quat_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_quat_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_link_quat_w`."""
+        return self.body_link_quat_w
 
     @property
-    @abstractmethod
     def body_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_vel_w`."""
+        return self.body_com_vel_w
 
     @property
-    @abstractmethod
     def body_lin_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_lin_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_lin_vel_w`."""
+        return self.body_com_lin_vel_w
 
     @property
-    @abstractmethod
     def body_ang_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_ang_vel_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_ang_vel_w`."""
+        return self.body_com_ang_vel_w
 
     @property
-    @abstractmethod
     def body_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_acc_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_acc_w`."""
+        return self.body_com_acc_w
 
     @property
-    @abstractmethod
     def body_lin_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_lin_acc_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_lin_acc_w`."""
+        return self.body_com_lin_acc_w
 
     @property
-    @abstractmethod
     def body_ang_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_ang_acc_w`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_ang_acc_w`."""
+        return self.body_com_ang_acc_w
 
     @property
-    @abstractmethod
     def com_pos_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_pos_b`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_pos_b`."""
+        return self.body_com_pos_b
 
     @property
-    @abstractmethod
     def com_quat_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_quat_b`."""
-        raise NotImplementedError
+        """Shorthand for :attr:`body_com_quat_b`."""
+        return self.body_com_quat_b
 
     @property
-    @abstractmethod
     def joint_limits(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`joint_pos_limits` instead."""
-        raise NotImplementedError
+        """Shorthand for :attr:`joint_pos_limits`."""
+        return self.joint_pos_limits
 
     @property
-    @abstractmethod
+    def default_joint_limits(self) -> torch.Tensor:
+        """Shorthand for :attr:`default_joint_pos_limits`."""
+        return self.default_joint_pos_limits
+
+    @property
     def joint_velocity_limits(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`joint_vel_limits` instead."""
-        raise NotImplementedError
+        """Shorthand for :attr:`joint_vel_limits`."""
+        return self.joint_vel_limits
 
     @property
-    @abstractmethod
     def joint_friction(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`joint_friction_coeff` instead."""
-        raise NotImplementedError
+        """Shorthand for :attr:`joint_friction_coeff`."""
+        return self.joint_friction_coeff
 
     @property
-    @abstractmethod
     def fixed_tendon_limit(self) -> torch.Tensor:
-        """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead."""
-        raise NotImplementedError
+        """Shorthand for :attr:`fixed_tendon_pos_limits`."""
+        return self.fixed_tendon_pos_limits
+
+    """
+    Defaults - Default values will no longer be stored.
+    """
+
+    @property
+    def default_mass(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_mass is None:
+            self._default_mass = self.body_mass.clone()
+        return self._default_mass
+
+    @property
+    def default_inertia(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_inertia is None:
+            self._default_inertia = self.body_inertia.clone()
+        return self._default_inertia
+
+    @property
+    def default_joint_stiffness(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_stiffness` instead and manage the default joint stiffness
+        manually."""
+        warnings.warn(
+            "The `default_joint_stiffness` property will be deprecated in a IsaacLab 4.0. Please use `joint_stiffness` "
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_stiffness is None:
+            self._default_joint_stiffness = self.joint_stiffness.clone()
+        return self._default_joint_stiffness
+
+    @property
+    def default_joint_damping(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_damping` instead and manage the default joint damping
+        manually."""
+        warnings.warn(
+            "The `default_joint_damping` property will be deprecated in a IsaacLab 4.0. Please use `joint_damping` "
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_damping is None:
+            self._default_joint_damping = self.joint_damping.clone()
+        return self._default_joint_damping
+
+    @property
+    def default_joint_armature(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_armature` instead and manage the default joint armature
+        manually."""
+        warnings.warn(
+            "The `default_joint_armature` property will be deprecated in a IsaacLab 4.0. Please use `joint_armature` "
+            "instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_armature is None:
+            self._default_joint_armature = self.joint_armature.clone()
+        return self._default_joint_armature
+
+    @property
+    def default_joint_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_friction_coeff` instead and manage the default joint friction
+        coefficient manually."""
+        warnings.warn(
+            "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_friction_coeff` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_friction_coeff is None:
+            self._default_joint_friction_coeff = self.joint_friction_coeff.clone()
+        return self._default_joint_friction_coeff
+
+    @property
+    def default_joint_viscous_friction_coeff(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_viscous_friction_coeff` instead and manage the default joint
+        viscous friction coefficient manually."""
+        warnings.warn(
+            "The `default_joint_viscous_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_viscous_friction_coeff` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_viscous_friction_coeff is None:
+            self._default_joint_viscous_friction_coeff = self.joint_viscous_friction_coeff.clone()
+        return self._default_joint_viscous_friction_coeff
+
+    @property
+    def default_joint_pos_limits(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`joint_pos_limits` instead and manage the default joint position
+        limits manually."""
+        warnings.warn(
+            "The `default_joint_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`joint_pos_limits` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_joint_pos_limits is None:
+            self._default_joint_pos_limits = self.joint_pos_limits.clone()
+        return self._default_joint_pos_limits
+
+    @property
+    def default_fixed_tendon_stiffness(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_stiffness` instead and manage the default fixed tendon
+        stiffness manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_stiffness is None:
+            self._default_fixed_tendon_stiffness = self.fixed_tendon_stiffness.clone()
+        return self._default_fixed_tendon_stiffness
+
+    @property
+    def default_fixed_tendon_damping(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_damping` instead and manage the default fixed tendon
+        damping manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_damping` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_damping is None:
+            self._default_fixed_tendon_damping = self.fixed_tendon_damping.clone()
+        return self._default_fixed_tendon_damping
+
+    @property
+    def default_fixed_tendon_limit_stiffness(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_limit_stiffness` instead and manage the default fixed
+        tendon limit stiffness manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_limit_stiffness is None:
+            self._default_fixed_tendon_limit_stiffness = self.fixed_tendon_limit_stiffness.clone()
+        return self._default_fixed_tendon_limit_stiffness
+
+    @property
+    def default_fixed_tendon_rest_length(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_rest_length` instead and manage the default fixed tendon
+        rest length manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_rest_length` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_rest_length` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_rest_length is None:
+            self._default_fixed_tendon_rest_length = self.fixed_tendon_rest_length.clone()
+        return self._default_fixed_tendon_rest_length
+
+    @property
+    def default_fixed_tendon_offset(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_offset` instead and manage the default fixed tendon
+        offset manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_offset` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_offset is None:
+            self._default_fixed_tendon_offset = self.fixed_tendon_offset.clone()
+        return self._default_fixed_tendon_offset
+
+    @property
+    def default_fixed_tendon_pos_limits(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead and manage the default fixed tendon
+        position limits manually."""
+        warnings.warn(
+            "The `default_fixed_tendon_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`fixed_tendon_pos_limits` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_fixed_tendon_pos_limits is None:
+            self._default_fixed_tendon_pos_limits = self.fixed_tendon_pos_limits.clone()
+        return self._default_fixed_tendon_pos_limits
+
+    @property
+    def default_spatial_tendon_stiffness(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`spatial_tendon_stiffness` instead and manage the default spatial
+        tendon stiffness manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_spatial_tendon_stiffness is None:
+            self._default_spatial_tendon_stiffness = self.spatial_tendon_stiffness.clone()
+        return self._default_spatial_tendon_stiffness
+
+    @property
+    def default_spatial_tendon_damping(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`spatial_tendon_damping` instead and manage the default spatial tendon
+        damping manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_damping` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_spatial_tendon_damping is None:
+            self._default_spatial_tendon_damping = self.spatial_tendon_damping.clone()
+        return self._default_spatial_tendon_damping
+
+    @property
+    def default_spatial_tendon_limit_stiffness(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`spatial_tendon_limit_stiffness` instead and manage the default
+        spatial tendon limit stiffness manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_spatial_tendon_limit_stiffness is None:
+            self._default_spatial_tendon_limit_stiffness = self.spatial_tendon_limit_stiffness.clone()
+        return self._default_spatial_tendon_limit_stiffness
+
+    @property
+    def default_spatial_tendon_offset(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`spatial_tendon_offset` instead and manage the default spatial tendon
+        offset manually."""
+        warnings.warn(
+            "The `default_spatial_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use"
+            "`spatial_tendon_offset` instead. The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_spatial_tendon_offset is None:
+            self._default_spatial_tendon_offset = self.spatial_tendon_offset.clone()
+        return self._default_spatial_tendon_offset
+
+    @property
+    def default_fixed_tendon_limit(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
+        warnings.warn(
+            "The `default_fixed_tendon_limit` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_fixed_tendon_pos_limits` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.default_fixed_tendon_pos_limits
+
+    @property
+    def default_joint_friction(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
+        warnings.warn(
+            "The `default_joint_friction` property will be deprecated in a IsaacLab 4.0. Please use"
+            " `default_joint_friction_coeff` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.default_joint_friction_coeff

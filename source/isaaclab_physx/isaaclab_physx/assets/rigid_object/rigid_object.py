@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -693,7 +694,9 @@ class RigidObject(BaseRigidObject):
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
-        logger.warning(
-            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        warnings.warn(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_view

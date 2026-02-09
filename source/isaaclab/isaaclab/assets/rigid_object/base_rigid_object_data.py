@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from abc import ABC, abstractmethod
 
 import torch
@@ -520,121 +521,136 @@ class BaseRigidObjectData(ABC):
         """
         raise NotImplementedError()
 
-    ##
-    # Properties for backwards compatibility.
-    ##
+    def _create_buffers(self) -> None:
+        # -- Default mass and inertia (Lazy allocation of default values)
+        self._default_mass = None
+        self._default_inertia = None
+
+    """
+    Shorthands for commonly used properties.
+    """
 
     @property
-    @abstractmethod
     def root_pose_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_pose_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_link_pose_w`."""
+        return self.root_link_pose_w
 
     @property
-    @abstractmethod
     def root_pos_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_pos_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_link_pos_w`."""
+        return self.root_link_pos_w
 
     @property
-    @abstractmethod
     def root_quat_w(self) -> torch.Tensor:
-        """Same as :attr:`root_link_quat_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_link_quat_w`."""
+        return self.root_link_quat_w
 
     @property
-    @abstractmethod
     def root_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_com_vel_w`."""
+        return self.root_com_vel_w
 
     @property
-    @abstractmethod
     def root_lin_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_lin_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_com_lin_vel_w`."""
+        return self.root_com_lin_vel_w
 
     @property
-    @abstractmethod
     def root_ang_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`root_com_ang_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_com_ang_vel_w`."""
+        return self.root_com_ang_vel_w
 
     @property
-    @abstractmethod
     def root_lin_vel_b(self) -> torch.Tensor:
-        """Same as :attr:`root_com_lin_vel_b`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_com_lin_vel_b`."""
+        return self.root_com_lin_vel_b
 
     @property
-    @abstractmethod
     def root_ang_vel_b(self) -> torch.Tensor:
-        """Same as :attr:`root_com_ang_vel_b`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`root_com_ang_vel_b`."""
+        return self.root_com_ang_vel_b
 
     @property
-    @abstractmethod
     def body_pose_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_pose_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_link_pose_w`."""
+        return self.body_link_pose_w
 
     @property
-    @abstractmethod
     def body_pos_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_pos_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_link_pos_w`."""
+        return self.body_link_pos_w
 
     @property
-    @abstractmethod
     def body_quat_w(self) -> torch.Tensor:
-        """Same as :attr:`body_link_quat_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_link_quat_w`."""
+        return self.body_link_quat_w
 
     @property
-    @abstractmethod
     def body_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_vel_w`."""
+        return self.body_com_vel_w
 
     @property
-    @abstractmethod
     def body_lin_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_lin_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_lin_vel_w`."""
+        return self.body_com_lin_vel_w
 
     @property
-    @abstractmethod
     def body_ang_vel_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_ang_vel_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_ang_vel_w`."""
+        return self.body_com_ang_vel_w
 
     @property
-    @abstractmethod
     def body_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_acc_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_acc_w`."""
+        return self.body_com_acc_w
 
     @property
-    @abstractmethod
     def body_lin_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_lin_acc_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_lin_acc_w`."""
+        return self.body_com_lin_acc_w
 
     @property
-    @abstractmethod
     def body_ang_acc_w(self) -> torch.Tensor:
-        """Same as :attr:`body_com_ang_acc_w`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_ang_acc_w`."""
+        return self.body_com_ang_acc_w
 
     @property
-    @abstractmethod
     def com_pos_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_pos_b`."""
-        raise NotImplementedError()
+        """Shorthand for :attr:`body_com_pos_b`."""
+        return self.body_com_pos_b
 
     @property
-    @abstractmethod
     def com_quat_b(self) -> torch.Tensor:
-        """Same as :attr:`body_com_quat_b`."""
+        """Shorthand for :attr:`body_com_quat_b`."""
+        return self.body_com_quat_b
 
-        raise NotImplementedError()
+    """
+    Removed - Default values are no longer stored.
+    """
+
+    @property
+    def default_mass(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
+        warnings.warn(
+            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_mass is None:
+            self._default_mass = self.body_mass.clone()
+        return self._default_mass
+
+    @property
+    def default_inertia(self) -> torch.Tensor:
+        """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
+        warnings.warn(
+            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
+            "The default value will need to be managed manually.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_inertia is None:
+            self._default_inertia = self.body_inertia.clone()
+        return self._default_inertia
