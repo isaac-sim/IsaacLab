@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -15,7 +17,7 @@ class RetargeterCfg:
 
     sim_device: str = "cpu"
     # Concrete retargeter class to construct for this config. Set by each retargeter module.
-    retargeter_type: type["RetargeterBase"] | None = None
+    retargeter_type: type[RetargeterBase] | None = None
 
 
 class RetargeterBase(ABC):
@@ -56,7 +58,7 @@ class RetargeterBase(ABC):
         """
         pass
 
-    def get_requirements(self) -> list["RetargeterBase.Requirement"]:
+    def get_requirements(self) -> list[RetargeterBase.Requirement]:
         """Return the list of required data features for this retargeter.
 
         Defaults to requesting all available features for backward compatibility.

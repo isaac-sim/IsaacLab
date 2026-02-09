@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import gc
 import logging
 import traceback
@@ -30,7 +32,7 @@ logger = logging.getLogger(__name__)
 class SettingsHelper:
     """Helper for typed Carbonite settings access."""
 
-    def __init__(self, settings: "carb.settings.ISettings"):
+    def __init__(self, settings: carb.settings.ISettings):
         self._settings = settings
 
     def set(self, name: str, value: Any) -> None:
@@ -67,7 +69,7 @@ class SimulationContext:
 
     # SINGLETON PATTERN
 
-    _instance: "SimulationContext | None" = None
+    _instance: SimulationContext | None = None
 
     def __new__(cls, cfg: SimulationCfg | None = None):
         """Enforce singleton pattern."""
@@ -76,7 +78,7 @@ class SimulationContext:
         return super().__new__(cls)
 
     @classmethod
-    def instance(cls) -> "SimulationContext | None":
+    def instance(cls) -> SimulationContext | None:
         """Get the singleton instance, or None if not created."""
         return cls._instance
 

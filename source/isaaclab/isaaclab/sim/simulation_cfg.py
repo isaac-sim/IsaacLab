@@ -9,6 +9,8 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
+from __future__ import annotations
+
 import contextlib
 import warnings
 from typing import Any, Literal  # Literal used by RenderCfg

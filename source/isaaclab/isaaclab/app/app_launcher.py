@@ -12,6 +12,8 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 :attr:`AppLauncher.app` property.
 """
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import logging
