@@ -222,7 +222,7 @@ class TestGPUInfoRecorder:
 
         runtime_data = recorder.get_runtime_data()
         for device_runtime in runtime_data["gpu_utilization"]["devices"]:
-            assert device_runtime["memory_allocated_mean_bytes"] >= 0
+            assert device_runtime["memory_used_mean_bytes"] >= 0
             assert device_runtime["memory_allocated_std_bytes"] >= 0
 
     def test_get_data_returns_measurement_data(self, recorder):
