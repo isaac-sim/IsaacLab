@@ -46,7 +46,11 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
+<<<<<<< HEAD
     "flatdict==4.0.0",
+=======
+    "flatdict>=3.4.0",
+>>>>>>> 2d10bc06431 (Add vision-based dexterous manipulation support with RTX rendering)
     "flaky",
     "packaging",
     # visualizers

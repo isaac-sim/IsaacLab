@@ -11,6 +11,7 @@ import torch
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.sensors import TiledCamera
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 from .utils import sample_object_point_cloud
@@ -199,6 +200,14 @@ def fingers_contact_force_b(
 
 
 class vision_camera(ManagerTermBase):
+    """Vision camera observation term for retrieving and normalizing camera data.
+
+    Args (from ``cfg.params``):
+        sensor_cfg: Scene entity for the camera sensor. Defaults to ``SceneEntityCfg("tiled_camera")``.
+
+    Returns (from ``__call__``):
+        Tensor containing normalized camera images with shape depending on the camera configuration.
+    """
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
@@ -209,7 +218,17 @@ class vision_camera(ManagerTermBase):
 
     def __call__(
         self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
-    ) -> torch.Tensor:  # obtain the input image
+    ) -> torch.Tensor:
+        """Obtain and optionally normalize the camera image data.
+
+        Args:
+            env: The environment.
+            sensor_cfg: Scene entity for the camera sensor.
+            normalize: Whether to normalize the images. Defaults to ``True``.
+
+        Returns:
+            Tensor containing camera images (normalized if requested).
+        """
         images = self.sensor.data.output[self.sensor_type]
         torch.nan_to_num_(images, nan=1e6)
         if normalize:
@@ -218,41 +237,14 @@ class vision_camera(ManagerTermBase):
         return images
 
     def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
+        """Normalize RGB images."""
         images = images.float() / 255.0
         mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
         images -= mean_tensor
         return images
 
     def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
+        """Normalize depth images."""
         images = torch.tanh(images / 2) * 2
         images -= torch.mean(images, dim=(1, 2), keepdim=True)
         return images
-
-    def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
-        import numpy as np
-        from matplotlib import cm
-
-        from PIL import Image
-
-        a = images.detach().cpu().numpy()
-        n, h, w, c = a.shape
-        s = int(np.ceil(np.sqrt(n)))
-        canvas = np.full((s * h, s * w, 3), 255, np.uint8)
-        turbo = cm.get_cmap("turbo")
-        for i in range(n):
-            r, col = divmod(i, s)
-            img = a[i]
-            if c == 1:
-                d = img[..., 0]
-                d = (d - d.min()) / (np.ptp(d) + 1e-8)
-                rgb = (turbo(d)[..., :3] * 255).astype(np.uint8)
-            else:
-                x = img if img.max() > 1 else img * 255
-                rgb = np.clip(x, 0, 255).astype(np.uint8)
-            canvas[r * h : (r + 1) * h, col * w : (col + 1) * w] = rgb
-        Image.fromarray(canvas).save(save_path)
-
-
-def time_left(env: ManagerBasedRLEnv):
-    time_left_frac = 1 - env.episode_length_buf / env.max_episode_length
-    return time_left_frac.view(env.num_envs, -1)
