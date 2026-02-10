@@ -187,11 +187,9 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-<<<<<<< HEAD
         # Create renderer after scene is ready (post-cloning) so world_count is correct
         self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
-=======
         # Initialize renderer based on renderer_type
         if self.cfg.renderer_type == "newton_warp":
             # Use Newton Warp renderer
@@ -202,11 +200,8 @@ class TiledCamera(Camera):
             if not hasattr(NewtonManager, '_is_initialized') or not NewtonManager._is_initialized:
                 device_str = str(self.device).replace("cuda:", "cuda:")
                 NewtonManager.initialize(num_envs=self._num_envs, device=device_str)
->>>>>>> e6c76b4928c (Implement Newton Manager for PhysX-to-Newton state synchronization)
 
-<<<<<<< HEAD
         self.render_data = self.renderer.create_render_data(self)
-=======
             renderer_cfg = NewtonWarpRendererCfg(
                 width=self.cfg.width,
                 height=self.cfg.height,
@@ -222,80 +217,51 @@ class TiledCamera(Camera):
             self._render_product_paths = []  # Not used with Newton Warp
             self._annotators = dict()  # Not used with Newton Warp
         else:
-            # Use default RTX rendering (existing code)
             self._renderer = None
 
-        # Initialize renderer based on renderer_type
-        if self.cfg.renderer_type == "newton_warp":
-            # Use Newton Warp renderer
-            from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
-            from isaaclab.sim._impl.newton_manager import NewtonManager
-
-            # Initialize Newton Manager if not already initialized
-            if not hasattr(NewtonManager, '_is_initialized') or not NewtonManager._is_initialized:
-                device_str = str(self.device).replace("cuda:", "cuda:")
-                NewtonManager.initialize(num_envs=self._num_envs, device=device_str)
-
-            renderer_cfg = NewtonWarpRendererCfg(
-                width=self.cfg.width,
-                height=self.cfg.height,
-                num_cameras=self._view.count,
-                num_envs=self._num_envs,
-                data_types=self.cfg.data_types,
+        if self._renderer is None:
+            # Create replicator tiled render product (RTX path)
+            rp = rep.create.render_product_tiled(
+                cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
             )
-            renderer_cls = get_renderer_class("newton_warp")
-            if renderer_cls is None:
-                raise RuntimeError("Failed to load Newton Warp renderer class.")
-            self._renderer = renderer_cls(renderer_cfg)
-            self._renderer.initialize()
-            self._render_product_paths = []  # Not used with Newton Warp
-            self._annotators = dict()  # Not used with Newton Warp
-        else:
-            # Use default RTX rendering (existing code)
-            self._renderer = None
+            self._render_product_paths = [rp.path]
 
-            # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=self._view.prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
-        )
-        self._render_product_paths = [rp.path]
+            # Define the annotators based on requested data types
+            self._annotators = dict()
+            for annotator_type in self.cfg.data_types:
+                if annotator_type == "rgba" or annotator_type == "rgb":
+                    annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
+                    self._annotators["rgba"] = annotator
+                elif annotator_type == "albedo":
+                    # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                    )
+                    self._annotators["albedo"] = annotator
+                elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "distance_to_image_plane", device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
+                else:
+                    init_params = None
+                    if annotator_type == "semantic_segmentation":
+                        init_params = {
+                            "colorize": self.cfg.colorize_semantic_segmentation,
+                            "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                        }
+                    elif annotator_type == "instance_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                    elif annotator_type == "instance_id_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
-        # Define the annotators based on requested data types
-        self._annotators = dict()
-        for annotator_type in self.cfg.data_types:
-            if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
-                self._annotators["rgba"] = annotator
-            elif annotator_type == "albedo":
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
-                rep.AnnotatorRegistry.register_annotator_from_aov(
-                    aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
-                )
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
-                )
-                self._annotators["albedo"] = annotator
-            elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
-                # keep depth for backwards compatibility
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "distance_to_image_plane", device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-            # note: we are verbose here to make it easier to understand the code.
-            #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-            #   if colorize is false, the data is returned as a uint32 image with ids as values.
-            else:
-                init_params = None
-                if annotator_type == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        annotator_type, init_params, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
 
                 annotator = rep.AnnotatorRegistry.get_annotator(
                     annotator_type, init_params, device=self.device, do_array_copy=False
@@ -305,9 +271,12 @@ class TiledCamera(Camera):
         # Attach the annotator to the render product
         for annotator in self._annotators.values():
             annotator.attach(self._render_product_paths)
->>>>>>> 87acdbdccab (Implement Newton Manager for PhysX-to-Newton state synchronization)
 
         # Create internal buffers
+            # Attach the annotator to the render product
+            for annotator in self._annotators.values():
+                annotator.attach(self._render_product_paths)
+        # Create internal buffers (both Newton and RTX paths)
         self._create_buffers()
 
     def _update_poses(self, env_ids: Sequence[int]):
@@ -327,20 +296,8 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-<<<<<<< HEAD
         self.renderer.update_transforms()
         self.renderer.render(self.render_data)
-=======
-        # Use Newton Warp renderer if configured
-        if self._renderer is not None:
-            # Synchronize Newton state from PhysX/USDRT before rendering
-            from isaaclab.sim._impl.newton_manager import NewtonManager
-
-            NewtonManager.update_state_from_usdrt()
-
-            # Call Newton Warp renderer to update output buffers
-            self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
->>>>>>> e6c76b4928c (Implement Newton Manager for PhysX-to-Newton state synchronization)
 
         for output_name, output_data in self._data.output.items():
             if output_name == "rgb":

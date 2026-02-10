@@ -18,6 +18,26 @@ import warp as wp
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel
+def _copy_physx_poses_to_newton_kernel(
+    physx_positions: wp.array(dtype=wp.vec3),
+    physx_quaternions: wp.array(dtype=wp.vec4),
+    newton_body_indices: wp.array(dtype=wp.int32),
+    newton_body_q: wp.array(dtype=wp.transformf),
+):
+    """GPU kernel to copy PhysX poses to Newton body_q array.
+    PhysX quaternions are (w, x, y, z); Warp transformf uses vec3 + quat (x, y, z, w).
+    """
+    i = wp.tid()
+    newton_idx = newton_body_indices[i]
+    if newton_idx < 0:
+        return
+    pos = physx_positions[i]
+    quat = physx_quaternions[i]  # (w, x, y, z) from PhysX
+    q = wp.quatf(quat[1], quat[2], quat[3], quat[0])  # (x, y, z, w) for Warp
+    newton_body_q[newton_idx] = wp.transformf(pos, q)
+
+
 class NewtonManager:
     """Manages Newton Warp model for rendering with PhysX simulation.
     
@@ -42,6 +62,8 @@ class NewtonManager:
     _is_initialized: bool = False
     _num_envs: int = None
     _up_axis: str = "Z"
+    _scene = None  # InteractiveScene reference for PhysX tensor access
+    _body_path_to_newton_idx: dict = {}  # Map USD path -> Newton body index
 
     @classmethod
     def clear(cls):
@@ -50,6 +72,8 @@ class NewtonManager:
         cls._model = None
         cls._state_0 = None
         cls._is_initialized = False
+        cls._scene = None
+        cls._body_path_to_newton_idx = {}
 
     @classmethod
     def initialize(cls, num_envs: int, device: str = "cuda:0"):
@@ -115,6 +139,11 @@ class NewtonManager:
 
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
+        # Build mapping from USD path to Newton body index for fast lookup
+        cls._body_path_to_newton_idx = {}
+        for newton_idx, body_path in enumerate(cls._model.body_key):
+            cls._body_path_to_newton_idx[body_path] = newton_idx
+
         cls._is_initialized = True
         logger.info(
             f"[NewtonManager] Initialized successfully: "
@@ -122,6 +151,17 @@ class NewtonManager:
             f"{cls._model.shape_count} shapes, "
             f"{num_envs} environments"
         )
+        # Build PhysX->Newton mapping if scene was set (e.g. by env before camera init)
+        cls._build_physx_to_newton_mapping()
+
+    @classmethod
+    def set_scene(cls, scene):
+        """Set the InteractiveScene reference for PhysX tensor access."""
+        cls._scene = scene
+        num_arts = len(scene.articulations)
+        num_objs = len(getattr(scene, "rigid_objects", None) or [])
+        logger.info(f"[NewtonManager] Scene reference set with {num_arts} articulations, {num_objs} rigid objects")
+        cls._build_physx_to_newton_mapping()
 
     @classmethod
     def get_model(cls):
@@ -244,6 +284,87 @@ class NewtonManager:
         if updated_count > 0:
             cls._state_0.body_q.assign(body_q_np)
             logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
+
+    @classmethod
+    def _build_physx_to_newton_mapping(cls):
+        """Build mapping arrays for GPU kernel (called once during setup)."""
+        if cls._scene is None or not cls._is_initialized:
+            return
+        import torch
+        cls._physx_to_newton_maps = {}
+        for art_name, articulation in cls._scene.articulations.items():
+            num_bodies = articulation.num_bodies
+            num_instances = articulation.num_instances
+            total_bodies = num_bodies * num_instances
+            mapping = torch.full((total_bodies,), -1, dtype=torch.int32, device=articulation.device)
+            root_paths = articulation._root_physx_view.prim_paths
+            body_names = articulation.body_names
+            flat_idx = 0
+            for env_idx in range(num_instances):
+                root_path = root_paths[env_idx]
+                for body_local_idx, body_name in enumerate(body_names):
+                    body_path = f"{root_path}/{body_name}"
+                    mapping[flat_idx] = cls._body_path_to_newton_idx.get(body_path, -1)
+                    flat_idx += 1
+            cls._physx_to_newton_maps[art_name] = mapping
+            logger.info(f"[NewtonManager] Built GPU mapping for articulation '{art_name}': {total_bodies} bodies")
+        if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
+            for obj_name, rigid_object in cls._scene.rigid_objects.items():
+                num_instances = rigid_object.num_instances
+                mapping = torch.full((num_instances,), -1, dtype=torch.int32, device=rigid_object.device)
+                root_paths = rigid_object._root_physx_view.prim_paths
+                for env_idx in range(num_instances):
+                    mapping[env_idx] = cls._body_path_to_newton_idx.get(root_paths[env_idx], -1)
+                cls._physx_to_newton_maps[obj_name] = mapping
+                logger.info(f"[NewtonManager] Built GPU mapping for rigid object '{obj_name}': {num_instances} instances")
+
+    @classmethod
+    def update_state_from_physx_tensors_gpu(cls):
+        """Update Newton body poses from PhysX tensors using GPU kernels. Use this before render so robots/cube move."""
+        if not cls._is_initialized:
+            logger.warning("[NewtonManager] Not initialized, cannot update state")
+            return
+        if cls._model.body_count == 0:
+            return
+        if cls._scene is None or not hasattr(cls, "_physx_to_newton_maps"):
+            cls.update_state_from_usdrt()
+            return
+        import torch
+        for art_name, articulation in cls._scene.articulations.items():
+            if art_name not in cls._physx_to_newton_maps:
+                continue
+            body_pos_w = articulation.data.body_pos_w
+            body_quat_w = articulation.data.body_quat_w
+            flat_pos = body_pos_w.reshape(-1, 3)
+            flat_quat = body_quat_w.reshape(-1, 4)
+            physx_positions_wp = wp.from_torch(flat_pos, dtype=wp.vec3)
+            physx_quaternions_wp = wp.from_torch(flat_quat, dtype=wp.vec4)
+            mapping_wp = wp.from_torch(cls._physx_to_newton_maps[art_name], dtype=wp.int32)
+            num_bodies = flat_pos.shape[0]
+            wp.launch(
+                kernel=_copy_physx_poses_to_newton_kernel,
+                dim=num_bodies,
+                inputs=[physx_positions_wp, physx_quaternions_wp, mapping_wp, cls._state_0.body_q],
+                device=cls._device,
+            )
+        if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
+            for obj_name, rigid_object in cls._scene.rigid_objects.items():
+                if obj_name not in cls._physx_to_newton_maps:
+                    continue
+                root_pos_w = rigid_object.data.root_pos_w
+                root_quat_w = rigid_object.data.root_quat_w
+                physx_positions_wp = wp.from_torch(root_pos_w, dtype=wp.vec3)
+                physx_quaternions_wp = wp.from_torch(root_quat_w, dtype=wp.vec4)
+                mapping_wp = wp.from_torch(cls._physx_to_newton_maps[obj_name], dtype=wp.int32)
+                num_instances = root_pos_w.shape[0]
+                wp.launch(
+                    kernel=_copy_physx_poses_to_newton_kernel,
+                    dim=num_instances,
+                    inputs=[physx_positions_wp, physx_quaternions_wp, mapping_wp, cls._state_0.body_q],
+                    device=cls._device,
+                )
+        wp.synchronize()
+        logger.debug("[NewtonManager] Updated body transforms from PhysX tensors (GPU kernel)")
 
     @classmethod
     def reset(cls):
