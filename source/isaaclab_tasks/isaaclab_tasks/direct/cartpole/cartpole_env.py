@@ -9,7 +9,6 @@ import math
 from collections.abc import Sequence
 
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -34,7 +33,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(render_interval=decimation, physics=PhysxCfg(dt=1 / 120))
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")

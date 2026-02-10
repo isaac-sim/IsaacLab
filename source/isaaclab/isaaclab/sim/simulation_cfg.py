@@ -11,25 +11,11 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
-import contextlib
-import warnings
 from typing import Any, Literal  # Literal used by RenderCfg
-
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
-
-# Mapping of deprecated SimulationCfg fields to their new location in physics
-_DEPRECATED_FIELDS = {
-    "dt": "physics.dt",
-    "gravity": "physics.gravity",
-    "physics_prim_path": "physics.physics_prim_path",
-    "physics_material": "physics.physics_material",
-    "use_fabric": "physics.use_fabric",
-    "physx": "physics (PhysxCfg attributes directly)",
-}
 
 
 @configclass
@@ -183,18 +169,8 @@ class RenderCfg:
 class SimulationCfg:
     """Configuration for simulation physics.
 
-    .. note::
-        The following fields have been moved to ``physics`` and are deprecated:
-
-        - ``dt`` → ``physics.dt``
-        - ``gravity`` → ``physics.gravity``
-        - ``physics_prim_path`` → ``physics.physics_prim_path``
-        - ``physics_material`` → ``physics.physics_material``
-        - ``use_fabric`` → ``physics.use_fabric``
-        - ``physx`` → Use ``PhysxCfg`` attributes directly
-
-        Using the old field names will issue a deprecation warning and forward
-        the values to the new location.
+    This class contains the main simulation parameters including physics time-step, gravity,
+    device settings, and physics backend configuration.
     """
 
     device: str = "cuda:0"
@@ -205,6 +181,35 @@ class SimulationCfg:
     - ``"cpu"``: Use CPU.
     - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab.app.AppLauncher`'s config.
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
+    """
+
+    dt: float = 1.0 / 60.0
+    """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
+
+    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
+    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
+
+    physics_prim_path: str = "/physicsScene"
+    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
+
+    physics_material: Any = None
+    """Default physics material settings for rigid bodies. Default is None (uses RigidBodyMaterialCfg defaults).
+
+    The physics engine defaults to this physics material for all the rigid body prims that do not have any
+    physics material specified on them.
+
+    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
+    """
+
+    use_fabric: bool = True
+    """Enable/disable reading of physics buffers directly. Default is True.
+
+    When running the simulation, updates in the states in the scene is normally synchronized with USD.
+    This leads to an overhead in reading the data and does not scale well with massive parallelization.
+    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
+
+    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
+    of primitives in the scene.
     """
 
     render_interval: int = 1
@@ -225,11 +230,12 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    physics: PhysicsCfg = PhysxCfg()
-    """Physics manager configuration. Default is PhysxCfg().
+    physics: PhysicsCfg | None = None
+    """Physics manager configuration. Default is None (uses PhysxCfg()).
 
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
+    If None, PhysxCfg() will be used by default.
     """
 
     render: RenderCfg = RenderCfg()
@@ -257,175 +263,31 @@ class SimulationCfg:
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
     """The list of visualizer configurations. Default is None."""
 
-    # Deprecated fields - accepted in constructor for backward compatibility
-    dt: float | None = None
-    """DEPRECATED: Use physics.dt instead."""
-
-    gravity: tuple[float, float, float] | None = None
-    """DEPRECATED: Use physics.gravity instead."""
-
-    physics_prim_path: str | None = None
-    """DEPRECATED: Use physics.physics_prim_path instead."""
-
-    physics_material: Any | None = None
-    """DEPRECATED: Use physics.physics_material instead."""
-
-    use_fabric: bool | None = None
-    """DEPRECATED: Use physics.use_fabric instead."""
-
-    physx: Any | None = None
-    """DEPRECATED: Use physics (PhysxCfg) directly instead.
-
-    After initialization, this field is set to physics for backward compatibility.
-    """
-
     def __post_init__(self):
-        """Forward deprecated constructor arguments to physics."""
-        deprecated_fields = ["dt", "gravity", "physics_prim_path", "physics_material", "use_fabric"]
+        """Initialize defaults if not set."""
+        from dataclasses import MISSING as DATACLASS_MISSING
 
-        for field_name in deprecated_fields:
-            # Use getattr with None default - field might not exist during class definition
-            value = getattr(self, field_name, None)
-            if value is not None:
-                warnings.warn(
-                    f"SimulationCfg({field_name}=...) is deprecated. "
-                    f"Use SimulationCfg(physics=PhysxCfg({field_name}=...)) instead.",
-                    FutureWarning,
-                    stacklevel=4,
-                )
-                # Forward to physics
-                if hasattr(self.physics, field_name):
-                    setattr(self.physics, field_name, value)
+        # Set default physics backend if None
+        if self.physics is None:
+            from isaaclab_physx.physics import PhysxCfg
 
-        # Delete deprecated fields so __getattr__ is called when accessing them
-        # This allows runtime access like self.sim.dt to work via __getattr__
-        for field_name in deprecated_fields:
-            if field_name != "physics_material":  # physics_material needs object access
-                with contextlib.suppress(AttributeError):
-                    delattr(self, field_name)
+            self.physics = PhysxCfg()
 
-        # Set physics_material to point to physics.physics_material for backward-compatible access
-        if hasattr(self.physics, "physics_material"):
-            object.__setattr__(self, "physics_material", self.physics.physics_material)
+        # Propagate parameters from SimulationCfg to physics config if they are MISSING
+        if self.physics.dt is DATACLASS_MISSING:
+            self.physics.dt = self.dt
+        if self.physics.gravity is DATACLASS_MISSING:
+            self.physics.gravity = self.gravity
+        if self.physics.physics_prim_path is DATACLASS_MISSING:
+            self.physics.physics_prim_path = self.physics_prim_path
+        if self.physics.physics_material is DATACLASS_MISSING:
+            self.physics.physics_material = self.physics_material
 
-        # Handle physx=PhysxCfg(...) - copy PhysX-specific attributes to physics
-        # The old PhysxCfg only had PhysX-specific settings, not dt/gravity/etc.
-        physx_cfg = getattr(self, "physx", None)
-        if physx_cfg is not None:
-            warnings.warn(
-                "SimulationCfg(physx=...) is deprecated. Use SimulationCfg(physics=PhysxCfg(...)) instead.",
-                FutureWarning,
-                stacklevel=4,
-            )
-            # PhysX-specific fields that should be copied (not general physics settings)
-            physx_specific_fields = {
-                "bounce_threshold_velocity",
-                "friction_offset_threshold",
-                "friction_correlation_distance",
-                "solver_type",
-                "enable_stabilization",
-                "max_depenetration_velocity",
-                "enable_enhanced_determinism",
-                "min_position_iteration_count",
-                "max_position_iteration_count",
-                "min_velocity_iteration_count",
-                "max_velocity_iteration_count",
-                "enable_ccd",
-                "gpu_max_rigid_contact_count",
-                "gpu_max_rigid_patch_count",
-                "gpu_found_lost_pairs_capacity",
-                "gpu_found_lost_aggregate_pairs_capacity",
-                "gpu_total_aggregate_pairs_capacity",
-                "gpu_heap_capacity",
-                "gpu_temp_buffer_capacity",
-                "gpu_max_num_partitions",
-                "gpu_max_soft_body_contacts",
-                "gpu_max_particle_contacts",
-                "gpu_collision_stack_size",
-            }
+        # Set default physics material if None
+        if self.physics_material is None:
+            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 
-            import dataclasses
-
-            if dataclasses.is_dataclass(physx_cfg):
-                for field in dataclasses.fields(physx_cfg):
-                    if field.name in physx_specific_fields:
-                        value = getattr(physx_cfg, field.name)
-                        # Get field default
-                        if field.default is not dataclasses.MISSING:
-                            default = field.default
-                        elif field.default_factory is not dataclasses.MISSING:
-                            default = field.default_factory()
-                        else:
-                            default = None
-                        # Only copy if different from default
-                        if value != default and hasattr(self.physics, field.name):
-                            setattr(self.physics, field.name, value)
-
-        # Note: 'physx' is handled in __getattr__ for backward-compatible access with deprecation warning
-        # Delete the physx field so __getattr__ is called when accessing it
-        with contextlib.suppress(AttributeError):
-            delattr(self, "physx")
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Intercept deprecated attribute assignment and forward to physics."""
-        # Mapping of deprecated fields to their new location
-        deprecated_map = {
-            "dt": "physics.dt",
-            "gravity": "physics.gravity",
-            "physics_prim_path": "physics.physics_prim_path",
-            "physics_material": "physics.physics_material",
-            "use_fabric": "physics.use_fabric",
-        }
-
-        if name in deprecated_map and value is not None:
-            # Only forward non-None values (None means "not set" for deprecated fields)
-            try:
-                physics = object.__getattribute__(self, "physics")
-                if hasattr(physics, name):
-                    setattr(physics, name, value)
-                    warnings.warn(
-                        f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
-                        FutureWarning,
-                        stacklevel=2,
-                    )
-                    return
-            except AttributeError:
-                # physics not yet set, fall through to normal setattr
-                pass
-        # Default behavior
-        object.__setattr__(self, name, value)
-
-    def __getattr__(self, name: str) -> Any:
-        """Intercept deprecated attribute access and forward to physics."""
-        # Mapping of deprecated fields to their new location
-        deprecated_map = {
-            "dt": "physics.dt",
-            "gravity": "physics.gravity",
-            "physics_prim_path": "physics.physics_prim_path",
-            "physics_material": "physics.physics_material",
-            "use_fabric": "physics.use_fabric",
-        }
-
-        if name in deprecated_map:
-            try:
-                physics = object.__getattribute__(self, "physics")
-                if hasattr(physics, name):
-                    warnings.warn(
-                        f"SimulationCfg.{name} is deprecated. Use {deprecated_map[name]} instead.",
-                        FutureWarning,
-                        stacklevel=2,
-                    )
-                    return getattr(physics, name)
-            except AttributeError:
-                pass
-
-        # Handle 'physx' access for backward compatibility with sim.physx.some_setting
-        if name == "physx":
-            warnings.warn(
-                "SimulationCfg.physx is deprecated. Use physics directly instead.",
-                FutureWarning,
-                stacklevel=2,
-            )
-            return object.__getattribute__(self, "physics")
-
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+            self.physics_material = RigidBodyMaterialCfg()
+            # Also propagate to physics if it was MISSING
+            if self.physics.physics_material is DATACLASS_MISSING:
+                self.physics.physics_material = self.physics_material

@@ -525,7 +525,7 @@ class PhysxManager(PhysicsManager):
             return
 
         settings = sim._carb_settings
-        use_fabric = cfg.use_fabric
+        use_fabric = sim.cfg.use_fabric
         ext_mgr = omni.kit.app.get_app().get_extension_manager()
 
         # enable/disable fabric extension

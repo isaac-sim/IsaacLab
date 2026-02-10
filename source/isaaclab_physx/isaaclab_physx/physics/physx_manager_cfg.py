@@ -44,20 +44,6 @@ class PhysxCfg(PhysicsCfg):
     class_type: type[PhysicsManager] = PhysxManager
     """The class type of the PhysxManager."""
 
-    physics_prim_path: str = "/physicsScene"
-    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
-
-    use_fabric: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
-
-    When running the simulation, updates in the states in the scene is normally synchronized with USD.
-    This leads to an overhead in reading the data and does not scale well with massive parallelization.
-    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
-
-    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
-    of primitives in the scene.
-    """
-
     # ------------------------------------------------------------------
     # Solver Settings
     # ------------------------------------------------------------------

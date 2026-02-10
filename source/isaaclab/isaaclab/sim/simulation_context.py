@@ -137,7 +137,7 @@ class SimulationContext:
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
-        cfg = self.cfg.physics
+        cfg = self.cfg
         with sim_utils.use_stage(self.stage):
             # Set stage conventions for metric units
             UsdGeom.SetStageUpAxis(self.stage, "Z")
@@ -205,7 +205,7 @@ class SimulationContext:
     def _init_visualizers(self) -> None:
         """Initialize visualizers based on config and settings."""
         self._visualizers: list[Visualizer] = []
-        self._viz_dt = self.cfg.physics.dt * self.cfg.render_interval
+        self._viz_dt = self.cfg.dt * self.cfg.render_interval
 
         # Determine which visualizers to create
         viz_str = "omniverse"  # Default
@@ -413,11 +413,8 @@ def build_simulation_context(
             stage_utils.create_new_stage()
 
         if sim_cfg is None:
-            from isaaclab_physx.physics import PhysxCfg
-
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-            physics = PhysxCfg(dt=dt, gravity=gravity)
-            sim_cfg = SimulationCfg(device=device, physics=physics)
+            sim_cfg = SimulationCfg(device=device, dt=dt, gravity=gravity)
 
         sim = SimulationContext(sim_cfg)
 
