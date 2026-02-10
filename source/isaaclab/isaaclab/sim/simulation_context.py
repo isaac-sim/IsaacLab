@@ -17,7 +17,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
-import flatdict
 import numpy as np
 import toml
 import torch
@@ -40,6 +39,33 @@ from .utils import bind_physics_material
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def to_flat_dict(input_dict: dict[str, Any], delimiter: str = ".") -> dict[str, Any]:
+    """A simple method to transform a nested dict with key strings into a flat dict
+    where keys are separated with a given delimiter. For example, if the input dictionary
+    is {"foo": "bar", "spam": {"egg": "ham"}}, and the delimiter is ".", then the output
+    would be {"foo": "bar", "spam.egg": "ham"}
+
+    Args:
+        input_dict (dict[str, Any]): Input dictionary with string keys, potentially nested.
+        delimiter (str, optional): Delimiter for concatenating keys. Defaults to ".".
+
+    Returns:
+        dict[str, Any]: Output flattened dictionary with nested keys.
+    """
+    out_dict = {}
+    for key, value in input_dict.items():
+        # If we have a dict inside the current value, we need to flatten it.
+        if isinstance(value, dict):
+            inner_flattened_dict = to_flat_dict(value)
+            # Recursively combine parent key with inner flattened directory.
+            for inner_key, inner_value in inner_flattened_dict.items():
+                out_dict[f"{key}{delimiter}{inner_key}"] = inner_value
+        # If we are already flat, keep as is.
+        else:
+            out_dict[key] = value
+    return out_dict
 
 
 class SimulationContext(_SimulationContext):
@@ -763,7 +789,7 @@ class SimulationContext(_SimulationContext):
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+            preset_dict = to_flat_dict(preset_dict, delimiter=".")
 
             # set presets
             for key, value in preset_dict.items():
