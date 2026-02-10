@@ -191,7 +191,6 @@ autodoc_mock_imports = [
     "pink",
     "pinocchio",
     "nvidia.srl",
-    "flatdict",
     "IPython",
     "cv2",
     "imageio",

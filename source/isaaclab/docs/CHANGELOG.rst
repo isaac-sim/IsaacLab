@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.54.4 (2026-02-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flatdict installation failure due to setuptools dependency by removing flatdict
+  dependency entirely.
+
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
