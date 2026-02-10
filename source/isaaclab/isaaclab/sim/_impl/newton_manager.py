@@ -179,6 +179,10 @@ class NewtonManager:
             logger.warning("USDRT stage not available for state sync")
             return
 
+        # Get Newton state arrays for updating
+        body_q = cls._state_0.body_q.numpy()  # Positions (num_envs, num_bodies, 3)
+        body_quat = cls._state_0.body_quat.numpy()  # Quaternions (num_envs, num_bodies, 4)
+
         # Update body transforms from USDRT
         # Newton model tracks bodies by their USD prim paths
         for i, body_path in enumerate(cls._model.body_key):
@@ -189,9 +193,45 @@ class NewtonManager:
             # Get world transform from USDRT
             xformable = usdrt.Rt.Xformable(prim)
             if xformable.HasWorldXform():
-                # TODO: Extract transform and update Newton state
-                # This requires converting USDRT transform to Newton state format
-                pass
+                try:
+                    # Get 4x4 world transform matrix
+                    world_xform = xformable.GetWorldXform()
+                    
+                    # Extract translation (position) from last column
+                    # Matrix is row-major: [m00, m01, m02, m03, m10, m11, m12, m13, ...]
+                    pos_x = world_xform[3]   # m03
+                    pos_y = world_xform[7]   # m13
+                    pos_z = world_xform[11]  # m23
+                    
+                    # Extract rotation matrix (top-left 3x3)
+                    rot_matrix = [
+                        [world_xform[0], world_xform[1], world_xform[2]],   # row 0
+                        [world_xform[4], world_xform[5], world_xform[6]],   # row 1
+                        [world_xform[8], world_xform[9], world_xform[10]]   # row 2
+                    ]
+                    
+                    # Convert rotation matrix to quaternion (wxyz format for Newton)
+                    quat = cls._matrix_to_quaternion(rot_matrix)
+                    
+                    # Update Newton state for all environments (broadcast)
+                    # Assume same rigid body pose across environments (typical for cloned envs)
+                    for env_id in range(cls._num_envs):
+                        body_q[env_id, i, 0] = pos_x
+                        body_q[env_id, i, 1] = pos_y
+                        body_q[env_id, i, 2] = pos_z
+                        
+                        body_quat[env_id, i, 0] = quat[0]  # w
+                        body_quat[env_id, i, 1] = quat[1]  # x
+                        body_quat[env_id, i, 2] = quat[2]  # y
+                        body_quat[env_id, i, 3] = quat[3]  # z
+                        
+                except Exception as e:
+                    logger.debug(f"Failed to extract transform for {body_path}: {e}")
+                    continue
+
+        # Copy updated numpy arrays back to Warp arrays
+        cls._state_0.body_q.assign(body_q)
+        cls._state_0.body_quat.assign(body_quat)
 
     @classmethod
     def reset(cls):
@@ -212,3 +252,46 @@ class NewtonManager:
         """Shutdown and cleanup Newton manager."""
         logger.info("[NewtonManager] Shutting down")
         cls.clear()
+
+    @staticmethod
+    def _matrix_to_quaternion(rot_matrix):
+        """Convert 3x3 rotation matrix to quaternion (w, x, y, z).
+        
+        Args:
+            rot_matrix: 3x3 rotation matrix as list of lists
+            
+        Returns:
+            tuple: Quaternion as (w, x, y, z)
+        """
+        # Shoemake's algorithm for matrix to quaternion conversion
+        # Based on: https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
+        
+        m = rot_matrix
+        trace = m[0][0] + m[1][1] + m[2][2]
+        
+        if trace > 0:
+            s = 0.5 / (trace + 1.0) ** 0.5
+            w = 0.25 / s
+            x = (m[2][1] - m[1][2]) * s
+            y = (m[0][2] - m[2][0]) * s
+            z = (m[1][0] - m[0][1]) * s
+        elif m[0][0] > m[1][1] and m[0][0] > m[2][2]:
+            s = 2.0 * (1.0 + m[0][0] - m[1][1] - m[2][2]) ** 0.5
+            w = (m[2][1] - m[1][2]) / s
+            x = 0.25 * s
+            y = (m[0][1] + m[1][0]) / s
+            z = (m[0][2] + m[2][0]) / s
+        elif m[1][1] > m[2][2]:
+            s = 2.0 * (1.0 + m[1][1] - m[0][0] - m[2][2]) ** 0.5
+            w = (m[0][2] - m[2][0]) / s
+            x = (m[0][1] + m[1][0]) / s
+            y = 0.25 * s
+            z = (m[1][2] + m[2][1]) / s
+        else:
+            s = 2.0 * (1.0 + m[2][2] - m[0][0] - m[1][1]) ** 0.5
+            w = (m[1][0] - m[0][1]) / s
+            x = (m[0][2] + m[2][0]) / s
+            y = (m[1][2] + m[2][1]) / s
+            z = 0.25 * s
+            
+        return (w, x, y, z)
