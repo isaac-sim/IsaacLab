@@ -2275,8 +2275,10 @@ class Articulation(BaseArticulation):
         self._has_implicit_actuators = False
 
         # Hack to ensure the limits are not too large.
-        self._root_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(2500.0)
-        self._root_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(100.0)
+        # Only set joint limits if there are joints (fixed-base articulations with 0 DOF skip this)
+        if self._root_view.joint_dof_count > 0:
+            self._root_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(2500.0)
+            self._root_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(100.0)
 
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
@@ -2395,6 +2397,10 @@ class Articulation(BaseArticulation):
             created. Otherwise, some settings that are altered during processing may not be validated.
             For instance, the actuator models may change the joint max velocity limits.
         """
+        # Skip validation if there are no joints (e.g., fixed-base articulation with 0 DOF)
+        if self._root_view.joint_dof_count == 0:
+            return
+
         # check that the default values are within the limits
         joint_pos_limits = torch.stack(
             (

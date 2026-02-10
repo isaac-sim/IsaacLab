@@ -75,20 +75,23 @@ class SceneCfg(InteractiveSceneCfg):
         ),
         actuators={},
         articulation_root_prim_path="",
-        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # table
-    # table: ArticulationCfg = ArticulationCfg(
-    #     prim_path="/World/envs/env_.*/table",
-    #     spawn=sim_utils.UsdFileCfg(
-    #         usd_path="/home/zhengyuz/Projects/isaaclab/source/isaaclab_assets/data/Props/Cube/CuboidFixedArticulation.usd",
-    #         scale=(0.8, 1.5, 0.04),
-    #     ),
-    #     init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.235), rot=(1.0, 0.0, 0.0, 0.0)),
-    #     actuators={},
-    #     articulation_root_prim_path="/root_joint",
-    # )
+    table: ArticulationCfg = ArticulationCfg(
+        prim_path="/World/envs/env_.*/table",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.8, 1.5, 0.04),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=True, fix_root_link=True),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visible=False,
+        ),
+        actuators={},
+        articulation_root_prim_path="/FixedJoint",  # Newton keys by first body path
+        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.275, 0.0, 0.20), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
 
     # plane
     plane = AssetBaseCfg(
@@ -301,7 +304,7 @@ class EventCfg:
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": [-0.50, 0.50],
+            "position_range": [-0.10, 0.10],
             "velocity_range": [0.0, 0.0],
         },
     )
@@ -417,7 +420,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg | None = CurriculumCfg()
+    curriculum: CurriculumCfg | None = None
 
     def __post_init__(self):
         """Post initialization."""
@@ -463,7 +466,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
                 debug_mode=False,
             ),
             dt=1 / 120,
-            gravity=(0.0, 0.0, 0.0),
+            gravity=(0.0, 0.0, -9.81),
         )
         self.sim.render_interval = self.decimation
 
