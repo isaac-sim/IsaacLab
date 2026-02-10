@@ -11,6 +11,8 @@ import logging
 import re
 from typing import Any
 
+from pxr import UsdGeom
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,9 +27,44 @@ class OVSceneDataProvider:
     - TODO: mesh data access
     """
 
+    @staticmethod
+    def _env_id_from_rigid_body_path(path: str) -> int | None:
+        """Extract env id from path like /World/envs/env_42/... Return None if no match."""
+        match = re.search(r"/World/envs/env_(\d+)(/|$)", path)
+        return int(match.group(1)) if match else None
+
+    def _count_envs_from_stage(self) -> int:
+        """Infer number of envs from USD stage by counting /World/envs/env_* prims. Returns 0 on failure."""
+        if self._stage is None:
+            return 0
+        env_pattern = re.compile(r"^/World/envs/env_(\d+)$")
+        count = 0
+        try:
+            prim = self._stage.GetPrimAtPath("/World/envs")
+            if not prim.IsValid():
+                return 0
+            for child in prim.GetChildren():
+                path = child.GetPath().pathString
+                if env_pattern.match(path):
+                    count += 1
+            return count
+        except Exception:
+            return 0
+
+    def get_num_envs(self) -> int:
+        """Return number of envs: from set value, or inferred from stage with a warning."""
+        if self._num_envs is not None and self._num_envs > 0:
+            return self._num_envs
+        n = self._count_envs_from_stage()
+        if n <= 0:
+            logger.warning(
+                "[OVSceneDataProvider] num_envs was not set and could not be inferred from stage. "
+                "Call set_num_envs() after scene creation for correct behavior."
+            )
+        return n if n > 0 else 0
+
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
-        from pxr import UsdGeom
 
         self._stage = stage
         self._simulation_context = simulation_context
@@ -37,40 +74,55 @@ class OVSceneDataProvider:
         self._xform_views: dict[str, Any] = {}
         self._view_body_index_map: dict[str, list[int]] = {}
 
+        # Scene info: set via set_num_envs/set_env_origins after creation (by sim, from env).
+        self._num_envs: int | None = None
+        self._env_origins: Any = None
+
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
-        # Explicit mode flag for Newton synchronization
         self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
+        # Metadata: only fixed backend info. num_envs/env_origins come from get_num_envs()/self._env_origins.
         self._metadata = {
             "physics_backend": "omni",
-            "num_envs": self._get_num_envs(),
             "gravity_vector": tuple(self._simulation_context.cfg.gravity),
             "clone_physics_only": False,
         }
+        self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
+        self._num_envs_at_last_newton_build: int | None = None  # for _refresh_newton_model_if_needed
 
         self._device = getattr(self._simulation_context, "device", "cuda:0")
         self._newton_model = None
         self._newton_state = None
+        self._filtered_newton_model = None
+        self._filtered_newton_state = None
+        self._filtered_env_ids_key: tuple[int, ...] | None = None
+        self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
         self._articulation_paths: list[str] = []
         self._set_body_q_kernel = None
-        self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
+        # env_id -> list of body indices (in Newton body_key order)
+        self._env_id_to_body_indices: dict[int, list[int]] = {}
+        # flat list of body indices per env_id order for subset sync
+        self._body_indices_for_env_ids: list[int] = []
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
             self._build_newton_model_from_usd()
+            self._build_env_id_to_body_indices()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
         else:
             logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
 
-    def _get_num_envs(self) -> int:
-        """Read num_envs from settings; returns 0 if unset/unavailable."""
-        import carb
+    def set_num_envs(self, num_envs: int) -> None:
+        """Set number of environments. Called after scene creation (by sim, from env)."""
+        self._num_envs = num_envs
+        if self._needs_newton_sync and self._newton_model is not None:
+            self._refresh_newton_model_if_needed()
 
-        carb_settings_iface = carb.settings.get_settings()
-        num_envs = carb_settings_iface.get("/isaaclab/scene/num_envs")
-        return int(num_envs) if num_envs else 0
+    def set_env_origins(self, env_origins: Any) -> None:
+        """Set env origins tensor/array (num_envs, 3). Called after scene creation when available."""
+        self._env_origins = env_origins
 
     @staticmethod
     def _wildcard_env_paths(paths: list[str]) -> list[str]:
@@ -82,12 +134,12 @@ class OVSceneDataProvider:
 
     def _refresh_newton_model_if_needed(self) -> None:
         """Rebuild Newton model/state and PhysX views if env count changes."""
-        num_envs = self._get_num_envs()
+        num_envs = self.get_num_envs()
         if num_envs <= 0:
             return
 
         needs_rebuild = self._newton_model is None or self._newton_state is None
-        needs_rebuild = needs_rebuild or (self._metadata.get("num_envs", 0) != num_envs)
+        needs_rebuild = needs_rebuild or (self._num_envs_at_last_newton_build != num_envs)
         if needs_rebuild:
             self._build_newton_model_from_usd()
             self._setup_rigid_body_view()
@@ -109,6 +161,13 @@ class OVSceneDataProvider:
 
             self._xform_views.clear()
             self._view_body_index_map = {}
+            self._env_id_to_body_indices = {}
+            self._num_envs_at_last_newton_build = self.get_num_envs()
+            # Invalidate any filtered model when full model changes.
+            self._filtered_newton_model = None
+            self._filtered_newton_state = None
+            self._filtered_env_ids_key = None
+            self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
             logger.error(
                 "[SceneDataProvider] Newton module not available. "
@@ -121,6 +180,57 @@ class OVSceneDataProvider:
             self._newton_state = None
             self._rigid_body_paths = []
             self._articulation_paths = []
+            self._num_envs_at_last_newton_build = None
+
+    def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
+        """Build Newton model/state for a subset of envs."""
+        try:
+            from newton import ModelBuilder
+
+            builder = ModelBuilder(up_axis=self._up_axis)
+            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
+            for env_id in env_ids:
+                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
+            self._filtered_newton_model = builder.finalize(device=self._device)
+            self._filtered_newton_state = self._filtered_newton_model.state()
+
+            full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
+            filtered_paths = list(self._filtered_newton_model.body_key)
+            self._filtered_body_indices = []
+            missing = []
+            for path in filtered_paths:
+                idx = full_index_by_path.get(path)
+                if idx is None:
+                    missing.append(path)
+                else:
+                    self._filtered_body_indices.append(idx)
+            if missing:
+                logger.warning(
+                    "[OVSceneDataProvider] Filtered model contains %d bodies not in full model.",
+                    len(missing),
+                )
+        except ModuleNotFoundError as exc:
+            logger.error(
+                "[SceneDataProvider] Newton module not available. "
+                "Install the Newton backend to use newton/rerun visualizers."
+            )
+            logger.debug(f"[SceneDataProvider] Newton import error: {exc}")
+            self._filtered_newton_model = None
+            self._filtered_newton_state = None
+            self._filtered_body_indices = []
+        except Exception as exc:
+            logger.error(f"[SceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
+            self._filtered_newton_model = None
+            self._filtered_newton_state = None
+            self._filtered_body_indices = []
+
+    def _build_env_id_to_body_indices(self) -> None:
+        """Build mapping env_id -> list of body indices from rigid_body_paths."""
+        self._env_id_to_body_indices = {}
+        for body_idx, path in enumerate(self._rigid_body_paths):
+            eid = self._env_id_from_rigid_body_path(path)
+            if eid is not None:
+                self._env_id_to_body_indices.setdefault(eid, []).append(body_idx)
 
     def _setup_rigid_body_view(self) -> None:
         """Create PhysX RigidBodyView from Newton's body paths.
@@ -393,8 +503,37 @@ class OVSceneDataProvider:
             logger.warning(f"[SceneDataProvider] Warp unavailable for Newton state sync: {exc}")
             return None
 
-    def update(self) -> None:
-        """Sync PhysX transforms to Newton state for visualization."""
+    def _get_set_body_q_subset_kernel(self):
+        """Kernel that writes only body_q at given indices."""
+        kernel = getattr(self, "_set_body_q_subset_kernel", None)
+        if kernel is not None:
+            return kernel
+        try:
+            import warp as wp
+
+            @wp.kernel(enable_backward=False)
+            def _set_body_q_subset(
+                positions: wp.array(dtype=wp.vec3),
+                orientations: wp.array(dtype=wp.quatf),
+                body_indices: wp.array(dtype=wp.int32),
+                body_q: wp.array(dtype=wp.transformf),
+            ):
+                i = wp.tid()
+                bi = body_indices[i]
+                body_q[bi] = wp.transformf(positions[i], orientations[i])
+
+            self._set_body_q_subset_kernel = _set_body_q_subset
+            return self._set_body_q_subset_kernel
+        except Exception as exc:
+            logger.debug(f"Warp subset kernel: {exc}")
+            return None
+
+    def update(self, env_ids: list[int] | None = None) -> None:
+        """Sync PhysX transforms to Newton state for visualization.
+
+        When env_ids is not None, only body indices belonging to those envs are written
+        (partial sync). When None, all bodies are synced.
+        """
         if not self._needs_newton_sync or self._newton_state is None:
             return
 
@@ -413,17 +552,39 @@ class OVSceneDataProvider:
             positions_wp = wp.from_torch(positions.reshape(-1, 3), dtype=wp.vec3)
             orientations_wp = wp.from_torch(orientations_xyzw, dtype=wp.quatf)
 
-            set_body_q = self._get_set_body_q_kernel()
-            if set_body_q is None or positions_wp.shape[0] != self._newton_state.body_q.shape[0]:
-                return
+            if env_ids is None or not env_ids or not self._env_id_to_body_indices:
+                set_body_q = self._get_set_body_q_kernel()
+                if set_body_q is None or positions_wp.shape[0] != self._newton_state.body_q.shape[0]:
+                    return
+                wp.launch(
+                    set_body_q,
+                    dim=positions_wp.shape[0],
+                    inputs=[positions_wp, orientations_wp, self._newton_state.body_q],
+                    device=self._device,
+                )
+            else:
+                body_indices = []
+                for eid in env_ids:
+                    body_indices.extend(self._env_id_to_body_indices.get(eid, []))
+                if not body_indices:
+                    return
+                subset_kernel = self._get_set_body_q_subset_kernel()
+                if subset_kernel is None:
+                    return
+                import torch
 
-            wp.launch(
-                set_body_q,
-                dim=positions_wp.shape[0],
-                inputs=[positions_wp, orientations_wp, self._newton_state.body_q],
-                device=self._device,
-            )
-
+                indices_t = torch.tensor(body_indices, dtype=torch.int32, device=self._device)
+                pos_subset = positions.reshape(-1, 3)[body_indices]
+                ori_subset = orientations_xyzw[body_indices]
+                indices_wp = wp.from_torch(indices_t, dtype=wp.int32)
+                pos_wp = wp.from_torch(pos_subset.contiguous(), dtype=wp.vec3)
+                ori_wp = wp.from_torch(ori_subset.contiguous(), dtype=wp.quatf)
+                wp.launch(
+                    subset_kernel,
+                    dim=len(body_indices),
+                    inputs=[pos_wp, ori_wp, indices_wp, self._newton_state.body_q],
+                    device=self._device,
+                )
         except Exception as exc:
             logger.debug(f"Failed to sync transforms to Newton: {exc}")
 
@@ -431,9 +592,83 @@ class OVSceneDataProvider:
         """Return Newton model when sync is enabled."""
         return self._newton_model if self._needs_newton_sync else None
 
-    def get_newton_state(self) -> Any | None:
-        """Return Newton state when sync is enabled."""
-        return self._newton_state if self._needs_newton_sync else None
+    def get_newton_model_for_env_ids(self, env_ids: list[int] | None) -> Any | None:
+        """Return Newton model for a subset of envs if requested."""
+        if not self._needs_newton_sync:
+            return None
+        if env_ids is None:
+            return self._newton_model
+        env_ids_key = tuple(sorted(env_ids))
+        if self._filtered_newton_model is None or self._filtered_env_ids_key != env_ids_key:
+            self._filtered_env_ids_key = env_ids_key
+            self._build_filtered_newton_model(list(env_ids_key))
+        return self._filtered_newton_model
+
+    def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
+        """Return Newton state when sync is enabled.
+
+        If env_ids is None, returns the full state. If env_ids is provided, returns a
+        state-like object whose body_q contains only the bodies for those envs (same order
+        as in the full model, for use with e.g. max_worlds=len(env_ids)).
+        """
+        if not self._needs_newton_sync or self._newton_state is None:
+            return None
+        if env_ids is None:
+            return self._newton_state
+        if not self._env_id_to_body_indices:
+            return self._create_empty_subset_state()
+        env_ids_key = tuple(sorted(env_ids))
+        if self._filtered_newton_model is not None and self._filtered_env_ids_key == env_ids_key:
+            if not self._filtered_body_indices:
+                return self._create_empty_subset_state()
+            try:
+                import warp as wp
+
+                body_q_t = wp.to_torch(self._newton_state.body_q)
+                subset = body_q_t[self._filtered_body_indices].clone()
+                self._filtered_newton_state.body_q = wp.from_torch(subset, dtype=wp.transformf)
+                return self._filtered_newton_state
+            except Exception:
+                return self._newton_state
+        body_indices = []
+        for eid in env_ids:
+            body_indices.extend(self._env_id_to_body_indices.get(eid, []))
+        if not body_indices:
+            return self._create_empty_subset_state()
+
+        body_q = self._newton_state.body_q
+        try:
+            import warp as wp
+
+            body_q_t = wp.to_torch(body_q)
+            body_q_subset = body_q_t[body_indices].clone()
+        except Exception:
+            return self._newton_state
+        return self._create_subset_state(body_q_subset)
+
+    def _create_empty_subset_state(self):
+        """Return a minimal state-like object with empty body_q."""
+        if self._newton_state is None:
+            return None
+        try:
+            import warp as wp
+
+            body_q_t = wp.to_torch(self._newton_state.body_q)
+            empty = body_q_t[:0].clone()
+            return self._create_subset_state(empty)
+        except Exception:
+            return self._newton_state
+
+    @staticmethod
+    def _create_subset_state(body_q_subset):
+        """Return a minimal state-like object for subset rendering."""
+
+        class _SubsetState:
+            pass
+
+        s = _SubsetState()
+        s.body_q = body_q_subset
+        return s
 
     def get_usd_stage(self) -> Any:
         """Return the USD stage handle."""
@@ -501,8 +736,16 @@ class OVSceneDataProvider:
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return backend metadata (num_envs, gravity, etc.)."""
-        return dict(self._metadata)
+        """Return backend metadata (num_envs, gravity, etc.). num_envs is resolved dynamically when not set."""
+        out = dict(self._metadata)
+        out["num_envs"] = self.get_num_envs()
+        if self._env_origins is not None:
+            out["env_origins"] = self._env_origins
+        return out
+
+    def get_env_origins(self) -> Any | None:
+        """Return env origins (num_envs, 3) when set by the scene. None if not set."""
+        return self._env_origins
 
     def get_transforms(self) -> dict[str, Any] | None:
         """Return merged body transforms from available PhysX views."""

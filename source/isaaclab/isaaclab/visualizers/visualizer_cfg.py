@@ -34,6 +34,14 @@ class VisualizerCfg:
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z) in world coordinates."""
 
+    env_ids: list[int] | None = [0]
+    """If set, only these env indices are shown; all other envs are filtered from visualization.
+
+    This improves performance, particularly for large-scale training, by limiting which
+    environments are sent to visualizers. Backend support varies (e.g., OV ignores
+    this for now).
+    """
+
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier."""
         return self.visualizer_type

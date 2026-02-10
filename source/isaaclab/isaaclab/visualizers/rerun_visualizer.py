@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -29,7 +30,9 @@ class NewtonViewerRerun(ViewerRerun):
     def __init__(
         self,
         app_id: str | None = None,
+        address: str | None = None,
         web_port: int | None = None,
+        grpc_port: int | None = None,
         keep_historical_data: bool = False,
         keep_scalar_history: bool = True,
         record_to_rrd: str | None = None,
@@ -37,7 +40,9 @@ class NewtonViewerRerun(ViewerRerun):
     ):
         super().__init__(
             app_id=app_id,
+            address=address,
             web_port=web_port,
+            grpc_port=grpc_port or 9876,
             serve_web_viewer=True,
             keep_historical_data=keep_historical_data,
             keep_scalar_history=keep_scalar_history,
@@ -73,6 +78,7 @@ class RerunVisualizer(Visualizer):
         self._is_initialized = False
         self._sim_time = 0.0
         self._scene_data_provider = None
+        self._rerun_server_process = None
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
@@ -82,17 +88,51 @@ class RerunVisualizer(Visualizer):
             raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
         metadata = scene_data_provider.get_metadata()
+        self._env_ids = self._compute_visualized_env_ids()
+        if self._env_ids:
+            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
+            if callable(get_filtered_model):
+                self._model = get_filtered_model(self._env_ids)
+            else:
+                self._model = scene_data_provider.get_newton_model()
+        else:
+            self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state(self._env_ids)
 
         try:
             if self.cfg.record_to_rrd:
                 logger.info(f"[RerunVisualizer] Recording enabled to: {self.cfg.record_to_rrd}")
 
+            address = None
+            if self.cfg.bind_address:
+                import shutil
+                import subprocess
+
+                rerun_bin = shutil.which("rerun")
+                if rerun_bin is None:
+                    logger.warning("[RerunVisualizer] 'rerun' binary not found in PATH. Skipping external bind.")
+                else:
+                    cmd = [
+                        rerun_bin,
+                        "--serve-web",
+                        "--bind",
+                        self.cfg.bind_address,
+                        "--port",
+                        str(self.cfg.grpc_port),
+                        "--web-viewer-port",
+                        str(self.cfg.web_port),
+                    ]
+                    if self.cfg.open_browser:
+                        cmd.append("--web-viewer")
+                    self._rerun_server_process = subprocess.Popen(cmd)
+                    address = f"rerun+http://127.0.0.1:{self.cfg.grpc_port}/proxy"
+
             self._viewer = NewtonViewerRerun(
                 app_id=self.cfg.app_id,
+                address=address,
                 web_port=self.cfg.web_port,
+                grpc_port=self.cfg.grpc_port,
                 keep_historical_data=self.cfg.keep_historical_data,
                 keep_scalar_history=self.cfg.keep_scalar_history,
                 record_to_rrd=self.cfg.record_to_rrd,
@@ -125,7 +165,10 @@ class RerunVisualizer(Visualizer):
 
             num_envs = metadata.get("num_envs", 0)
             physics_backend = metadata.get("physics_backend", "unknown")
-            logger.info(f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})")
+            msg = f"[RerunVisualizer] Initialized with {num_envs} environments (physics: {physics_backend})"
+            if self._env_ids is not None:
+                msg += f", showing {len(self._env_ids)} envs"
+            logger.info(msg)
 
             self._is_initialized = True
         except Exception as exc:
@@ -133,7 +176,7 @@ class RerunVisualizer(Visualizer):
             raise
 
     def step(self, dt: float, state: Any | None = None) -> None:
-        self._state = self._scene_data_provider.get_newton_state()
+        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
         self._sim_time += dt
 
         self._viewer.begin_frame(self._sim_time)
@@ -162,6 +205,10 @@ class RerunVisualizer(Visualizer):
 
         self._viewer = None
         self._is_initialized = False
+        if self._rerun_server_process is not None:
+            with contextlib.suppress(Exception):
+                self._rerun_server_process.terminate()
+            self._rerun_server_process = None
 
     def is_running(self) -> bool:
         if self._viewer is None:

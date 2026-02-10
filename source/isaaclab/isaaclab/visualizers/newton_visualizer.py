@@ -27,7 +27,13 @@ if TYPE_CHECKING:
 class NewtonViewerGL(ViewerGL):
     """Wrapper around Newton's ViewerGL with training/rendering pause controls."""
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(
+        self,
+        *args,
+        metadata: dict | None = None,
+        update_frequency: int = 1,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -217,9 +223,17 @@ class NewtonVisualizer(Visualizer):
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
         metadata = scene_data_provider.get_metadata()
+        self._env_ids = self._compute_visualized_env_ids()
+        if self._env_ids:
+            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
+            if callable(get_filtered_model):
+                self._model = get_filtered_model(self._env_ids)
+            else:
+                self._model = scene_data_provider.get_newton_model()
+        else:
+            self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state(self._env_ids)
 
         self._viewer = NewtonViewerGL(
             width=self.cfg.window_width,
@@ -268,7 +282,7 @@ class NewtonVisualizer(Visualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        self._state = self._scene_data_provider.get_newton_state()
+        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
 
         contacts = None
         if self._viewer.show_contacts:
@@ -286,6 +300,10 @@ class NewtonVisualizer(Visualizer):
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
                 if self._state is not None:
+                    body_q = getattr(self._state, "body_q", None)
+                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                        self._viewer.end_frame()
+                        return
                     self._viewer.log_state(self._state)
                     if contacts is not None and hasattr(self._viewer, "log_contacts"):
                         try:

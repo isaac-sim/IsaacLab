@@ -20,7 +20,7 @@ class NewtonSceneDataProvider:
     def __init__(self, visualizer_cfgs: list[Any] | None) -> None:
         self._metadata = {"physics_backend": "newton"}
 
-    def update(self) -> None:
+    def update(self, env_ids: list[int] | None = None) -> None:
         """No-op for Newton backend (stub)."""
         pass
 
@@ -28,8 +28,8 @@ class NewtonSceneDataProvider:
         """Return Newton model handle when available."""
         return None
 
-    def get_newton_state(self) -> Any | None:
-        """Return Newton state handle when available."""
+    def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
+        """Return Newton state handle when available. env_ids ignored in stub."""
         return None
 
     def get_usd_stage(self) -> Any | None:

@@ -25,6 +25,15 @@ class RerunVisualizerCfg(VisualizerCfg):
     web_port: int = 9090
     """Port of the local rerun web viewer which is launched in the browser."""
 
+    grpc_port: int = 9876
+    """Port of the rerun gRPC server (used when serving web viewer externally)."""
+
+    bind_address: str | None = "0.0.0.0"
+    """If set, start a rerun server bound to this address (e.g. '0.0.0.0') and connect to it."""
+
+    open_browser: bool = True
+    """Whether to auto-open a browser when serving the rerun web viewer."""
+
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 

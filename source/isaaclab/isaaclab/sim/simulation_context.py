@@ -262,6 +262,9 @@ class SimulationContext(_SimulationContext):
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
         self._scene_data_provider: SceneDataProvider | None = None
+        # Scene info (set by env after scene creation; passed to scene data provider when it is created)
+        self._num_envs: int | None = None
+        self._env_origins: Any = None
 
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
@@ -566,6 +569,11 @@ class SimulationContext(_SimulationContext):
             from .scene_data_providers import OVSceneDataProvider
 
             self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
+            if self._num_envs is not None:
+                if hasattr(self._scene_data_provider, "set_num_envs"):
+                    self._scene_data_provider.set_num_envs(self._num_envs)
+                if self._env_origins is not None and hasattr(self._scene_data_provider, "set_env_origins"):
+                    self._scene_data_provider.set_env_origins(self._env_origins)
         else:
             logger.warning(f"Unknown physics backend '{self.cfg.physics_backend}'. Visualizers disabled.")
             return
@@ -581,6 +589,29 @@ class SimulationContext(_SimulationContext):
                     f"Failed to initialize visualizer '{viz_cfg.visualizer_type}' ({type(viz_cfg).__name__}): {exc}"
                 )
 
+    def set_num_envs(self, num_envs: int) -> None:
+        """Set number of environments. Call from env after scene creation.
+        Passed to the scene data provider when visualizers are initialized."""
+        self._num_envs = num_envs
+        if self._scene_data_provider is not None and hasattr(self._scene_data_provider, "set_num_envs"):
+            self._scene_data_provider.set_num_envs(num_envs)
+
+    def set_env_origins(self, env_origins: Any) -> None:
+        """Set env origins (num_envs, 3). Call from env after scene creation when available.
+        Passed to the scene data provider when visualizers are initialized."""
+        self._env_origins = env_origins
+        if self._scene_data_provider is not None and hasattr(self._scene_data_provider, "set_env_origins"):
+            self._scene_data_provider.set_env_origins(env_origins)
+
+    def set_scene_info(self, scene: Any) -> None:
+        """Set scene info (num_envs, env_origins) from an InteractiveScene-like object."""
+        if scene is None:
+            return
+        if hasattr(scene, "num_envs"):
+            self.set_num_envs(scene.num_envs)
+        if hasattr(scene, "env_origins"):
+            self.set_env_origins(scene.env_origins)
+
     def step_visualizers(self, dt: float) -> None:
         """Update all active visualizers."""
         if not self._visualizers:
@@ -588,7 +619,13 @@ class SimulationContext(_SimulationContext):
 
         self._visualizer_step_counter += 1
         if self._scene_data_provider:
-            self._scene_data_provider.update()
+            env_ids_union = []
+            for v in self._visualizers:
+                ids = getattr(v, "get_visualized_env_ids", lambda: None)()
+                if ids is not None:
+                    env_ids_union.extend(ids)
+            env_ids_union = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+            self._scene_data_provider.update(env_ids_union)
 
         visualizers_to_remove = []
         for visualizer in self._visualizers:

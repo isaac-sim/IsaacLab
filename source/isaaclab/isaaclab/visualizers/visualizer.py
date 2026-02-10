@@ -7,8 +7,11 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.sim.scene_data_providers import SceneDataProvider
@@ -28,6 +31,7 @@ class Visualizer(ABC):
         self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
+        self._env_ids: list[int] | None = None  # env indices to show; None = all
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -79,3 +83,26 @@ class Visualizer(ABC):
     def supports_live_plots(self) -> bool:
         """Check if visualizer supports LivePlots."""
         return False
+
+    def get_visualized_env_ids(self) -> list[int] | None:
+        """Return env indices this visualizer is showing. None = all envs (no partial viz)."""
+        return self._env_ids
+
+    def _compute_visualized_env_ids(self) -> list[int] | None:
+        """Compute which env indices to show from config.
+
+        If env_ids is set, only those envs are shown. Otherwise, show all envs.
+        """
+        if self._scene_data_provider is None:
+            return None
+        cfg = self.cfg
+        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
+        if num_envs <= 0:
+            logger.warning(
+                "[Visualizer] num_envs is 0 or missing from provider metadata; partial visualization disabled."
+            )
+            return None
+        env_ids_cfg = getattr(cfg, "env_ids", None)
+        if env_ids_cfg is not None and len(env_ids_cfg) > 0:
+            return [i for i in env_ids_cfg if 0 <= i < num_envs]
+        return None

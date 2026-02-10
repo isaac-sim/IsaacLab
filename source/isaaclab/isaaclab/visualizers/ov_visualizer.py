@@ -52,9 +52,16 @@ class OVVisualizer(Visualizer):
         self._ensure_simulation_app()
         self._setup_viewport(usd_stage, metadata)
 
+        self._env_ids = self._compute_visualized_env_ids()
+        if self._env_ids:
+            logger.warning("[OVVisualizer] env_ids filtering is not supported yet. All environments will be shown.")
+            self._env_ids = None
         num_envs = metadata.get("num_envs", 0)
         physics_backend = metadata.get("physics_backend", "unknown")
-        logger.info(f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)")
+        logger.info(
+            f"[OVVisualizer] Initialized ({num_envs} envs, {physics_backend} physics)"
+            + (f", showing {len(self._env_ids)} envs" if self._env_ids is not None else "")
+        )
 
         self._is_initialized = True
 
@@ -122,13 +129,14 @@ class OVVisualizer(Visualizer):
         from omni.ui import DockPosition
 
         if self.cfg.create_viewport and self.cfg.viewport_name:
+            dock_position_name = self.cfg.dock_position.upper()
             dock_position_map = {
                 "LEFT": DockPosition.LEFT,
                 "RIGHT": DockPosition.RIGHT,
                 "BOTTOM": DockPosition.BOTTOM,
                 "SAME": DockPosition.SAME,
             }
-            dock_pos = dock_position_map.get(self.cfg.dock_position.upper(), DockPosition.SAME)
+            dock_pos = dock_position_map.get(dock_position_name, DockPosition.SAME)
 
             self._viewport_window = vp_utils.create_viewport_window(
                 name=self.cfg.viewport_name,
@@ -196,12 +204,12 @@ class OVVisualizer(Visualizer):
             self._viewport_api.set_active_camera(camera_path)
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
-        import isaacsim.core.utils.viewports as vp_utils
+        import isaacsim.core.utils.viewports as isaacsim_viewports
 
         camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
-        vp_utils.set_camera_view(
+        isaacsim_viewports.set_camera_view(
             eye=list(position), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
         )
