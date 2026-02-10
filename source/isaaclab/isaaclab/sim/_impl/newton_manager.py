@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-<<<<<<< HEAD
 """Newton Manager for PhysX to Newton Warp model conversion.
 
 This manager creates a Newton model for rendering purposes while PhysX handles physics simulation.
@@ -75,9 +74,10 @@ class NewtonManager:
         cls._device = device
 
         try:
-            import omni.usd
             from newton import Axis, ModelBuilder
             from pxr import UsdGeom
+
+            from isaaclab.sim.utils.stage import get_current_stage
         except ImportError as e:
             raise ImportError(
                 f"Failed to import required packages for Newton: {e}\n"
@@ -88,7 +88,7 @@ class NewtonManager:
         logger.info(f"[NewtonManager] Initializing Newton model for rendering on device: {device}")
 
         # Get USD stage
-        stage = omni.usd.get_context().get_stage()
+        stage = get_current_stage()
         if stage is None:
             raise RuntimeError("USD stage not available. Cannot initialize Newton model.")
 
@@ -133,70 +133,6 @@ class NewtonManager:
             
         Raises:
             RuntimeError: If not initialized
-=======
-"""Newton Manager for PhysX to Newton Warp model conversion."""
-
-from __future__ import annotations
-
-import warp as wp
-
-
-class NewtonManager:
-    """Manages Newton Warp model for rendering.
-    
-    This class handles the conversion between PhysX rigid body state and Newton Warp format.
-    It maintains a Newton model that mirrors the PhysX scene structure for rendering purposes.
-    
-    Usage:
-        1. Initialize once with the PhysX scene
-        2. Call update_state() each step to sync PhysX -> Newton
-        3. Renderer accesses model and state via get_model() and get_state_0()
-    """
-
-    _model = None
-    _state_0 = None
-    _is_initialized = False
-
-    @classmethod
-    def initialize(cls, num_envs: int, device: str = "cuda"):
-        """Initialize Newton model.
-        
-        TODO: This is a placeholder implementation. Needs to:
-        1. Create Newton model from PhysX scene structure
-        2. Initialize state arrays
-        3. Set up mesh geometries and materials
-        
-        Args:
-            num_envs: Number of parallel environments
-            device: Device to create arrays on ("cuda" or "cpu")
-        """
-        if cls._is_initialized:
-            return
-
-        # TODO: Import Newton and create model
-        try:
-            import newton as nw
-        except ImportError:
-            raise RuntimeError(
-                "Newton package not found. Please install newton-dynamics:\n"
-                "pip install newton-dynamics"
-            )
-
-        # Placeholder: Create a simple Newton model
-        # In actual implementation, this would mirror the PhysX scene
-        cls._model = None  # TODO: Create actual Newton model
-        cls._state_0 = None  # TODO: Create actual Newton state
-        
-        cls._is_initialized = True
-        print(f"[NewtonManager] Initialized (placeholder) for {num_envs} environments")
-
-    @classmethod
-    def get_model(cls):
-        """Get the Newton model.
-        
-        Returns:
-            Newton model instance for rendering
->>>>>>> 471a6d78f (Add Newton Warp renderer infrastructure)
         """
         if not cls._is_initialized:
             raise RuntimeError("NewtonManager not initialized. Call initialize() first.")
@@ -204,7 +140,6 @@ class NewtonManager:
 
     @classmethod
     def get_state_0(cls):
-<<<<<<< HEAD
         """Get the current Newton state for rendering.
         
         Returns:
@@ -212,19 +147,12 @@ class NewtonManager:
             
         Raises:
             RuntimeError: If not initialized
-=======
-        """Get the current Newton state.
-        
-        Returns:
-            Newton state instance containing current rigid body poses
->>>>>>> 471a6d78f (Add Newton Warp renderer infrastructure)
         """
         if not cls._is_initialized:
             raise RuntimeError("NewtonManager not initialized. Call initialize() first.")
         return cls._state_0
 
     @classmethod
-<<<<<<< HEAD
     def update_state_from_usdrt(cls):
         """Update Newton state from USD runtime (USDRT) stage.
         
@@ -237,86 +165,33 @@ class NewtonManager:
         if not cls._is_initialized:
             return
 
-        if cls._model.body_count == 0:
-            # No rigid bodies in the model, nothing to sync
-            return
-
         try:
-            import omni.usd
             import usdrt
-            from pxr import UsdGeom
+
+            from isaaclab.sim.utils.stage import get_current_stage
         except ImportError as e:
             logger.error(f"Failed to import USDRT for state synchronization: {e}")
             return
 
-        # Get USDRT fabric stage
-        try:
-            stage_id = omni.usd.get_context().get_stage_id()
-            fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-            if fabric_stage is None:
-                logger.warning("[NewtonManager] USDRT fabric stage not available for state sync")
-                return
-        except Exception as e:
-            logger.debug(f"[NewtonManager] Could not attach to fabric stage: {e}")
+        # Get USDRT stage (Fabric)
+        usdrt_stage = get_current_stage(fabric=True)
+        if usdrt_stage is None:
+            logger.warning("USDRT stage not available for state sync")
             return
 
-        # Newton's body_q stores 7-DOF poses: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
-        # Get the state array as numpy for efficient updates
-        body_q_np = cls._state_0.body_q.numpy()
-        
-        # Track how many bodies we successfully updated
-        updated_count = 0
-        
-        # Update each rigid body transform from USDRT
-        for body_idx, body_prim_path in enumerate(cls._model.body_key):
-            try:
-                # Get prim from fabric stage
-                prim = fabric_stage.GetPrimAtPath(body_prim_path)
-                if not prim or not prim.IsValid():
-                    continue
-
-                # Get world transform from USDRT
-                xformable = usdrt.Rt.Xformable(prim)
-                if not xformable.HasWorldXform():
-                    continue
-
-                # Get 4x4 world transform matrix (row-major: [m00, m01, m02, m03, m10, ...])
-                world_xform = xformable.GetWorldXform()
-                
-                # Extract translation from last column [m03, m13, m23]
-                pos_x = world_xform[3]
-                pos_y = world_xform[7]
-                pos_z = world_xform[11]
-                
-                # Extract rotation matrix (top-left 3x3)
-                rot_matrix = [
-                    [world_xform[0], world_xform[1], world_xform[2]],    # row 0
-                    [world_xform[4], world_xform[5], world_xform[6]],    # row 1
-                    [world_xform[8], world_xform[9], world_xform[10]]    # row 2
-                ]
-                
-                # Convert rotation matrix to quaternion (xyzw format for Newton)
-                quat = cls._matrix_to_quaternion(rot_matrix)
-                
-                # Update Newton state: body_q[body_idx] = [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
-                body_q_np[body_idx, 0] = pos_x
-                body_q_np[body_idx, 1] = pos_y
-                body_q_np[body_idx, 2] = pos_z
-                body_q_np[body_idx, 3] = quat[1]  # x
-                body_q_np[body_idx, 4] = quat[2]  # y
-                body_q_np[body_idx, 5] = quat[3]  # z
-                body_q_np[body_idx, 6] = quat[0]  # w
-                
-                updated_count += 1
-                
-            except Exception as e:
-                logger.debug(f"[NewtonManager] Failed to update transform for {body_prim_path}: {e}")
+        # Update body transforms from USDRT
+        # Newton model tracks bodies by their USD prim paths
+        for i, body_path in enumerate(cls._model.body_key):
+            prim = usdrt_stage.GetPrimAtPath(body_path)
+            if not prim:
                 continue
 
-        # Copy updated transforms back to Warp array
-        if updated_count > 0:
-            cls._state_0.body_q.assign(body_q_np)
-            logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
+            # Get world transform from USDRT
+            xformable = usdrt.Rt.Xformable(prim)
+            if xformable.HasWorldXform():
+                # TODO: Extract transform and update Newton state
+                # This requires converting USDRT transform to Newton state format
+                pass
 
     @classmethod
     def reset(cls):
@@ -331,87 +206,9 @@ class NewtonManager:
         from newton import eval_fk
 
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
-=======
-    def update_state(cls, physx_positions: wp.array, physx_orientations: wp.array):
-        """Update Newton state from PhysX rigid body data.
-        
-        TODO: This is a placeholder. Needs to:
-        1. Copy PhysX rigid body positions to Newton state
-        2. Copy PhysX rigid body orientations to Newton state
-        3. Handle any coordinate frame conversions
-        
-        Args:
-            physx_positions: Warp array of rigid body positions from PhysX
-            physx_orientations: Warp array of rigid body orientations from PhysX
-        """
-        if not cls._is_initialized:
-            raise RuntimeError("NewtonManager not initialized. Call initialize() first.")
-
-        # TODO: Implement actual state synchronization
-        # For now, just placeholder
-        pass
-
-    @classmethod
-    def reset(cls):
-        """Reset the Newton manager state."""
-        if not cls._is_initialized:
-            return
-        
-        # TODO: Reset state arrays to initial configuration
-        pass
->>>>>>> 471a6d78f (Add Newton Warp renderer infrastructure)
 
     @classmethod
     def shutdown(cls):
         """Shutdown and cleanup Newton manager."""
-<<<<<<< HEAD
         logger.info("[NewtonManager] Shutting down")
         cls.clear()
-
-    @staticmethod
-    def _matrix_to_quaternion(rot_matrix):
-        """Convert 3x3 rotation matrix to quaternion (w, x, y, z).
-        
-        Args:
-            rot_matrix: 3x3 rotation matrix as list of lists
-            
-        Returns:
-            tuple: Quaternion as (w, x, y, z)
-        """
-        # Shoemake's algorithm for matrix to quaternion conversion
-        # Based on: https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-        
-        m = rot_matrix
-        trace = m[0][0] + m[1][1] + m[2][2]
-        
-        if trace > 0:
-            s = 0.5 / (trace + 1.0) ** 0.5
-            w = 0.25 / s
-            x = (m[2][1] - m[1][2]) * s
-            y = (m[0][2] - m[2][0]) * s
-            z = (m[1][0] - m[0][1]) * s
-        elif m[0][0] > m[1][1] and m[0][0] > m[2][2]:
-            s = 2.0 * (1.0 + m[0][0] - m[1][1] - m[2][2]) ** 0.5
-            w = (m[2][1] - m[1][2]) / s
-            x = 0.25 * s
-            y = (m[0][1] + m[1][0]) / s
-            z = (m[0][2] + m[2][0]) / s
-        elif m[1][1] > m[2][2]:
-            s = 2.0 * (1.0 + m[1][1] - m[0][0] - m[2][2]) ** 0.5
-            w = (m[0][2] - m[2][0]) / s
-            x = (m[0][1] + m[1][0]) / s
-            y = 0.25 * s
-            z = (m[1][2] + m[2][1]) / s
-        else:
-            s = 2.0 * (1.0 + m[2][2] - m[0][0] - m[1][1]) ** 0.5
-            w = (m[1][0] - m[0][1]) / s
-            x = (m[0][2] + m[2][0]) / s
-            y = (m[1][2] + m[2][1]) / s
-            z = 0.25 * s
-            
-        return (w, x, y, z)
-=======
-        cls._model = None
-        cls._state_0 = None
-        cls._is_initialized = False
->>>>>>> 471a6d78f (Add Newton Warp renderer infrastructure)
