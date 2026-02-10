@@ -128,6 +128,55 @@ def _convert_raw_depth_tiled(
     output_buffer[y, output_x, 0] = raw_buffer[camera_id, 0, pixel_idx]
 
 
+@wp.kernel
+def _detile_rgba_kernel(
+    tiled_image: wp.array(dtype=wp.uint8, ndim=3),  # shape: (tiled_H, tiled_W, 4)
+    output: wp.array(dtype=wp.uint8, ndim=4),  # shape: (num_envs, H, W, 4)
+    tiles_per_side: int,
+    tile_height: int,
+    tile_width: int,
+):
+    """Detile a tiled RGBA image into separate environment images."""
+    env_id, y, x = wp.tid()
+    
+    # Calculate which tile this environment corresponds to
+    tile_y = env_id // tiles_per_side
+    tile_x = env_id % tiles_per_side
+    
+    # Calculate position in tiled image
+    tiled_y = tile_y * tile_height + y
+    tiled_x = tile_x * tile_width + x
+    
+    # Copy RGBA channels
+    output[env_id, y, x, 0] = tiled_image[tiled_y, tiled_x, 0]  # R
+    output[env_id, y, x, 1] = tiled_image[tiled_y, tiled_x, 1]  # G
+    output[env_id, y, x, 2] = tiled_image[tiled_y, tiled_x, 2]  # B
+    output[env_id, y, x, 3] = tiled_image[tiled_y, tiled_x, 3]  # A
+
+
+@wp.kernel
+def _detile_depth_kernel(
+    tiled_depth: wp.array(dtype=wp.float32, ndim=2),  # shape: (tiled_H, tiled_W)
+    output: wp.array(dtype=wp.float32, ndim=4),  # shape: (num_envs, H, W, 1)
+    tiles_per_side: int,
+    tile_height: int,
+    tile_width: int,
+):
+    """Detile a tiled depth image into separate environment depth images."""
+    env_id, y, x = wp.tid()
+    
+    # Calculate which tile this environment corresponds to
+    tile_y = env_id // tiles_per_side
+    tile_x = env_id % tiles_per_side
+    
+    # Calculate position in tiled image
+    tiled_y = tile_y * tile_height + y
+    tiled_x = tile_x * tile_width + x
+    
+    # Copy depth value
+    output[env_id, y, x, 0] = tiled_depth[tiled_y, tiled_x]
+
+
 class NewtonWarpRenderer(RendererBase):
     """Newton Warp Renderer implementation."""
 
@@ -247,17 +296,41 @@ class NewtonWarpRenderer(RendererBase):
             depth_image=self._raw_output_depth_buffer,
         )
 
-        # Convert uint32 to uint8 RGBA
-        reshape_rgba = self._raw_output_rgb_buffer.reshape((self._num_envs, self._height, self._width))
-        self._output_data_buffers["rgba"] = wp.array(
-            ptr=reshape_rgba.ptr, shape=(*reshape_rgba.shape, 4), dtype=wp.uint8
+        # The tiled camera sensor outputs a tiled image grid
+        # For num_envs cameras, it creates a sqrt(num_envs) x sqrt(num_envs) grid
+        # Each tile is (height x width)
+        tiles_per_side = math.ceil(math.sqrt(num_envs))
+        tiled_height = tiles_per_side * self._height
+        tiled_width = tiles_per_side * self._width
+        
+        # Raw RGB buffer is packed uint32 (RGBA), shape is (tiled_height, tiled_width)
+        # Convert to RGBA uint8 view: shape becomes (tiled_height, tiled_width, 4)
+        rgba_tiled = wp.array(
+            ptr=self._raw_output_rgb_buffer.ptr,
+            shape=(tiled_height, tiled_width, 4),
+            dtype=wp.uint8,
+            device=self._raw_output_rgb_buffer.device,
         )
-
+        
+        # Use detiling kernel to extract individual environment images
+        actual_num_envs = min(num_envs, self._num_envs)
+        wp.launch(
+            kernel=_detile_rgba_kernel,
+            dim=(actual_num_envs, self._height, self._width),
+            inputs=[rgba_tiled, self._output_data_buffers["rgba"], tiles_per_side, self._height, self._width],
+            device=rgba_tiled.device,
+        )
+        
         self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-
-        # Reshape depth buffer: (num_envs, num_cameras, 1, width*height) -> (num_envs, num_cameras, height, width, 1), TODO: num_cameras = 1
-        self._output_data_buffers["depth"] = self._raw_output_depth_buffer.reshape(
-            (self._num_envs, self._height, self._width, 1)
+        
+        # Similar detiling for depth
+        depth_tiled = self._raw_output_depth_buffer.reshape((tiled_height, tiled_width))
+        
+        wp.launch(
+            kernel=_detile_depth_kernel,
+            dim=(actual_num_envs, self._height, self._width),
+            inputs=[depth_tiled, self._output_data_buffers["depth"], tiles_per_side, self._height, self._width],
+            device=depth_tiled.device,
         )
 
     def step(self):
