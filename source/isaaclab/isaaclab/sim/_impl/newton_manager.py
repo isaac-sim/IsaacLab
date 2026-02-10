@@ -74,10 +74,9 @@ class NewtonManager:
         cls._device = device
 
         try:
+            import omni.usd
             from newton import Axis, ModelBuilder
             from pxr import UsdGeom
-
-            from isaaclab.sim.utils.stage import get_current_stage
         except ImportError as e:
             raise ImportError(
                 f"Failed to import required packages for Newton: {e}\n"
@@ -88,7 +87,7 @@ class NewtonManager:
         logger.info(f"[NewtonManager] Initializing Newton model for rendering on device: {device}")
 
         # Get USD stage
-        stage = get_current_stage()
+        stage = omni.usd.get_context().get_stage()
         if stage is None:
             raise RuntimeError("USD stage not available. Cannot initialize Newton model.")
 
@@ -161,77 +160,23 @@ class NewtonManager:
         to use the latest PhysX simulation results.
         
         Note: This is the key synchronization point between PhysX and Newton.
+        
+        TODO: Implement proper PhysX to Newton state synchronization.
+        Currently this is a placeholder that doesn't update state.
+        Newton will render using the initial model configuration.
         """
         if not cls._is_initialized:
             return
 
-        try:
-            import usdrt
-
-            from isaaclab.sim.utils.stage import get_current_stage
-        except ImportError as e:
-            logger.error(f"Failed to import USDRT for state synchronization: {e}")
-            return
-
-        # Get USDRT stage (Fabric)
-        usdrt_stage = get_current_stage(fabric=True)
-        if usdrt_stage is None:
-            logger.warning("USDRT stage not available for state sync")
-            return
-
-        # Get Newton state arrays for updating
-        body_q = cls._state_0.body_q.numpy()  # Positions (num_envs, num_bodies, 3)
-        body_quat = cls._state_0.body_quat.numpy()  # Quaternions (num_envs, num_bodies, 4)
-
-        # Update body transforms from USDRT
-        # Newton model tracks bodies by their USD prim paths
-        for i, body_path in enumerate(cls._model.body_key):
-            prim = usdrt_stage.GetPrimAtPath(body_path)
-            if not prim:
-                continue
-
-            # Get world transform from USDRT
-            xformable = usdrt.Rt.Xformable(prim)
-            if xformable.HasWorldXform():
-                try:
-                    # Get 4x4 world transform matrix
-                    world_xform = xformable.GetWorldXform()
-                    
-                    # Extract translation (position) from last column
-                    # Matrix is row-major: [m00, m01, m02, m03, m10, m11, m12, m13, ...]
-                    pos_x = world_xform[3]   # m03
-                    pos_y = world_xform[7]   # m13
-                    pos_z = world_xform[11]  # m23
-                    
-                    # Extract rotation matrix (top-left 3x3)
-                    rot_matrix = [
-                        [world_xform[0], world_xform[1], world_xform[2]],   # row 0
-                        [world_xform[4], world_xform[5], world_xform[6]],   # row 1
-                        [world_xform[8], world_xform[9], world_xform[10]]   # row 2
-                    ]
-                    
-                    # Convert rotation matrix to quaternion (wxyz format for Newton)
-                    quat = cls._matrix_to_quaternion(rot_matrix)
-                    
-                    # Update Newton state for all environments (broadcast)
-                    # Assume same rigid body pose across environments (typical for cloned envs)
-                    for env_id in range(cls._num_envs):
-                        body_q[env_id, i, 0] = pos_x
-                        body_q[env_id, i, 1] = pos_y
-                        body_q[env_id, i, 2] = pos_z
-                        
-                        body_quat[env_id, i, 0] = quat[0]  # w
-                        body_quat[env_id, i, 1] = quat[1]  # x
-                        body_quat[env_id, i, 2] = quat[2]  # y
-                        body_quat[env_id, i, 3] = quat[3]  # z
-                        
-                except Exception as e:
-                    logger.debug(f"Failed to extract transform for {body_path}: {e}")
-                    continue
-
-        # Copy updated numpy arrays back to Warp arrays
-        cls._state_0.body_q.assign(body_q)
-        cls._state_0.body_quat.assign(body_quat)
+        # TODO: Implement USDRT fabric stage access and state synchronization
+        # This requires:
+        # 1. Access to fabric stage: usdrt.Usd.Stage.Attach(stage_id)
+        # 2. Extract rigid body world transforms from fabric
+        # 3. Map USD prim paths to Newton body indices
+        # 4. Update Newton state (body_q for positions, quaternions stored elsewhere)
+        # 5. Handle multi-environment scenarios (cloned environments)
+        
+        logger.debug("[NewtonManager] State synchronization placeholder (not yet implemented)")
 
     @classmethod
     def reset(cls):

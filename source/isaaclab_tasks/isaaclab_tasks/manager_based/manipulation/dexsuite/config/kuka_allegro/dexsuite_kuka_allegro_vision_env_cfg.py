@@ -121,6 +121,8 @@ class KukaAllegroDuoCameraObservationsCfg(KukaAllegroSingleCameraObservationsCfg
 
 
 sa = {"num_envs": 4096, "env_spacing": 3, "replicate_physics": False}
+
+# RTX rendering variants
 singe_camera_variants = {
     "64x64tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
         **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "rtx"}
@@ -180,6 +182,28 @@ duo_camera_variants = {
     ),
 }
 
+# Newton Warp rendering variants
+single_camera_newton_warp_variants = {
+    "64x64newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "newton_warp"}
+    ),
+    "64x64newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "newton_warp"}
+    ),
+    "128x128newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "newton_warp"}
+    ),
+    "128x128newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "newton_warp"}
+    ),
+    "256x256newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "newton_warp"}
+    ),
+    "256x256newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
+        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "newton_warp"}
+    ),
+}
+
 
 @configclass
 class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
@@ -190,6 +214,7 @@ class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg)
     def __post_init__(self: kuka_allegro_dexsuite.DexsuiteKukaAllegroLiftEnvCfg):
         super().__post_init__()
         self.variants.setdefault("scene", {}).update(singe_camera_variants)
+        self.variants["scene"].update(single_camera_newton_warp_variants)
 
 
 @configclass
