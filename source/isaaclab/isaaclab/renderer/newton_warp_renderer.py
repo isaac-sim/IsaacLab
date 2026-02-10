@@ -197,6 +197,13 @@ class NewtonWarpRenderer(RendererBase):
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
         super().__init__(cfg)
+        self.cfg = cfg
+        self._render_call_count = 0
+        
+        # Create save directory
+        import os
+        self._save_dir = "/tmp/newton_renders"
+        os.makedirs(self._save_dir, exist_ok=True)
 
     def initialize(self):
         """Initialize the renderer."""
@@ -353,6 +360,125 @@ class NewtonWarpRenderer(RendererBase):
             inputs=[depth_reshaped, self._output_data_buffers["depth"]],
             device=depth_reshaped.device,
         )
+        
+        # Automatically save images every 5 render calls
+        self._render_call_count += 1
+        if self._render_call_count % 5 == 0:
+            import os
+            frame_dir = os.path.join(self._save_dir, f"frame_{self._render_call_count:06d}")
+            os.makedirs(frame_dir, exist_ok=True)
+            
+            # Save first 4 environments individually
+            max_envs = min(4, actual_num_envs)
+            for env_id in range(max_envs):
+                rgb_path = os.path.join(frame_dir, f"env{env_id}_rgb.png")
+                self.save_image(rgb_path, env_index=env_id, data_type="rgb")
+                
+                depth_path = os.path.join(frame_dir, f"env{env_id}_depth.png")
+                self.save_image(depth_path, env_index=env_id, data_type="depth")
+            
+            # Save tiled grid of all environments
+            tiled_rgb = os.path.join(frame_dir, "all_envs_tiled_rgb.png")
+            self.save_image(tiled_rgb, env_index=None, data_type="rgb")
+            
+            tiled_depth = os.path.join(frame_dir, "all_envs_tiled_depth.png")
+            self.save_image(tiled_depth, env_index=None, data_type="depth")
+            
+            print(f"[NewtonWarpRenderer] Saved images → {frame_dir}/")
+
+    def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
+        """Save a single environment or a tiled grid of environments to disk.
+        
+        Args:
+            filename: Path to save the image (should end with .png).
+            env_index: Environment index to save, or None for tiled grid of all envs.
+            data_type: Which data to save - "rgb", "rgba", or "depth". Default: "rgb".
+        """
+        import numpy as np
+        from PIL import Image
+        
+        # Get the requested buffer
+        if data_type == "rgb" and "rgb" in self._output_data_buffers:
+            buffer = self._output_data_buffers["rgb"]  # (num_envs, H, W, 3)
+            mode = "RGB"
+        elif data_type == "rgba" and "rgba" in self._output_data_buffers:
+            buffer = self._output_data_buffers["rgba"]  # (num_envs, H, W, 4)
+            mode = "RGBA"
+        elif data_type == "depth" and "depth" in self._output_data_buffers:
+            buffer = self._output_data_buffers["depth"]  # (num_envs, H, W, 1)
+            mode = "L"  # Grayscale
+        else:
+            raise ValueError(f"Data type '{data_type}' not available in output buffers.")
+        
+        # Convert to numpy
+        buffer_np = buffer.numpy()
+        
+        if env_index is None:
+            # Save tiled image of all environments
+            num_envs = buffer_np.shape[0]
+            tiles_per_side = int(np.ceil(np.sqrt(num_envs)))
+            
+            tiled_height = tiles_per_side * self._height
+            tiled_width = tiles_per_side * self._width
+            
+            if data_type == "depth":
+                # Create tiled depth image
+                tiled_image = np.zeros((tiled_height, tiled_width), dtype=np.uint8)
+                
+                for idx in range(num_envs):
+                    tile_y = idx // tiles_per_side
+                    tile_x = idx % tiles_per_side
+                    
+                    y_start = tile_y * self._height
+                    y_end = y_start + self._height
+                    x_start = tile_x * self._width
+                    x_end = x_start + self._width
+                    
+                    # Normalize depth for visualization
+                    depth_data = buffer_np[idx, :, :, 0]
+                    d_min, d_max = depth_data.min(), depth_data.max()
+                    if d_max > d_min:
+                        depth_vis = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+                    else:
+                        depth_vis = np.zeros_like(depth_data, dtype=np.uint8)
+                    
+                    tiled_image[y_start:y_end, x_start:x_end] = depth_vis
+            else:
+                # Create tiled RGB/RGBA image
+                channels = 3 if mode == "RGB" else 4
+                tiled_image = np.zeros((tiled_height, tiled_width, channels), dtype=np.uint8)
+                
+                for idx in range(num_envs):
+                    tile_y = idx // tiles_per_side
+                    tile_x = idx % tiles_per_side
+                    
+                    y_start = tile_y * self._height
+                    y_end = y_start + self._height
+                    x_start = tile_x * self._width
+                    x_end = x_start + self._width
+                    
+                    tiled_image[y_start:y_end, x_start:x_end] = buffer_np[idx]
+            
+            img = Image.fromarray(tiled_image, mode=mode)
+            img.save(filename)
+            print(f"[NewtonWarpRenderer] Saved tiled {data_type} image: {filename}")
+        else:
+            # Save single environment
+            if data_type == "depth":
+                depth_data = buffer_np[env_index, :, :, 0]
+                # Normalize for visualization
+                d_min, d_max = depth_data.min(), depth_data.max()
+                if d_max > d_min:
+                    img_data = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+                else:
+                    img_data = np.zeros_like(depth_data, dtype=np.uint8)
+            else:
+                img_data = buffer_np[env_index]
+            
+            img = Image.fromarray(img_data, mode=mode)
+            img.save(filename)
+            print(f"[NewtonWarpRenderer] Saved env {env_index} {data_type} image: {filename}")
+    
 
     def step(self):
         """Step the renderer."""
