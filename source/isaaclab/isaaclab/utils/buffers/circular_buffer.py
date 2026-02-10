@@ -49,7 +49,7 @@ class CircularBuffer:
         # the actual buffer for data storage
         # note: this is initialized on the first call to :meth:`append`
         self._buffer: torch.Tensor = None  # type: ignore
-        # track if all batches have been initialized
+        # track if all batches have been in known, initialized state
         self._need_reset: bool = True
 
     """
@@ -170,10 +170,9 @@ class CircularBuffer:
         # check the batch size
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
-        # check if the buffer is empty
+        # check if the buffer is in undefined state
         if self._need_reset:
-            if self._buffer is None or (self._num_pushes == 0).any().item():
-                raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
+            raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
 
         # admissible lag
         valid_keys = torch.minimum(key, self._num_pushes - 1)
