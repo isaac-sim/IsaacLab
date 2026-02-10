@@ -58,7 +58,7 @@ def to_flat_dict(input_dict: dict[str, Any], delimiter: str = ".") -> dict[str, 
     for key, value in input_dict.items():
         # If we have a dict inside the current value, we need to flatten it.
         if isinstance(value, dict):
-            inner_flattened_dict = to_flat_dict(value)
+            inner_flattened_dict = to_flat_dict(value, delimiter)
             # Recursively combine parent key with inner flattened directory.
             for inner_key, inner_value in inner_flattened_dict.items():
                 out_dict[f"{key}{delimiter}{inner_key}"] = inner_value
