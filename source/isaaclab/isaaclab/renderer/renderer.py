@@ -48,6 +48,7 @@ class RendererBase(ABC):
 
     def get_output(self):
         return self._output_data_buffers
+<<<<<<< HEAD
     
     def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
         """Save a rendered image to disk.
@@ -58,6 +59,8 @@ class RendererBase(ABC):
             data_type: Which data to save (e.g., "rgb", "depth"). Default: "rgb".
         """
         raise NotImplementedError("save_image() is not implemented.")
+=======
+>>>>>>> 471a6d78f (Add Newton Warp renderer infrastructure)
 
     def clone(self, cameras):
         """TODO: Clone the camera in renderer."""
