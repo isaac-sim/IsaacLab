@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import omni.physics.tensors.impl.api as physx
 from pxr import PhysxSchema, UsdShade
@@ -157,7 +158,11 @@ class DeformableObject(AssetBase):
     Operations - Write to simulation.
     """
 
-    def write_nodal_state_to_sim(self, nodal_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_nodal_state_to_sim_index(
+        self,
+        nodal_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the nodal state over selected environment indices into the simulation.
 
         The nodal state comprises of the nodal positions and velocities. Since these are nodes, the velocity only has
@@ -168,11 +173,40 @@ class DeformableObject(AssetBase):
                 Shape is (len(env_ids), max_sim_vertices_per_body, 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # Convert warp to torch if needed
+        if isinstance(nodal_state, wp.array):
+            nodal_state = wp.to_torch(nodal_state)
         # set into simulation
-        self.write_nodal_pos_to_sim(nodal_state[..., :3], env_ids=env_ids)
-        self.write_nodal_velocity_to_sim(nodal_state[..., 3:], env_ids=env_ids)
+        self.write_nodal_pos_to_sim_index(nodal_state[..., :3], env_ids=env_ids)
+        self.write_nodal_velocity_to_sim_index(nodal_state[..., 3:], env_ids=env_ids)
 
-    def write_nodal_pos_to_sim(self, nodal_pos: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_nodal_state_to_sim_mask(
+        self,
+        nodal_state: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the nodal state over selected environment mask into the simulation.
+
+        The nodal state comprises of the nodal positions and velocities. Since these are nodes, the velocity only has
+        a translational component. All the quantities are in the simulation frame.
+
+        Args:
+            nodal_state: Nodal state in simulation frame.
+                Shape is (num_instances, max_sim_vertices_per_body, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_nodal_state_to_sim_index(nodal_state, env_ids=env_ids)
+
+    def write_nodal_pos_to_sim_index(
+        self,
+        nodal_pos: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the nodal positions over selected environment indices into the simulation.
 
         The nodal position comprises of individual nodal positions of the simulation mesh for the deformable body.
@@ -183,18 +217,52 @@ class DeformableObject(AssetBase):
                 Shape is (len(env_ids), max_sim_vertices_per_body, 3).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # Convert warp to torch if needed
+        if isinstance(nodal_pos, wp.array):
+            nodal_pos = wp.to_torch(nodal_pos)
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, wp.array):
+            physx_env_ids = wp.to_torch(env_ids).long()
+            env_ids = physx_env_ids
+        elif isinstance(env_ids, list):
+            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.nodal_pos_w[env_ids] = nodal_pos.clone()
         # set into simulation
         self.root_view.set_sim_nodal_positions(self._data.nodal_pos_w, indices=physx_env_ids)
 
-    def write_nodal_velocity_to_sim(self, nodal_vel: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_nodal_pos_to_sim_mask(
+        self,
+        nodal_pos: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the nodal positions over selected environment mask into the simulation.
+
+        The nodal position comprises of individual nodal positions of the simulation mesh for the deformable body.
+        The positions are in the simulation frame.
+
+        Args:
+            nodal_pos: Nodal positions in simulation frame.
+                Shape is (num_instances, max_sim_vertices_per_body, 3).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_nodal_pos_to_sim_index(nodal_pos, env_ids=env_ids)
+
+    def write_nodal_velocity_to_sim_index(
+        self,
+        nodal_vel: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the nodal velocity over selected environment indices into the simulation.
 
         The nodal velocity comprises of individual nodal velocities of the simulation mesh for the deformable
@@ -206,19 +274,54 @@ class DeformableObject(AssetBase):
                 Shape is (len(env_ids), max_sim_vertices_per_body, 3).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # Convert warp to torch if needed
+        if isinstance(nodal_vel, wp.array):
+            nodal_vel = wp.to_torch(nodal_vel)
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, wp.array):
+            physx_env_ids = wp.to_torch(env_ids).long()
+            env_ids = physx_env_ids
+        elif isinstance(env_ids, list):
+            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.nodal_vel_w[env_ids] = nodal_vel.clone()
         # set into simulation
         self.root_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
-    def write_nodal_kinematic_target_to_sim(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
+    def write_nodal_velocity_to_sim_mask(
+        self,
+        nodal_vel: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the nodal velocity over selected environment mask into the simulation.
+
+        The nodal velocity comprises of individual nodal velocities of the simulation mesh for the deformable
+        body. Since these are nodes, the velocity only has a translational component. The velocities are in the
+        simulation frame.
+
+        Args:
+            nodal_vel: Nodal velocities in simulation frame.
+                Shape is (num_instances, max_sim_vertices_per_body, 3).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_nodal_velocity_to_sim_index(nodal_vel, env_ids=env_ids)
+
+    def write_nodal_kinematic_target_to_sim_index(
+        self,
+        targets: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Set the kinematic targets of the simulation mesh for the deformable bodies using indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
         and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation
@@ -232,15 +335,49 @@ class DeformableObject(AssetBase):
                 Shape is (len(env_ids), max_sim_vertices_per_body, 4).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        # Convert warp to torch if needed
+        if isinstance(targets, wp.array):
+            targets = wp.to_torch(targets)
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, wp.array):
+            physx_env_ids = wp.to_torch(env_ids).long()
+            env_ids = physx_env_ids
+        elif isinstance(env_ids, list):
+            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # store into internal buffers
         self._data.nodal_kinematic_target[env_ids] = targets.clone()
         # set into simulation
         self.root_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target, indices=physx_env_ids)
+
+    def write_nodal_kinematic_target_to_sim_mask(
+        self,
+        targets: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the kinematic targets of the simulation mesh for the deformable bodies using mask.
+
+        The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
+        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation
+        frame.
+
+        .. note::
+            The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.
+
+        Args:
+            targets: The kinematic targets comprising of nodal positions and flags.
+                Shape is (num_instances, max_sim_vertices_per_body, 4).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids)
 
     """
     Operations - Helper.

@@ -193,28 +193,19 @@ class ArticulationData(BaseArticulationData):
             DeprecationWarning,
             stacklevel=2,
         )
-        return torch.cat([self._default_root_pose, self._default_root_vel], dim=1)
-
-    @default_root_state.setter
-    def default_root_state(self, value: wp.array) -> None:
-        """Set the default root state.
-
-        Args:
-            value: The default root state. Shape is (num_instances, 13).
-
-        Raises:
-            ValueError: If the articulation data is already primed.
-        """
-        warnings.warn(
-            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_root_pose and default_root_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        if self._default_root_state is None:
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
+        wp.launch(
+            concat_root_pose_and_vel_to_state,
+            dim=self._num_instances,
+            inputs=[
+                self._default_root_pose,
+                self._default_root_vel,
+                self._default_root_state,
+            ],
+            device=self.device,
         )
-        if self.is_primed:
-            raise ValueError("The articulation data is already primed.")
-        self._default_root_pose.assign(value[:, :7])
-        self._default_root_vel.assign(value[:, 7:])
+        return self._default_root_state 
 
     @property
     def default_joint_pos(self) -> wp.array:
@@ -485,7 +476,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._root_link_pose_w.data = self._root_view.get_root_transforms()
+            self._root_link_pose_w.data = self._root_view.get_root_transforms().view(wp.transformf)
             self._root_link_pose_w.timestamp = self._sim_timestamp
 
         return self._root_link_pose_w.data
@@ -543,7 +534,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._root_com_vel_w.timestamp < self._sim_timestamp:
-            self._root_com_vel_w.data = self._root_view.get_root_velocities()
+            self._root_com_vel_w.data = self._root_view.get_root_velocities().view(wp.spatial_vectorf)
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         return self._root_com_vel_w.data
@@ -558,7 +549,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
-                dim=self._root_view.count,
+                dim=(self._root_view.count),
                 inputs=[
                     self.root_link_pose_w,
                     self.root_com_vel_w,
@@ -643,7 +634,7 @@ class ArticulationData(BaseArticulationData):
             # perform forward kinematics (shouldn't cause overhead if it happened already)
             self._physics_sim_view.update_articulations_kinematic()
             # set the buffer data and timestamp
-            self._body_link_pose_w.data = self._root_view.get_link_transforms()
+            self._body_link_pose_w.data = self._root_view.get_link_transforms().view(wp.transformf)
             self._body_link_pose_w.timestamp = self._sim_timestamp
 
         return self._body_link_pose_w.data
@@ -704,7 +695,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            self._body_com_vel_w.data = self._root_view.get_link_velocities()
+            self._body_com_vel_w.data = self._root_view.get_link_velocities().view(wp.spatial_vectorf)
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
@@ -784,7 +775,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
-            self._body_com_acc_w.data = self._root_view.get_link_accelerations()
+            self._body_com_acc_w.data = self._root_view.get_link_accelerations().view(wp.spatial_vectorf)
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
         return self._body_com_acc_w.data
@@ -799,7 +790,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._body_com_pose_b.data.assign(self._root_view.get_coms())
+            self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         return self._body_com_pose_b.data
@@ -819,7 +810,7 @@ class ArticulationData(BaseArticulationData):
         """
 
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
-            self._body_incoming_joint_wrench_b.data = self._root_view.get_link_incoming_joint_force()
+            self._body_incoming_joint_wrench_b.data = self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf)
             self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
         return self._body_incoming_joint_wrench_b.data
 
@@ -853,7 +844,7 @@ class ArticulationData(BaseArticulationData):
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
             wp.launch(
                 get_joint_acc_from_joint_vel,
-                dim=(self._root_view.count, self._root_view.num_joints),
+                dim=(self._num_instances, self._num_joints),
                 inputs=[
                     self.joint_vel,
                     self._previous_joint_vel,
@@ -978,7 +969,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        return self.root_link_pose_w[:, :3]
+        return self._get_pos_from_transform(self.root_link_pose_w)
 
     @property
     def root_link_quat_w(self) -> wp.array:
@@ -986,7 +977,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        return self.root_link_pose_w[:, 3:7]
+        return self._get_quat_from_transform(self.root_link_pose_w)
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
@@ -994,7 +985,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        return self.root_link_vel_w[:, :3]
+        return self._get_lin_vel_from_spatial_vector(self.root_link_vel_w)
 
     @property
     def root_link_ang_vel_w(self) -> wp.array:
@@ -1002,7 +993,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        return self.root_link_vel_w[:, 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.root_link_vel_w)
 
     @property
     def root_com_pos_w(self) -> wp.array:
@@ -1010,7 +1001,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        return self.root_com_pose_w[:, :3]
+        return self._get_pos_from_transform(self.root_com_pose_w)
 
     @property
     def root_com_quat_w(self) -> wp.array:
@@ -1018,7 +1009,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
-        return self.root_com_pose_w[:, 3:7]
+        return self._get_quat_from_transform(self.root_com_pose_w)
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
@@ -1026,7 +1017,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        return self.root_com_vel_w[:, :3]
+        return self._get_lin_vel_from_spatial_vector(self.root_com_vel_w)
 
     @property
     def root_com_ang_vel_w(self) -> wp.array:
@@ -1034,7 +1025,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        return self.root_com_vel_w[:, 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.root_com_vel_w)
 
     @property
     def body_link_pos_w(self) -> wp.array:
@@ -1042,15 +1033,15 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        return self.body_link_pose_w[..., :3]
+        return self._get_pos_from_transform(self.body_link_pose_w)
 
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
+        """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        return self.body_link_pose_w[..., 3:7]
+        return self._get_quat_from_transform(self.body_link_pose_w)
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
@@ -1058,7 +1049,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        return self.body_link_vel_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
@@ -1066,7 +1057,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        return self.body_link_vel_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
     def body_com_pos_w(self) -> wp.array:
@@ -1074,7 +1065,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        return self.body_com_pose_w[..., :3]
+        return self._get_pos_from_transform(self.body_com_pose_w)
 
     @property
     def body_com_quat_w(self) -> wp.array:
@@ -1083,7 +1074,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        return self.body_com_pose_w[..., 3:7]
+        return self._get_quat_from_transform(self.body_com_pose_w)
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
@@ -1091,7 +1082,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        return self.body_com_vel_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
@@ -1099,7 +1090,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        return self.body_com_vel_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
@@ -1107,7 +1098,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        return self.body_com_acc_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_com_acc_w)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
@@ -1115,7 +1106,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        return self.body_com_acc_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_com_acc_w)
 
     @property
     def body_com_pos_b(self) -> wp.array:
@@ -1124,7 +1115,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the center of mass location relative to its body'slink frame.
         """
-        return self.body_com_pose_b[..., :3]
+        return self._get_pos_from_transform(self.body_com_pose_b)
 
     @property
     def body_com_quat_b(self) -> wp.array:
@@ -1133,90 +1124,93 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        return self.body_com_pose_b[..., 3:7]
+        return self._get_quat_from_transform(self.body_com_pose_b)
 
     def _create_buffers(self) -> None:
         super()._create_buffers()
         # Initialize the lazy buffers.
-        # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer((self._root_view.count), self.device, wp.transformf)
-        self._root_link_vel_w = TimestampedBuffer((self._root_view.count), self.device, wp.spatial_vectorf)
-        self._body_link_pose_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
-        self._body_link_vel_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
-        # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
-        # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer((self._root_view.count), self.device, wp.transformf)
-        self._root_com_vel_w = TimestampedBuffer((self._root_view.count), self.device, wp.spatial_vectorf)
-        self._body_com_pose_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.transformf)
-        self._body_com_vel_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
-        self._body_com_acc_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, wp.spatial_vectorf)
-        # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
-        self._root_link_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
-        self._root_com_state_w = TimestampedBuffer((self._root_view.count), self.device, vec13f)
-        self._body_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
-        self._body_link_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
-        self._body_com_state_w = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies), self.device, vec13f)
-        # -- joint state
-        self._joint_pos = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
-        self._joint_vel = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
-        self._joint_acc = TimestampedBuffer((self._root_view.count, num_dofs), self.device, wp.float32)
-        self._body_incoming_joint_wrench_b = TimestampedBuffer((self._root_view.count, self._root_view.num_bodies, num_dofs), self.device, wp.spatial_vectorf)
-        # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self._root_view.count), self.device, wp.float32)
-        self._root_link_lin_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
-        self._root_link_ang_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
-        self._root_com_lin_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
-        self._root_com_ang_vel_b = TimestampedBuffer((self._root_view.count), self.device, wp.vec3f)
+        self._num_instances = self._root_view.count
+        self._num_joints = self._root_view.shared_metatype.dof_count
+        self._num_bodies = self._root_view.shared_metatype.link_count
+        self._num_fixed_tendons = self._root_view.max_fixed_tendons
+        self._num_spatial_tendons = self._root_view.max_spatial_tendons
 
-        num_dofs = self._root_view.shared_metatype.dof_count
-        num_fixed_tendons = self._root_view.max_fixed_tendons
-        num_spatial_tendons = self._root_view.max_spatial_tendons
+        # -- link frame w.r.t. world frame
+        self._root_link_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
+        self._root_link_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
+        self._body_link_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._body_link_vel_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
+        # -- com frame w.r.t. link frame
+        self._body_com_pose_b = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        # -- com frame w.r.t. world frame
+        self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
+        self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._body_com_vel_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_acc_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
+        # -- combined state (these are cached as they concatenate)
+        self._root_state_w = TimestampedBuffer((self._num_instances), self.device, vec13f)
+        self._root_link_state_w = TimestampedBuffer((self._num_instances), self.device, vec13f)
+        self._root_com_state_w = TimestampedBuffer((self._num_instances), self.device, vec13f)
+        self._body_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, vec13f)
+        self._body_link_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, vec13f)
+        self._body_com_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, vec13f)
+        # -- joint state
+        self._joint_pos = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._joint_vel = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._joint_acc = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._body_incoming_joint_wrench_b = TimestampedBuffer((self._num_instances, self._num_bodies, self._num_joints), self.device, wp.spatial_vectorf)
+        # -- derived properties (these are cached to avoid repeated memory allocations)
+        self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
+        self._root_link_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._root_link_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
 
         # Default root pose and velocity
-        self._default_root_pose = torch.zeros((self._root_view.count, 7), device=self.device)
-        self._default_root_vel = torch.zeros((self._root_view.count, 6), device=self.device)
-        self._default_joint_pos = torch.zeros((self._root_view.count, num_dofs), device=self.device)
-        self._default_joint_vel = torch.zeros((self._root_view.count, num_dofs), device=self.device)
+        self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
+        self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_joint_pos = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._default_joint_vel = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
 
         # Initialize history for finite differencing
-        self._previous_joint_vel = self._root_view.get_dof_velocities().clone()
+        self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(), device=self.device)
 
         # Pre-allocated buffers
         # -- Joint commands (set into simulation)
-        self._joint_pos_target = torch.zeros((self._root_view.count, num_dofs), device=self.device)
-        self._joint_vel_target = torch.zeros((self._root_view.count, num_dofs), device=self.device)
-        self._joint_effort_target = torch.zeros((self._root_view.count, num_dofs), device=self.device)
+        self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_effort_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Joint commands (explicit actuator model)
-        self._computed_torque = torch.zeros((self._root_view.count, num_dofs), device=self.device)
-        self._applied_torque = torch.zeros((self._root_view.count, num_dofs), device=self.device)
+        self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Joint properties
-        self._joint_stiffness = self._root_view.get_dof_stiffnesses().to(self.device).clone()
-        self._joint_damping = self._root_view.get_dof_dampings().to(self.device).clone()
-        self._joint_armature = self._root_view.get_dof_armatures().to(self.device).clone()
+        self._joint_stiffness = wp.clone(self._root_view.get_dof_stiffnesses(), device=self.device)
+        self._joint_damping = wp.clone(self._root_view.get_dof_dampings(), device=self.device)
+        self._joint_armature = wp.clone(self._root_view.get_dof_armatures(), device=self.device)
         friction_props = self._root_view.get_dof_friction_properties()
-        self._joint_friction_coeff = friction_props[:, :, 0].to(self.device).clone()
-        self._joint_dynamic_friction_coeff = friction_props[:, :, 1].to(self.device).clone()
-        self._joint_viscous_friction_coeff = friction_props[:, :, 2].to(self.device).clone()
-        self._joint_pos_limits = self._root_view.get_dof_limits().to(self.device).clone()
-        self._joint_vel_limits = self._root_view.get_dof_max_velocities().to(self.device).clone()
-        self._joint_effort_limits = self._root_view.get_dof_max_forces().to(self.device).clone()
+        self._joint_friction_coeff = wp.clone(friction_props[:, :, 0], device=self.device)
+        self._joint_dynamic_friction_coeff = wp.clone(friction_props[:, :, 1], device=self.device)
+        self._joint_viscous_friction_coeff = wp.clone(friction_props[:, :, 2], device=self.device)
+        self._joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
+        self._joint_pos_limits.assign(self._root_view.get_dof_limits())
+        self._joint_vel_limits = wp.clone(self._root_view.get_dof_max_velocities(), device=self.device)
+        self._joint_effort_limits = wp.clone(self._root_view.get_dof_max_forces(), device=self.device)
         # -- Joint properties (custom)
-        self._soft_joint_pos_limits = torch.zeros((self._root_view.count, num_dofs, 2), device=self.device)
-        self._soft_joint_vel_limits = torch.zeros((self._root_view.count, num_dofs), device=self.device)
-        self._gear_ratio = torch.ones((self._root_view.count, num_dofs), device=self.device)
+        self._soft_joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
+        self._soft_joint_vel_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Fixed tendon properties
-        if num_fixed_tendons > 0:
-            self._fixed_tendon_stiffness = self._root_view.get_fixed_tendon_stiffnesses().to(self.device).clone()
-            self._fixed_tendon_damping = self._root_view.get_fixed_tendon_dampings().to(self.device).clone()
+        if self._num_fixed_tendons > 0:
+            self._fixed_tendon_stiffness = wp.clone(self._root_view.get_fixed_tendon_stiffnesses(), device=self.device)
+            self._fixed_tendon_damping = wp.clone(self._root_view.get_fixed_tendon_dampings(), device=self.device)
             self._fixed_tendon_limit_stiffness = (
-                self._root_view.get_fixed_tendon_limit_stiffnesses().to(self.device).clone()
+                wp.clone(self._root_view.get_fixed_tendon_limit_stiffnesses(), device=self.device)
             )
-            self._fixed_tendon_rest_length = self._root_view.get_fixed_tendon_rest_lengths().to(self.device).clone()
-            self._fixed_tendon_offset = self._root_view.get_fixed_tendon_offsets().to(self.device).clone()
-            self._fixed_tendon_pos_limits = self._root_view.get_fixed_tendon_limits().to(self.device).clone()
+            self._fixed_tendon_rest_length = wp.clone(self._root_view.get_fixed_tendon_rest_lengths(), device=self.device)
+            self._fixed_tendon_offset = wp.clone(self._root_view.get_fixed_tendon_offsets(), device=self.device)
+            self._fixed_tendon_pos_limits = wp.clone(self._root_view.get_fixed_tendon_limits(), device=self.device)
         else:
             self._fixed_tendon_stiffness = None
             self._fixed_tendon_damping = None
@@ -1225,18 +1219,97 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_offset = None
             self._fixed_tendon_pos_limits = None
         # -- Spatial tendon properties
-        if num_spatial_tendons > 0:
-            self._spatial_tendon_stiffness = self._root_view.get_spatial_tendon_stiffnesses().to(self.device).clone()
-            self._spatial_tendon_damping = self._root_view.get_spatial_tendon_dampings().to(self.device).clone()
+        if self._num_spatial_tendons > 0:
+            self._spatial_tendon_stiffness = wp.clone(self._root_view.get_spatial_tendon_stiffnesses(), device=self.device)
+            self._spatial_tendon_damping = wp.clone(self._root_view.get_spatial_tendon_dampings(), device=self.device)
             self._spatial_tendon_limit_stiffness = (
-                self._root_view.get_spatial_tendon_limit_stiffnesses().to(self.device).clone()
+                wp.clone(self._root_view.get_spatial_tendon_limit_stiffnesses(), device=self.device)
             )
-            self._spatial_tendon_offset = self._root_view.get_spatial_tendon_offsets().to(self.device).clone()
+            self._spatial_tendon_offset = wp.clone(self._root_view.get_spatial_tendon_offsets(), device=self.device)
         else:
             self._spatial_tendon_stiffness = None
             self._spatial_tendon_damping = None
             self._spatial_tendon_limit_stiffness = None
             self._spatial_tendon_offset = None
         # -- Body properties
-        self._body_mass = self._root_view.get_masses().to(self.device).clone()
-        self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
+        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
+        self._default_root_state = None
+
+
+    """
+    Internal helpers.
+    """
+
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a position array from a transform array.
+
+        Args:
+            transform: The transform array. Shape is (N, 7).
+
+        Returns:
+            The position array. Shape is (N, 3).
+        """
+        print("shape of transform: ", transform.shape)
+        print("type of transform: ", transform.dtype)
+        X =  wp.array(
+            ptr=transform.ptr,
+            shape=transform.shape,
+            dtype=wp.vec3f,
+            strides=transform.strides,
+            device=self.device,
+        ).contiguous()
+        print("shape of X: ", X.shape)
+        return X
+
+
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a quaternion array from a transform array.
+
+        Args:
+            transform: The transform array. Shape is (N, 7).
+
+        Returns:
+            The quaternion array. Shape is (N, 4).
+        """
+        return wp.array(
+            ptr=transform.ptr + 3*4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self.device,
+        ).contiguous()
+    
+    def _get_lin_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Generates a linear velocity array from a spatial vector array.
+
+        Args:
+            spatial_vector: The spatial vector array. Shape is (N, 6).
+
+        Returns:
+            The linear velocity array. Shape is (N, 3).
+        """
+        return wp.array(
+            ptr=spatial_vector.ptr,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        ).contiguous()
+    
+    def _get_ang_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Generates an angular velocity array from a spatial vector array.
+
+        Args:
+            spatial_vector: The spatial vector array. Shape is (N, 6).
+
+        Returns:
+            The angular velocity array. Shape is (N, 3).
+        """
+        return wp.array(
+            ptr=spatial_vector.ptr + 3*4,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        ).contiguous()

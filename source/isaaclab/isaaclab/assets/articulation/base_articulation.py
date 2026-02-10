@@ -1397,86 +1397,6 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_external_force_and_torque_index(
-        self,
-        forces: torch.Tensor | wp.array,
-        torques: torch.Tensor | wp.array,
-        positions: torch.Tensor | wp.array | None = None,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        is_global: bool = False,
-    ) -> None:
-        """Set external force and torque to apply on the asset's bodies in their local frame.
-
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
-        external wrench at (in the local link frame of the bodies).
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
-
-        Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
-            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
-            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the articulations' bodies.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def set_external_force_and_torque_mask(
-        self,
-        forces: torch.Tensor | wp.array,
-        torques: torch.Tensor | wp.array,
-        positions: torch.Tensor | wp.array | None = None,
-        is_global: bool = False,
-        env_mask: wp.array | None = None,
-        body_mask: wp.array | None = None,
-    ) -> None:
-        """Set external force and torque to apply on the asset's bodies in their local frame.
-
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
-        external wrench at (in the local link frame of the bodies).
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
-
-        Args:
-            forces: External forces in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            positions: Positions to apply external wrench. Shape is (num_instances, num_bodies, 3). Defaults to None.
-            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the articulations' bodies.
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
     def set_joint_position_target_index(
         self,
         target: torch.Tensor | wp.array,
@@ -2718,9 +2638,8 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_external_force_and_torque_index(forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global)
+        self.permanent_wrench_composer.set_forces_and_torques(forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global)
             
-
     def set_joint_position_target(
         self,
         target: torch.Tensor | wp.array,
@@ -2869,7 +2788,8 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_fixed_tendon_properties_to_sim_index(fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        # Removing the fixed tendon ids argument as it is not used.
+        self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
             
     def set_spatial_tendon_stiffness(
         self,
@@ -2945,5 +2865,6 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_spatial_tendon_properties_to_sim_index(spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
+        # Removing the spatial tendon ids argument as it is not used.
+        self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
             

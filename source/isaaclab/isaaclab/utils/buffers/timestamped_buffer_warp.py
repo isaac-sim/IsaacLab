@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import dataclass
-
 import warp as wp
 
 
@@ -21,7 +19,7 @@ class TimestampedBufferWarp:
     the :mod:`isaaclab.assets` module.
     """
 
-    def __init__(self, shape: tuple, device: str, dtype: wp.dtype) -> None:
+    def __init__(self, shape: tuple, device: str, dtype: type) -> None:
         """Initializes the timestamped buffer.
 
         .. note:: Unlike the :class:`TimestampedBuffer` class in the :mod:`isaaclab.utils.buffers` module,

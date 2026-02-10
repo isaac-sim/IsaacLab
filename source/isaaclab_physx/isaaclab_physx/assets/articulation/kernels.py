@@ -1,4 +1,4 @@
-from triton.knobs import Env
+from typing import Any
 import warp as wp
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
@@ -10,7 +10,7 @@ def get_link_vel_from_root_com_vel_func(
     body_com_pose: wp.transformf,
 ):
     projected_vel = wp.cross(wp.spatial_bottom(com_vel), wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose)))
-    return wp.spatial_vectorf(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
+    return wp.spatial_vector(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
 
 @wp.func
 def get_com_pose_from_link_pose_func(
@@ -23,23 +23,9 @@ def get_com_pose_from_link_pose_func(
 def concat_pose_and_vel_to_state_func(
     pose: wp.transformf,
     vel: wp.spatial_vectorf,
-    state: vec13f,
-):
+) -> vec13f:
     # Pose: [pos, quat]
-    state[0] = pose[0]
-    state[1] = pose[1]
-    state[2] = pose[2]
-    state[3] = pose[3]
-    state[4] = pose[4]
-    state[5] = pose[5]
-    state[6] = pose[6]
-    # Velocity: [lin_vel, ang_vel]
-    state[7] = vel[0]
-    state[8] = vel[1]
-    state[9] = vel[2]
-    state[10] = vel[3]
-    state[11] = vel[4]
-    state[12] = vel[5]
+    return vec13f(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5])
 
 @wp.func
 def compute_heading_w_func(
@@ -98,25 +84,37 @@ def get_com_pose_in_link_frame_func(
     link_pose_w = com_pose_w * T2
     return link_pose_w
 
+@wp.func
+def compute_soft_joint_pos_limits_func(
+    joint_pos_limits: wp.vec2f,
+    soft_limit_factor: wp.float32,
+):
+    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
+    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
+    return wp.vec2f(
+        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
+        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
+    )
+
 @wp.kernel
 def get_root_link_vel_from_root_com_vel(
     com_vel: wp.array(dtype=wp.spatial_vectorf),
     link_pose: wp.array(dtype=wp.transformf),
-    body_com_pose: wp.array2d(dtype=wp.transformf),
+    body_com_pose_b: wp.array2d(dtype=wp.transformf),
     link_vel: wp.array(dtype=wp.spatial_vectorf),
 ):
     i = wp.tid()
-    link_vel[i] = get_link_vel_from_root_com_vel_func(com_vel[i], link_pose[i], body_com_pose[0, i])
+    link_vel[i] = get_link_vel_from_root_com_vel_func(com_vel[i], link_pose[i], body_com_pose_b[0, i])
 
 
 @wp.kernel
 def get_root_com_pose_from_root_link_pose(
     link_pose: wp.array(dtype=wp.transformf),
-    body_com_pose: wp.array2d(dtype=wp.transformf),
-    com_pose: wp.array(dtype=wp.transformf),
+    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    com_pose_w: wp.array(dtype=wp.transformf),
 ):
     i = wp.tid()
-    com_pose[i] = get_com_pose_from_link_pose_func(link_pose[i], body_com_pose[0, i])
+    com_pose_w[i] = get_com_pose_from_link_pose_func(link_pose[i], body_com_pose_b[0, i])
 
 
 @wp.kernel
@@ -126,7 +124,7 @@ def concat_root_pose_and_vel_to_state(
     state: wp.array(dtype=vec13f),
 ):
     i = wp.tid()
-    concat_pose_and_vel_to_state_func(pose[i], vel[i], state[i])
+    state[i] = concat_pose_and_vel_to_state_func(pose[i], vel[i])
 
 @wp.kernel
 def get_body_link_vel_from_body_com_vel(
@@ -142,11 +140,11 @@ def get_body_link_vel_from_body_com_vel(
 @wp.kernel
 def get_body_com_pose_from_body_link_pose(
     body_link_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pose: wp.array2d(dtype=wp.transformf),
-    body_com_pose: wp.array2d(dtype=wp.transformf),
+    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+    body_com_pose_w: wp.array2d(dtype=wp.transformf),
 ):
     i, j = wp.tid()
-    body_com_pose[i, j] = get_com_pose_from_link_pose_func(body_link_pose[i, j], body_com_pose[i, j])
+    body_com_pose_w[i, j] = get_com_pose_from_link_pose_func(body_link_pose[i, j], body_com_pose_b[i, j])
 
 @wp.kernel
 def concat_body_pose_and_vel_to_state(
@@ -155,7 +153,7 @@ def concat_body_pose_and_vel_to_state(
     state: wp.array2d(dtype=vec13f),
 ):
     i, j = wp.tid()
-    concat_pose_and_vel_to_state_func(pose[i, j], vel[i, j], state[i, j])
+    state[i, j] = concat_pose_and_vel_to_state_func(pose[i, j], vel[i, j])
 
 @wp.kernel
 def get_joint_acc_from_joint_vel(
@@ -305,20 +303,6 @@ def set_root_link_velocity_to_sim(
 
 
 @wp.kernel
-def write_joint_data_to_buffer(
-    in_data: wp.array2d(dtype=wp.float32),
-    out_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
-):
-    i,j = wp.tid()
-    if from_mask:
-        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-    else:
-        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
-
-@wp.kernel
 def write_joint_vel_data(
     in_data: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
@@ -336,3 +320,200 @@ def write_joint_vel_data(
         joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
         prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
     joint_acc[env_ids[i], joint_ids[j]] = 0.0
+
+
+@wp.kernel
+def write_joint_limit_data_to_buffer(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+    clamped_defaults: bool,
+):
+    i, j = wp.tid()
+    if from_mask:
+        joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+    else:
+        joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[i, j]
+    if (default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
+        clamped_defaults = True
+        default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(default_joint_pos[env_ids[i], joint_ids[j]], joint_pos_limits[env_ids[i], joint_ids[j]][0], joint_pos_limits[env_ids[i], joint_ids[j]][1])
+    soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(joint_pos_limits[env_ids[i], joint_ids[j]], soft_limit_factor)
+
+@wp.kernel
+def write_joint_friction_data_to_buffer(
+    in_friction: wp.array2d(dtype=wp.float32),
+    in_dynamic_friction: Any, # None or wp.array2d(dtype=wp.float32),
+    in_viscous_friction: Any, # None or wp.array2d(dtype=wp.float32),
+    out_friction: wp.array2d(dtype=wp.float32),
+    out_dynamic_friction: wp.array2d(dtype=wp.float32),
+    out_viscous_friction: wp.array2d(dtype=wp.float32),
+    friction_props: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+):
+    i, j = wp.tid()
+    # First update the output buffers
+    if from_mask:
+        out_friction[env_ids[i], joint_ids[j]] = in_friction[env_ids[i], joint_ids[j]]
+        if in_dynamic_friction is not None:
+            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[env_ids[i], joint_ids[j]]
+        if in_viscous_friction is not None:
+            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[env_ids[i], joint_ids[j]]
+    else:
+        out_friction[env_ids[i], joint_ids[j]] = in_friction[i, j]
+        if in_dynamic_friction is not None:
+            out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[i, j]
+        if in_viscous_friction is not None:
+            out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[i, j]
+    # Then update the friction properties
+    friction_props[env_ids[i], joint_ids[j], 0] = out_friction[env_ids[i], joint_ids[j]]
+    if in_dynamic_friction is not None:
+        friction_props[env_ids[i], joint_ids[j], 1] = out_dynamic_friction[env_ids[i], joint_ids[j]]
+    if in_viscous_friction is not None:
+        friction_props[env_ids[i], joint_ids[j], 2] = out_viscous_friction[env_ids[i], joint_ids[j]]
+
+@wp.kernel
+def write_joint_friction_param_to_buffer(
+    in_data: wp.array2d(dtype=wp.float32),
+    out_data: wp.array2d(dtype=wp.float32),
+    out_buffer: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    buffer_index: wp.int32,
+    from_mask: bool,
+):
+    i, j = wp.tid()
+    if from_mask:
+        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[env_ids[i], joint_ids[j]]
+    else:
+        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+        out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[i, j]
+
+@wp.kernel
+def write_2d_data_to_buffer_with_indices(
+    in_data: wp.array2d(dtype=wp.float32),
+    out_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+):
+    i,j = wp.tid()
+    if from_mask:
+        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+    else:
+        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+
+@wp.kernel
+def float_data_to_buffer_with_indices(
+    in_data: wp.float32,
+    out_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+):
+    i,j = wp.tid()
+    out_data[env_ids[i], joint_ids[j]] = in_data
+
+@wp.kernel
+def write_body_inertia_to_buffer(
+    in_data: wp.array3d(dtype=wp.float32),
+    out_data: wp.array3d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+):
+    i, j = wp.tid()
+    if from_mask:
+        for k in range(9):
+            out_data[env_ids[i], body_ids[j], k] = in_data[env_ids[i], body_ids[j], k]
+    else:
+        for k in range(9):
+            out_data[env_ids[i], body_ids[j], k] = in_data[i, j, k]
+
+
+@wp.kernel
+def write_body_com_pose_to_buffer(
+    in_data: wp.array2d(dtype=wp.transformf),
+    out_data: wp.array2d(dtype=wp.transformf),
+    env_ids: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+):
+    i, j = wp.tid()
+    if from_mask:
+        out_data[env_ids[i], body_ids[j]] = in_data[env_ids[i], body_ids[j]]
+    else:
+        out_data[env_ids[i], body_ids[j]] = in_data[i, j]
+
+
+@wp.kernel
+def update_soft_joint_pos_limits(
+    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+):
+    i, j = wp.tid()
+    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
+
+@wp.kernel
+def update_default_joint_values(
+    target: wp.array2d(dtype=wp.float32),
+    source: wp.array(dtype=wp.float32),
+    ids: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    target[i, ids[j]] = source[j]
+
+# TODO:
+# Make it like so: + Do we want to leverage warp outputs.
+# source_1 
+# target_1
+# source_2
+# target_2
+# ...
+# source_n
+# target_n
+# And cap n at 10. Will ignore Nones.
+@wp.kernel
+def update_targets(
+    source_joint_positions: Any, # None or wp.array2d(dtype=wp.float32),
+    source_joint_velocities: Any, # None or wp.array2d(dtype=wp.float32),
+    source_joint_efforts: Any, # None or wp.array2d(dtype=wp.float32),
+    target_joint_positions: wp.array2d(dtype=wp.float32),
+    target_joint_velocities: wp.array2d(dtype=wp.float32),
+    target_joint_efforts: wp.array2d(dtype=wp.float32),
+    joint_indices: wp.array(dtype=wp.int32),
+):
+    i, j = wp.tid()
+    if source_joint_positions:
+        target_joint_positions[i, joint_indices[j]] = source_joint_positions[i, j]
+    if source_joint_velocities:
+        target_joint_velocities[i, joint_indices[j]] = source_joint_velocities[i, j]
+    if source_joint_efforts:
+        target_joint_efforts[i, joint_indices[j]] = source_joint_efforts[i, j]
+
+@wp.kernel
+def update_actuator_state_model(
+    source_computed_effort: wp.array2d(dtype=wp.float32),
+    source_applied_effort: wp.array2d(dtype=wp.float32),
+    source_gear_ratio: Any, # None or wp.array2d(dtype=wp.float32),
+    source_vel_limits: wp.array2d(dtype=wp.float32),
+    target_computed_effort: wp.array2d(dtype=wp.float32),
+    target_applied_effort: wp.array2d(dtype=wp.float32),
+    target_gear_ratio: wp.array2d(dtype=wp.float32),
+    target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
+    joint_indices: wp.array(dtype=wp.int32),
+    has_gear_ratio: bool,
+):
+    i, j = wp.tid()
+    target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
+    target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
+    target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
+    if has_gear_ratio:
+        target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
