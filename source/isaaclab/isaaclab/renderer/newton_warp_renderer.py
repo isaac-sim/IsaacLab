@@ -177,6 +177,16 @@ def _detile_depth_kernel(
     output[env_id, y, x, 0] = tiled_depth[tiled_y, tiled_x]
 
 
+@wp.kernel
+def _copy_depth_with_channel(
+    src: wp.array(dtype=wp.float32, ndim=3),  # shape: (num_envs, H, W)
+    dst: wp.array(dtype=wp.float32, ndim=4),  # shape: (num_envs, H, W, 1)
+):
+    """Copy depth values and add channel dimension."""
+    env_id, y, x = wp.tid()
+    dst[env_id, y, x, 0] = src[env_id, y, x]
+
+
 class NewtonWarpRenderer(RendererBase):
     """Newton Warp Renderer implementation."""
 
@@ -192,9 +202,11 @@ class NewtonWarpRenderer(RendererBase):
         """Initialize the renderer."""
         self._model = NewtonManager.get_model()
 
+        # Create tiled camera sensor with one camera per environment
+        # Newton will create a tiled grid: sqrt(num_envs) x sqrt(num_envs)
         self._tiled_camera_sensor = SensorTiledCamera(
             model=self._model,
-            num_cameras=1,  # TODO: currently only supports 1 camera per world
+            num_cameras=self._num_envs,  # One camera per environment
             width=self._width,
             height=self._height,
             options=SensorTiledCamera.Options(colors_per_shape=True),
@@ -303,34 +315,43 @@ class NewtonWarpRenderer(RendererBase):
         tiled_height = tiles_per_side * self._height
         tiled_width = tiles_per_side * self._width
         
-        # Raw RGB buffer is packed uint32 (RGBA), shape is (tiled_height, tiled_width)
-        # Convert to RGBA uint8 view: shape becomes (tiled_height, tiled_width, 4)
-        rgba_tiled = wp.array(
-            ptr=self._raw_output_rgb_buffer.ptr,
-            shape=(tiled_height, tiled_width, 4),
+        # Newton's output format: (num_worlds, num_cameras, pixels_per_camera)
+        # where pixels_per_camera = height * width
+        # We need to reshape to (num_cameras, height, width) for each camera
+        
+        actual_num_envs = min(num_envs, self._num_envs)
+        
+        # RGB buffer: (1, num_cameras, pixels) as uint32 packed RGBA
+        # Reshape to (num_cameras, height, width) then convert uint32 to 4x uint8
+        rgb_reshaped = self._raw_output_rgb_buffer.reshape((num_envs, self._height * self._width))
+        
+        # Convert uint32 RGBA to uint8 view: each uint32 becomes 4 uint8 values
+        rgba_uint8 = wp.array(
+            ptr=rgb_reshaped.ptr,
+            shape=(num_envs, self._height, self._width, 4),
             dtype=wp.uint8,
-            device=self._raw_output_rgb_buffer.device,
+            device=rgb_reshaped.device,
         )
         
-        # Use detiling kernel to extract individual environment images
-        actual_num_envs = min(num_envs, self._num_envs)
-        wp.launch(
-            kernel=_detile_rgba_kernel,
-            dim=(actual_num_envs, self._height, self._width),
-            inputs=[rgba_tiled, self._output_data_buffers["rgba"], tiles_per_side, self._height, self._width],
-            device=rgba_tiled.device,
-        )
+        # Copy to output buffers (already correct shape)
+        for env_id in range(actual_num_envs):
+            wp.copy(
+                dest=self._output_data_buffers["rgba"][env_id],
+                src=rgba_uint8[env_id]
+            )
         
         self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
         
-        # Similar detiling for depth
-        depth_tiled = self._raw_output_depth_buffer.reshape((tiled_height, tiled_width))
+        # Depth buffer: (1, num_cameras, pixels) as float32
+        # Reshape to (num_cameras, height, width)
+        depth_reshaped = self._raw_output_depth_buffer.reshape((num_envs, self._height, self._width))
         
+        # Use kernel to copy depth with channel dimension
         wp.launch(
-            kernel=_detile_depth_kernel,
+            kernel=_copy_depth_with_channel,
             dim=(actual_num_envs, self._height, self._width),
-            inputs=[depth_tiled, self._output_data_buffers["depth"], tiles_per_side, self._height, self._width],
-            device=depth_tiled.device,
+            inputs=[depth_reshaped, self._output_data_buffers["depth"]],
+            device=depth_reshaped.device,
         )
 
     def step(self):
