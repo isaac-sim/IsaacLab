@@ -137,6 +137,10 @@ class TiledCamera(Camera):
         # reset the frame count
         self._frame[env_ids] = 0
 
+        # Reset renderer if using Newton Warp
+        if self._renderer is not None:
+            self._renderer.reset()
+
     """
     Implementation.
     """

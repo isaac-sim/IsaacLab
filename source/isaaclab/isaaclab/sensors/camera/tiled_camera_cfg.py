@@ -14,3 +14,6 @@ class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor."""
 
     class_type: type = TiledCamera
+
+    renderer_type: str | None = None
+    """Renderer type to use for camera rendering. Options: None (RTX), "newton_warp"."""
