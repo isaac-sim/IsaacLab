@@ -160,23 +160,90 @@ class NewtonManager:
         to use the latest PhysX simulation results.
         
         Note: This is the key synchronization point between PhysX and Newton.
-        
-        TODO: Implement proper PhysX to Newton state synchronization.
-        Currently this is a placeholder that doesn't update state.
-        Newton will render using the initial model configuration.
         """
         if not cls._is_initialized:
             return
 
-        # TODO: Implement USDRT fabric stage access and state synchronization
-        # This requires:
-        # 1. Access to fabric stage: usdrt.Usd.Stage.Attach(stage_id)
-        # 2. Extract rigid body world transforms from fabric
-        # 3. Map USD prim paths to Newton body indices
-        # 4. Update Newton state (body_q for positions, quaternions stored elsewhere)
-        # 5. Handle multi-environment scenarios (cloned environments)
+        if cls._model.body_count == 0:
+            # No rigid bodies in the model, nothing to sync
+            return
+
+        try:
+            import omni.usd
+            import usdrt
+            from pxr import UsdGeom
+        except ImportError as e:
+            logger.error(f"Failed to import USDRT for state synchronization: {e}")
+            return
+
+        # Get USDRT fabric stage
+        try:
+            stage_id = omni.usd.get_context().get_stage_id()
+            fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
+            if fabric_stage is None:
+                logger.warning("[NewtonManager] USDRT fabric stage not available for state sync")
+                return
+        except Exception as e:
+            logger.debug(f"[NewtonManager] Could not attach to fabric stage: {e}")
+            return
+
+        # Newton's body_q stores 7-DOF poses: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+        # Get the state array as numpy for efficient updates
+        body_q_np = cls._state_0.body_q.numpy()
         
-        logger.debug("[NewtonManager] State synchronization placeholder (not yet implemented)")
+        # Track how many bodies we successfully updated
+        updated_count = 0
+        
+        # Update each rigid body transform from USDRT
+        for body_idx, body_prim_path in enumerate(cls._model.body_key):
+            try:
+                # Get prim from fabric stage
+                prim = fabric_stage.GetPrimAtPath(body_prim_path)
+                if not prim or not prim.IsValid():
+                    continue
+
+                # Get world transform from USDRT
+                xformable = usdrt.Rt.Xformable(prim)
+                if not xformable.HasWorldXform():
+                    continue
+
+                # Get 4x4 world transform matrix (row-major: [m00, m01, m02, m03, m10, ...])
+                world_xform = xformable.GetWorldXform()
+                
+                # Extract translation from last column [m03, m13, m23]
+                pos_x = world_xform[3]
+                pos_y = world_xform[7]
+                pos_z = world_xform[11]
+                
+                # Extract rotation matrix (top-left 3x3)
+                rot_matrix = [
+                    [world_xform[0], world_xform[1], world_xform[2]],    # row 0
+                    [world_xform[4], world_xform[5], world_xform[6]],    # row 1
+                    [world_xform[8], world_xform[9], world_xform[10]]    # row 2
+                ]
+                
+                # Convert rotation matrix to quaternion (xyzw format for Newton)
+                quat = cls._matrix_to_quaternion(rot_matrix)
+                
+                # Update Newton state: body_q[body_idx] = [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+                body_q_np[body_idx, 0] = pos_x
+                body_q_np[body_idx, 1] = pos_y
+                body_q_np[body_idx, 2] = pos_z
+                body_q_np[body_idx, 3] = quat[1]  # x
+                body_q_np[body_idx, 4] = quat[2]  # y
+                body_q_np[body_idx, 5] = quat[3]  # z
+                body_q_np[body_idx, 6] = quat[0]  # w
+                
+                updated_count += 1
+                
+            except Exception as e:
+                logger.debug(f"[NewtonManager] Failed to update transform for {body_prim_path}: {e}")
+                continue
+
+        # Copy updated transforms back to Warp array
+        if updated_count > 0:
+            cls._state_0.body_q.assign(body_q_np)
+            logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
 
     @classmethod
     def reset(cls):
