@@ -187,9 +187,22 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
+<<<<<<< HEAD
         # Create renderer after scene is ready (post-cloning) so world_count is correct
         self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
+=======
+        # Initialize renderer based on renderer_type
+        if self.cfg.renderer_type == "newton_warp":
+            # Use Newton Warp renderer
+            from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+
+            # Initialize Newton Manager if not already initialized
+            if not hasattr(NewtonManager, '_is_initialized') or not NewtonManager._is_initialized:
+                device_str = str(self.device).replace("cuda:", "cuda:")
+                NewtonManager.initialize(num_envs=self._num_envs, device=device_str)
+>>>>>>> e6c76b4928c (Implement Newton Manager for PhysX-to-Newton state synchronization)
 
         self.render_data = self.renderer.create_render_data(self)
 
@@ -213,8 +226,20 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
+<<<<<<< HEAD
         self.renderer.update_transforms()
         self.renderer.render(self.render_data)
+=======
+        # Use Newton Warp renderer if configured
+        if self._renderer is not None:
+            # Synchronize Newton state from PhysX/USDRT before rendering
+            from isaaclab.sim._impl.newton_manager import NewtonManager
+
+            NewtonManager.update_state_from_usdrt()
+
+            # Call Newton Warp renderer to update output buffers
+            self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
+>>>>>>> e6c76b4928c (Implement Newton Manager for PhysX-to-Newton state synchronization)
 
         for output_name, output_data in self._data.output.items():
             if output_name == "rgb":

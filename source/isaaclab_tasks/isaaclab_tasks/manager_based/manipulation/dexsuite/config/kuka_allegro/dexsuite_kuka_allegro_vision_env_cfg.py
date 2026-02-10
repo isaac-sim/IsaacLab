@@ -37,6 +37,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
+        renderer_type=None,  # None=RTX (default), "newton_warp"=Warp ray tracing
     )
 
     def __post_init__(self):
