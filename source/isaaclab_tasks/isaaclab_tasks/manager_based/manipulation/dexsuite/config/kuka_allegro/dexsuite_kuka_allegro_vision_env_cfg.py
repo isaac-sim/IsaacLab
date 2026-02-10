@@ -25,7 +25,6 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
     camera_type: str = "rgb"
     width: int = 64
     height: int = 64
-    renderer_type: str = "rtx"  # "rtx" for RTX rendering, "newton_warp" for Warp ray tracing
 
     base_camera = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
@@ -38,7 +37,6 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type=MISSING,
     )
 
     def __post_init__(self):
@@ -46,12 +44,9 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.data_types = [self.camera_type]
         self.base_camera.width = self.width
         self.base_camera.height = self.height
-        # Set renderer type: "rtx" means None (default RTX), "newton_warp" passes through
-        self.base_camera.renderer_type = None if self.renderer_type == "rtx" else self.renderer_type
         del self.camera_type
         del self.width
         del self.height
-        del self.renderer_type
 
 
 @configclass
@@ -69,7 +64,6 @@ class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type=MISSING,
     )
 
     def __post_init__(self):
@@ -77,7 +71,6 @@ class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
         self.wrist_camera.data_types = self.base_camera.data_types
         self.wrist_camera.width = self.base_camera.width
         self.wrist_camera.height = self.base_camera.height
-        self.wrist_camera.renderer_type = self.base_camera.renderer_type
 
 
 @configclass
@@ -121,100 +114,67 @@ class KukaAllegroDuoCameraObservationsCfg(KukaAllegroSingleCameraObservationsCfg
 
 
 sa = {"num_envs": 4096, "env_spacing": 3, "replicate_physics": False}
-
-# RTX rendering variants
 singe_camera_variants = {
     "64x64tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64}
     ),
-    "64x64tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
+    "64x64tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(**{**sa, "camera_type": "rgb", "width": 64, "height": 64}),
     "64x64tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64}
     ),
     "128x128tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128}
     ),
     "128x128tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "rgb", "width": 128, "height": 128}
     ),
     "128x128tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128}
     ),
     "256x256tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256}
     ),
     "256x256tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "rgb", "width": 256, "height": 256}
     ),
     "256x256tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256}
     ),
 }
 duo_camera_variants = {
     "64x64tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64}
     ),
-    "64x64tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
+    "64x64tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(**{**sa, "camera_type": "rgb", "width": 64, "height": 64}),
     "64x64tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64}
     ),
     "128x128tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128}
     ),
-    "128x128tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
+    "128x128tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(**{**sa, "camera_type": "rgb", "width": 128, "height": 128}),
     "128x128tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128}
     ),
     "256x256tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "rtx"}
+        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256}
     ),
-    "256x256tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
+    "256x256tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(**{**sa, "camera_type": "rgb", "width": 256, "height": 256}),
     "256x256tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-}
-
-# Newton Warp rendering variants
-single_camera_newton_warp_variants = {
-    "64x64newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "newton_warp"}
-    ),
-    "64x64newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "newton_warp"}
-    ),
-    "128x128newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "newton_warp"}
-    ),
-    "128x128newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "newton_warp"}
-    ),
-    "256x256newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "newton_warp"}
-    ),
-    "256x256newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "newton_warp"}
+        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256}
     ),
 }
 
 
 @configclass
 class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
-    scene = KukaAllegroSingleTiledCameraSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False, camera_type="rgb", width=64, height=64, renderer_type="rtx")
+    scene = KukaAllegroSingleTiledCameraSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
     observations: KukaAllegroSingleCameraObservationsCfg = KukaAllegroSingleCameraObservationsCfg()
     variants: dict = {}
 
     def __post_init__(self: kuka_allegro_dexsuite.DexsuiteKukaAllegroLiftEnvCfg):
         super().__post_init__()
         self.variants.setdefault("scene", {}).update(singe_camera_variants)
-        self.variants["scene"].update(single_camera_newton_warp_variants)
 
 
 @configclass
