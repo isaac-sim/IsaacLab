@@ -420,7 +420,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg | None = None
+    curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
