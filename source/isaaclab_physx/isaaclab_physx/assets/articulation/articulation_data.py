@@ -491,11 +491,11 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
                 get_root_link_vel_from_root_com_vel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[
                     self.root_com_vel_w,
                     self.root_link_pose_w,
-                    self.body_com_pose_w,
+                    self.body_com_pose_b,
                     self._root_link_vel_w.data,
                 ],
                 device=self.device,
@@ -515,12 +515,13 @@ class ArticulationData(BaseArticulationData):
             # apply local transform to center of mass frame
             wp.launch(
                 get_root_com_pose_from_root_link_pose,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
-                    self.body_com_pose_w,
+                    self.body_com_pose_b,
                     self._root_com_pose_w.data,
                 ],
+                device=self.device,
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -549,7 +550,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
-                dim=(self._root_view.count),
+                dim=(self._num_instances),
                 inputs=[
                     self.root_link_pose_w,
                     self.root_com_vel_w,
@@ -571,7 +572,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
                     self.root_link_vel_w,
@@ -594,7 +595,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[
                     self.root_com_pose_w,
                     self.root_com_vel_w,
@@ -650,11 +651,11 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
                 get_body_link_vel_from_body_com_vel,
-                dim=(self._root_view.count, self._root_view.num_bodies),
+                dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_com_vel_w,
                     self.body_link_pose_w,
-                    self.body_com_pose_w,
+                    self.body_com_pose_b,
                     self._body_link_vel_w.data,
                 ],
                 device=self.device,
@@ -674,10 +675,10 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             wp.launch(
                 get_body_com_pose_from_body_link_pose,
-                dim=(self._root_view.count, self._root_view.num_bodies),
+                dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
-                    self.body_com_pose_w,
+                    self.body_com_pose_b,
                     self._body_com_pose_w.data,
                 ],
                 device=self.device,
@@ -711,12 +712,13 @@ class ArticulationData(BaseArticulationData):
         if self._body_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
-                dim=(self._root_view.count, self._root_view.num_bodies),
+                dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
                     self.body_com_vel_w,
                     self._body_state_w.data,
                 ],
+                device=self.device,
             )
             self._body_state_w.timestamp = self._sim_timestamp
 
@@ -732,12 +734,13 @@ class ArticulationData(BaseArticulationData):
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
-                dim=(self._root_view.count, self._root_view.num_bodies),
+                dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_link_pose_w,
                     self.body_link_vel_w,
                     self._body_link_state_w.data,
                 ],
+                device=self.device,
             )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
@@ -755,12 +758,13 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
-                dim=(self._root_view.count, self._root_view.num_bodies),
+                dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_com_pose_w,
                     self.body_com_vel_w,
                     self._body_com_state_w.data,
                 ],
+                device=self.device,
             )
             self._body_com_state_w.timestamp = self._sim_timestamp
 
@@ -866,7 +870,7 @@ class ArticulationData(BaseArticulationData):
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
                 quat_apply_inverse_1D_kernel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w, self._projected_gravity_b.data],
                 device=self.device,
             )
@@ -884,7 +888,7 @@ class ArticulationData(BaseArticulationData):
         if self._heading_w.timestamp < self._sim_timestamp:
             wp.launch(
                 root_heading_w,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.FORWARD_VEC_B, self.root_link_quat_w, self._heading_w.data],
                 device=self.device,
             )
@@ -901,7 +905,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 quat_apply_inverse_1D_kernel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.root_link_quat_w, self.root_link_lin_vel_w, self._root_link_lin_vel_b.data],
                 device=self.device,
             )
@@ -918,7 +922,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 quat_apply_inverse_1D_kernel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.root_link_quat_w, self.root_link_ang_vel_w, self._root_link_ang_vel_b.data],
                 device=self.device,
             )
@@ -935,7 +939,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 quat_apply_inverse_1D_kernel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.root_link_quat_w, self.root_com_lin_vel_w, self._root_com_lin_vel_b.data],
                 device=self.device,
             )
@@ -952,7 +956,7 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 quat_apply_inverse_1D_kernel,
-                dim=self._root_view.count,
+                dim=self._num_instances,
                 inputs=[self.root_link_quat_w, self.root_com_ang_vel_w, self._root_com_ang_vel_b.data],
                 device=self.device,
             )
@@ -1194,7 +1198,7 @@ class ArticulationData(BaseArticulationData):
         self._joint_dynamic_friction_coeff = wp.clone(friction_props[:, :, 1], device=self.device)
         self._joint_viscous_friction_coeff = wp.clone(friction_props[:, :, 2], device=self.device)
         self._joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
-        self._joint_pos_limits.assign(self._root_view.get_dof_limits())
+        self._joint_pos_limits.assign(self._root_view.get_dof_limits().view(wp.vec2f))
         self._joint_vel_limits = wp.clone(self._root_view.get_dof_max_velocities(), device=self.device)
         self._joint_effort_limits = wp.clone(self._root_view.get_dof_max_forces(), device=self.device)
         # -- Joint properties (custom)
@@ -1250,18 +1254,13 @@ class ArticulationData(BaseArticulationData):
         Returns:
             The position array. Shape is (N, 3).
         """
-        print("shape of transform: ", transform.shape)
-        print("type of transform: ", transform.dtype)
-        X =  wp.array(
+        return wp.array(
             ptr=transform.ptr,
             shape=transform.shape,
             dtype=wp.vec3f,
             strides=transform.strides,
             device=self.device,
         ).contiguous()
-        print("shape of X: ", X.shape)
-        return X
-
 
     def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array.

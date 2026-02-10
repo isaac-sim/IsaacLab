@@ -403,8 +403,17 @@ class WrenchComposer:
                     self._composed_force_b,
                     self._composed_torque_b,
                 ],
+                device=self.device,
             )
         else:
+            if env_ids is None:
+                env_ids = self._ALL_ENV_INDICES
+            elif env_ids == slice(None):
+                env_ids = self._ALL_ENV_INDICES
+            elif isinstance(env_ids, list):
+                env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+            else:
+                env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
             wp.launch(
                 reset_wrench_composer_index,
                 dim=(env_ids.shape[0], self.num_bodies),
@@ -413,6 +422,46 @@ class WrenchComposer:
                     self._composed_force_b,
                     self._composed_torque_b,
                 ],
+                device=self.device,
             )
         self._link_poses_updated = False
 
+    """
+    Deprecated functions.
+    """
+
+    def add_forces_and_torques(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | None = None,
+        is_global: bool = False,
+    ):
+        """Deprecated, same as :meth:`add_forces_and_torques_index`."""
+        warnings.warn(
+            "The function 'add_forces_and_torques' will be deprecated in a future release. Please"
+            " use 'add_forces_and_torques_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.add_forces_and_torques_index(forces, torques, positions, body_ids, env_ids, is_global)
+
+    def set_forces_and_torques(
+        self,
+        forces: wp.array | torch.Tensor | None = None,
+        torques: wp.array | torch.Tensor | None = None,
+        positions: wp.array | torch.Tensor | None = None,
+        body_ids: wp.array | torch.Tensor | None = None,
+        env_ids: wp.array | torch.Tensor | None = None,
+        is_global: bool = False,
+    ):
+        """Deprecated, same as :meth:`set_forces_and_torques_index`."""
+        warnings.warn(
+            "The function 'set_forces_and_torques' will be deprecated in a future release. Please"
+            " use 'set_forces_and_torques_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_forces_and_torques_index(forces, torques, positions, body_ids, env_ids, is_global)

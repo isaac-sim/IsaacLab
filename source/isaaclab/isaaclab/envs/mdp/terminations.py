@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -141,7 +142,7 @@ def joint_effort_out_of_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        asset.data.computed_torque[:, asset_cfg.joint_ids], asset.data.applied_torque[:, asset_cfg.joint_ids]
+        wp.to_torch(asset.data.computed_torque[:, asset_cfg.joint_ids]), wp.to_torch(asset.data.applied_torque[:, asset_cfg.joint_ids])
     )
     return torch.any(out_of_limits, dim=1)
 

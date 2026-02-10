@@ -232,13 +232,13 @@ class Articulation(BaseArticulation):
                 self._instantaneous_wrench_composer.add_forces_and_torques(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES_WP,
-                    env_ids=self._ALL_INDICES_WP,
+                    body_ids=self._ALL_BODY_INDICES,
+                    env_ids=self._ALL_INDICES,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -246,8 +246,8 @@ class Articulation(BaseArticulation):
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._permanent_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -382,8 +382,12 @@ class Articulation(BaseArticulation):
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        if isinstance(root_state, torch.Tensor):
+            self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+            self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        else:
+            self.write_root_link_pose_to_sim_index(root_state.view(wp.float32)[:, :7], env_ids=env_ids)
+            self.write_root_com_velocity_to_sim_index(root_state.view(wp.float32)[:, 7:], env_ids=env_ids)
 
     def write_root_state_to_sim_mask(
         self, root_state: torch.Tensor | wp.array,
@@ -574,14 +578,16 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             set_root_link_pose_to_sim,
             dim=env_ids.shape[0],
             inputs=[
-                self.data._root_link_pose_w.data,
+                root_pose,
                 env_ids,
-                root_pose.data,
+                self.data._root_link_pose_w.data,
                 self.data._root_link_state_w.data,
                 self.data._root_state_w.data,
                 full_data,
@@ -595,7 +601,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data, indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -654,6 +660,8 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
@@ -680,7 +688,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data, indices=env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -786,6 +794,8 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             set_root_com_velocity_to_sim,
@@ -793,16 +803,17 @@ class Articulation(BaseArticulation):
             inputs=[
                 root_velocity,
                 env_ids,
-                self.data.root_com_vel_w.data,
-                self.data.body_acc_w.data,
+                self.data._root_com_vel_w.data,
+                self.data._body_com_acc_w.data,
                 self.data._root_state_w.data,
                 self.data._root_com_state_w.data,
+                self.data._num_bodies,
                 full_data,
             ],
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_root_velocities(self.data.root_com_vel_w, indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -880,12 +891,13 @@ class Articulation(BaseArticulation):
                 self.data._root_link_state_w.data,
                 self.data._root_state_w.data,
                 self.data._root_com_state_w.data,
+                self.data._num_bodies,
                 full_data,
             ],
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_root_link_velocities(self.data._root_link_vel_w, indices=env_ids)
+        self.root_view.set_root_link_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -997,6 +1009,8 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
         if isinstance(joint_ids, list):
             # Convert list to tensor explicitly for warp kernels
             joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
@@ -1008,7 +1022,7 @@ class Articulation(BaseArticulation):
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
-                self.data.joint_pos.data,
+                self.data._joint_pos.data,
                 env_ids,
                 joint_ids,
                 full_data,
@@ -1026,7 +1040,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_dof_positions(self.data.joint_pos, indices=env_ids)
+        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1088,6 +1102,8 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
         if isinstance(joint_ids, list):
             # Convert list to tensor explicitly for warp kernels
             joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
@@ -1208,7 +1224,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1301,7 +1321,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1403,7 +1427,11 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1502,7 +1530,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1602,7 +1634,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1700,7 +1736,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1808,7 +1848,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1920,7 +1964,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -2007,7 +2055,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2091,7 +2143,11 @@ class Articulation(BaseArticulation):
         )
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2170,7 +2226,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_coms(wp.clone(self.data._body_com_pose_b, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_coms(wp.clone(self.data._body_com_pose_b, device="cpu"), indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -2249,7 +2309,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=wp.clone(env_ids, device="cpu"))
+        if isinstance(env_ids, wp.array):
+            cpu_env_ids = wp.clone(env_ids, device="cpu")
+        else:
+            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -3723,13 +3787,13 @@ class Articulation(BaseArticulation):
             self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
-            #self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
-            #self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            #    actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            #)
-            #self.write_joint_viscous_friction_coefficient_to_sim_index(
-            #    actuator.viscous_friction, joint_ids=actuator.joint_indices
-            #)
+            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_dynamic_friction_coefficient_to_sim_index(
+                actuator.dynamic_friction, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                actuator.viscous_friction, joint_ids=actuator.joint_indices
+            )
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -3868,21 +3932,28 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target[:, actuator.joint_indices]),
-                joint_velocities=wp.to_torch(self._data.joint_vel_target[:, actuator.joint_indices]),
-                joint_efforts=wp.to_torch(self._data.joint_effort_target[:, actuator.joint_indices]),
+                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
+                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
+                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos[:, actuator.joint_indices]),
-                joint_vel=wp.to_torch(self._data.joint_vel[:, actuator.joint_indices]),
+                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
+                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
+            joint_indices = actuator.joint_indices
+            if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
+                joint_indices = self._ALL_JOINT_INDICES
+            if hasattr(actuator, 'gear_ratio'):
+                gear_ratio = actuator.gear_ratio
+            else:
+                gear_ratio = None
             wp.launch(
                 update_targets,
-                dim=(self.num_instances, len(actuator.joint_indices)),
+                dim=(self.num_instances, joint_indices.shape[0]),
                 inputs=[
                     control_action.joint_positions,
                     control_action.joint_velocities,
@@ -3890,24 +3961,24 @@ class Articulation(BaseArticulation):
                     self._joint_pos_target_sim,
                     self._joint_vel_target_sim,
                     self._joint_effort_target_sim,
-                    actuator.joint_indices,
+                    joint_indices,
                 ],
                 device=self.device,
             )
             # update state of the actuator model
             wp.launch(
                 update_actuator_state_model,
-                dim=(self.num_instances, len(actuator.joint_indices)),
+                dim=(self.num_instances, joint_indices.shape[0]),
                 inputs=[
                     actuator.computed_effort,
                     actuator.applied_effort,
-                    actuator.gear_ratio,
+                    gear_ratio,
                     actuator.velocity_limit,
                     self._data.computed_torque,
                     self._data.applied_torque,
                     self._data.gear_ratio,
                     self._data.soft_joint_vel_limits,
-                    actuator.joint_indices,
+                    joint_indices,
                 ],
                 device=self.device,
             )

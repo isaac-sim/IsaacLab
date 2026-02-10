@@ -801,13 +801,13 @@ def test_external_force_buffer(sim, num_articulations, device):
     body_ids, _ = articulation.find_bodies("base")
 
     # reset root state
-    root_state = to_torch(articulation.data.default_root_state).clone()
+    root_state = wp.to_torch(articulation.data.default_root_state).clone()
     articulation.write_root_state_to_sim(root_state)
 
     # reset dof state
     joint_pos, joint_vel = (
-        to_torch(articulation.data.default_joint_pos),
-        to_torch(articulation.data.default_joint_vel),
+        wp.to_torch(articulation.data.default_joint_pos),
+        wp.to_torch(articulation.data.default_joint_vel),
     )
     articulation.write_joint_state_to_sim(joint_pos, joint_vel)
 
@@ -840,18 +840,18 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert articulation.permanent_wrench_composer.composed_force_as_torch[i, 0, 0].item() == force
-            assert articulation.permanent_wrench_composer.composed_torque_as_torch[i, 0, 0].item() == force
+            assert wp.to_torch(articulation.permanent_wrench_composer.composed_force)[i, 0, 0].item() == force
+            assert wp.to_torch(articulation.permanent_wrench_composer.composed_torque)[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
-        articulation.instantaneous_wrench_composer.add_forces_and_torques(
+        articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
             body_ids=body_ids,
         )
 
         # apply action to the articulation
-        articulation.set_joint_position_target(to_torch(articulation.data.default_joint_pos).clone())
+        articulation.set_joint_position_target(wp.to_torch(articulation.data.default_joint_pos).clone())
         articulation.write_data_to_sim()
 
         # perform step
@@ -890,14 +890,14 @@ def test_external_force_on_single_body(sim, num_articulations, device):
     # Now we are ready!
     for _ in range(5):
         # reset root state
-        root_state = to_torch(articulation.data.default_root_state).clone()
+        root_state = wp.to_torch(articulation.data.default_root_state).clone()
 
         articulation.write_root_pose_to_sim(root_state[:, :7])
         articulation.write_root_velocity_to_sim(root_state[:, 7:])
         # reset dof state
         joint_pos, joint_vel = (
-            to_torch(articulation.data.default_joint_pos),
-            to_torch(articulation.data.default_joint_vel),
+            wp.to_torch(articulation.data.default_joint_pos),
+            wp.to_torch(articulation.data.default_joint_vel),
         )
         articulation.write_joint_state_to_sim(joint_pos, joint_vel)
         # reset articulation
@@ -910,7 +910,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target(to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target(wp.to_torch(articulation.data.default_joint_pos).clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -918,7 +918,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
             articulation.update(sim.cfg.dt)
         # check condition that the articulations have fallen down
         for i in range(num_articulations):
-            assert to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
+            assert wp.to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -959,15 +959,15 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     # Now we are ready!
     for i in range(5):
         # reset root state
-        root_state = to_torch(articulation.data.default_root_state).clone()
+        root_state = wp.to_torch(articulation.data.default_root_state).clone()
         root_state[0, 0] = 2.5  # space them apart by 2.5m
 
         articulation.write_root_pose_to_sim(root_state[:, :7])
         articulation.write_root_velocity_to_sim(root_state[:, 7:])
         # reset dof state
         joint_pos, joint_vel = (
-            to_torch(articulation.data.default_joint_pos),
-            to_torch(articulation.data.default_joint_vel),
+            wp.to_torch(articulation.data.default_joint_pos),
+            wp.to_torch(articulation.data.default_joint_vel),
         )
         articulation.write_joint_state_to_sim(joint_pos, joint_vel)
         # reset articulation
@@ -976,7 +976,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         is_global = False
 
         if i % 2 == 0:
-            body_com_pos_w = to_torch(articulation.data.body_com_pos_w)[:, body_ids, :3]
+            body_com_pos_w = wp.to_torch(articulation.data.body_com_pos_w)[:, body_ids, :3]
             # is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
@@ -1004,7 +1004,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target(to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target(wp.to_torch(articulation.data.default_joint_pos).clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1012,7 +1012,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             articulation.update(sim.cfg.dt)
         # check condition that the articulations have fallen down
         for i in range(num_articulations):
-            assert to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
+            assert wp.to_torch(articulation.data.root_pos_w)[i, 2].item() < 0.2
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1045,12 +1045,12 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
     # Now we are ready!
     for _ in range(5):
         # reset root state
-        articulation.write_root_pose_to_sim(to_torch(articulation.data.default_root_state).clone()[:, :7])
-        articulation.write_root_velocity_to_sim(to_torch(articulation.data.default_root_state).clone()[:, 7:])
+        articulation.write_root_pose_to_sim(wp.to_torch(articulation.data.default_root_state).clone()[:, :7])
+        articulation.write_root_velocity_to_sim(wp.to_torch(articulation.data.default_root_state).clone()[:, 7:])
         # reset dof state
         joint_pos, joint_vel = (
-            to_torch(articulation.data.default_joint_pos),
-            to_torch(articulation.data.default_joint_vel),
+            wp.to_torch(articulation.data.default_joint_pos),
+            wp.to_torch(articulation.data.default_joint_vel),
         )
         articulation.write_joint_state_to_sim(joint_pos, joint_vel)
         # reset articulation
@@ -1063,7 +1063,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target(to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target(wp.to_torch(articulation.data.default_joint_pos).clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1072,7 +1072,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         # check condition
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
-            assert to_torch(articulation.data.root_ang_vel_w)[i, 2].item() > 0.1
+            assert wp.to_torch(articulation.data.root_ang_vel_w)[i, 2].item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1114,12 +1114,12 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     # Now we are ready!
     for i in range(5):
         # reset root state
-        articulation.write_root_pose_to_sim(to_torch(articulation.data.default_root_state).clone()[:, :7])
-        articulation.write_root_velocity_to_sim(to_torch(articulation.data.default_root_state).clone()[:, 7:])
+        articulation.write_root_pose_to_sim(wp.to_torch(articulation.data.default_root_state).clone()[:, :7])
+        articulation.write_root_velocity_to_sim(wp.to_torch(articulation.data.default_root_state).clone()[:, 7:])
         # reset dof state
         joint_pos, joint_vel = (
-            to_torch(articulation.data.default_joint_pos),
-            to_torch(articulation.data.default_joint_vel),
+            wp.to_torch(articulation.data.default_joint_pos),
+            wp.to_torch(articulation.data.default_joint_vel),
         )
         articulation.write_joint_state_to_sim(joint_pos, joint_vel)
         # reset articulation
@@ -1127,7 +1127,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
 
         is_global = False
         if i % 2 == 0:
-            body_com_pos_w = to_torch(articulation.data.body_com_pos_w)[:, body_ids, :3]
+            body_com_pos_w = wp.to_torch(articulation.data.body_com_pos_w)[:, body_ids, :3]
             is_global = True
             external_wrench_positions_b[..., 0] = 0.0
             external_wrench_positions_b[..., 1] = 1.0
@@ -1156,7 +1156,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target(to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target(wp.to_torch(articulation.data.default_joint_pos).clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1165,7 +1165,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         # check condition
         for i in range(num_articulations):
             # since there is a moment applied on the articulation, the articulation should rotate
-            assert torch.abs(to_torch(articulation.data.root_ang_vel_w)[i, 2]).item() > 0.1
+            assert torch.abs(wp.to_torch(articulation.data.root_ang_vel_w)[i, 2]).item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1338,9 +1338,9 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # read the values set into the simulation
-    physx_vel_limit = articulation.root_view.get_dof_max_velocities().to(device)
+    physx_vel_limit = wp.to_torch(articulation.root_view.get_dof_max_velocities()).to(device)
     # check data buffer
-    torch.testing.assert_close(to_torch(articulation.data.joint_velocity_limits), physx_vel_limit)
+    torch.testing.assert_close(wp.to_torch(articulation.data.joint_velocity_limits), physx_vel_limit)
     # check actuator has simulation velocity limit
     torch.testing.assert_close(articulation.actuators["joint"].velocity_limit_sim, physx_vel_limit)
     # check that both values match for velocity limit
@@ -1387,12 +1387,12 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     sim.reset()
 
     # collect limit init values
-    physx_vel_limit = articulation.root_view.get_dof_max_velocities().to(device)
+    physx_vel_limit = wp.to_torch(articulation.root_view.get_dof_max_velocities()).to(device)
     actuator_vel_limit = articulation.actuators["joint"].velocity_limit
     actuator_vel_limit_sim = articulation.actuators["joint"].velocity_limit_sim
 
     # check data buffer for joint_velocity_limits_sim
-    torch.testing.assert_close(to_torch(articulation.data.joint_velocity_limits), physx_vel_limit)
+    torch.testing.assert_close(wp.to_torch(articulation.data.joint_velocity_limits), physx_vel_limit)
     # check actuator velocity_limit_sim is set to physx
     torch.testing.assert_close(actuator_vel_limit_sim, physx_vel_limit)
 
@@ -1451,7 +1451,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
     sim.reset()
 
     # obtain the physx effort limits
-    physx_effort_limit = articulation.root_view.get_dof_max_forces().to(device=device)
+    physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device=device)
 
     # check that the two are equivalent
     torch.testing.assert_close(
@@ -1505,7 +1505,7 @@ def test_setting_effort_limit_explicit(sim, num_articulations, device, effort_li
     usd_default_effort_limit = 80.0
 
     # collect limit init values
-    physx_effort_limit = articulation.root_view.get_dof_max_forces().to(device)
+    physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device)
     actuator_effort_limit = articulation.actuators["joint"].effort_limit
     actuator_effort_limit_sim = articulation.actuators["joint"].effort_limit_sim
 
@@ -1555,10 +1555,10 @@ def test_reset(sim, num_articulations, device):
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
     assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force_as_torch) == 0
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque_as_torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force_as_torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque_as_torch) == 0
+    assert torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force)) == 0
+    assert torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque)) == 0
+    assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == 0
+    assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == 0
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
@@ -1575,13 +1575,13 @@ def test_reset(sim, num_articulations, device):
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
         assert (
-            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force_as_torch) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force)) == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque_as_torch) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque)) == num_bodies * 3
         )
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force_as_torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque_as_torch) == num_bodies * 3
+        assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == num_bodies * 3
+        assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == num_bodies * 3
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1605,7 +1605,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
         articulation.update(sim.cfg.dt)
 
     # reset dof state
-    joint_pos = to_torch(articulation.data.default_joint_pos).clone()
+    joint_pos = wp.to_torch(articulation.data.default_joint_pos).clone()
     joint_pos[:, 3] = 0.0
 
     # apply action to the articulation
@@ -1621,7 +1621,7 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # Check that current joint position is not the same as default joint position, meaning
     # the articulation moved. We can't check that it reached its desired joint position as the gains
     # are not properly tuned
-    assert not torch.allclose(to_torch(articulation.data.joint_pos), joint_pos)
+    assert not torch.allclose(wp.to_torch(articulation.data.joint_pos), joint_pos)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1645,7 +1645,7 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     sim._app_control_on_stop_handle = None
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)], device=device)
+    env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
     # Check that boundedness of articulation is correct
     assert ctypes.c_long.from_address(id(articulation)).value == 1, "Boundedness of articulation is incorrect"
     # Play sim
@@ -1663,14 +1663,14 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
 
     # create com offsets
     num_bodies = articulation.num_bodies
-    com = articulation.root_view.get_coms()
+    com = wp.to_torch(articulation.root_view.get_coms())
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, 1, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(com.cpu(), env_idx.cpu())
+    articulation.root_view.set_coms(wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32))
 
     # check they are set
-    torch.testing.assert_close(articulation.root_view.get_coms(), com.cpu())
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com.cpu())
 
     for i in range(50):
         # perform step
@@ -1679,17 +1679,17 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
         articulation.update(sim.cfg.dt)
 
         # get state properties
-        root_state_w = to_torch(articulation.data.root_state_w)
-        root_link_state_w = to_torch(articulation.data.root_link_state_w)
-        root_com_state_w = to_torch(articulation.data.root_com_state_w)
-        body_state_w = to_torch(articulation.data.body_state_w)
-        body_link_state_w = to_torch(articulation.data.body_link_state_w)
-        body_com_state_w = to_torch(articulation.data.body_com_state_w)
+        root_state_w = wp.to_torch(articulation.data.root_state_w)
+        root_link_state_w = wp.to_torch(articulation.data.root_link_state_w)
+        root_com_state_w = wp.to_torch(articulation.data.root_com_state_w)
+        body_state_w = wp.to_torch(articulation.data.body_state_w)
+        body_link_state_w = wp.to_torch(articulation.data.body_link_state_w)
+        body_com_state_w = wp.to_torch(articulation.data.body_com_state_w)
 
         if with_offset:
             # get joint state
-            joint_pos = to_torch(articulation.data.joint_pos).unsqueeze(-1)
-            joint_vel = to_torch(articulation.data.joint_vel).unsqueeze(-1)
+            joint_pos = wp.to_torch(articulation.data.joint_pos).unsqueeze(-1)
+            joint_vel = wp.to_torch(articulation.data.joint_vel).unsqueeze(-1)
 
             # LINK state
             # pose
@@ -1720,11 +1720,27 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
             pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
             pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
+            print("pos_gt")
+            print(pos_gt[:, 0, :])
+            print("root_com_state_w")
+            print(root_com_state_w[..., :3])
+            print("root_com_pose")
+            print(wp.to_torch(articulation.data.root_com_pose_w))
+            print("root_link_pose")
+            print(wp.to_torch(articulation.data.root_link_pose_w))
+            print("offset")
+            print(offset)
+            print("joint_pos")
+            print(joint_pos)
+            print("pos_gt")
+            print(pos_gt)
+            print("root_com_state_w")
+            print(body_com_state_w[..., :3])
             torch.testing.assert_close(pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
             torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
 
             # orientation
-            com_quat_b = to_torch(articulation.data.body_com_quat_b)
+            com_quat_b = wp.to_torch(articulation.data.body_com_quat_b)
             com_quat_w = math_utils.quat_mul(body_link_state_w[..., 3:7], com_quat_b)
             torch.testing.assert_close(com_quat_w, body_com_state_w[..., 3:7])
             torch.testing.assert_close(com_quat_w[:, 0, :], root_com_state_w[..., 3:7])

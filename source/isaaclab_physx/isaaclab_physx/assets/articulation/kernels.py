@@ -189,8 +189,8 @@ def set_root_link_pose_to_sim(
     data: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_link_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_state_w: Any, # wp.array(dtype=vec13f) or None
+    root_link_state_w: wp.array(dtype=vec13f),
+    root_state_w: wp.array(dtype=vec13f),
     from_mask: bool,
 ):
     # If from mask, then we get complete data. Otherwise, we get partial data.
@@ -215,9 +215,9 @@ def set_root_com_pose_to_sim(
     env_ids: wp.array(dtype=wp.int32),
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_com_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_link_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_state_w: Any, # wp.array(dtype=vec13f) or None
+    root_com_state_w: wp.array(dtype=vec13f),
+    root_link_state_w: wp.array(dtype=vec13f),
+    root_state_w: wp.array(dtype=vec13f),
     from_mask: bool,
 ):
     i = wp.tid()
@@ -245,8 +245,9 @@ def set_root_com_velocity_to_sim(
     env_ids: wp.array(dtype=wp.int32),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_com_state_w: Any, # wp.array(dtype=vec13f) or None
+    root_state_w: wp.array(dtype=vec13f),
+    root_com_state_w: wp.array(dtype=vec13f),
+    num_bodies: wp.int32,
     from_mask: bool,
 ):
     i = wp.tid()
@@ -264,20 +265,22 @@ def set_root_com_velocity_to_sim(
         if root_com_state_w:
             set_state_velocities_func(root_com_state_w[env_ids[i]], data[i])
     # Make the acceleration zero to prevent reporting old values
-    body_acc_w[env_ids[i]] = 0.0
+    for j in range(num_bodies):
+        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 @wp.kernel
 def set_root_link_velocity_to_sim(
     data: wp.array(dtype=wp.spatial_vectorf),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
-    link_pose_w: wp.array2d(dtype=wp.transformf),
+    link_pose_w: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_link_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_state_w: Any, # wp.array(dtype=vec13f) or None
-    root_com_state_w: Any, # wp.array(dtype=vec13f) or None
+    root_link_state_w: wp.array(dtype=vec13f),
+    root_state_w: wp.array(dtype=vec13f),
+    root_com_state_w: wp.array(dtype=vec13f),
+    num_bodies: wp.int32,
     from_mask: bool,
 ):
     # If from mask, then we get complete data. Otherwise, we get partial data.
@@ -299,7 +302,8 @@ def set_root_link_velocity_to_sim(
     if root_state_w:
         set_state_velocities_func(root_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]])
     # Make the acceleration zero to prevent reporting old values
-    body_acc_w[env_ids[i]] = 0.0
+    for j in range(num_bodies):
+        body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
@@ -347,8 +351,8 @@ def write_joint_limit_data_to_buffer(
 @wp.kernel
 def write_joint_friction_data_to_buffer(
     in_friction: wp.array2d(dtype=wp.float32),
-    in_dynamic_friction: Any, # None or wp.array2d(dtype=wp.float32),
-    in_viscous_friction: Any, # None or wp.array2d(dtype=wp.float32),
+    in_dynamic_friction: wp.array2d(dtype=wp.float32),
+    in_viscous_friction: wp.array2d(dtype=wp.float32),
     out_friction: wp.array2d(dtype=wp.float32),
     out_dynamic_friction: wp.array2d(dtype=wp.float32),
     out_viscous_friction: wp.array2d(dtype=wp.float32),
@@ -361,21 +365,21 @@ def write_joint_friction_data_to_buffer(
     # First update the output buffers
     if from_mask:
         out_friction[env_ids[i], joint_ids[j]] = in_friction[env_ids[i], joint_ids[j]]
-        if in_dynamic_friction is not None:
+        if in_dynamic_friction:
             out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[env_ids[i], joint_ids[j]]
-        if in_viscous_friction is not None:
+        if in_viscous_friction:
             out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[env_ids[i], joint_ids[j]]
     else:
         out_friction[env_ids[i], joint_ids[j]] = in_friction[i, j]
-        if in_dynamic_friction is not None:
+        if in_dynamic_friction:
             out_dynamic_friction[env_ids[i], joint_ids[j]] = in_dynamic_friction[i, j]
-        if in_viscous_friction is not None:
+        if in_viscous_friction:
             out_viscous_friction[env_ids[i], joint_ids[j]] = in_viscous_friction[i, j]
     # Then update the friction properties
     friction_props[env_ids[i], joint_ids[j], 0] = out_friction[env_ids[i], joint_ids[j]]
-    if in_dynamic_friction is not None:
+    if in_dynamic_friction:
         friction_props[env_ids[i], joint_ids[j], 1] = out_dynamic_friction[env_ids[i], joint_ids[j]]
-    if in_viscous_friction is not None:
+    if in_viscous_friction:
         friction_props[env_ids[i], joint_ids[j], 2] = out_viscous_friction[env_ids[i], joint_ids[j]]
 
 @wp.kernel
@@ -482,9 +486,9 @@ def update_default_joint_values(
 # And cap n at 10. Will ignore Nones.
 @wp.kernel
 def update_targets(
-    source_joint_positions: Any, # None or wp.array2d(dtype=wp.float32),
-    source_joint_velocities: Any, # None or wp.array2d(dtype=wp.float32),
-    source_joint_efforts: Any, # None or wp.array2d(dtype=wp.float32),
+    source_joint_positions: wp.array2d(dtype=wp.float32),
+    source_joint_velocities: wp.array2d(dtype=wp.float32),
+    source_joint_efforts: wp.array2d(dtype=wp.float32),
     target_joint_positions: wp.array2d(dtype=wp.float32),
     target_joint_velocities: wp.array2d(dtype=wp.float32),
     target_joint_efforts: wp.array2d(dtype=wp.float32),
@@ -502,18 +506,17 @@ def update_targets(
 def update_actuator_state_model(
     source_computed_effort: wp.array2d(dtype=wp.float32),
     source_applied_effort: wp.array2d(dtype=wp.float32),
-    source_gear_ratio: Any, # None or wp.array2d(dtype=wp.float32),
+    source_gear_ratio: wp.array2d(dtype=wp.float32),
     source_vel_limits: wp.array2d(dtype=wp.float32),
     target_computed_effort: wp.array2d(dtype=wp.float32),
     target_applied_effort: wp.array2d(dtype=wp.float32),
     target_gear_ratio: wp.array2d(dtype=wp.float32),
     target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
     joint_indices: wp.array(dtype=wp.int32),
-    has_gear_ratio: bool,
 ):
     i, j = wp.tid()
     target_computed_effort[i, joint_indices[j]] = source_computed_effort[i, j]
     target_applied_effort[i, joint_indices[j]] = source_applied_effort[i, j]
     target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
-    if has_gear_ratio:
+    if source_gear_ratio:
         target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
