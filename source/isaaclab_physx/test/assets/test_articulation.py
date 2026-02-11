@@ -1720,22 +1720,6 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
             pos_gt[:, 1, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
             pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
-            print("pos_gt")
-            print(pos_gt[:, 0, :])
-            print("root_com_state_w")
-            print(root_com_state_w[..., :3])
-            print("root_com_pose")
-            print(wp.to_torch(articulation.data.root_com_pose_w))
-            print("root_link_pose")
-            print(wp.to_torch(articulation.data.root_link_pose_w))
-            print("offset")
-            print(offset)
-            print("joint_pos")
-            print(joint_pos)
-            print("pos_gt")
-            print(pos_gt)
-            print("root_com_state_w")
-            print(body_com_state_w[..., :3])
             torch.testing.assert_close(pos_gt[:, 0, :], root_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
             torch.testing.assert_close(pos_gt, body_com_state_w[..., :3], atol=1e-3, rtol=1e-1)
 
@@ -1781,7 +1765,7 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
     sim._app_control_on_stop_handle = None
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)])
+    env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
 
     # Play sim
     sim.reset()
@@ -1793,16 +1777,16 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         offset = torch.tensor([0.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
 
     # create com offsets
-    com = articulation.root_view.get_coms()
+    com = wp.to_torch(articulation.root_view.get_coms())
     new_com = offset
     com[:, 0, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(com, env_idx)
+    articulation.root_view.set_coms(wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32))
 
     # check they are set
-    torch.testing.assert_close(articulation.root_view.get_coms(), com)
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com)
 
-    rand_state = torch.zeros_like(to_torch(articulation.data.root_state_w))
-    rand_state[..., :7] = to_torch(articulation.data.default_root_state)[..., :7]
+    rand_state = torch.zeros_like(wp.to_torch(articulation.data.root_state_w))
+    rand_state[..., :7] = wp.to_torch(articulation.data.default_root_state)[..., :7]
     rand_state[..., :3] += env_pos
     # make quaternion a unit vector
     rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
@@ -1826,9 +1810,9 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
                 articulation.write_root_link_state_to_sim(rand_state, env_ids=env_idx)
 
         if state_location == "com":
-            torch.testing.assert_close(rand_state, to_torch(articulation.data.root_com_state_w))
+            torch.testing.assert_close(rand_state, wp.to_torch(articulation.data.root_com_state_w))
         elif state_location == "link":
-            torch.testing.assert_close(rand_state, to_torch(articulation.data.root_link_state_w))
+            torch.testing.assert_close(rand_state, wp.to_torch(articulation.data.root_link_state_w))
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1861,9 +1845,9 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     external_torque_vector_b[:, 1, 2] = 10.0  # 10 Nm in z direction
 
     # apply action to the articulation
-    joint_pos = torch.ones_like(to_torch(articulation.data.joint_pos)) * 1.5708 / 2.0
+    joint_pos = torch.ones_like(wp.to_torch(articulation.data.joint_pos)) * 1.5708 / 2.0
     articulation.write_joint_state_to_sim(
-        torch.ones_like(to_torch(articulation.data.joint_pos)), torch.zeros_like(to_torch(articulation.data.joint_vel))
+        torch.ones_like(wp.to_torch(articulation.data.joint_pos)), torch.zeros_like(wp.to_torch(articulation.data.joint_vel))
     )
     articulation.set_joint_position_target(joint_pos)
     articulation.write_data_to_sim()
@@ -1877,12 +1861,12 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         articulation.update(sim.cfg.dt)
 
         # check shape
-        assert articulation.data.body_incoming_joint_wrench_b.shape == (num_articulations, articulation.num_bodies, 6)
+        assert wp.to_torch(articulation.data.body_incoming_joint_wrench_b).shape == (num_articulations, articulation.num_bodies, 6)
 
     # calculate expected static
-    mass = to_torch(articulation.data.body_mass).to("cpu")
-    pos_w = to_torch(articulation.data.body_pos_w)
-    quat_w = to_torch(articulation.data.body_quat_w)
+    mass = wp.to_torch(articulation.data.body_mass).to("cpu")
+    pos_w = wp.to_torch(articulation.data.body_pos_w)
+    quat_w = wp.to_torch(articulation.data.body_quat_w)
 
     mass_link2 = mass[:, 1].view(num_articulations, -1)
     gravity = torch.tensor(sim.cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
@@ -1908,7 +1892,7 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     # check value of last joint wrench
     torch.testing.assert_close(
         expected_wrench,
-        to_torch(articulation.data.body_incoming_joint_wrench_b)[:, 1, :].squeeze(1),
+        wp.to_torch(articulation.data.body_incoming_joint_wrench_b)[:, 1, :].squeeze(1),
         atol=1e-2,
         rtol=1e-3,
     )
@@ -1983,70 +1967,70 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
 
     from torch.distributions import Uniform
 
-    joint_pos_limits = to_torch(articulation.data.joint_pos_limits)
-    joint_vel_limits = to_torch(articulation.data.joint_vel_limits)
+    joint_pos_limits = wp.to_torch(articulation.data.joint_pos_limits)
+    joint_vel_limits = wp.to_torch(articulation.data.joint_vel_limits)
     pos_dist = Uniform(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     vel_dist = Uniform(-joint_vel_limits, joint_vel_limits)
 
-    original_body_states = to_torch(articulation.data.body_state_w).clone()
+    original_body_states = wp.to_torch(articulation.data.body_state_w).clone()
 
     rand_joint_pos = pos_dist.sample()
     rand_joint_vel = vel_dist.sample()
 
     articulation.write_joint_state_to_sim(rand_joint_pos, rand_joint_vel)
     # make sure valued updated
-    body_state_w = to_torch(articulation.data.body_state_w)
+    body_state_w = wp.to_torch(articulation.data.body_state_w)
     assert torch.count_nonzero(original_body_states[:, 1:] != body_state_w[:, 1:]) > (
         len(original_body_states[:, 1:]) / 2
     )
     # validate body - link consistency
-    body_link_state_w = to_torch(articulation.data.body_link_state_w)
+    body_link_state_w = wp.to_torch(articulation.data.body_link_state_w)
     torch.testing.assert_close(body_state_w[..., :7], body_link_state_w[..., :7])
     # skip 7:10 because they differs from link frame, this should be fine because we are only checking
     # if velocity update is triggered, which can be determined by comparing angular velocity
     torch.testing.assert_close(body_state_w[..., 10:], body_link_state_w[..., 10:])
 
     # validate link - com conistency
-    body_com_pos_b = to_torch(articulation.data.body_com_pos_b)
-    body_com_quat_b = to_torch(articulation.data.body_com_quat_b)
+    body_com_pos_b = wp.to_torch(articulation.data.body_com_pos_b)
+    body_com_quat_b = wp.to_torch(articulation.data.body_com_quat_b)
     expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
         body_link_state_w[..., :3].view(-1, 3),
         body_link_state_w[..., 3:7].view(-1, 4),
         body_com_pos_b.view(-1, 3),
         body_com_quat_b.view(-1, 4),
     )
-    body_com_pos_w = to_torch(articulation.data.body_com_pos_w)
-    body_com_quat_w = to_torch(articulation.data.body_com_quat_w)
+    body_com_pos_w = wp.to_torch(articulation.data.body_com_pos_w)
+    body_com_quat_w = wp.to_torch(articulation.data.body_com_quat_w)
     torch.testing.assert_close(expected_com_pos.view(len(env_idx), -1, 3), body_com_pos_w)
     torch.testing.assert_close(expected_com_quat.view(len(env_idx), -1, 4), body_com_quat_w)
 
     # validate body - com consistency
-    body_com_lin_vel_w = to_torch(articulation.data.body_com_lin_vel_w)
-    body_com_ang_vel_w = to_torch(articulation.data.body_com_ang_vel_w)
+    body_com_lin_vel_w = wp.to_torch(articulation.data.body_com_lin_vel_w)
+    body_com_ang_vel_w = wp.to_torch(articulation.data.body_com_ang_vel_w)
     torch.testing.assert_close(body_state_w[..., 7:10], body_com_lin_vel_w)
     torch.testing.assert_close(body_state_w[..., 10:], body_com_ang_vel_w)
 
     # validate pos_w, quat_w, pos_b, quat_b is consistent with pose_w and pose_b
     expected_com_pose_w = torch.cat((body_com_pos_w, body_com_quat_w), dim=2)
     expected_com_pose_b = torch.cat((body_com_pos_b, body_com_quat_b), dim=2)
-    body_pos_w = to_torch(articulation.data.body_pos_w)
-    body_quat_w = to_torch(articulation.data.body_quat_w)
+    body_pos_w = wp.to_torch(articulation.data.body_pos_w)
+    body_quat_w = wp.to_torch(articulation.data.body_quat_w)
     expected_body_pose_w = torch.cat((body_pos_w, body_quat_w), dim=2)
-    body_link_pos_w = to_torch(articulation.data.body_link_pos_w)
-    body_link_quat_w = to_torch(articulation.data.body_link_quat_w)
+    body_link_pos_w = wp.to_torch(articulation.data.body_link_pos_w)
+    body_link_quat_w = wp.to_torch(articulation.data.body_link_quat_w)
     expected_body_link_pose_w = torch.cat((body_link_pos_w, body_link_quat_w), dim=2)
-    body_com_pose_w = to_torch(articulation.data.body_com_pose_w)
-    body_com_pose_b = to_torch(articulation.data.body_com_pose_b)
-    body_pose_w = to_torch(articulation.data.body_pose_w)
-    body_link_pose_w = to_torch(articulation.data.body_link_pose_w)
+    body_com_pose_w = wp.to_torch(articulation.data.body_com_pose_w)
+    body_com_pose_b = wp.to_torch(articulation.data.body_com_pose_b)
+    body_pose_w = wp.to_torch(articulation.data.body_pose_w)
+    body_link_pose_w = wp.to_torch(articulation.data.body_link_pose_w)
     torch.testing.assert_close(body_com_pose_w, expected_com_pose_w)
     torch.testing.assert_close(body_com_pose_b, expected_com_pose_b)
     torch.testing.assert_close(body_pose_w, expected_body_pose_w)
     torch.testing.assert_close(body_link_pose_w, expected_body_link_pose_w)
 
     # validate pose_w is consistent state[..., :7]
-    body_vel_w = to_torch(articulation.data.body_vel_w)
-    body_com_state_w = to_torch(articulation.data.body_com_state_w)
+    body_vel_w = wp.to_torch(articulation.data.body_vel_w)
+    body_com_state_w = wp.to_torch(articulation.data.body_com_state_w)
     torch.testing.assert_close(body_pose_w, body_state_w[..., :7])
     torch.testing.assert_close(body_vel_w, body_state_w[..., 7:])
     torch.testing.assert_close(body_link_pose_w, body_link_state_w[..., :7])
@@ -2085,17 +2069,17 @@ def test_spatial_tendons(sim, num_articulations, device):
     # Check that fixed base
     assert articulation.is_fixed_base
     # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.shape == (num_articulations, 3)
-    assert articulation.data.body_mass.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.shape == (num_articulations, articulation.num_bodies, 9)
+    assert wp.to_torch(articulation.data.root_pos_w).shape == (num_articulations, 3)
+    assert wp.to_torch(articulation.data.root_quat_w).shape == (num_articulations, 4)
+    assert wp.to_torch(articulation.data.joint_pos).shape == (num_articulations, 3)
+    assert wp.to_torch(articulation.data.body_mass).shape == (num_articulations, articulation.num_bodies)
+    assert wp.to_torch(articulation.data.body_inertia).shape == (num_articulations, articulation.num_bodies, 9)
     assert articulation.num_spatial_tendons == 1
 
-    articulation.set_spatial_tendon_stiffness(torch.tensor([10.0]))
-    articulation.set_spatial_tendon_limit_stiffness(torch.tensor([10.0]))
-    articulation.set_spatial_tendon_damping(torch.tensor([10.0]))
-    articulation.set_spatial_tendon_offset(torch.tensor([10.0]))
+    articulation.set_spatial_tendon_stiffness(torch.tensor([10.0], device=device))
+    articulation.set_spatial_tendon_limit_stiffness(torch.tensor([10.0], device=device))
+    articulation.set_spatial_tendon_damping(torch.tensor([10.0], device=device))
+    articulation.set_spatial_tendon_offset(torch.tensor([10.0], device=device))
 
     # Simulate physics
     for _ in range(10):
@@ -2135,9 +2119,8 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     # The static friction must be set first to be sure the dynamic friction is not greater than static
     # when both are set.
     articulation.write_joint_friction_coefficient_to_sim(friction)
-    if get_isaac_sim_version().major >= 5:
-        articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
-        articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
+    articulation.write_joint_dynamic_friction_coefficient_to_sim(dynamic_friction)
+    articulation.write_joint_viscous_friction_coefficient_to_sim(viscous_friction)
     articulation.write_data_to_sim()
 
     for _ in range(100):
@@ -2146,16 +2129,16 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         # update buffers
         articulation.update(sim.cfg.dt)
 
-    if get_isaac_sim_version().major >= 5:
-        friction_props_from_sim = articulation.root_view.get_dof_friction_properties()
-        joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
-        joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
-        joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
-        assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
-        assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
-    else:
-        joint_friction_coeff_sim = articulation.root_view.get_dof_friction_properties()
-
+    friction_props_from_sim = wp.to_torch(articulation.root_view.get_dof_friction_properties())
+    joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
+    joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
+    joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
+    print("friction_props_from_sim: ", friction_props_from_sim)
+    print("dynamic_friction: ", dynamic_friction)
+    print("viscous_friction: ", viscous_friction)
+    print("friction: ", friction)
+    assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
+    assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
 
     # For Isaac Sim >= 5.0: also test the combined API that can set dynamic and viscous via
@@ -2190,10 +2173,15 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
             sim.step()
             articulation.update(sim.cfg.dt)
 
-        friction_props_from_sim_2 = articulation.root_view.get_dof_friction_properties()
+        friction_props_from_sim_2 = wp.to_torch(articulation.root_view.get_dof_friction_properties())
         joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
         friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
         friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
+
+        print("friction_props_from_sim_2: ", friction_props_from_sim_2)
+        print("viscous_friction_2: ", viscous_friction_2)
+        print("dynamic_friction_2: ", dynamic_friction_2)
+        print("friction_2: ", friction_2)
 
         # Validate values propagated
         assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2.cpu())

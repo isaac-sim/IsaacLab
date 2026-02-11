@@ -104,7 +104,7 @@ def get_root_link_vel_from_root_com_vel(
     link_vel: wp.array(dtype=wp.spatial_vectorf),
 ):
     i = wp.tid()
-    link_vel[i] = get_link_vel_from_root_com_vel_func(com_vel[i], link_pose[i], body_com_pose_b[0, i])
+    link_vel[i] = get_link_vel_from_root_com_vel_func(com_vel[i], link_pose[i], body_com_pose_b[i, 0])
 
 
 @wp.kernel
@@ -114,7 +114,7 @@ def get_root_com_pose_from_root_link_pose(
     com_pose_w: wp.array(dtype=wp.transformf),
 ):
     i = wp.tid()
-    com_pose_w[i] = get_com_pose_from_link_pose_func(link_pose[i], body_com_pose_b[0, i])
+    com_pose_w[i] = get_com_pose_from_link_pose_func(link_pose[i], body_com_pose_b[i, 0])
 
 
 @wp.kernel

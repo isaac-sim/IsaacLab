@@ -579,7 +579,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             set_root_link_pose_to_sim,
@@ -661,7 +661,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
@@ -670,7 +670,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data._body_com_pose_b.data,
+                self.data.body_com_pose_b,
                 env_ids,
                 self.data._root_com_pose_w.data,
                 self.data._root_link_pose_w.data,
@@ -795,7 +795,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             set_root_com_velocity_to_sim,
@@ -874,16 +874,19 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
+        if isinstance(env_ids, torch.Tensor):
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
+        # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
         wp.launch(
             set_root_link_velocity_to_sim,
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data._body_com_pose_b.data,
-                self.data._root_link_pose_w.data,
+                self.data.body_com_pose_b,
+                self.data.root_link_pose_w,
                 env_ids,
                 self.data._root_link_vel_w.data,
                 self.data._root_com_vel_w.data,
@@ -897,7 +900,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_root_link_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1958,8 +1961,8 @@ class Articulation(BaseArticulation):
                 friction_props,
                 env_ids,
                 joint_ids,
-                full_data,
                 1,
+                full_data,
             ],
             device=self.device,
         )
@@ -2049,8 +2052,8 @@ class Articulation(BaseArticulation):
                 friction_props,
                 env_ids,
                 joint_ids,
-                full_data,
                 2,
+                full_data,
             ],
             device=self.device,
         )
@@ -4196,3 +4199,53 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         return self.root_view
+
+    def write_joint_friction_coefficient_to_sim(
+        self,
+        joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff, joint_dynamic_friction_coeff=joint_dynamic_friction_coeff, joint_viscous_friction_coeff=joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data)
+
+    def write_joint_viscous_friction_coefficient_to_sim(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`write_joint_viscous_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_viscous_friction_coefficient_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_viscous_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data)
+
+    def write_joint_dynamic_friction_coefficient_to_sim(
+        self,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`write_joint_dynamic_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_dynamic_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data)
