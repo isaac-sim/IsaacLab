@@ -145,7 +145,7 @@ class TestBaseIsaacLabBenchmark:
         benchmark.update_manual_recorders()
         # Check recorders were updated - CPUInfoRecorder has _n attribute
         assert benchmark._manual_recorders["CPUInfo"]._n >= 1
-        assert benchmark._manual_recorders["MemoryInfo"]._proc_n >= 1
+        assert benchmark._manual_recorders["MemoryInfo"]._rss_n >= 1
 
     def test_update_manual_recorders_disabled(self, temp_output_dir):
         """Test that update_manual_recorders is a no-op when recorders are disabled."""
@@ -216,7 +216,7 @@ class TestBaseIsaacLabBenchmark:
 
         # Recorders should be set to None
         assert benchmark._manual_recorders is None
-        assert benchmark._automatic_recorders is None
+        assert benchmark._frametime_recorders is None
 
     def test_workflow_metadata_in_output(self, temp_output_dir):
         """Test that workflow name and timestamp metadata are in output."""
@@ -232,11 +232,11 @@ class TestBaseIsaacLabBenchmark:
         with open(benchmark.output_file_path) as f:
             data = json.load(f)
 
-        # Check benchmark phase has workflow metadata
-        assert "benchmark" in data
-        assert "workflow_name" in data["benchmark"]
-        assert data["benchmark"]["workflow_name"] == "my_workflow"
-        assert "timestamp" in data["benchmark"]
+        # Check benchmark_info phase has workflow metadata
+        assert "benchmark_info" in data
+        assert "workflow_name" in data["benchmark_info"]
+        assert data["benchmark_info"]["workflow_name"] == "my_workflow"
+        assert "timestamp" in data["benchmark_info"]
 
 
 # ==============================================================================
