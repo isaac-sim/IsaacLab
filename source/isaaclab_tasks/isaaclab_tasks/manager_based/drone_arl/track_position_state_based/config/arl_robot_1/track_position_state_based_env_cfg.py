@@ -220,7 +220,7 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.01
         self.sim.render_interval = self.decimation
-        self.sim.physics.physics_material = sim_utils.RigidBodyMaterialCfg(
+        self.sim.physics_material = sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
