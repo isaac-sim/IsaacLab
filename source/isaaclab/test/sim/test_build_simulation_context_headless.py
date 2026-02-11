@@ -91,4 +91,4 @@ def test_build_simulation_context_cfg():
         # Values from sim_cfg should not be overridden by build_simulation_context args
         assert sim.cfg.physics.gravity == gravity
         assert sim.cfg.device == device
-        assert sim.cfg.physics.dt == dt
+        assert sim.cfg.dt == dt
