@@ -228,7 +228,7 @@ class ManagerBasedEnv:
 
         This is the lowest time-decimation at which the simulation is happening.
         """
-        return self.cfg.sim.physics.dt
+        return self.cfg.sim.dt
 
     @property
     def step_dt(self) -> float:
@@ -236,7 +236,7 @@ class ManagerBasedEnv:
 
         This is the time-step at which the environment steps forward.
         """
-        return self.cfg.sim.physics.dt * self.cfg.decimation
+        return self.cfg.sim.dt * self.cfg.decimation
 
     @property
     def device(self):

@@ -74,7 +74,7 @@ def _prim_type_for_backend(backend: str) -> str:
 def _create_view(pattern: str, device: str, backend: str) -> XformPrimView:
     """Create an XformPrimView for the requested backend."""
     if backend == "fabric":
-        sim_utils.SimulationContext(sim_utils.SimulationCfg(device=device, dt=0.01, use_fabric=True))
+        sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     return XformPrimView(pattern, device=device)
 
 

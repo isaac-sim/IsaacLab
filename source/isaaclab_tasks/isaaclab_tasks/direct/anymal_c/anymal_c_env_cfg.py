@@ -62,8 +62,8 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 200,
+        render_interval=decimation,
     )
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",

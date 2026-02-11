@@ -109,6 +109,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         device="cuda:0",
         dt=1 / 120,
+        gravity=(0.0, 0.0, -9.81),
         physics=PhysxCfg(
             solver_type=1,
             max_position_iteration_count=192,  # Important to avoid interpenetration.

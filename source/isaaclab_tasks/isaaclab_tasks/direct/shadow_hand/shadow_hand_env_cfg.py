@@ -127,8 +127,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 120,
+        render_interval=decimation,
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
         ),
@@ -238,8 +238,8 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     obs_type = "openai"
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 60,
+        render_interval=decimation,
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,

@@ -218,14 +218,14 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.decimation = 4
-        self.sim.physics.dt = 0.005
+        self.sim.dt = 0.005
 
         # Scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
-        self.scene.contact_forces.update_period = self.sim.physics.dt
-        self.scene.height_scanner.update_period = self.decimation * self.sim.physics.dt
+        self.scene.contact_forces.update_period = self.sim.dt
+        self.scene.height_scanner.update_period = self.decimation * self.sim.dt
 
         # Events:
         self.events.add_base_mass.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")

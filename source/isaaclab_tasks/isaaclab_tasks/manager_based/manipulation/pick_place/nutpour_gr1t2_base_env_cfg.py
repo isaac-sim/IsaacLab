@@ -360,7 +360,7 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 5
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.physics.dt = 1 / 100
+        self.sim.dt = 1 / 100
         self.sim.render_interval = 2
 
         # Set settings for camera rendering

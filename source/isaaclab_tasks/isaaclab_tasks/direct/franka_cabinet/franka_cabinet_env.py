@@ -33,8 +33,8 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 120,
+        render_interval=decimation,
     )
 
     # scene

@@ -124,8 +124,8 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 120,
+        render_interval=decimation,
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
         ),

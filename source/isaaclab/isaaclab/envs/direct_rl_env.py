@@ -258,7 +258,7 @@ class DirectRLEnv(gym.Env):
 
         This is the lowest time-decimation at which the simulation is happening.
         """
-        return self.cfg.sim.physics.dt
+        return self.cfg.sim.dt
 
     @property
     def step_dt(self) -> float:
@@ -266,7 +266,7 @@ class DirectRLEnv(gym.Env):
 
         This is the time-step at which the environment steps forward.
         """
-        return self.cfg.sim.physics.dt * self.cfg.decimation
+        return self.cfg.sim.dt * self.cfg.decimation
 
     @property
     def device(self):
@@ -281,7 +281,7 @@ class DirectRLEnv(gym.Env):
     @property
     def max_episode_length(self):
         """The maximum episode length in steps adjusted from s."""
-        return math.ceil(self.max_episode_length_s / (self.cfg.sim.physics.dt * self.cfg.decimation))
+        return math.ceil(self.max_episode_length_s / (self.cfg.sim.dt * self.cfg.decimation))
 
     """
     Operations.

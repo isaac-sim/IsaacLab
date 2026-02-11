@@ -107,7 +107,7 @@ def setup_env():
     num_envs = 20
     device = "cuda:0"
     # set up sim
-    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
+    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # create dummy environment
     env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(

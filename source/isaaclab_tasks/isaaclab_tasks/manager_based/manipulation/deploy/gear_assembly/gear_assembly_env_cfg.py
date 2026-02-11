@@ -316,7 +316,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation
-        self.sim.physics.dt = 1.0 / 120.0
+        self.sim.dt = 1.0 / 120.0
 
         self.gear_offsets = {
             "gear_small": [0.076125, 0.0, 0.0],

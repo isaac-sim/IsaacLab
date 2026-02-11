@@ -132,7 +132,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
-        self.sim.physics.dt = 0.01  # 100Hz
+        self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = 5
 
 

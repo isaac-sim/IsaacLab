@@ -60,8 +60,8 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        render_interval=decimation,
         dt=1 / 100,
+        render_interval=decimation,
     )
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",

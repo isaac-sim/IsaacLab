@@ -125,7 +125,7 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
-        self.sim.physics.dt = 0.01  # 100Hz
+        self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation
 
         self.sim.physics.bounce_threshold_velocity = 0.01

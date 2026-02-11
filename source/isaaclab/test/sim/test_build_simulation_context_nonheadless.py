@@ -78,8 +78,8 @@ def test_build_simulation_context_cfg():
     device = "cuda:0"
 
     cfg = SimulationCfg(
-        device=device,
         gravity=gravity,
+        device=device,
         dt=dt,
     )
 

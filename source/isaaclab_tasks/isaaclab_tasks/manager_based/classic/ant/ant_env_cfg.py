@@ -175,7 +175,7 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 16.0
         # simulation settings
-        self.sim.physics.dt = 1 / 120.0
+        self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
         self.sim.physics.bounce_threshold_velocity = 0.2
         # default friction material
