@@ -34,7 +34,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
     """Test that the simulation context is built when no simulation cfg is passed in."""
     with build_simulation_context(gravity_enabled=gravity_enabled, device=device, dt=dt) as sim:
         if gravity_enabled:
-            assert sim.cfg.physics.gravity == (0.0, 0.0, -9.81)
+            assert sim.cfg.gravity == (0.0, 0.0, -9.81)
         else:
             assert sim.cfg.physics.gravity == (0.0, 0.0, 0.0)
 
