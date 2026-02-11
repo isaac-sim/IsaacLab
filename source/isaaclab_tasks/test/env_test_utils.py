@@ -127,6 +127,9 @@ def _run_environments(
     ]:
         return
 
+    if "RmpFlow" in task_name:
+        return
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if "Visuomotor" in task_name and num_envs == 32:
         return
