@@ -36,7 +36,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
         if gravity_enabled:
             assert sim.cfg.gravity == (0.0, 0.0, -9.81)
         else:
-            assert sim.cfg.physics.gravity == (0.0, 0.0, 0.0)
+            assert sim.cfg.gravity == (0.0, 0.0, 0.0)
 
         assert sim.cfg.device == device
         assert sim.cfg.physics.dt == dt
