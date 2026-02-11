@@ -20,7 +20,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 
-from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import XformPrimView as XformPrimView  # noqa: E402
@@ -75,7 +74,7 @@ def _prim_type_for_backend(backend: str) -> str:
 def _create_view(pattern: str, device: str, backend: str) -> XformPrimView:
     """Create an XformPrimView for the requested backend."""
     if backend == "fabric":
-        sim_utils.SimulationContext(sim_utils.SimulationCfg(device=device, physics=PhysxCfg(dt=0.01, use_fabric=True)))
+        sim_utils.SimulationContext(sim_utils.SimulationCfg(device=device, dt=0.01, use_fabric=True))
     return XformPrimView(pattern, device=device)
 
 

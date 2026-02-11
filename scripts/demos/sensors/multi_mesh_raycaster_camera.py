@@ -47,7 +47,6 @@ simulation_app = app_launcher.app
 import random
 
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import omni.usd
 from pxr import Gf, Sdf
@@ -304,7 +303,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=PhysxCfg(dt=0.005))
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=0.005)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])

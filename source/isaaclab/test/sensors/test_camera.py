@@ -23,7 +23,6 @@ import numpy as np
 import pytest
 import scipy.spatial.transform as tf
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
@@ -63,7 +62,7 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()

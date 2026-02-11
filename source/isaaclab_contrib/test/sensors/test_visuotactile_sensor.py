@@ -19,7 +19,6 @@ import math
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 
@@ -125,7 +124,7 @@ def setup(sensor_type: str = "cube"):
     dt = 0.01
 
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Ground-plane

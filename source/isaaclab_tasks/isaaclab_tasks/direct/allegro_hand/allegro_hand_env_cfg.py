@@ -12,7 +12,6 @@ from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -32,12 +31,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
+        dt=1 / 120,
         physics=PhysxCfg(
-            dt=1 / 120,
-            physics_material=RigidBodyMaterialCfg(
-                static_friction=1.0,
-                dynamic_friction=1.0,
-            ),
             bounce_threshold_velocity=0.2,
         ),
     )

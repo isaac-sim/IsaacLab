@@ -34,7 +34,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -55,7 +54,7 @@ def main():
     print(f"[INFO] Logging experiment to directory: {log_dir_path}")
 
     # Initialize the simulation context
-    sim_cfg = SimulationCfg(physics=PhysxCfg(dt=0.01))
+    sim_cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

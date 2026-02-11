@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import (
@@ -108,7 +107,7 @@ def setup_env():
     num_envs = 20
     device = "cuda:0"
     # set up sim
-    sim_cfg = sim_utils.SimulationCfg(device=device, physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     # create dummy environment
     env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(

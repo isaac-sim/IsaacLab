@@ -203,7 +203,7 @@ class MySceneCfg(InteractiveSceneCfg):
 def setup_sim():
     """Create a simulation context and scene."""
     sim_cfg = sim_utils.SimulationCfg(
-        physics=PhysxCfg(dt=0.001, solver_type=0)
+        dt=0.001, physics=PhysxCfg(solver_type=0)
     )  # 0: PGS, 1: TGS --> use PGS for more accurate results
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None

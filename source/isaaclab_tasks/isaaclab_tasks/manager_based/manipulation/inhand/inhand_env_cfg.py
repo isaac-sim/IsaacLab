@@ -20,7 +20,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveGaussianNoiseCfg as Gnoise
@@ -318,10 +317,6 @@ class InHandObjectEnvCfg(ManagerBasedRLEnvCfg):
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
         physics=PhysxCfg(
-            physics_material=RigidBodyMaterialCfg(
-                static_friction=1.0,
-                dynamic_friction=1.0,
-            ),
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**20,
             gpu_max_rigid_patch_count=2**23,

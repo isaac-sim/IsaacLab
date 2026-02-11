@@ -20,7 +20,6 @@ from enum import Enum
 import pytest
 import torch
 from flaky import flaky
-from isaaclab_physx.physics import PhysxCfg
 
 import carb
 from pxr import PhysxSchema
@@ -453,7 +452,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(device=device, physics=PhysxCfg(dt=sim_dt, gravity=grav_dir))
+    sim_cfg = SimulationCfg(device=device, dt=sim_dt, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -506,7 +505,7 @@ def test_invalid_prim_paths_config(setup_simulation):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(device=device, physics=PhysxCfg(dt=sim_dt))
+    sim_cfg = SimulationCfg(device=device, dt=sim_dt)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
@@ -540,7 +539,7 @@ def test_invalid_max_contact_points_config(setup_simulation):
     sim_dt, _, _, _, carb_settings_iface = setup_simulation
     carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
-    sim_cfg = SimulationCfg(device=device, physics=PhysxCfg(dt=sim_dt))
+    sim_cfg = SimulationCfg(device=device, dt=sim_dt)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 

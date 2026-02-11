@@ -19,7 +19,6 @@ from dataclasses import dataclass
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
@@ -94,7 +93,7 @@ def create_dummy_sensor(request, device):
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=device, physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # create sensor

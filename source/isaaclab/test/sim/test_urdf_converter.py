@@ -16,7 +16,6 @@ import os
 
 import numpy as np
 import pytest
-from isaaclab_physx.physics import PhysxCfg
 from packaging.version import Version
 
 import omni.kit.app
@@ -54,7 +53,7 @@ def sim_config():
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=dt)))
+    sim = SimulationContext(SimulationCfg(dt=dt))
     yield sim, config
     # Teardown
     sim._disable_app_control_on_stop_handle = True  # prevent timeout

@@ -76,7 +76,6 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
 @pytest.mark.isaacsim_ci
 def test_build_simulation_context_cfg():
     """Test that the simulation context is built with the correct cfg and values don't get overridden."""
-    from isaaclab_physx.physics import PhysxCfg
 
     dt = 0.001
     # Non-standard gravity
@@ -85,10 +84,8 @@ def test_build_simulation_context_cfg():
 
     cfg = SimulationCfg(
         device=device,
-        physics=PhysxCfg(
-            gravity=gravity,
-            dt=dt,
-        ),
+        gravity=gravity,
+        dt=dt,
     )
 
     with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01, device="cpu") as sim:

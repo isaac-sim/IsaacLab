@@ -69,7 +69,6 @@ import cProfile
 import time
 
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView
@@ -97,9 +96,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(
-        device=args_cli.device, physics=PhysxCfg(dt=0.01, use_fabric=(view_type == "xform_fabric"))
-    )
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
 

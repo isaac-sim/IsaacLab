@@ -21,7 +21,6 @@ import random
 import numpy as np
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
@@ -51,7 +50,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=device, physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()

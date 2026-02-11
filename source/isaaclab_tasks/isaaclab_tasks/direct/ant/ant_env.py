@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from isaaclab_physx.physics import PhysxCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
@@ -31,7 +29,7 @@ class AntEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(render_interval=decimation, physics=PhysxCfg(dt=1 / 120))
+    sim: SimulationCfg = SimulationCfg(render_interval=decimation, dt=1 / 120)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

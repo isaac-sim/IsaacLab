@@ -53,11 +53,8 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(
         render_interval=decimation,
-        physics=PhysxCfg(
-            dt=1 / 60,
-            gpu_found_lost_pairs_capacity=2**23,
-            gpu_total_aggregate_pairs_capacity=2**23,
-        ),
+        dt=1 / 60,
+        physics=PhysxCfg(gpu_found_lost_pairs_capacity=2**23, gpu_total_aggregate_pairs_capacity=2**23),
     )
 
     # scene

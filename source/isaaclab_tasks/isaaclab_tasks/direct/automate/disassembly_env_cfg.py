@@ -108,9 +108,8 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
     episode_length_s = 5.0
     sim: SimulationCfg = SimulationCfg(
         device="cuda:0",
+        dt=1 / 120,
         physics=PhysxCfg(
-            dt=1 / 120,
-            gravity=(0.0, 0.0, -9.81),
             solver_type=1,
             max_position_iteration_count=192,  # Important to avoid interpenetration.
             max_velocity_iteration_count=1,
@@ -120,10 +119,10 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
             gpu_max_num_partitions=1,  # Important for stable simulation.
-            physics_material=RigidBodyMaterialCfg(
-                static_friction=1.0,
-                dynamic_friction=1.0,
-            ),
+        ),
+        physics_material=RigidBodyMaterialCfg(
+            static_friction=1.0,
+            dynamic_friction=1.0,
         ),
     )
 

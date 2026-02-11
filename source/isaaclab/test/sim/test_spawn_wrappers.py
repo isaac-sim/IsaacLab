@@ -14,7 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 
 
 import pytest
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -26,7 +25,7 @@ def sim():
     """Create a simulation context."""
     sim_utils.create_new_stage()
     dt = 0.1
-    sim = SimulationContext(SimulationCfg(physics=PhysxCfg(dt=dt)))
+    sim = SimulationContext(SimulationCfg(dt=dt))
     sim_utils.update_stage()
     yield sim
     sim.stop()

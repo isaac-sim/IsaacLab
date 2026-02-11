@@ -14,7 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 from isaacsim.core.cloner import GridCloner
 
@@ -44,7 +43,7 @@ def sim():
     # Constants
     num_envs = 1
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=0.01))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     # TODO: Remove this once we have a better way to handle this.
     sim._app_control_on_stop_handle = None

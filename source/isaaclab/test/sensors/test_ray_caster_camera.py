@@ -21,7 +21,6 @@ import os
 import numpy as np
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 from pxr import Gf
@@ -70,7 +69,7 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(dt=dt))
+    sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Ground-plane with visual material for RTX rendering compatibility
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)

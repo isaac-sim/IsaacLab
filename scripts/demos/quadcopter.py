@@ -33,7 +33,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -48,7 +47,7 @@ from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=PhysxCfg(dt=0.005))
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=0.005)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[0.5, 0.5, 1.0], target=[0.0, 0.0, 0.5])

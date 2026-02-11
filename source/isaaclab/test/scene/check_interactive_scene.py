@@ -27,7 +27,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -82,7 +81,7 @@ def main():
     """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(physics=PhysxCfg(dt=0.005)))
+    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.005))
     # Set main camera
     sim.set_camera_view(eye=[5, 5, 5], target=[0.0, 0.0, 0.0])
 
