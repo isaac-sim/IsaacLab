@@ -74,8 +74,8 @@ class ArticulationData(BaseArticulationData):
         forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.float32) 
-        self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.float32)
+        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.vec3f)
+        self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.vec3f)
 
         self._create_buffers()
 
@@ -906,7 +906,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_quat_w, self.root_link_lin_vel_w, self._root_link_lin_vel_b.data],
+                inputs=[self.root_link_lin_vel_w, self.root_link_quat_w, self._root_link_lin_vel_b.data],
                 device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -923,7 +923,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_quat_w, self.root_link_ang_vel_w, self._root_link_ang_vel_b.data],
+                inputs=[self.root_link_ang_vel_w, self.root_link_quat_w, self._root_link_ang_vel_b.data],
                 device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -940,7 +940,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_quat_w, self.root_com_lin_vel_w, self._root_com_lin_vel_b.data],
+                inputs=[self.root_com_lin_vel_w, self.root_link_quat_w, self._root_com_lin_vel_b.data],
                 device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -957,7 +957,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_quat_w, self.root_com_ang_vel_w, self._root_com_ang_vel_b.data],
+                inputs=[self.root_com_ang_vel_w, self.root_link_quat_w, self._root_com_ang_vel_b.data],
                 device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
@@ -1260,7 +1260,7 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.vec3f,
             strides=transform.strides,
             device=self.device,
-        ).contiguous()
+        )
 
     def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array.
@@ -1277,7 +1277,7 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.quatf,
             strides=transform.strides,
             device=self.device,
-        ).contiguous()
+        )
     
     def _get_lin_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
         """Generates a linear velocity array from a spatial vector array.
@@ -1294,7 +1294,7 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.vec3f,
             strides=spatial_vector.strides,
             device=self.device,
-        ).contiguous()
+        )
     
     def _get_ang_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
         """Generates an angular velocity array from a spatial vector array.
@@ -1311,4 +1311,4 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.vec3f,
             strides=spatial_vector.strides,
             device=self.device,
-        ).contiguous()
+        )

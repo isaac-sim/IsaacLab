@@ -588,12 +588,16 @@ class Articulation(BaseArticulation):
                 root_pose,
                 env_ids,
                 self.data._root_link_pose_w.data,
-                self.data._root_link_state_w.data,
-                self.data._root_state_w.data,
+                None, #self.data._root_link_state_w.data,
+                None, #self.data._root_state_w.data,
                 full_data,
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
@@ -674,13 +678,19 @@ class Articulation(BaseArticulation):
                 env_ids,
                 self.data._root_com_pose_w.data,
                 self.data._root_link_pose_w.data,
-                self.data._root_com_state_w.data,
-                self.data._root_link_state_w.data,
-                self.data._root_state_w.data,
+                None, #self.data._root_com_state_w.data,
+                None, #self.data._root_link_state_w.data,
+                None, #self.data._root_state_w.data,
                 full_data,
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_com_state_w.timestamp = -1.0
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
@@ -805,13 +815,18 @@ class Articulation(BaseArticulation):
                 env_ids,
                 self.data._root_com_vel_w.data,
                 self.data._body_com_acc_w.data,
-                self.data._root_state_w.data,
-                self.data._root_com_state_w.data,
+                None, #self.data._root_state_w.data,
+                None, #self.data._root_com_state_w.data,
                 self.data._num_bodies,
                 full_data,
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
+        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
+        self.data._root_state_w.timestamp = -1.0
+        self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -877,9 +892,7 @@ class Articulation(BaseArticulation):
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        # Note: we are doing a single launch for faster performance. Prior versions would call
-        # write_root_link_pose_to_sim after this.
-        # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
+        # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
             set_root_link_velocity_to_sim,
             dim=env_ids.shape[0],
@@ -891,14 +904,21 @@ class Articulation(BaseArticulation):
                 self.data._root_link_vel_w.data,
                 self.data._root_com_vel_w.data,
                 self.data._body_com_acc_w.data,
-                self.data._root_link_state_w.data,
-                self.data._root_state_w.data,
-                self.data._root_com_state_w.data,
+                None, #self.data._root_link_state_w.data,
+                None, #self.data._root_state_w.data,
+                None, #self.data._root_com_state_w.data,
                 self.data._num_bodies,
                 full_data,
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
+        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
+        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
+        self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -1032,6 +1052,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._joint_pos.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self.data._body_com_vel_w.timestamp = -1.0
         self.data._body_link_vel_w.timestamp = -1.0
@@ -1127,6 +1149,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Update the timestamps
+        self.data._joint_vel.timestamp = self.data._sim_timestamp
+        self.data._joint_acc.timestamp = self.data._sim_timestamp
         # set into simulation
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
 

@@ -2631,10 +2631,10 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         is_global: bool = False,
     ) -> None:
-        """Deprecated, same as :meth:`set_external_force_and_torque_index`."""
+        """Deprecated, same as :meth:`permanent_wrench_composer.set_forces_and_torques`."""
         warnings.warn(
             "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
-            " use 'set_external_force_and_torque_index' instead.",
+            " use 'permanent_wrench_composer.set_forces_and_torques' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
