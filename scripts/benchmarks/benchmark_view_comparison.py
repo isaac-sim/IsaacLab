@@ -96,7 +96,7 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
     sim_utils.create_new_stage()
     # Create simulation context
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=0.01)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "xform_fabric"))
     sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
 
