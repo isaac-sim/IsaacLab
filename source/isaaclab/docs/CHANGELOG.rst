@@ -10,10 +10,6 @@ Changed
 
 * Refactored :class:`~isaaclab.sim.SimulationContext` to use :class:`~isaaclab.physics.PhysicsManager`
   abstraction layer for cleaner separation between simulation orchestration and physics backend.
-* Moved physics-specific configuration fields (``dt``, ``gravity``, ``physics_prim_path``,
-  ``physics_material``, ``use_fabric``) from :class:`~isaaclab.sim.SimulationCfg` to
-  :class:`~isaaclab_physx.physics.PhysxManagerCfg`. Old API is deprecated but remains functional
-  with deprecation warnings.
 
 
 3.1.0 (2026-02-05)
