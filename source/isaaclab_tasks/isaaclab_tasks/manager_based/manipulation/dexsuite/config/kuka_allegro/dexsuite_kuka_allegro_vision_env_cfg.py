@@ -197,12 +197,12 @@ class DexsuiteKukaAllegroLiftSingleCameraEnvCfg(
     pass
 
 
-# @configclass
-# class DexsuiteKukaAllegroLiftSingleCameraEnvCfg_PLAY(
-#     KukaAllegroSingleCameraMixinCfg,
-#     dexsuite_state_impl.DexsuiteLiftEnvCfg_PLAY
-# ):
-#     pass
+@configclass
+class DexsuiteKukaAllegroLiftSingleCameraEnvCfg_PLAY(
+    KukaAllegroSingleCameraMixinCfg,
+    dexsuite_state_impl.DexsuiteLiftEnvCfg_PLAY
+):
+    pass
 
 
 # DuoCamera
