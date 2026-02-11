@@ -171,6 +171,24 @@ def root_heading_w(
     i = wp.tid()
     heading_w[i] = compute_heading_w_func(forward_vec[i], quat[i])
 
+@wp.kernel
+def quat_apply_inverse_2D_kernel(
+    vec: wp.array2d(dtype=wp.vec3f),
+    quat: wp.array2d(dtype=wp.quatf),
+    result: wp.array2d(dtype=wp.vec3f),
+):
+    i, j = wp.tid()
+    result[i, j] = wp.quat_rotate_inv(quat[i, j], vec[i, j])
+
+@wp.kernel
+def body_heading_w(
+    forward_vec: wp.array2d(dtype=wp.vec3f),
+    quat: wp.array2d(dtype=wp.quatf),
+    heading_w: wp.array2d(dtype=wp.float32),
+):
+    i, j = wp.tid()
+    heading_w[i, j] = compute_heading_w_func(forward_vec[i, j], quat[i, j])
+
 # ---- Root-level write kernels (1D — used by RigidObject + Articulation) ----
 
 @wp.kernel
