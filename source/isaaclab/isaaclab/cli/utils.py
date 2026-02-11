@@ -240,13 +240,9 @@ def is_isaacsim_version_5_x():
 
 def run_docker_helper(args):
     """Run the docker container helper script."""
-    script_path = ISAACLAB_ROOT / "docker" / "container.sh"
-    # On Windows this might fail if no bash, but usually docker implies wsl or similar env.
+    script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")
-    if is_windows():
-        run_command(["bash", str(script_path)] + args, check=False)
-    else:
-        run_command(["bash", str(script_path)] + args, check=False)
+    run_python_command(script_path, args)
 
 
 def run_python_command(script_path, args, is_module=False):
