@@ -819,6 +819,37 @@ def test_camera_resolution_albedo_only(setup_sim_camera):
     assert output["albedo"].dtype == torch.uint8
 
 
+@pytest.mark.parametrize(
+    "data_type",
+    ["simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"],
+)
+def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
+    """Test camera resolution is correctly set for simple shading only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = [data_type]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output[data_type].shape == hw_3c_shape
+    # access image data and compare dtype
+    assert output[data_type].dtype == torch.uint8
+
+
 def test_camera_resolution_depth_only(setup_sim_camera):
     """Test camera resolution is correctly set for depth only."""
     # Add all types

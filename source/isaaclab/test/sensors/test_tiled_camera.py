@@ -558,6 +558,64 @@ def test_albedo_only_camera(setup_camera, device):
     del camera
 
 
+@pytest.mark.parametrize(
+    "data_type",
+    ["simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"],
+)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_simple_shading_only_camera(setup_camera, device, data_type):
+    """Test initialization with only simple shading."""
+    sim, camera_cfg, dt = setup_camera
+    num_cameras = 9
+    for i in range(num_cameras):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    # Create camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = [data_type]
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.has_rtx_sensors()
+    # Play sim
+    sim.reset()
+    # Check if camera is initialized
+    assert camera.is_initialized
+    # Check if camera prim is set correctly and that it is a camera prim
+    assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
+    assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
+    assert list(camera.data.output.keys()) == [data_type]
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+
+    # Check buffers that exists and have correct shapes
+    assert camera.data.pos_w.shape == (num_cameras, 3)
+    assert camera.data.quat_w_ros.shape == (num_cameras, 4)
+    assert camera.data.quat_w_world.shape == (num_cameras, 4)
+    assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
+    assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
+    assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        camera.update(dt)
+        # check image data
+        for _, im_data in camera.data.output.items():
+            assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
+            for i in range(4):
+                assert (im_data[i] / 255.0).mean() > 0.0
+    assert camera.data.output[data_type].dtype == torch.uint8
+    del camera
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
 def test_distance_to_camera_only_camera(setup_camera, device):
