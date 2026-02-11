@@ -76,7 +76,6 @@ def test_build_simulation_context_auto_add_lighting(add_lighting, auto_add_light
 @pytest.mark.isaacsim_ci
 def test_build_simulation_context_cfg():
     """Test that the simulation context is built with the correct cfg and values don't get overridden."""
-
     dt = 0.001
     # Non-standard gravity
     gravity = (0.0, 0.0, -1.81)
