@@ -577,6 +577,12 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         num_to_randomize = len(env_ids)
 
         # Sample random values using cached distribution function and params
+        self._dist_param_0[0] = gravity_distribution_params[0][0]
+        self._dist_param_1[0] = gravity_distribution_params[1][0]
+        self._dist_param_0[1] = gravity_distribution_params[0][1]
+        self._dist_param_1[1] = gravity_distribution_params[1][1]
+        self._dist_param_0[2] = gravity_distribution_params[0][2]
+        self._dist_param_1[2] = gravity_distribution_params[1][2]
         random_values = self._dist_fn(
             self._dist_param_0.unsqueeze(0).expand(num_to_randomize, -1),
             self._dist_param_1.unsqueeze(0).expand(num_to_randomize, -1),
