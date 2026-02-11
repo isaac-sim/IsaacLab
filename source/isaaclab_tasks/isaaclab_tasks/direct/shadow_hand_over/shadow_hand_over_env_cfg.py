@@ -14,6 +14,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -126,6 +127,10 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
+        physics_material=RigidBodyMaterialCfg(
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        ),
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
         ),
