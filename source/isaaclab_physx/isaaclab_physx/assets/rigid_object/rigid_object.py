@@ -208,185 +208,70 @@ class RigidObject(BaseRigidObject):
     Operations - Write to simulation.
     """
 
-    def write_root_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_state, wp.array):
-            root_state = wp.to_torch(root_state)
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root state over selected environment mask into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_state_to_sim_index(root_state, env_ids=env_ids)
-
-    def write_root_com_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_state, wp.array):
-            root_state = wp.to_torch(root_state)
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_com_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass state over selected environment mask into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_com_state_to_sim_index(root_state, env_ids=env_ids)
-
-    def write_root_link_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link state over selected environment indices into the simulation.
 
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
             root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_state, wp.array):
-            root_state = wp.to_torch(root_state)
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
 
-    def write_root_link_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root link state over selected environment mask into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_link_state_to_sim_index(root_state, env_ids=env_ids)
-
-    def write_root_pose_to_sim_index(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
 
-    def write_root_pose_to_sim_mask(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root pose over selected environment mask into the simulation.
-
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-
-        Args:
-            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
-
-    def write_root_link_pose_to_sim_index(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_pose, wp.array):
-            root_pose = wp.to_torch(root_pose)
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, wp.array):
-            physx_env_ids = wp.to_torch(env_ids).long()
-            env_ids = physx_env_ids
-        elif isinstance(env_ids, list):
-            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
 
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
@@ -409,50 +294,19 @@ class RigidObject(BaseRigidObject):
         # set into simulation
         self.root_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
-    def write_root_link_pose_to_sim_mask(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root link pose over selected environment mask into the simulation.
-
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-
-        Args:
-            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
-
-    def write_root_com_pose_to_sim_index(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
         The orientation is the orientation of the principle axes of inertia.
 
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_pose, wp.array):
-            root_pose = wp.to_torch(root_pose)
         # resolve all indices
         if env_ids is None:
             local_env_ids = slice(env_ids)
-        elif isinstance(env_ids, wp.array):
-            local_env_ids = wp.to_torch(env_ids).long()
-        elif isinstance(env_ids, list):
-            local_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         else:
             local_env_ids = env_ids
 
@@ -475,34 +329,9 @@ class RigidObject(BaseRigidObject):
         root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
 
         # write transformed pose in link frame to sim
-        self.write_root_link_pose_to_sim_index(root_link_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim(root_link_pose, env_ids=env_ids)
 
-    def write_root_com_pose_to_sim_mask(
-        self,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass pose over selected environment mask into the simulation.
-
-        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
-
-        Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids)
-
-    def write_root_velocity_to_sim_index(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
@@ -512,29 +341,9 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
 
-    def write_root_velocity_to_sim_mask(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass velocity over selected environment mask into the simulation.
-
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
-
-        Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
-
-    def write_root_com_velocity_to_sim_index(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
@@ -544,19 +353,11 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_velocity, wp.array):
-            root_velocity = wp.to_torch(root_velocity)
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, wp.array):
-            physx_env_ids = wp.to_torch(env_ids).long()
-            env_ids = physx_env_ids
-        elif isinstance(env_ids, list):
-            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
 
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
@@ -573,32 +374,7 @@ class RigidObject(BaseRigidObject):
         # set into simulation
         self.root_view.set_velocities(self.data.root_com_vel_w, indices=physx_env_ids)
 
-    def write_root_com_velocity_to_sim_mask(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass velocity over selected environment mask into the simulation.
-
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
-
-        Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids)
-
-    def write_root_link_velocity_to_sim_index(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
+    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
@@ -608,16 +384,9 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Convert warp to torch if needed
-        if isinstance(root_velocity, wp.array):
-            root_velocity = wp.to_torch(root_velocity)
         # resolve all indices
         if env_ids is None:
             local_env_ids = slice(env_ids)
-        elif isinstance(env_ids, wp.array):
-            local_env_ids = wp.to_torch(env_ids).long()
-        elif isinstance(env_ids, list):
-            local_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         else:
             local_env_ids = env_ids
 
@@ -637,114 +406,63 @@ class RigidObject(BaseRigidObject):
         )
 
         # write transformed velocity in CoM frame to sim
-        self.write_root_com_velocity_to_sim_index(root_com_velocity, env_ids=env_ids)
-
-    def write_root_link_velocity_to_sim_mask(
-        self,
-        root_velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root link velocity over selected environment mask into the simulation.
-
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
-
-        Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim(root_com_velocity, env_ids=env_ids)
 
     """
     Operations - Setters.
     """
 
-    def set_masses_index(
+    def set_masses(
         self,
-        masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set masses of all bodies using indices.
+        masses: torch.Tensor,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set masses of all bodies.
 
         Args:
-            masses: Masses of all bodies. Shape is (len(env_ids), num_bodies).
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
-            env_ids: Environment indices. If None, then all indices are used.
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
-        # Convert warp to torch if needed
-        if isinstance(masses, wp.array):
-            masses = wp.to_torch(masses)
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, wp.array):
-            physx_env_ids = wp.to_torch(env_ids).long()
-            env_ids = physx_env_ids
-        elif isinstance(env_ids, list):
-            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
         # _body_mass shape from view is (N, 1), masses input shape is (N, B) where B=1 for RigidObject
         self.data._body_mass[env_ids] = masses.reshape(-1, 1)
         # set into simulation
         self.root_view.set_masses(self.data._body_mass.cpu(), indices=physx_env_ids.cpu())
 
-    def set_masses_mask(
+    def set_coms(
         self,
-        masses: torch.Tensor | wp.array,
-        body_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set masses of all bodies using masks.
+        coms: torch.Tensor,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set center of mass positions of all bodies.
 
         Args:
-            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        # Note: body_mask is ignored for RigidObject since there's only 1 body
-        self.set_masses_index(masses, env_ids=env_ids)
-
-    def set_coms_index(
-        self,
-        coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set center of mass positions of all bodies using indices.
-
-        Args:
-            coms: Center of mass positions of all bodies. Shape is (len(env_ids), num_bodies, 3).
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: Environment indices. If None, then all indices are used.
+            env_ids: The environment indices to set the center of mass positions for. Defaults to None
+                (all environments).
         """
-        # Convert warp to torch if needed
-        if isinstance(coms, wp.array):
-            coms = wp.to_torch(coms)
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, wp.array):
-            physx_env_ids = wp.to_torch(env_ids).long()
-            env_ids = physx_env_ids
-        elif isinstance(env_ids, list):
-            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         # Body IDs are always all bodies for a single rigid object.
         body_ids = slice(None)
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
         # body_com_pose_b shape is (N, B, 7) where [:,:,:3] is position and [:,:,3:7] is quaternion
         # coms input shape is (N, B, 3) - only setting the position part
@@ -753,53 +471,27 @@ class RigidObject(BaseRigidObject):
         # RigidBodyView expects (N, 7) but body_com_pose_b is (N, 1, 7), squeeze the body dim
         self.root_view.set_coms(self.data.body_com_pose_b.squeeze(1).cpu(), indices=physx_env_ids.cpu())
 
-    def set_coms_mask(
+    def set_inertias(
         self,
-        coms: torch.Tensor | wp.array,
-        body_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set center of mass positions of all bodies using masks.
+        inertias: torch.Tensor,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set inertias of all bodies.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        # Note: body_mask is ignored for RigidObject since there's only 1 body
-        self.set_coms_index(coms, env_ids=env_ids)
-
-    def set_inertias_index(
-        self,
-        inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set inertias of all bodies using indices.
-
-        Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), num_bodies, 3, 3).
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
-            env_ids: Environment indices. If None, then all indices are used.
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
-        # Convert warp to torch if needed
-        if isinstance(inertias, wp.array):
-            inertias = wp.to_torch(inertias)
         # resolve indices
         physx_env_ids = env_ids
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, wp.array):
-            physx_env_ids = wp.to_torch(env_ids).long()
-            env_ids = physx_env_ids
-        elif isinstance(env_ids, list):
-            physx_env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        # convert lists to tensors for proper indexing
+        if isinstance(physx_env_ids, list):
+            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
         # set into internal buffers
         # _body_inertia shape from view is (N, 9) - flattened 3x3 matrices
         # inertias input shape is (N, B, 3, 3) where B=1 for RigidObject, flatten to (N, 9)
@@ -807,37 +499,16 @@ class RigidObject(BaseRigidObject):
         # set into simulation
         self.root_view.set_inertias(self.data._body_inertia.cpu(), indices=physx_env_ids.cpu())
 
-    def set_inertias_mask(
+    def set_external_force_and_torque(
         self,
-        inertias: torch.Tensor | wp.array,
-        body_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set inertias of all bodies using masks.
-
-        Args:
-            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        # Note: body_mask is ignored for RigidObject since there's only 1 body
-        self.set_inertias_index(inertias, env_ids=env_ids)
-
-    def set_external_force_and_torque_index(
-        self,
-        forces: torch.Tensor | wp.array,
-        torques: torch.Tensor | wp.array,
-        positions: torch.Tensor | wp.array | None = None,
-        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        forces: torch.Tensor,
+        torques: torch.Tensor,
+        positions: torch.Tensor | None = None,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
         is_global: bool = False,
     ) -> None:
-        """Set external force and torque to apply on the asset's bodies using indices.
+        """Set external force and torque to apply on the asset's bodies in their local frame.
 
         For many applications, we want to keep the applied external force on rigid bodies constant over a period of
         time (for instance, during the policy control). This function allows us to store the external force and torque
@@ -847,6 +518,23 @@ class RigidObject(BaseRigidObject):
         .. caution::
             If the function is called with empty forces and torques, then this function disables the application
             of external wrench to the simulation.
+
+            .. code-block:: python
+
+                # example of disabling external wrench
+                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
+
+        .. caution::
+            If the function is called consecutively with and with different values for ``is_global``, then the
+            all the external wrenches will be applied in the frame specified by the last call.
+
+            .. code-block:: python
+
+                # example of setting external wrench in the global frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
+                # example of setting external wrench in the link frame
+                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
+                # Both environments will have the external wrenches applied in the link frame
 
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
@@ -859,99 +547,36 @@ class RigidObject(BaseRigidObject):
             positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
                 Defaults to None.
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids: Environment indices. If None, then all indices are used.
+            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
             is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
                 the external wrench is applied in the link frame of the bodies.
         """
+        logger.warning(
+            "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
+            " use 'permanent_wrench_composer.set_forces_and_torques' instead."
+        )
         if forces is None and torques is None:
             logger.warning("No forces or torques provided. No permanent external wrench will be applied.")
 
         # resolve all indices
         # -- env_ids
         if env_ids is None:
-            env_ids_wp = self._ALL_INDICES_WP
-        elif isinstance(env_ids, wp.array):
-            env_ids_wp = env_ids
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids_wp = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            env_ids = self._ALL_INDICES_WP
+        elif not isinstance(env_ids, torch.Tensor):
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         else:
-            env_ids_wp = wp.array(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         # -- body_ids
-        body_ids_wp = self._ALL_BODY_INDICES_WP
-
-        # Convert forces/torques to warp if needed
-        forces_wp = None
-        torques_wp = None
-        positions_wp = None
-        if forces is not None:
-            if isinstance(forces, torch.Tensor):
-                forces_wp = wp.from_torch(forces, dtype=wp.vec3f)
-            else:
-                forces_wp = forces
-        if torques is not None:
-            if isinstance(torques, torch.Tensor):
-                torques_wp = wp.from_torch(torques, dtype=wp.vec3f)
-            else:
-                torques_wp = torques
-        if positions is not None:
-            if isinstance(positions, torch.Tensor):
-                positions_wp = wp.from_torch(positions, dtype=wp.vec3f)
-            else:
-                positions_wp = positions
+        body_ids = self._ALL_BODY_INDICES_WP
 
         # Write to wrench composer
         self._permanent_wrench_composer.set_forces_and_torques(
-            forces=forces_wp,
-            torques=torques_wp,
-            positions=positions_wp,
-            body_ids=body_ids_wp,
-            env_ids=env_ids_wp,
+            forces=wp.from_torch(forces, dtype=wp.vec3f) if forces is not None else None,
+            torques=wp.from_torch(torques, dtype=wp.vec3f) if torques is not None else None,
+            positions=wp.from_torch(positions, dtype=wp.vec3f) if positions is not None else None,
+            body_ids=body_ids,
+            env_ids=env_ids,
             is_global=is_global,
-        )
-
-    def set_external_force_and_torque_mask(
-        self,
-        forces: torch.Tensor | wp.array,
-        torques: torch.Tensor | wp.array,
-        positions: torch.Tensor | wp.array | None = None,
-        body_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-        is_global: bool = False,
-    ) -> None:
-        """Set external force and torque to apply on the asset's bodies using masks.
-
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
-        external wrench at (in the local link frame of the bodies).
-
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-        .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
-
-        Args:
-            forces: External forces in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            torques: External torques in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-            positions: External wrench positions in bodies' local frame. Shape is (num_instances, num_bodies, 3).
-                Defaults to None.
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
-            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the bodies.
-        """
-        # resolve masks
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES_WP
-        # Note: body_mask is ignored for RigidObject since there's only 1 body
-        self.set_external_force_and_torque_index(
-            forces, torques, positions=positions, env_ids=env_ids, is_global=is_global
         )
 
     """
