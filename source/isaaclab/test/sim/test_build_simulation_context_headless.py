@@ -41,7 +41,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
             assert sim.cfg.gravity == (0.0, 0.0, 0.0)
 
         assert sim.cfg.device == device
-        assert sim.cfg.physics.dt == dt
+        assert sim.cfg.dt == dt
 
         # Ensure that dome light didn't get added automatically as we are headless
         assert not sim.stage.GetPrimAtPath("/World/defaultDomeLight").IsValid()
