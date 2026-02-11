@@ -487,6 +487,7 @@ class OVVisualizer(Visualizer):
         rendermode = self._sim.get_setting("/rtx/rendermode")
         if rendermode is not None and rendermode.lower() == "raytracedlighting":
             self._sim.set_setting("/rtx/rendermode", "RaytracedLighting")
+            self._sim.set_setting("/rtx/pathtracing/lightcache/cached/alwaysReuse", True)
 
     def close(self) -> None:
         """Clean up visualizer resources."""

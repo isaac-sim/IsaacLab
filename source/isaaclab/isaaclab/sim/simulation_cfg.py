@@ -265,7 +265,9 @@ class SimulationCfg:
 
     def __post_init__(self):
         """Initialize defaults if not set."""
-        from dataclasses import MISSING as DATACLASS_MISSING
+        # Helper to check if a value is MISSING (compare by type name since instances may differ)
+        def _is_missing(value) -> bool:
+            return type(value).__name__ == "_MISSING_TYPE"
 
         # Set default physics backend if None
         if self.physics is None:
@@ -274,13 +276,13 @@ class SimulationCfg:
             self.physics = PhysxCfg()
 
         # Propagate parameters from SimulationCfg to physics config if they are MISSING
-        if self.physics.dt is DATACLASS_MISSING:
+        if _is_missing(self.physics.dt):
             self.physics.dt = self.dt
-        if self.physics.gravity is DATACLASS_MISSING:
+        if _is_missing(self.physics.gravity):
             self.physics.gravity = self.gravity
-        if self.physics.physics_prim_path is DATACLASS_MISSING:
+        if _is_missing(self.physics.physics_prim_path):
             self.physics.physics_prim_path = self.physics_prim_path
-        if self.physics.physics_material is DATACLASS_MISSING:
+        if _is_missing(self.physics.physics_material):
             self.physics.physics_material = self.physics_material
 
         # Set default physics material if None
@@ -289,5 +291,5 @@ class SimulationCfg:
 
             self.physics_material = RigidBodyMaterialCfg()
             # Also propagate to physics if it was MISSING
-            if self.physics.physics_material is DATACLASS_MISSING:
+            if _is_missing(self.physics.physics_material):
                 self.physics.physics_material = self.physics_material

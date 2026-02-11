@@ -196,7 +196,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     camera_index = args_cli.camera_id
 
     # Create the markers for the --draw option outside of is_running() loop
-    if sim.carb_settings.get("/isaaclab/has_gui") and args_cli.draw:
+    if sim.get_setting("/isaaclab/has_gui") and args_cli.draw:
         cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/CameraPointCloud")
         cfg.markers["hit"].radius = 0.002
         pc_markers = VisualizationMarkers(cfg)
@@ -249,7 +249,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
         # Draw pointcloud if there is a GUI and --draw has been passed
         if (
-            sim.carb_settings.get("/isaaclab/has_gui")
+            sim.get_setting("/isaaclab/has_gui")
             and args_cli.draw
             and "distance_to_image_plane" in camera.data.output.keys()
         ):
