@@ -39,7 +39,7 @@ def test_build_simulation_context_no_cfg(gravity_enabled, device, dt):
             assert sim.cfg.gravity == (0.0, 0.0, 0.0)
 
         assert sim.cfg.device == device
-        assert sim.cfg.physics.dt == dt
+        assert sim.cfg.dt == dt
 
 
 @pytest.mark.parametrize("add_ground_plane", [True, False])
