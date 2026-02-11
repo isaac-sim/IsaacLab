@@ -306,10 +306,12 @@ class TestMemoryInfoRecorder:
         """Test that MemoryInfoRecorder initializes correctly."""
         assert recorder._memory_hardware_info is not None
         assert recorder._memory_runtime_info is not None
-        assert recorder._proc_mean == 0
-        assert recorder._proc_n == 0
-        assert recorder._sys_mean == 0
-        assert recorder._sys_n == 0
+        assert recorder._rss_mean == 0
+        assert recorder._rss_n == 0
+        assert recorder._vms_mean == 0
+        assert recorder._vms_n == 0
+        assert recorder._uss_mean == 0
+        assert recorder._uss_n == 0
 
     def test_get_initial_data_structure(self, recorder):
         """Test that get_initial_data returns correct structure."""
@@ -325,14 +327,14 @@ class TestMemoryInfoRecorder:
 
     def test_update_increments_count(self, recorder):
         """Test that update increments the sample count."""
-        assert recorder._proc_n == 0
-        assert recorder._sys_n == 0
+        assert recorder._rss_n == 0
+        assert recorder._vms_n == 0
         recorder.update()
-        assert recorder._proc_n == 1
-        assert recorder._sys_n == 1
+        assert recorder._rss_n == 1
+        assert recorder._vms_n == 1
         recorder.update()
-        assert recorder._proc_n == 2
-        assert recorder._sys_n == 2
+        assert recorder._rss_n == 2
+        assert recorder._vms_n == 2
 
     def test_get_runtime_data_after_updates(self, recorder):
         """Test that get_runtime_data returns stats after updates."""
@@ -341,17 +343,17 @@ class TestMemoryInfoRecorder:
 
         data = recorder.get_runtime_data()
         assert "memory_utilization" in data
-        # Process RSS stats
-        assert "process_rss_mean_bytes" in data["memory_utilization"]
-        assert "process_rss_std_bytes" in data["memory_utilization"]
-        assert "process_n" in data["memory_utilization"]
-        # System available stats
-        assert "system_available_mean_bytes" in data["memory_utilization"]
-        assert "system_available_std_bytes" in data["memory_utilization"]
-        assert "system_n" in data["memory_utilization"]
+        # RSS stats
+        assert "rss_mean" in data["memory_utilization"]
+        assert "rss_std" in data["memory_utilization"]
+        assert "rss_n" in data["memory_utilization"]
+        # VMS stats
+        assert "vms_mean" in data["memory_utilization"]
+        assert "vms_std" in data["memory_utilization"]
+        assert "vms_n" in data["memory_utilization"]
         # Check counts
-        assert data["memory_utilization"]["process_n"] == 5
-        assert data["memory_utilization"]["system_n"] == 5
+        assert data["memory_utilization"]["rss_n"] == 5
+        assert data["memory_utilization"]["vms_n"] == 5
 
     def test_runtime_data_types(self, recorder):
         """Test that runtime data has correct types."""
@@ -359,12 +361,12 @@ class TestMemoryInfoRecorder:
             recorder.update()
 
         data = recorder.get_runtime_data()
-        assert isinstance(data["memory_utilization"]["process_rss_mean_bytes"], float)
-        assert isinstance(data["memory_utilization"]["process_rss_std_bytes"], float)
-        assert isinstance(data["memory_utilization"]["process_n"], int)
-        assert isinstance(data["memory_utilization"]["system_available_mean_bytes"], float)
-        assert isinstance(data["memory_utilization"]["system_available_std_bytes"], float)
-        assert isinstance(data["memory_utilization"]["system_n"], int)
+        assert isinstance(data["memory_utilization"]["rss_mean"], float)
+        assert isinstance(data["memory_utilization"]["rss_std"], float)
+        assert isinstance(data["memory_utilization"]["rss_n"], int)
+        assert isinstance(data["memory_utilization"]["vms_mean"], float)
+        assert isinstance(data["memory_utilization"]["vms_std"], float)
+        assert isinstance(data["memory_utilization"]["vms_n"], int)
 
     def test_memory_values_positive(self, recorder):
         """Test that memory values are positive."""
@@ -372,8 +374,8 @@ class TestMemoryInfoRecorder:
             recorder.update()
 
         data = recorder.get_runtime_data()
-        assert data["memory_utilization"]["process_rss_mean_bytes"] > 0
-        assert data["memory_utilization"]["system_available_mean_bytes"] > 0
+        assert data["memory_utilization"]["rss_mean"] > 0
+        assert data["memory_utilization"]["vms_mean"] > 0
 
     def test_std_non_negative(self, recorder):
         """Test that standard deviation values are non-negative."""
@@ -381,8 +383,8 @@ class TestMemoryInfoRecorder:
             recorder.update()
 
         data = recorder.get_runtime_data()
-        assert data["memory_utilization"]["process_rss_std_bytes"] >= 0
-        assert data["memory_utilization"]["system_available_std_bytes"] >= 0
+        assert data["memory_utilization"]["rss_std"] >= 0
+        assert data["memory_utilization"]["vms_std"] >= 0
 
     def test_get_data_returns_measurement_data(self, recorder):
         """Test that get_data returns a MeasurementData object."""
@@ -391,7 +393,10 @@ class TestMemoryInfoRecorder:
 
         data = recorder.get_data()
         assert isinstance(data, MeasurementData)
-        assert len(data.measurements) == 6
+        # 6 measurements for RSS and VMS (mean, std, n for each)
+        # Plus potentially 3 more for USS if available (mean, std, n)
+        assert len(data.measurements) >= 6
+        assert len(data.measurements) <= 9
         assert len(data.metadata) == 1
 
     def test_get_data_measurement_names(self, recorder):
@@ -401,12 +406,16 @@ class TestMemoryInfoRecorder:
 
         data = recorder.get_data()
         names = [m.name for m in data.measurements]
-        assert "process_rss" in names
-        assert "process_rss_std" in names
-        assert "process_rss_n" in names
-        assert "system_available" in names
-        assert "system_available_std" in names
-        assert "system_available_n" in names
+        # RSS measurements should always be present
+        assert "System Memory RSS" in names
+        assert "System Memory RSS std" in names
+        assert "System Memory RSS n" in names
+        # VMS measurements should always be present
+        assert "System Memory VMS" in names
+        assert "System Memory VMS std" in names
+        assert "System Memory VMS n" in names
+        # USS measurements may be present depending on platform
+        # We don't assert their presence since they're platform-dependent
 
     def test_get_data_metadata_names(self, recorder):
         """Test that get_data returns metadata with correct names."""
@@ -507,8 +516,13 @@ class TestVersionInfoRecorder:
         assert "torch_version" in names
         assert "numpy_version" in names
         assert "isaaclab_version" in names
-        # Check dev info is present
-        assert "dev" in names
+        # Dev info is now in a DictMetadata entry named "dev" if git info is available
+        # We check if it's present (it may not be in all environments)
+        if any(name == "dev" for name in names):
+            # If dev metadata is present, verify it's a dict
+            dev_meta = next(m for m in data.metadata if m.name == "dev")
+            assert hasattr(dev_meta, "data")
+            assert isinstance(dev_meta.data, dict)
 
 
 # ==============================================================================
@@ -530,10 +544,10 @@ class TestWelfordAlgorithm:
         data = recorder.get_runtime_data()
 
         # Mean should be positive (process is using memory)
-        assert data["memory_utilization"]["process_rss_mean_bytes"] > 0
+        assert data["memory_utilization"]["rss_mean"] > 0
 
         # Std should be defined after multiple samples
-        assert data["memory_utilization"]["process_n"] == 100
+        assert data["memory_utilization"]["rss_n"] == 100
 
     def test_single_update_std_is_zero(self):
         """Test that std is zero after a single update (no variance with one sample)."""
@@ -542,5 +556,5 @@ class TestWelfordAlgorithm:
 
         data = recorder.get_runtime_data()
         # With n=1, std should be 0 (or undefined, but we initialize to 0)
-        assert data["memory_utilization"]["process_rss_std_bytes"] == 0
-        assert data["memory_utilization"]["system_available_std_bytes"] == 0
+        assert data["memory_utilization"]["rss_std"] == 0
+        assert data["memory_utilization"]["vms_std"] == 0

@@ -138,6 +138,11 @@ class BaseIsaacLabBenchmark:
         logger.info("Starting")
         self.benchmark_start_time = time.time()
 
+    @property
+    def output_file_path(self) -> str:
+        """Get the full path to the output file."""
+        return os.path.join(self.output_path, f"{self.output_prefix}.json")
+
     def _metadata_from_dict(self, metadata_dict: dict) -> list[MetadataBase]:
         """Convert a dictionary with metadata lists into a list of MetadataBase objects.
 
