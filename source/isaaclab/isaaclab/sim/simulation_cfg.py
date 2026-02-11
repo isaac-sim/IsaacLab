@@ -265,6 +265,7 @@ class SimulationCfg:
 
     def __post_init__(self):
         """Initialize defaults if not set."""
+
         # Helper to check if a value is MISSING (compare by type name since instances may differ)
         def _is_missing(value) -> bool:
             return type(value).__name__ == "_MISSING_TYPE"
