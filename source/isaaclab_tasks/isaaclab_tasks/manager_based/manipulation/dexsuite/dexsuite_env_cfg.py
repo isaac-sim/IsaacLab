@@ -5,8 +5,9 @@
 
 from dataclasses import MISSING
 
-import isaaclab.sim as sim_utils
 from isaaclab_physx.physics import PhysxCfg
+
+import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm

@@ -6,8 +6,9 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg

@@ -6,8 +6,9 @@
 
 import os
 
-import isaaclab.sim as sim_utils
 from isaaclab_physx.physics import PhysxCfg
+
+import isaaclab.sim as sim_utils
 from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg

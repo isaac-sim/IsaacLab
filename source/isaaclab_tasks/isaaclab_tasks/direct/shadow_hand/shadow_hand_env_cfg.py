@@ -130,10 +130,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0
-        ),
+        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
         ),
@@ -245,10 +242,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 60,
         render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0
-        ),
+        physics_material=RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,
