@@ -127,7 +127,8 @@ def _run_environments(
     ]:
         return
 
-    if "RmpFlow" in task_name:
+    # these environments are using SingleArticulation class, which need to be updated
+    if "RmpFlow" in task_name or "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor" in task_name:
         return
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
