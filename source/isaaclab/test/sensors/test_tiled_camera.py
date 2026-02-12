@@ -575,7 +575,7 @@ def test_simple_shading_only_camera(setup_camera, device, data_type):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
