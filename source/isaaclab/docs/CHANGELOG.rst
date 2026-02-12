@@ -267,6 +267,7 @@ Added
   * ``json``: Full JSON output with all phases, measurements, and metadata.
   * ``osmo``: Osmo KPI format for CI/CD integration.
   * ``omniperf``: OmniPerf format for database upload.
+  * ``summary``: Human-readable console summary plus JSON output.
 
 * Added system recorders in :mod:`isaaclab.test.benchmark.recorders`:
 
@@ -283,11 +284,20 @@ Added
   * ``scripts/benchmarks/run_physx_benchmarks.sh``: PhysX micro-benchmarks.
   * ``scripts/benchmarks/run_training_benchmarks.sh``: RL training benchmarks.
 
+* Added fallback in :mod:`isaaclab.test.benchmark.benchmark_core` for Isaac Sim packaging that
+  bundles frametime recorders in a single module, so frametime collection works across variants.
+
 Changed
 ^^^^^^^
 
 * Refactored benchmark scripts to use new :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`
   class instead of ``isaacsim.benchmark.services``.
+
+Fixed
+^^^^^
+
+* Fixed runtime stats in ``log_min_max_mean_stats`` (``scripts/benchmarks/utils.py``) so FPS
+  metrics are labeled with unit ``FPS`` and time metrics with ``ms`` instead of all being ``ms``.
 
 Removed
 ^^^^^^^
