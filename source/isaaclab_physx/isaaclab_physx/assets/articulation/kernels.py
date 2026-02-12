@@ -1,4 +1,3 @@
-from typing import Any
 import warp as wp
 
 from ..kernels import *

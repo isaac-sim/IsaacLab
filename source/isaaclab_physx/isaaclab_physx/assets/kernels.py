@@ -3,7 +3,9 @@ import warp as wp
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
 
-# ---- Shared @wp.func helpers ----
+"""
+Shared @wp.func helpers.
+"""
 
 @wp.func
 def get_link_vel_from_root_com_vel_func(
@@ -11,6 +13,19 @@ def get_link_vel_from_root_com_vel_func(
     link_pose: wp.transformf,
     body_com_pose: wp.transformf,
 ):
+    """Compute link velocity from center-of-mass velocity.
+
+    Transforms a COM spatial velocity into a link-frame velocity by projecting
+    the angular velocity contribution from the COM offset relative to the link frame.
+
+    Args:
+        com_vel: COM spatial velocity (angular, linear).
+        link_pose: Link pose in world frame.
+        body_com_pose: COM pose in body (link) frame.
+
+    Returns:
+        Link spatial velocity (angular, linear).
+    """
     projected_vel = wp.cross(wp.spatial_bottom(com_vel), wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose)))
     return wp.spatial_vector(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
 
@@ -19,6 +34,15 @@ def get_com_pose_from_link_pose_func(
     link_pose: wp.transformf,
     body_com_pose: wp.transformf,
 ):
+    """Compute COM pose in world frame from link pose and body-frame COM offset.
+
+    Args:
+        link_pose: Link pose in world frame.
+        body_com_pose: COM pose in body (link) frame.
+
+    Returns:
+        COM pose in world frame.
+    """
     return link_pose * body_com_pose
 
 @wp.func
@@ -26,7 +50,17 @@ def concat_pose_and_vel_to_state_func(
     pose: wp.transformf,
     vel: wp.spatial_vectorf,
 ) -> vec13f:
-    # Pose: [pos, quat]
+    """Concatenate a pose and velocity into a 13-element state vector.
+
+    The state vector layout is [pos(3), quat(4), ang_vel(3), lin_vel(3)].
+
+    Args:
+        pose: Pose as a transform (position + quaternion).
+        vel: Spatial velocity (angular, linear).
+
+    Returns:
+        13-element state vector.
+    """
     return vec13f(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5])
 
 @wp.func
@@ -34,6 +68,17 @@ def compute_heading_w_func(
     forward_vec: wp.vec3f,
     quat: wp.quatf,
 ):
+    """Compute heading angle (yaw) in world frame from a forward vector and orientation.
+
+    Rotates the forward vector by the quaternion and computes atan2(y, x).
+
+    Args:
+        forward_vec: Forward direction vector in body frame.
+        quat: Orientation quaternion.
+
+    Returns:
+        Heading angle in radians.
+    """
     forward_w =  wp.quat_rotate(quat, forward_vec)
     return wp.atan2(forward_w[1], forward_w[0])
 
@@ -42,6 +87,18 @@ def set_state_transforms_func(
     state: vec13f,
     transform: wp.transformf,
 ) -> vec13f:
+    """Set the pose portion (first 7 elements) of a 13-element state vector.
+
+    Overwrites elements [0..6] (position + quaternion) with the given transform,
+    leaving the velocity portion [7..12] unchanged.
+
+    Args:
+        state: 13-element state vector to modify.
+        transform: New pose (position + quaternion).
+
+    Returns:
+        Updated 13-element state vector.
+    """
     state[0] = transform[0]
     state[1] = transform[1]
     state[2] = transform[2]
@@ -56,6 +113,18 @@ def set_state_velocities_func(
     state: vec13f,
     velocity: wp.spatial_vectorf,
 ) -> vec13f:
+    """Set the velocity portion (last 6 elements) of a 13-element state vector.
+
+    Overwrites elements [7..12] (angular + linear velocity) with the given spatial velocity,
+    leaving the pose portion [0..6] unchanged.
+
+    Args:
+        state: 13-element state vector to modify.
+        velocity: New spatial velocity (angular, linear).
+
+    Returns:
+        Updated 13-element state vector.
+    """
     state[7] = velocity[0]
     state[8] = velocity[1]
     state[9] = velocity[2]
@@ -70,6 +139,19 @@ def get_link_velocity_in_com_frame_func(
     link_pose_w: wp.transformf,
     body_com_pose_b: wp.transformf,
 ):
+    """Compute COM velocity from link velocity by accounting for the COM offset.
+
+    Transforms a link-frame spatial velocity into a COM-frame velocity by adding
+    the cross-product contribution of the COM offset rotated into the world frame.
+
+    Args:
+        link_velocity_w: Link spatial velocity in world frame (angular, linear).
+        link_pose_w: Link pose in world frame.
+        body_com_pose_b: COM pose in body (link) frame.
+
+    Returns:
+        COM spatial velocity in world frame (angular, linear).
+    """
     return wp.spatial_vector(
         wp.spatial_top(link_velocity_w) + wp.cross(wp.spatial_bottom(link_velocity_w),
         wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b))),
@@ -81,6 +163,18 @@ def get_com_pose_in_link_frame_func(
     com_pose_w: wp.transformf,
     com_pose_b: wp.transformf,
 ):
+    """Compute link pose in world frame from COM pose by inverting the body-frame COM offset.
+
+    This is the inverse of ``get_com_pose_from_link_pose_func``. Given the COM pose in
+    world frame and the COM offset in body frame, it recovers the link pose in world frame.
+
+    Args:
+        com_pose_w: COM pose in world frame.
+        com_pose_b: COM pose in body (link) frame.
+
+    Returns:
+        Link pose in world frame.
+    """
     T2 = wp.transform(
         wp.quat_rotate(wp.quat_inverse(wp.transform_get_rotation(com_pose_b)),
         - wp.transform_get_translation(com_pose_b)), wp.quat_inverse(wp.transform_get_rotation(com_pose_b))
@@ -88,7 +182,9 @@ def get_com_pose_in_link_frame_func(
     link_pose_w = com_pose_w * T2
     return link_pose_w
 
-# ---- Root-level @wp.kernel (1D — used by RigidObject + Articulation) ----
+"""
+Root-level @wp.kernel (1D — used by RigidObject + Articulation).
+"""
 
 @wp.kernel
 def get_root_link_vel_from_root_com_vel(
@@ -152,7 +248,9 @@ def concat_root_pose_and_vel_to_state(
     i = wp.tid()
     state[i] = concat_pose_and_vel_to_state_func(pose[i], vel[i])
 
-# ---- Body-level @wp.kernel (2D — used by Articulation + RigidObjectCollection) ----
+"""
+Body-level @wp.kernel (2D — used by Articulation + RigidObjectCollection).
+"""
 
 @wp.kernel
 def get_body_link_vel_from_body_com_vel(
@@ -215,7 +313,9 @@ def concat_body_pose_and_vel_to_state(
     i, j = wp.tid()
     state[i, j] = concat_pose_and_vel_to_state_func(pose[i, j], vel[i, j])
 
-# ---- Derived property kernels ----
+"""
+Derived property kernels.
+"""
 
 @wp.kernel
 def quat_apply_inverse_1D_kernel(
@@ -295,7 +395,9 @@ def body_heading_w(
     i, j = wp.tid()
     heading_w[i, j] = compute_heading_w_func(forward_vec[i, j], quat[i, j])
 
-# ---- Root-level write kernels (1D — used by RigidObject + Articulation) ----
+"""
+Root-level write kernels (1D — used by RigidObject + Articulation).
+"""
 
 @wp.kernel
 def set_root_link_pose_to_sim(
@@ -509,7 +611,9 @@ def set_root_link_velocity_to_sim(
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-# ---- Body-level write kernels (2D — used by RigidObjectCollection) ----
+"""
+Body-level write kernels (2D — used by RigidObjectCollection).
+"""
 
 @wp.kernel
 def set_body_link_pose_to_sim(
@@ -721,7 +825,9 @@ def set_body_link_velocity_to_sim(
     # Make the acceleration zero to prevent reporting old values
     body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-# ---- Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObjectCollection) ----
+"""
+Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObjectCollection).
+"""
 
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
