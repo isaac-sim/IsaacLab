@@ -10,13 +10,14 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.imu import BaseImu
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .imu_data import ImuData
 

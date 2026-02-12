@@ -789,7 +789,8 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
             [[0.0, 0.0, -shape.cfg.spawn.radius]], device=sensor._data.pos_w.device
         )
         assert torch.all(
-            torch.abs(torch.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), p=2, dim=-1)) < 1e-2
+            torch.abs(torch.linalg.norm(sensor._data.contact_pos_w - contact_position.unsqueeze(1), ord=2, dim=-1))
+            < 1e-2
         ).item()
     elif mode == ContactTestMode.NON_CONTACT:
         assert torch.all(torch.isnan(sensor._data.contact_pos_w)).item()

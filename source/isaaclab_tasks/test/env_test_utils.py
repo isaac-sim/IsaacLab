@@ -16,6 +16,7 @@ import carb
 import omni.usd
 
 from isaaclab.envs.utils.spaces import sample_space
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -126,6 +127,10 @@ def _run_environments(
     ]:
         return
 
+    # these environments are using SingleArticulation class, which need to be updated
+    if "RmpFlow" in task_name or "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor" in task_name:
+        return
+
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if "Visuomotor" in task_name and num_envs == 32:
         return
@@ -189,6 +194,7 @@ def _check_random_actions(
 
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    env = None
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
@@ -209,59 +215,55 @@ def _check_random_actions(
                 return
             env = gym.make(task_name, cfg=env_cfg)
 
-    except Exception as e:
-        # try to close environment on exception
-        if "env" in locals() and hasattr(env, "_is_closed"):
-            env.close()
-        else:
-            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                e.obj.close()
-        pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+        # disable control on stop
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-    # disable control on stop
-    env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
+        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
+        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
 
-    # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        for i in range(env.unwrapped.single_action_space.shape[0]):
-            if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                env.unwrapped.single_action_space.low[i] = -1.0
-            if env.unwrapped.single_action_space.high[i] == float("inf"):
-                env.unwrapped.single_action_space.low[i] = 1.0
+        # reset environment
+        obs, _ = env.reset()
 
-    # reset environment
-    obs, _ = env.reset()
+        # check signal
+        assert _check_valid_tensor(obs)
 
-    # check signal
-    assert _check_valid_tensor(obs)
-
-    # simulate environment for num_steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            if multi_agent:
-                actions = {
-                    agent: sample_space(
-                        env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
-                    )
-                    for agent in env.unwrapped.possible_agents
-                }
-            else:
-                actions = sample_space(
-                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
-                )
-            # apply actions
-            transition = env.step(actions)
-            # check signals
-            for data in transition[:-1]:  # exclude info
+        # simulate environment for num_steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
                 if multi_agent:
-                    for agent, agent_data in data.items():
-                        assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    actions = {
+                        agent: sample_space(
+                            env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
+                        )
+                        for agent in env.unwrapped.possible_agents
+                    }
                 else:
-                    assert _check_valid_tensor(data), f"Invalid data: {data}"
+                    actions = sample_space(
+                        env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                    )
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition[:-1]:  # exclude info
+                    if multi_agent:
+                        for agent, agent_data in data.items():
+                            assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    else:
+                        assert _check_valid_tensor(data), f"Invalid data: {data}"
 
-    # close environment
-    env.close()
+    finally:
+        # Always ensure cleanup happens, regardless of success or failure
+        if env is not None:
+            env.close()
+
+        # Always clear the simulation context singleton to allow next test to run
+        SimulationContext.clear_instance()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

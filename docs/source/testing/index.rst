@@ -10,3 +10,4 @@ This section covers testing utilities and patterns for Isaac Lab development.
 
    mock_interfaces
    micro_benchmarks
+   benchmarks

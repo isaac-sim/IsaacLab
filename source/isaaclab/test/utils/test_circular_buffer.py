@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import pytest
-import torch
-
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
@@ -13,7 +10,10 @@ from isaaclab.app import AppLauncher
 # launch omniverse app in headless mode
 simulation_app = AppLauncher(headless=True).app
 
-"""Rest everything follows from here."""
+"""Rest everything follows."""
+
+import pytest
+import torch
 
 from isaaclab.utils import CircularBuffer
 

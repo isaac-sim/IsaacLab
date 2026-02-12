@@ -15,12 +15,13 @@ import torch
 
 import carb
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .contact_sensor_data import ContactSensorData
 
@@ -301,7 +302,7 @@ class ContactSensor(BaseContactSensor):
             # since this function is called every frame, we can use the difference to get the elapsed time
             elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
             # -- check contact state of bodies
-            is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > self.cfg.force_threshold
+            is_contact = torch.linalg.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > self.cfg.force_threshold
             is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
             is_first_detached = (self._data.current_contact_time[env_ids] > 0) * ~is_contact
             # -- update the last contact time if body has just become in contact
@@ -397,7 +398,7 @@ class ContactSensor(BaseContactSensor):
             return
         # marker indices
         # 0: contact, 1: no contact
-        net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
+        net_contact_force_w = torch.linalg.norm(self._data.net_forces_w, dim=-1)
         marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
         if self.cfg.track_pose:

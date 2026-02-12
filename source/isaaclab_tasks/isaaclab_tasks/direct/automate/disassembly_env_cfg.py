@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 
@@ -107,7 +110,7 @@ class DisassemblyEnvCfg(DirectRLEnvCfg):
         device="cuda:0",
         dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
-        physx=PhysxCfg(
+        physics=PhysxCfg(
             solver_type=1,
             max_position_iteration_count=192,  # Important to avoid interpenetration.
             max_velocity_iteration_count=1,

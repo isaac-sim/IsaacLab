@@ -19,13 +19,7 @@ import pytest
 import torch
 import trimesh
 
-import omni.kit
-import omni.kit.commands
-from isaacsim.core.api.materials import PhysicsMaterial, PreviewSurface
-from isaacsim.core.api.objects import DynamicSphere
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import RigidPrim, SingleGeometryPrim, SingleRigidPrim
-from isaacsim.core.utils.extensions import enable_extension
 from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -174,13 +168,12 @@ def test_ball_drop(device):
         # Create a scene with rough terrain and balls
         _populate_scene(geom_sphere=False, sim=sim)
 
-        # Create a view over all the balls
-        ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
-
         # Play simulator
         sim.reset()
-        # Initialize the ball views for physics simulation
-        ball_view.initialize()
+
+        # Create a view over all the balls using PhysX view
+        physics_sim_view = sim.physics_manager.get_physics_sim_view()
+        ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
 
         # Run simulator
         for _ in range(500):
@@ -188,7 +181,8 @@ def test_ball_drop(device):
 
         # Ball may have some small non-zero velocity if the roll on terrain <~.2
         # If balls fall through terrain velocity is much higher ~82.0
-        max_velocity_z = torch.max(torch.abs(ball_view.get_linear_velocities()[:, 2]))
+        velocities = ball_view.get_velocities()
+        max_velocity_z = torch.max(torch.abs(velocities[:, 2]))
         assert max_velocity_z.item() <= 0.5
 
 
@@ -207,13 +201,12 @@ def test_ball_drop_geom_sphere(device):
         #   the issue is fixed.
         _populate_scene(geom_sphere=False, sim=sim)
 
-        # Create a view over all the balls
-        ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
-
         # Play simulator
         sim.reset()
-        # Initialize the ball views for physics simulation
-        ball_view.initialize()
+
+        # Create a view over all the balls using PhysX view
+        physics_sim_view = sim.physics_manager.get_physics_sim_view()
+        ball_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/ball")
 
         # Run simulator
         for _ in range(500):
@@ -221,7 +214,8 @@ def test_ball_drop_geom_sphere(device):
 
         # Ball may have some small non-zero velocity if the roll on terrain <~.2
         # If balls fall through terrain velocity is much higher ~82.0
-        max_velocity_z = torch.max(torch.abs(ball_view.get_linear_velocities()[:, 2]))
+        velocities = ball_view.get_velocities()
+        max_velocity_z = torch.max(torch.abs(velocities[:, 2]))
         assert max_velocity_z.item() <= 0.5
 
 
@@ -280,35 +274,41 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
 
     # Define the scene
-    # -- Ball
-    if geom_sphere:
-        # -- Ball physics
-        _ = DynamicSphere(
-            prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25
-        )
-    else:
-        # -- Ball geometry
-        enable_extension("omni.kit.primitive.mesh")
-        cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
-        sim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
-        # -- Ball physics
-        SingleRigidPrim(
-            prim_path="/World/envs/env_0/ball", mass=0.5, scale=(0.5, 0.5, 0.5), translation=(0.0, 0.0, 0.5)
-        )
-        SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
+    # -- Ball with physics properties using Isaac Lab spawners
+    ball_prim_path = "/World/envs/env_0/ball"
 
-    # -- Ball material
-    sphere_geom = SingleGeometryPrim(prim_path="/World/envs/env_0/ball", collision=True)
-    visual_material = PreviewSurface(prim_path="/World/Looks/ballColorMaterial", color=np.asarray([0.0, 0.0, 1.0]))
-    physics_material = PhysicsMaterial(
-        prim_path="/World/Looks/ballPhysicsMaterial",
-        dynamic_friction=1.0,
+    # Create physics material
+    physics_material_cfg = sim_utils.RigidBodyMaterialCfg(
         static_friction=0.2,
+        dynamic_friction=1.0,
         restitution=0.0,
     )
-    sphere_geom.set_collision_approximation("convexHull")
-    sphere_geom.apply_visual_material(visual_material)
-    sphere_geom.apply_physics_material(physics_material)
+
+    # Create visual material
+    visual_material_cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0))
+
+    if geom_sphere:
+        # Spawn a geom sphere with rigid body properties
+        sphere_cfg = sim_utils.SphereCfg(
+            radius=0.25,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=visual_material_cfg,
+            physics_material=physics_material_cfg,
+        )
+        sphere_cfg.func(ball_prim_path, sphere_cfg, translation=(0.0, 0.0, 5.0))
+    else:
+        # Spawn a mesh sphere with rigid body properties
+        mesh_sphere_cfg = sim_utils.MeshSphereCfg(
+            radius=0.25,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            visual_material=visual_material_cfg,
+            physics_material=physics_material_cfg,
+        )
+        mesh_sphere_cfg.func(ball_prim_path, mesh_sphere_cfg, translation=(0.0, 0.0, 0.5))
 
     # Clone the scene
     cloner.define_base_env("/World/envs")
@@ -318,16 +318,16 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         prim_paths=envs_prim_paths,
         replicate_physics=True,
     )
-    physics_scene_path = sim.get_physics_context().prim_path
+    physics_scene_path = sim.cfg.physics_prim_path
     cloner.filter_collisions(
         physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
 
     # Set ball positions over terrain origins
-    # Create a view over all the balls
-    ball_view = RigidPrim("/World/envs/env_.*/ball", reset_xform_properties=False)
+    # Create a view over all the balls using Isaac Lab's XformPrimView
+    ball_view = sim_utils.XformPrimView("/World/envs/env_.*/ball")
     # cache initial state of the balls
-    ball_initial_positions = terrain_importer.env_origins
+    ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0
     # set initial poses
     # note: setting here writes to USD :)

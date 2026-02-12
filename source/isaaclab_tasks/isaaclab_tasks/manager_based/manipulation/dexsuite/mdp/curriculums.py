@@ -101,8 +101,8 @@ class DifficultyScheduler(ManagerTermBase):
         pos_err, rot_err = compute_pose_error(
             des_pos_w, des_quat_w, object.data.root_pos_w[env_ids], object.data.root_quat_w[env_ids]
         )
-        pos_dist = torch.norm(pos_err, dim=1)
-        rot_dist = torch.norm(rot_err, dim=1)
+        pos_dist = torch.linalg.norm(pos_err, dim=1)
+        rot_dist = torch.linalg.norm(rot_err, dim=1)
         move_up = (pos_dist < pos_tol) & (rot_dist < rot_tol) if rot_tol else pos_dist < pos_tol
         demot = self.current_adr_difficulties[env_ids] if promotion_only else self.current_adr_difficulties[env_ids] - 1
         self.current_adr_difficulties[env_ids] = torch.where(

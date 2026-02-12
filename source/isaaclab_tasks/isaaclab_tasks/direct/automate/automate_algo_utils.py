@@ -201,7 +201,7 @@ def check_plug_close_to_socket(keypoints_plug, keypoints_socket, dist_threshold,
     """Check if plug is close to socket."""
 
     # Compute keypoint distance between plug and socket
-    keypoint_dist = torch.norm(keypoints_socket - keypoints_plug, p=2, dim=-1)
+    keypoint_dist = torch.linalg.norm(keypoints_socket - keypoints_plug, ord=2, dim=-1)
 
     # Check if keypoint distance is below threshold
     is_plug_close_to_socket = torch.where(

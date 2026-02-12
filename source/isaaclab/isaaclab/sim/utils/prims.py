@@ -180,7 +180,6 @@ def create_prim(
         # this means that user provided pose in the world frame
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
 
-    print(f"translation: {translation}, orientation: {orientation}, scale: {scale}")
     # standardize the xform ops
     standardize_xform_ops(prim, translation, orientation, scale)
 

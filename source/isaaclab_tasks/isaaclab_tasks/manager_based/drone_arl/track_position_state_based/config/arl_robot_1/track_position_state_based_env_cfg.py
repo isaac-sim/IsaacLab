@@ -6,6 +6,8 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -226,4 +228,4 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         )
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15
+        self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)

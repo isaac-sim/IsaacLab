@@ -31,7 +31,7 @@ def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg:
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
     curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
-    return torch.norm(curr_pos_w - des_pos_w, dim=1)
+    return torch.linalg.norm(curr_pos_w - des_pos_w, dim=1)
 
 
 def position_command_error_tanh(
@@ -49,7 +49,7 @@ def position_command_error_tanh(
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
     curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
-    distance = torch.norm(curr_pos_w - des_pos_w, dim=1)
+    distance = torch.linalg.norm(curr_pos_w - des_pos_w, dim=1)
     return 1 - torch.tanh(distance / std)
 
 

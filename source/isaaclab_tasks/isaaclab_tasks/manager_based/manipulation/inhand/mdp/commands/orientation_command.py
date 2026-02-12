@@ -99,7 +99,7 @@ class InHandReOrientationCommand(CommandTerm):
             self.object.data.root_quat_w, self.quat_command_w
         )
         # -- compute the position error
-        self.metrics["position_error"] = torch.norm(self.object.data.root_pos_w - self.pos_command_w, dim=1)
+        self.metrics["position_error"] = torch.linalg.norm(self.object.data.root_pos_w - self.pos_command_w, dim=1)
         # -- compute the number of consecutive successes
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
         self.metrics["consecutive_success"] += successes.float()

@@ -31,7 +31,7 @@ XRCore = None
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore
 
-from isaacsim.core.prims import SingleXFormPrim
+import isaaclab.sim as sim_utils
 
 from .manus_vive_utils import HAND_JOINT_MAP, ManusViveIntegration
 
@@ -92,10 +92,16 @@ class ManusVive(DeviceBase):
         self._previous_joint_poses_right = {name: default_pose.copy() for name in HAND_JOINT_NAMES}
         self._previous_headpose = default_pose.copy()
 
-        xr_anchor = SingleXFormPrim("/XRAnchor", position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot)
+        xr_anchor_prim_path = "/XRAnchor"
+        sim_utils.create_prim(
+            xr_anchor_prim_path,
+            prim_type="Xform",
+            position=self._xr_cfg.anchor_pos,
+            orientation=self._xr_cfg.anchor_rot,
+        )
         carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
         carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
-        carb.settings.get_settings().set_string("/xrstage/customAnchor", xr_anchor.prim_path)
+        carb.settings.get_settings().set_string("/xrstage/customAnchor", xr_anchor_prim_path)
 
     def __del__(self):
         """Clean up resources when the object is destroyed.

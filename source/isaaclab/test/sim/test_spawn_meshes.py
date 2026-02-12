@@ -34,8 +34,6 @@ def sim():
     # Cleanup
     sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

@@ -336,7 +336,7 @@ def main():
             # step env
             obs, _ = env.step(target_position)
             # print mean squared position error between target and current position
-            error = torch.norm(obs["policy"] - target_position).mean().item()
+            error = torch.linalg.norm(obs["policy"] - target_position).mean().item()
             print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
             # update counter
             count += 1
