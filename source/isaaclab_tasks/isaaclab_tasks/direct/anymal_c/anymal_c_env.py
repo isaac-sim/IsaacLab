@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -75,7 +76,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
-        self._processed_actions = self.cfg.action_scale * self._actions + self._robot.data.default_joint_pos
+        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(self._robot.data.default_joint_pos)
 
     def _apply_action(self):
         self._robot.set_joint_position_target(self._processed_actions)
@@ -91,12 +92,12 @@ class AnymalCEnv(DirectRLEnv):
             [
                 tensor
                 for tensor in (
-                    self._robot.data.root_lin_vel_b,
-                    self._robot.data.root_ang_vel_b,
-                    self._robot.data.projected_gravity_b,
+                    wp.to_torch(self._robot.data.root_lin_vel_b),
+                    wp.to_torch(self._robot.data.root_ang_vel_b),
+                    wp.to_torch(self._robot.data.projected_gravity_b),
                     self._commands,
-                    self._robot.data.joint_pos - self._robot.data.default_joint_pos,
-                    self._robot.data.joint_vel,
+                    wp.to_torch(self._robot.data.joint_pos) - wp.to_torch(self._robot.data.default_joint_pos),
+                    wp.to_torch(self._robot.data.joint_vel),
                     height_data,
                     self._actions,
                 )
@@ -109,19 +110,19 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         # linear velocity tracking
-        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b[:, :2]), dim=1)
+        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1)
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
         # yaw rate tracking
-        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b[:, 2])
+        yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         # z velocity tracking
-        z_vel_error = torch.square(self._robot.data.root_lin_vel_b[:, 2])
+        z_vel_error = torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)[:, 2])
         # angular velocity x/y
-        ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b[:, :2]), dim=1)
+        ang_vel_error = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)[:, :2]), dim=1)
         # joint torques
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque), dim=1)
+        joint_torques = torch.sum(torch.square(wp.to_torch(self._robot.data.applied_torque)), dim=1)
         # joint acceleration
-        joint_accel = torch.sum(torch.square(self._robot.data.joint_acc), dim=1)
+        joint_accel = torch.sum(torch.square(wp.to_torch(self._robot.data.joint_acc)), dim=1)
         # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         # feet air time
@@ -138,7 +139,7 @@ class AnymalCEnv(DirectRLEnv):
         )
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation
-        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b[:, :2]), dim=1)
+        flat_orientation = torch.sum(torch.square(wp.to_torch(self._robot.data.projected_gravity_b)[:, :2]), dim=1)
 
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -168,7 +169,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self._robot._ALL_INDICES
+            env_ids = wp.to_torch(self._robot._ALL_INDICES)
         self._robot.reset(env_ids)
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
@@ -179,9 +180,9 @@ class AnymalCEnv(DirectRLEnv):
         # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         # Reset robot state
-        joint_pos = self._robot.data.default_joint_pos[env_ids]
-        joint_vel = self._robot.data.default_joint_vel[env_ids]
-        default_root_state = self._robot.data.default_root_state[env_ids]
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
+        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
+        default_root_state = wp.to_torch(self._robot.data.default_root_state)[env_ids]
         default_root_state[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)

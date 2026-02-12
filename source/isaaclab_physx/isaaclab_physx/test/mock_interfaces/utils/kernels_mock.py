@@ -11,81 +11,29 @@ import warp as wp
 
 
 @wp.kernel
-def init_identity_transforms_1d(out: wp.array(dtype=wp.transformf)):
-    """Initialize 1D array of transforms to identity (zero position, identity quaternion).
-
-    Args:
-        out: Output array of shape (N,) to initialize.
-    """
+def init_identity_transforms_1d_flat(out: wp.array2d(dtype=wp.float32)):
+    """Initialize (N, 7) float32 array: pos=0, quat=(0,0,0,1)."""
     i = wp.tid()
-    out[i] = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))
+    out[i, 0] = 0.0
+    out[i, 1] = 0.0
+    out[i, 2] = 0.0
+    out[i, 3] = 0.0
+    out[i, 4] = 0.0
+    out[i, 5] = 0.0
+    out[i, 6] = 1.0
 
 
 @wp.kernel
-def init_identity_transforms_2d(out: wp.array2d(dtype=wp.transformf)):
-    """Initialize 2D array of transforms to identity (zero position, identity quaternion).
-
-    Args:
-        out: Output array of shape (N, L) to initialize.
-    """
+def init_identity_transforms_2d_flat(out: wp.array3d(dtype=wp.float32)):
+    """Initialize (N, L, 7) float32 array: pos=0, quat=(0,0,0,1)."""
     i, j = wp.tid()
-    out[i, j] = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))
-
-
-@wp.kernel
-def init_zero_spatial_vectors_1d(out: wp.array(dtype=wp.spatial_vectorf)):
-    """Initialize 1D array of spatial vectors to zero.
-
-    Args:
-        out: Output array of shape (N,) to initialize.
-    """
-    i = wp.tid()
-    out[i] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
-
-@wp.kernel
-def init_zero_spatial_vectors_2d(out: wp.array2d(dtype=wp.spatial_vectorf)):
-    """Initialize 2D array of spatial vectors to zero.
-
-    Args:
-        out: Output array of shape (N, L) to initialize.
-    """
-    i, j = wp.tid()
-    out[i, j] = wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
-
-@wp.kernel
-def scatter_transforms_1d(
-    src: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
-    dst: wp.array(dtype=wp.transformf),
-):
-    """Scatter transforms from src to dst at specified indices.
-
-    Args:
-        src: Source transforms, shape (M,).
-        indices: Target indices in dst, shape (M,).
-        dst: Destination transforms, shape (N,) where N >= max(indices).
-    """
-    i = wp.tid()
-    dst[indices[i]] = src[i]
-
-
-@wp.kernel
-def scatter_spatial_vectors_1d(
-    src: wp.array(dtype=wp.spatial_vectorf),
-    indices: wp.array(dtype=wp.int32),
-    dst: wp.array(dtype=wp.spatial_vectorf),
-):
-    """Scatter spatial vectors from src to dst at specified indices.
-
-    Args:
-        src: Source spatial vectors, shape (M,).
-        indices: Target indices in dst, shape (M,).
-        dst: Destination spatial vectors, shape (N,) where N >= max(indices).
-    """
-    i = wp.tid()
-    dst[indices[i]] = src[i]
+    out[i, j, 0] = 0.0
+    out[i, j, 1] = 0.0
+    out[i, j, 2] = 0.0
+    out[i, j, 3] = 0.0
+    out[i, j, 4] = 0.0
+    out[i, j, 5] = 0.0
+    out[i, j, 6] = 1.0
 
 
 @wp.kernel
@@ -103,54 +51,6 @@ def scatter_floats_2d(
     """
     i, j = wp.tid()
     dst[indices[i], j] = src[i, j]
-
-
-@wp.kernel
-def copy_transforms_1d(src: wp.array(dtype=wp.transformf), dst: wp.array(dtype=wp.transformf)):
-    """Copy transforms from src to dst.
-
-    Args:
-        src: Source transforms, shape (N,).
-        dst: Destination transforms, shape (N,).
-    """
-    i = wp.tid()
-    dst[i] = src[i]
-
-
-@wp.kernel
-def copy_spatial_vectors_1d(src: wp.array(dtype=wp.spatial_vectorf), dst: wp.array(dtype=wp.spatial_vectorf)):
-    """Copy spatial vectors from src to dst.
-
-    Args:
-        src: Source spatial vectors, shape (N,).
-        dst: Destination spatial vectors, shape (N,).
-    """
-    i = wp.tid()
-    dst[i] = src[i]
-
-
-@wp.kernel
-def copy_transforms_2d(src: wp.array2d(dtype=wp.transformf), dst: wp.array2d(dtype=wp.transformf)):
-    """Copy 2D transforms from src to dst.
-
-    Args:
-        src: Source transforms, shape (N, L).
-        dst: Destination transforms, shape (N, L).
-    """
-    i, j = wp.tid()
-    dst[i, j] = src[i, j]
-
-
-@wp.kernel
-def copy_spatial_vectors_2d(src: wp.array2d(dtype=wp.spatial_vectorf), dst: wp.array2d(dtype=wp.spatial_vectorf)):
-    """Copy 2D spatial vectors from src to dst.
-
-    Args:
-        src: Source spatial vectors, shape (N, L).
-        dst: Destination spatial vectors, shape (N, L).
-    """
-    i, j = wp.tid()
-    dst[i, j] = src[i, j]
 
 
 @wp.kernel

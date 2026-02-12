@@ -3,13 +3,24 @@ import warp as wp
 
 from ..kernels import *
 
-# ---- Articulation-specific @wp.func helpers ----
+"""
+Articulation-specific warp functions.
+"""
 
 @wp.func
 def compute_soft_joint_pos_limits_func(
     joint_pos_limits: wp.vec2f,
     soft_limit_factor: wp.float32,
 ):
+    """Compute the soft joint position limits.
+    
+    Args:
+        joint_pos_limits: The joint position limits.
+        soft_limit_factor: The soft limit factor.
+    
+    Returns:
+        The soft joint position limits.
+    """
     joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
     joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
     return wp.vec2f(
@@ -17,7 +28,9 @@ def compute_soft_joint_pos_limits_func(
         joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
     )
 
-# ---- Articulation-specific @wp.kernel ----
+"""
+Articulation-specific warp kernels.
+"""
 
 @wp.kernel
 def get_joint_acc_from_joint_vel(
@@ -26,6 +39,14 @@ def get_joint_acc_from_joint_vel(
     joint_acc: wp.array2d(dtype=wp.float32),
     dt: wp.float32,
 ):
+    """Compute the joint acceleration from the joint velocity.
+    
+    Args:
+        joint_vel: The joint velocity.
+        prev_joint_vel: The previous joint velocity.
+        joint_acc: The joint acceleration.
+        dt: The time step.
+    """
     i, j = wp.tid()
     joint_acc[i, j] = (joint_vel[i, j] - prev_joint_vel[i, j]) / dt
     prev_joint_vel[i, j] = joint_vel[i, j]
@@ -40,6 +61,19 @@ def write_joint_vel_data(
     joint_ids: wp.array(dtype=wp.int32),
     from_mask: bool,
 ):
+    """Write the joint velocity data to the buffer.
+
+    This kernel also updates the previous joint velocity and sets the joint acceleration to 0.0.
+    
+    Args:
+        in_data: The joint velocity data.
+        joint_vel: The joint velocity.
+        prev_joint_vel: The previous joint velocity.
+        joint_acc: The joint acceleration.
+        env_ids: The environment indices.
+        joint_ids: The joint indices.
+        from_mask: Whether to use a mask.
+    """
     i,j = wp.tid()
     if from_mask:
         joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
@@ -62,6 +96,19 @@ def write_joint_limit_data_to_buffer(
     from_mask: bool,
     clamped_defaults: bool,
 ):
+    """Write the joint limit data to the buffer.
+    
+    Args:
+        in_data: The joint limit data.
+        soft_limit_factor: The soft limit factor.
+        joint_pos_limits: The joint position limits.
+        soft_joint_pos_limits: The soft joint position limits.
+        default_joint_pos: The default joint position.
+        env_ids: The environment indices.
+        joint_ids: The joint indices.
+        from_mask: Whether to use a mask.
+        clamped_defaults: Whether the default joint positions are clamped.
+    """
     i, j = wp.tid()
     if from_mask:
         joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
