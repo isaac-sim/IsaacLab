@@ -14,13 +14,14 @@ class MockRigidContactViewWarp:
     """Mock implementation of physx.RigidContactView using Warp arrays for unit testing.
 
     This class mimics the interface of the PhysX TensorAPI RigidContactView using
-    Warp structured types, allowing tests to run without Isaac Sim or GPU simulation.
+    flat float32 arrays (matching real PhysX behavior), allowing tests to run
+    without Isaac Sim or GPU simulation.
 
-    Data Shapes (using Warp types):
-        - net_contact_forces: (N*B,) dtype=wp.vec3f - flattened net forces
-        - contact_force_matrix: (N*B, F) dtype=wp.vec3f - per-filter forces
-        - contact_data: tuple of arrays with vec3f for positions/normals/impulses
-        - friction_data: tuple of arrays with vec3f for forces/impulses/points
+    Data Shapes (flat float32, matching real PhysX views):
+        - net_contact_forces: (N*B, 3) dtype=wp.float32 - flattened net forces
+        - contact_force_matrix: (N*B, F, 3) dtype=wp.float32 - per-filter forces
+        - contact_data: tuple of arrays with float32 for positions/normals/impulses
+        - friction_data: tuple of arrays with float32 for forces/impulses/points
 
     Where:
         - N = count (number of instances)
@@ -95,10 +96,10 @@ class MockRigidContactViewWarp:
             dt: Physics timestep (unused in mock, but required for API compatibility).
 
         Returns:
-            Warp array of shape (N*B,) with dtype=wp.vec3f.
+            Warp array of shape (N*B, 3) with dtype=wp.float32.
         """
         if self._net_contact_forces is None:
-            self._net_contact_forces = wp.zeros(self._total_bodies, dtype=wp.vec3f, device=self._device)
+            self._net_contact_forces = wp.zeros((self._total_bodies, 3), dtype=wp.float32, device=self._device)
         return wp.clone(self._net_contact_forces)
 
     def get_contact_force_matrix(self, dt: float) -> wp.array:
@@ -108,11 +109,11 @@ class MockRigidContactViewWarp:
             dt: Physics timestep (unused in mock, but required for API compatibility).
 
         Returns:
-            Warp array of shape (N*B, F) with dtype=wp.vec3f.
+            Warp array of shape (N*B, F, 3) with dtype=wp.float32.
         """
         if self._contact_force_matrix is None:
             self._contact_force_matrix = wp.zeros(
-                (self._total_bodies, self._filter_count), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, self._filter_count, 3), dtype=wp.float32, device=self._device
             )
         return wp.clone(self._contact_force_matrix)
 
@@ -126,9 +127,9 @@ class MockRigidContactViewWarp:
 
         Returns:
             Tuple of 6 arrays:
-                - contact_positions: (N*B, max_contacts) dtype=wp.vec3f
-                - contact_normals: (N*B, max_contacts) dtype=wp.vec3f
-                - contact_impulses: (N*B, max_contacts) dtype=wp.vec3f
+                - contact_positions: (N*B, max_contacts, 3) dtype=wp.float32
+                - contact_normals: (N*B, max_contacts, 3) dtype=wp.float32
+                - contact_impulses: (N*B, max_contacts, 3) dtype=wp.float32
                 - contact_separations: (N*B, max_contacts) dtype=wp.float32
                 - contact_num_found: (N*B,) dtype=wp.int32
                 - contact_patch_id: (N*B, max_contacts) dtype=wp.int32
@@ -137,15 +138,15 @@ class MockRigidContactViewWarp:
 
         if self._contact_positions is None:
             self._contact_positions = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._contact_normals is None:
             self._contact_normals = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._contact_impulses is None:
             self._contact_impulses = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._contact_separations is None:
             self._contact_separations = wp.zeros(
@@ -175,24 +176,24 @@ class MockRigidContactViewWarp:
 
         Returns:
             Tuple of 4 arrays:
-                - friction_forces: (N*B, max_contacts) dtype=wp.vec3f
-                - friction_impulses: (N*B, max_contacts) dtype=wp.vec3f
-                - friction_points: (N*B, max_contacts) dtype=wp.vec3f
+                - friction_forces: (N*B, max_contacts, 3) dtype=wp.float32
+                - friction_impulses: (N*B, max_contacts, 3) dtype=wp.float32
+                - friction_points: (N*B, max_contacts, 3) dtype=wp.float32
                 - friction_patch_id: (N*B, max_contacts) dtype=wp.int32
         """
         max_contacts = self._max_contact_data_count
 
         if self._friction_forces is None:
             self._friction_forces = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._friction_impulses is None:
             self._friction_impulses = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._friction_points is None:
             self._friction_points = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.vec3f, device=self._device
+                (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._friction_patch_id is None:
             self._friction_patch_id = wp.zeros(
@@ -212,7 +213,7 @@ class MockRigidContactViewWarp:
         """Set mock net contact force data directly for testing.
 
         Args:
-            forces: Warp array of shape (N*B,) with dtype=wp.vec3f.
+            forces: Warp array of shape (N*B, 3) with dtype=wp.float32.
         """
         self._net_contact_forces = wp.clone(forces)
         if self._net_contact_forces.device.alias != self._device:
@@ -222,7 +223,7 @@ class MockRigidContactViewWarp:
         """Set mock contact force matrix data directly for testing.
 
         Args:
-            matrix: Warp array of shape (N*B, F) with dtype=wp.vec3f.
+            matrix: Warp array of shape (N*B, F, 3) with dtype=wp.float32.
         """
         self._contact_force_matrix = wp.clone(matrix)
         if self._contact_force_matrix.device.alias != self._device:
@@ -240,9 +241,9 @@ class MockRigidContactViewWarp:
         """Set mock contact data directly for testing.
 
         Args:
-            positions: Contact positions, shape (N*B, max_contacts) dtype=wp.vec3f.
-            normals: Contact normals, shape (N*B, max_contacts) dtype=wp.vec3f.
-            impulses: Contact impulses, shape (N*B, max_contacts) dtype=wp.vec3f.
+            positions: Contact positions, shape (N*B, max_contacts, 3) dtype=wp.float32.
+            normals: Contact normals, shape (N*B, max_contacts, 3) dtype=wp.float32.
+            impulses: Contact impulses, shape (N*B, max_contacts, 3) dtype=wp.float32.
             separations: Contact separations, shape (N*B, max_contacts) dtype=wp.float32.
             num_found: Number of contacts found, shape (N*B,) dtype=wp.int32.
             patch_id: Contact patch IDs, shape (N*B, max_contacts) dtype=wp.int32.
@@ -282,9 +283,9 @@ class MockRigidContactViewWarp:
         """Set mock friction data directly for testing.
 
         Args:
-            forces: Friction forces, shape (N*B, max_contacts) dtype=wp.vec3f.
-            impulses: Friction impulses, shape (N*B, max_contacts) dtype=wp.vec3f.
-            points: Friction application points, shape (N*B, max_contacts) dtype=wp.vec3f.
+            forces: Friction forces, shape (N*B, max_contacts, 3) dtype=wp.float32.
+            impulses: Friction impulses, shape (N*B, max_contacts, 3) dtype=wp.float32.
+            points: Friction application points, shape (N*B, max_contacts, 3) dtype=wp.float32.
             patch_id: Friction patch IDs, shape (N*B, max_contacts) dtype=wp.int32.
         """
         if forces is not None:

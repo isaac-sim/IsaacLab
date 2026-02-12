@@ -10,17 +10,10 @@ from __future__ import annotations
 import warp as wp
 
 from ..utils.kernels_mock import (
-    copy_spatial_vectors_1d,
-    copy_spatial_vectors_2d,
-    copy_transforms_1d,
-    copy_transforms_2d,
     init_identity_inertias_2d,
-    init_identity_transforms_1d,
-    init_identity_transforms_2d,
-    init_zero_spatial_vectors_1d,
-    init_zero_spatial_vectors_2d,
-    scatter_spatial_vectors_1d,
-    scatter_transforms_1d,
+    init_identity_transforms_1d_flat,
+    init_identity_transforms_2d_flat,
+    scatter_floats_2d,
 )
 from ..utils.mock_shared_metatype import MockSharedMetatype
 
@@ -29,27 +22,26 @@ class MockArticulationViewWarp:
     """Mock implementation of physx.ArticulationView using Warp arrays for unit testing.
 
     This class mimics the interface of the PhysX TensorAPI ArticulationView using
-    Warp structured types, allowing tests to run without Isaac Sim or GPU simulation.
+    flat float32 arrays (matching real PhysX behavior), allowing tests to run
+    without Isaac Sim or GPU simulation.
 
-    Data Shapes (using Warp types):
-        - root_transforms: (N,) dtype=wp.transformf - [pos(3), quat_xyzw(4)]
-        - root_velocities: (N,) dtype=wp.spatial_vectorf - [ang_vel(3), lin_vel(3)]
-        - link_transforms: (N, L) dtype=wp.transformf - per-link poses
-        - link_velocities: (N, L) dtype=wp.spatial_vectorf - per-link velocities
+    Data Shapes (flat float32, matching real PhysX views):
+        - root_transforms: (N, 7) dtype=wp.float32 - [pos(3), quat_xyzw(4)]
+        - root_velocities: (N, 6) dtype=wp.float32 - [ang_vel(3), lin_vel(3)]
+        - link_transforms: (N, L, 7) dtype=wp.float32 - per-link poses
+        - link_velocities: (N, L, 6) dtype=wp.float32 - per-link velocities
+        - link_accelerations: (N, L, 6) dtype=wp.float32 - per-link accelerations
+        - link_incoming_joint_force: (N, L, 6) dtype=wp.float32 - per-link forces
         - dof_positions: (N, J) dtype=wp.float32 - joint positions
         - dof_velocities: (N, J) dtype=wp.float32 - joint velocities
         - dof_limits: (N, J, 2) dtype=wp.float32 - [lower, upper] limits
         - dof_stiffnesses: (N, J) dtype=wp.float32 - joint stiffnesses
         - dof_dampings: (N, J) dtype=wp.float32 - joint dampings
         - masses: (N, L) dtype=wp.float32 - per-link masses
-        - coms: (N, L) dtype=wp.transformf - per-link centers of mass
+        - coms: (N, L, 7) dtype=wp.float32 - per-link centers of mass
         - inertias: (N, L, 9) dtype=wp.float32 - per-link inertia tensors (flattened)
 
     Where N = count, L = num_links, J = num_dofs
-
-    Note:
-        wp.spatial_vectorf stores [angular(3), linear(3)] which differs from
-        torch's [linear(3), angular(3)] convention.
     """
 
     def __init__(
@@ -130,53 +122,34 @@ class MockArticulationViewWarp:
                 "Joint and body properties must be set with CPU arrays."
             )
 
-    def _create_identity_transforms_1d(self, count: int) -> wp.array:
-        """Create 1D array of identity transforms."""
-        arr = wp.zeros(count, dtype=wp.transformf, device=self._device)
-        wp.launch(init_identity_transforms_1d, dim=count, inputs=[arr], device=self._device)
+    def _create_identity_transforms_1d(self, count: int, device: str | None = None) -> wp.array:
+        """Create 1D array of identity transforms as (count, 7) float32."""
+        dev = device or self._device
+        arr = wp.zeros((count, 7), dtype=wp.float32, device=dev)
+        wp.launch(init_identity_transforms_1d_flat, dim=count, inputs=[arr], device=dev)
         return arr
 
-    def _create_identity_transforms_2d(self, count: int, num_links: int) -> wp.array:
-        """Create 2D array of identity transforms."""
-        arr = wp.zeros((count, num_links), dtype=wp.transformf, device=self._device)
-        wp.launch(init_identity_transforms_2d, dim=(count, num_links), inputs=[arr], device=self._device)
+    def _create_identity_transforms_2d(self, count: int, num_links: int, device: str | None = None) -> wp.array:
+        """Create 2D array of identity transforms as (count, num_links, 7) float32."""
+        dev = device or self._device
+        arr = wp.zeros((count, num_links, 7), dtype=wp.float32, device=dev)
+        wp.launch(init_identity_transforms_2d_flat, dim=(count, num_links), inputs=[arr], device=dev)
         return arr
 
-    def _create_zero_spatial_vectors_1d(self, count: int) -> wp.array:
-        """Create 1D array of zero spatial vectors."""
-        arr = wp.zeros(count, dtype=wp.spatial_vectorf, device=self._device)
-        wp.launch(init_zero_spatial_vectors_1d, dim=count, inputs=[arr], device=self._device)
-        return arr
+    @staticmethod
+    def _as_structured(flat: wp.array, dtype, shape: tuple) -> wp.array:
+        """Zero-copy reinterpretation of flat float32 array as structured type array.
 
-    def _create_zero_spatial_vectors_2d(self, count: int, num_links: int) -> wp.array:
-        """Create 2D array of zero spatial vectors."""
-        arr = wp.zeros((count, num_links), dtype=wp.spatial_vectorf, device=self._device)
-        wp.launch(init_zero_spatial_vectors_2d, dim=(count, num_links), inputs=[arr], device=self._device)
-        return arr
-
-    def _clone_transforms_1d(self, src: wp.array) -> wp.array:
-        """Clone a 1D transform array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_transforms_1d, dim=src.shape[0], inputs=[src, dst], device=self._device)
-        return dst
-
-    def _clone_transforms_2d(self, src: wp.array) -> wp.array:
-        """Clone a 2D transform array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_transforms_2d, dim=src.shape, inputs=[src, dst], device=self._device)
-        return dst
-
-    def _clone_spatial_vectors_1d(self, src: wp.array) -> wp.array:
-        """Clone a 1D spatial vector array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_spatial_vectors_1d, dim=src.shape[0], inputs=[src, dst], device=self._device)
-        return dst
-
-    def _clone_spatial_vectors_2d(self, src: wp.array) -> wp.array:
-        """Clone a 2D spatial vector array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_spatial_vectors_2d, dim=src.shape, inputs=[src, dst], device=self._device)
-        return dst
+        This is needed because real PhysX views return structured types (e.g. transformf)
+        and the data classes call .view() on the results (which requires same byte-size dtype).
+        """
+        return wp.array(
+            ptr=flat.ptr,
+            dtype=dtype,
+            shape=shape,
+            device=flat.device,
+            copy=False,
+        )
 
     # -- Properties --
 
@@ -211,21 +184,21 @@ class MockArticulationViewWarp:
         """Get world transforms of root links.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.transformf.
+            Warp array of shape (N,) with dtype=wp.transformf (matching real PhysX).
         """
         if self._root_transforms is None:
             self._root_transforms = self._create_identity_transforms_1d(self._count)
-        return self._clone_transforms_1d(self._root_transforms)
+        return wp.clone(self._as_structured(self._root_transforms, wp.transformf, (self._count,)))
 
     def get_root_velocities(self) -> wp.array:
         """Get velocities of root links.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.spatial_vectorf.
+            Warp array of shape (N,) with dtype=wp.spatial_vectorf (matching real PhysX).
         """
         if self._root_velocities is None:
-            self._root_velocities = self._create_zero_spatial_vectors_1d(self._count)
-        return self._clone_spatial_vectors_1d(self._root_velocities)
+            self._root_velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
+        return wp.clone(self._as_structured(self._root_velocities, wp.spatial_vectorf, (self._count,)))
 
     # -- Link Getters --
 
@@ -233,41 +206,55 @@ class MockArticulationViewWarp:
         """Get world transforms of all links.
 
         Returns:
-            Warp array of shape (N, L) with dtype=wp.transformf.
+            Warp array of shape (N, L) with dtype=wp.transformf (matching real PhysX).
         """
         if self._link_transforms is None:
             self._link_transforms = self._create_identity_transforms_2d(self._count, self._num_links)
-        return self._clone_transforms_2d(self._link_transforms)
+        return wp.clone(self._as_structured(
+            self._link_transforms, wp.transformf, (self._count, self._num_links)
+        ))
 
     def get_link_velocities(self) -> wp.array:
         """Get velocities of all links.
 
         Returns:
-            Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            Warp array of shape (N, L) with dtype=wp.spatial_vectorf (matching real PhysX).
         """
         if self._link_velocities is None:
-            self._link_velocities = self._create_zero_spatial_vectors_2d(self._count, self._num_links)
-        return self._clone_spatial_vectors_2d(self._link_velocities)
+            self._link_velocities = wp.zeros(
+                (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
+            )
+        return wp.clone(self._as_structured(
+            self._link_velocities, wp.spatial_vectorf, (self._count, self._num_links)
+        ))
 
     def get_link_accelerations(self) -> wp.array:
         """Get accelerations of all links.
 
         Returns:
-            Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            Warp array of shape (N, L) with dtype=wp.spatial_vectorf (matching real PhysX).
         """
         if self._link_accelerations is None:
-            self._link_accelerations = self._create_zero_spatial_vectors_2d(self._count, self._num_links)
-        return self._clone_spatial_vectors_2d(self._link_accelerations)
+            self._link_accelerations = wp.zeros(
+                (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
+            )
+        return wp.clone(self._as_structured(
+            self._link_accelerations, wp.spatial_vectorf, (self._count, self._num_links)
+        ))
 
     def get_link_incoming_joint_force(self) -> wp.array:
         """Get incoming joint forces for all links.
 
         Returns:
-            Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            Warp array of shape (N, L) with dtype=wp.spatial_vectorf (matching real PhysX).
         """
         if self._link_incoming_joint_force is None:
-            self._link_incoming_joint_force = self._create_zero_spatial_vectors_2d(self._count, self._num_links)
-        return self._clone_spatial_vectors_2d(self._link_incoming_joint_force)
+            self._link_incoming_joint_force = wp.zeros(
+                (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
+            )
+        return wp.clone(self._as_structured(
+            self._link_incoming_joint_force, wp.spatial_vectorf, (self._count, self._num_links)
+        ))
 
     # -- DOF Getters --
 
@@ -307,7 +294,7 @@ class MockArticulationViewWarp:
         """Get position limits of all DOFs.
 
         Returns:
-            Warp array of shape (N, J, 2) with dtype=wp.float32. Always on CPU.
+            Warp array of shape (N, J) with dtype=wp.vec2f (matching real PhysX). Always on CPU.
         """
         if self._dof_limits is None:
             import numpy as np
@@ -316,7 +303,9 @@ class MockArticulationViewWarp:
             limits[:, :, 0] = float("-inf")  # lower limit
             limits[:, :, 1] = float("inf")  # upper limit
             self._dof_limits = wp.array(limits, dtype=wp.float32, device="cpu")
-        return wp.clone(self._dof_limits)
+        return wp.clone(self._as_structured(
+            self._dof_limits, wp.vec2f, (self._count, self._num_dofs)
+        ))
 
     def get_dof_stiffnesses(self) -> wp.array:
         """Get stiffnesses of all DOFs.
@@ -412,19 +401,13 @@ class MockArticulationViewWarp:
         """Get centers of mass of all links.
 
         Returns:
-            Warp array of shape (N, L) with dtype=wp.transformf. Always on CPU.
+            Warp array of shape (N, L) with dtype=wp.transformf (matching real PhysX). Always on CPU.
         """
         if self._coms is None:
-            self._coms = wp.zeros((self._count, self._num_links), dtype=wp.transformf, device="cpu")
-            wp.launch(
-                init_identity_transforms_2d,
-                dim=(self._count, self._num_links),
-                inputs=[self._coms],
-                device="cpu",
-            )
-        dst = wp.zeros_like(self._coms)
-        wp.launch(copy_transforms_2d, dim=self._coms.shape, inputs=[self._coms, dst], device="cpu")
-        return dst
+            self._coms = self._create_identity_transforms_2d(self._count, self._num_links, device="cpu")
+        return wp.clone(self._as_structured(
+            self._coms, wp.transformf, (self._count, self._num_links)
+        ))
 
     def get_inertias(self) -> wp.array:
         """Get inertia tensors of all links.
@@ -452,15 +435,15 @@ class MockArticulationViewWarp:
         """Set world transforms of root links.
 
         Args:
-            transforms: Warp array of shape (N,) or (len(indices),) with dtype=wp.transformf.
+            transforms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._root_transforms is None:
             self._root_transforms = self._create_identity_transforms_1d(self._count)
         if indices is not None:
             wp.launch(
-                scatter_transforms_1d,
-                dim=indices.shape[0],
+                scatter_floats_2d,
+                dim=(indices.shape[0], 7),
                 inputs=[transforms, indices, self._root_transforms],
                 device=self._device,
             )
@@ -475,15 +458,15 @@ class MockArticulationViewWarp:
         """Set velocities of root links.
 
         Args:
-            velocities: Warp array of shape (N,) or (len(indices),) with dtype=wp.spatial_vectorf.
+            velocities: Warp array of shape (N, 6) or (len(indices), 6) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
         if self._root_velocities is None:
-            self._root_velocities = self._create_zero_spatial_vectors_1d(self._count)
+            self._root_velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_spatial_vectors_1d,
-                dim=indices.shape[0],
+                scatter_floats_2d,
+                dim=(indices.shape[0], 6),
                 inputs=[velocities, indices, self._root_velocities],
                 device=self._device,
             )
@@ -804,7 +787,7 @@ class MockArticulationViewWarp:
         """Set centers of mass of all links.
 
         Args:
-            coms: Warp array of shape (N, L) with dtype=wp.transformf. Must be on CPU.
+            coms: Warp array of shape (N, L, 7) with dtype=wp.float32. Must be on CPU.
             indices: Optional indices of articulations to update.
 
         Raises:
@@ -812,20 +795,13 @@ class MockArticulationViewWarp:
         """
         self._check_cpu_array(coms, "coms")
         if self._coms is None:
-            self._coms = wp.zeros((self._count, self._num_links), dtype=wp.transformf, device="cpu")
-            wp.launch(
-                init_identity_transforms_2d,
-                dim=(self._count, self._num_links),
-                inputs=[self._coms],
-                device="cpu",
-            )
+            self._coms = self._create_identity_transforms_2d(self._count, self._num_links, device="cpu")
         if indices is not None:
-            # For 2D transform arrays with indices, use numpy for scatter
             coms_np = coms.numpy()
             indices_np = indices.numpy()
             self_coms_np = self._coms.numpy()
             self_coms_np[indices_np] = coms_np
-            self._coms = wp.array(self_coms_np, dtype=wp.transformf, device="cpu")
+            self._coms = wp.array(self_coms_np, dtype=wp.float32, device="cpu")
         else:
             wp.copy(self._coms, coms)
 
@@ -867,7 +843,7 @@ class MockArticulationViewWarp:
         """Set mock root transform data directly for testing.
 
         Args:
-            transforms: Warp array of shape (N,) with dtype=wp.transformf.
+            transforms: Warp array of shape (N, 7) with dtype=wp.float32.
         """
         self._root_transforms = wp.clone(transforms)
         if self._root_transforms.device.alias != self._device:
@@ -877,7 +853,7 @@ class MockArticulationViewWarp:
         """Set mock root velocity data directly for testing.
 
         Args:
-            velocities: Warp array of shape (N,) with dtype=wp.spatial_vectorf.
+            velocities: Warp array of shape (N, 6) with dtype=wp.float32.
         """
         self._root_velocities = wp.clone(velocities)
         if self._root_velocities.device.alias != self._device:
@@ -887,7 +863,7 @@ class MockArticulationViewWarp:
         """Set mock link transform data directly for testing.
 
         Args:
-            transforms: Warp array of shape (N, L) with dtype=wp.transformf.
+            transforms: Warp array of shape (N, L, 7) with dtype=wp.float32.
         """
         self._link_transforms = wp.clone(transforms)
         if self._link_transforms.device.alias != self._device:
@@ -897,7 +873,7 @@ class MockArticulationViewWarp:
         """Set mock link velocity data directly for testing.
 
         Args:
-            velocities: Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            velocities: Warp array of shape (N, L, 6) with dtype=wp.float32.
         """
         self._link_velocities = wp.clone(velocities)
         if self._link_velocities.device.alias != self._device:
@@ -907,7 +883,7 @@ class MockArticulationViewWarp:
         """Set mock link acceleration data directly for testing.
 
         Args:
-            accelerations: Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            accelerations: Warp array of shape (N, L, 6) with dtype=wp.float32.
         """
         self._link_accelerations = wp.clone(accelerations)
         if self._link_accelerations.device.alias != self._device:
@@ -917,7 +893,7 @@ class MockArticulationViewWarp:
         """Set mock link incoming joint force data directly for testing.
 
         Args:
-            forces: Warp array of shape (N, L) with dtype=wp.spatial_vectorf.
+            forces: Warp array of shape (N, L, 6) with dtype=wp.float32.
         """
         self._link_incoming_joint_force = wp.clone(forces)
         if self._link_incoming_joint_force.device.alias != self._device:
@@ -1029,7 +1005,7 @@ class MockArticulationViewWarp:
         """Set mock center of mass data directly for testing.
 
         Args:
-            coms: Warp array of shape (N, L) with dtype=wp.transformf.
+            coms: Warp array of shape (N, L, 7) with dtype=wp.float32.
         """
         self._coms = wp.clone(coms)
 
@@ -1040,3 +1016,58 @@ class MockArticulationViewWarp:
             inertias: Warp array of shape (N, L, 9) with dtype=wp.float32.
         """
         self._inertias = wp.clone(inertias)
+
+    # -- Benchmark Utilities --
+
+    def set_random_mock_data(self) -> None:
+        """Set all internal state to random values for benchmarking.
+
+        This method initializes all mock data with random warp arrays,
+        useful for benchmarking where the actual values don't matter.
+        """
+        import numpy as np
+
+        N = self._count
+        L = self._num_links
+        J = self._num_dofs
+
+        # Root state - on device
+        root_tf = np.random.randn(N, 7).astype(np.float32)
+        root_tf[:, 3:7] /= np.linalg.norm(root_tf[:, 3:7], axis=-1, keepdims=True)
+        self._root_transforms = wp.array(root_tf, dtype=wp.float32, device=self._device)
+        self._root_velocities = wp.array(np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+
+        # Link state - on device
+        link_tf = np.random.randn(N, L, 7).astype(np.float32)
+        link_tf[:, :, 3:7] /= np.linalg.norm(link_tf[:, :, 3:7], axis=-1, keepdims=True)
+        self._link_transforms = wp.array(link_tf, dtype=wp.float32, device=self._device)
+        self._link_velocities = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._link_accelerations = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._link_incoming_joint_force = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+
+        # DOF state - on device
+        self._dof_positions = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._dof_velocities = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._dof_projected_joint_forces = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
+
+        # DOF properties - on CPU (PhysX requirement)
+        self._dof_limits = wp.array(np.random.randn(N, J, 2).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_stiffnesses = wp.array((np.random.rand(N, J) * 100).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_dampings = wp.array((np.random.rand(N, J) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_max_forces = wp.array((np.random.rand(N, J) * 100).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_max_velocities = wp.array((np.random.rand(N, J) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_armatures = wp.array((np.random.rand(N, J) * 0.1).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_friction_coefficients = wp.array(np.random.rand(N, J).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_friction_properties = wp.array(np.random.rand(N, J, 3).astype(np.float32), dtype=wp.float32, device="cpu")
+
+        # Mass properties - on CPU (PhysX requirement)
+        self._masses = wp.array((np.random.rand(N, L) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
+        coms = np.random.randn(N, L, 7).astype(np.float32)
+        coms[:, :, 3:7] /= np.linalg.norm(coms[:, :, 3:7], axis=-1, keepdims=True)
+        self._coms = wp.array(coms, dtype=wp.float32, device="cpu")
+        inertias = np.zeros((N, L, 9), dtype=np.float32)
+        diag = np.random.rand(N, L, 3) + 0.1
+        inertias[:, :, 0] = diag[:, :, 0]
+        inertias[:, :, 4] = diag[:, :, 1]
+        inertias[:, :, 8] = diag[:, :, 2]
+        self._inertias = wp.array(inertias, dtype=wp.float32, device="cpu")

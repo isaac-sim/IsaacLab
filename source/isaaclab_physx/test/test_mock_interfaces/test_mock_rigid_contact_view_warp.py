@@ -44,18 +44,18 @@ class TestMockRigidContactViewWarpGetters:
         return MockRigidContactViewWarp(count=4, num_bodies=5, filter_count=3, device="cpu")
 
     def test_get_net_contact_forces_shape(self, view):
-        """Test net contact forces shape - should be (N*B,) with wp.vec3f dtype."""
+        """Test net contact forces shape - should be (N*B, 3) with wp.float32 dtype."""
         forces = view.get_net_contact_forces(dt=0.01)
-        # Shape: (N*B,) = (4*5,) = (20,)
-        assert forces.shape == (20,)
-        assert forces.dtype == wp.vec3f
+        # Shape: (N*B, 3) = (4*5, 3) = (20, 3)
+        assert forces.shape == (20, 3)
+        assert forces.dtype == wp.float32
 
     def test_get_contact_force_matrix_shape(self, view):
-        """Test contact force matrix shape - should be (N*B, F) with wp.vec3f dtype."""
+        """Test contact force matrix shape - should be (N*B, F, 3) with wp.float32 dtype."""
         matrix = view.get_contact_force_matrix(dt=0.01)
-        # Shape: (N*B, F) = (4*5, 3) = (20, 3)
-        assert matrix.shape == (20, 3)
-        assert matrix.dtype == wp.vec3f
+        # Shape: (N*B, F, 3) = (4*5, 3, 3) = (20, 3, 3)
+        assert matrix.shape == (20, 3, 3)
+        assert matrix.dtype == wp.float32
 
     def test_get_contact_data_shapes(self, view):
         """Test contact data tuple shapes."""
@@ -66,12 +66,12 @@ class TestMockRigidContactViewWarpGetters:
         total_bodies = 4 * 5  # count * num_bodies
         max_contacts = 16  # default
 
-        assert positions.shape == (total_bodies, max_contacts)
-        assert positions.dtype == wp.vec3f
-        assert normals.shape == (total_bodies, max_contacts)
-        assert normals.dtype == wp.vec3f
-        assert impulses.shape == (total_bodies, max_contacts)
-        assert impulses.dtype == wp.vec3f
+        assert positions.shape == (total_bodies, max_contacts, 3)
+        assert positions.dtype == wp.float32
+        assert normals.shape == (total_bodies, max_contacts, 3)
+        assert normals.dtype == wp.float32
+        assert impulses.shape == (total_bodies, max_contacts, 3)
+        assert impulses.dtype == wp.float32
         assert separations.shape == (total_bodies, max_contacts)
         assert separations.dtype == wp.float32
         assert num_found.shape == (total_bodies,)
@@ -88,12 +88,12 @@ class TestMockRigidContactViewWarpGetters:
         total_bodies = 4 * 5
         max_contacts = 16
 
-        assert forces.shape == (total_bodies, max_contacts)
-        assert forces.dtype == wp.vec3f
-        assert impulses.shape == (total_bodies, max_contacts)
-        assert impulses.dtype == wp.vec3f
-        assert points.shape == (total_bodies, max_contacts)
-        assert points.dtype == wp.vec3f
+        assert forces.shape == (total_bodies, max_contacts, 3)
+        assert forces.dtype == wp.float32
+        assert impulses.shape == (total_bodies, max_contacts, 3)
+        assert impulses.dtype == wp.float32
+        assert points.shape == (total_bodies, max_contacts, 3)
+        assert points.dtype == wp.float32
         assert patch_id.shape == (total_bodies, max_contacts)
         assert patch_id.dtype == wp.int32
 
@@ -118,7 +118,7 @@ class TestMockRigidContactViewWarpMockSetters:
     def test_set_mock_net_contact_forces(self, view):
         """Test mock net contact forces setter."""
         mock_data = np.random.randn(20, 3).astype(np.float32)
-        mock_forces = wp.array(mock_data, dtype=wp.vec3f, device="cpu")
+        mock_forces = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_net_contact_forces(mock_forces)
         result = view.get_net_contact_forces(0.01)
         result_np = result.numpy()
@@ -127,7 +127,7 @@ class TestMockRigidContactViewWarpMockSetters:
     def test_set_mock_contact_force_matrix(self, view):
         """Test mock contact force matrix setter."""
         mock_data = np.random.randn(20, 3, 3).astype(np.float32)
-        mock_matrix = wp.array(mock_data, dtype=wp.vec3f, device="cpu")
+        mock_matrix = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_contact_force_matrix(mock_matrix)
         result = view.get_contact_force_matrix(0.01)
         result_np = result.numpy()
@@ -137,8 +137,8 @@ class TestMockRigidContactViewWarpMockSetters:
         """Test setting partial contact data."""
         mock_positions_data = np.random.randn(20, 16, 3).astype(np.float32)
         mock_normals_data = np.random.randn(20, 16, 3).astype(np.float32)
-        mock_positions = wp.array(mock_positions_data, dtype=wp.vec3f, device="cpu")
-        mock_normals = wp.array(mock_normals_data, dtype=wp.vec3f, device="cpu")
+        mock_positions = wp.array(mock_positions_data, dtype=wp.float32, device="cpu")
+        mock_normals = wp.array(mock_normals_data, dtype=wp.float32, device="cpu")
         view.set_mock_contact_data(positions=mock_positions, normals=mock_normals)
 
         positions, normals, _, _, _, _ = view.get_contact_data(0.01)
@@ -159,9 +159,9 @@ class TestMockRigidContactViewWarpMockSetters:
         mock_num_found_data = np.random.randint(0, max_contacts, (total_bodies,), dtype=np.int32)
         mock_patch_id_data = np.random.randint(0, 10, (total_bodies, max_contacts), dtype=np.int32)
 
-        mock_positions = wp.array(mock_positions_data, dtype=wp.vec3f, device="cpu")
-        mock_normals = wp.array(mock_normals_data, dtype=wp.vec3f, device="cpu")
-        mock_impulses = wp.array(mock_impulses_data, dtype=wp.vec3f, device="cpu")
+        mock_positions = wp.array(mock_positions_data, dtype=wp.float32, device="cpu")
+        mock_normals = wp.array(mock_normals_data, dtype=wp.float32, device="cpu")
+        mock_impulses = wp.array(mock_impulses_data, dtype=wp.float32, device="cpu")
         mock_separations = wp.array(mock_separations_data, dtype=wp.float32, device="cpu")
         mock_num_found = wp.array(mock_num_found_data, dtype=wp.int32, device="cpu")
         mock_patch_id = wp.array(mock_patch_id_data, dtype=wp.int32, device="cpu")
@@ -192,8 +192,8 @@ class TestMockRigidContactViewWarpMockSetters:
         mock_forces_data = np.random.randn(total_bodies, max_contacts, 3).astype(np.float32)
         mock_impulses_data = np.random.randn(total_bodies, max_contacts, 3).astype(np.float32)
 
-        mock_forces = wp.array(mock_forces_data, dtype=wp.vec3f, device="cpu")
-        mock_impulses = wp.array(mock_impulses_data, dtype=wp.vec3f, device="cpu")
+        mock_forces = wp.array(mock_forces_data, dtype=wp.float32, device="cpu")
+        mock_impulses = wp.array(mock_impulses_data, dtype=wp.float32, device="cpu")
 
         view.set_mock_friction_data(forces=mock_forces, impulses=mock_impulses)
 
@@ -228,5 +228,5 @@ class TestMockRigidContactViewWarpZeroFilterCount:
         """Test contact force matrix with zero filters."""
         view = MockRigidContactViewWarp(count=4, num_bodies=5, filter_count=0)
         matrix = view.get_contact_force_matrix(0.01)
-        # Shape: (N*B, F) = (20, 0)
-        assert matrix.shape == (20, 0)
+        # Shape: (N*B, F, 3) = (20, 0, 3)
+        assert matrix.shape == (20, 0, 3)

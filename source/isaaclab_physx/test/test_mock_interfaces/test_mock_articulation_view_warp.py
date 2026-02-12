@@ -69,24 +69,24 @@ class TestMockArticulationViewWarpRootGetters:
         return MockArticulationViewWarp(count=4, num_dofs=12, num_links=13, device="cpu")
 
     def test_get_root_transforms_shape(self, view):
-        """Test root transforms shape - should be (N,) with wp.transformf dtype."""
+        """Test root transforms shape - should be (N, 7) with wp.float32 dtype."""
         transforms = view.get_root_transforms()
-        assert transforms.shape == (4,)
-        assert transforms.dtype == wp.transformf
+        assert transforms.shape == (4, 7)
+        assert transforms.dtype == wp.float32
 
     def test_get_root_transforms_default_quaternion(self, view):
         """Test that default quaternion is identity (xyzw format)."""
         transforms = view.get_root_transforms()
         transforms_np = transforms.numpy()
         for i in range(4):
-            quat = transforms_np[i][3:]  # xyzw
+            quat = transforms_np[i, 3:]  # xyzw
             np.testing.assert_allclose(quat[3], 1.0)  # w = 1
 
     def test_get_root_velocities_shape(self, view):
-        """Test root velocities shape - should be (N,) with wp.spatial_vectorf dtype."""
+        """Test root velocities shape - should be (N, 6) with wp.float32 dtype."""
         velocities = view.get_root_velocities()
-        assert velocities.shape == (4,)
-        assert velocities.dtype == wp.spatial_vectorf
+        assert velocities.shape == (4, 6)
+        assert velocities.dtype == wp.float32
 
 
 class TestMockArticulationViewWarpLinkGetters:
@@ -98,28 +98,28 @@ class TestMockArticulationViewWarpLinkGetters:
         return MockArticulationViewWarp(count=4, num_dofs=12, num_links=13, device="cpu")
 
     def test_get_link_transforms_shape(self, view):
-        """Test link transforms shape - should be (N, L) with wp.transformf dtype."""
+        """Test link transforms shape - should be (N, L, 7) with wp.float32 dtype."""
         transforms = view.get_link_transforms()
-        assert transforms.shape == (4, 13)
-        assert transforms.dtype == wp.transformf
+        assert transforms.shape == (4, 13, 7)
+        assert transforms.dtype == wp.float32
 
     def test_get_link_velocities_shape(self, view):
-        """Test link velocities shape - should be (N, L) with wp.spatial_vectorf dtype."""
+        """Test link velocities shape - should be (N, L, 6) with wp.float32 dtype."""
         velocities = view.get_link_velocities()
-        assert velocities.shape == (4, 13)
-        assert velocities.dtype == wp.spatial_vectorf
+        assert velocities.shape == (4, 13, 6)
+        assert velocities.dtype == wp.float32
 
     def test_get_link_accelerations_shape(self, view):
         """Test link accelerations shape."""
         accelerations = view.get_link_accelerations()
-        assert accelerations.shape == (4, 13)
-        assert accelerations.dtype == wp.spatial_vectorf
+        assert accelerations.shape == (4, 13, 6)
+        assert accelerations.dtype == wp.float32
 
     def test_get_link_incoming_joint_force_shape(self, view):
         """Test link incoming joint force shape."""
         forces = view.get_link_incoming_joint_force()
-        assert forces.shape == (4, 13)
-        assert forces.dtype == wp.spatial_vectorf
+        assert forces.shape == (4, 13, 6)
+        assert forces.dtype == wp.float32
 
 
 class TestMockArticulationViewWarpDOFGetters:
@@ -219,10 +219,10 @@ class TestMockArticulationViewWarpMassGetters:
         assert masses.dtype == wp.float32
 
     def test_get_coms_shape(self, view):
-        """Test centers of mass shape - should be (N, L) with wp.transformf dtype."""
+        """Test centers of mass shape - should be (N, L, 7) with wp.float32 dtype."""
         coms = view.get_coms()
-        assert coms.shape == (4, 13)
-        assert coms.dtype == wp.transformf
+        assert coms.shape == (4, 13, 7)
+        assert coms.dtype == wp.float32
 
     def test_get_inertias_shape(self, view):
         """Test inertias shape."""
@@ -242,7 +242,7 @@ class TestMockArticulationViewWarpSetters:
     def test_set_root_transforms(self, view):
         """Test setting root transforms."""
         new_data = np.random.randn(4, 7).astype(np.float32)
-        new_transforms = wp.array(new_data, dtype=wp.transformf, device="cpu")
+        new_transforms = wp.array(new_data, dtype=wp.float32, device="cpu")
         view.set_root_transforms(new_transforms)
         result = view.get_root_transforms()
         result_np = result.numpy()
@@ -331,7 +331,7 @@ class TestMockArticulationViewWarpMockSetters:
     def test_set_mock_root_transforms(self, view):
         """Test mock root transform setter."""
         mock_data = np.random.randn(4, 7).astype(np.float32)
-        mock_transforms = wp.array(mock_data, dtype=wp.transformf, device="cpu")
+        mock_transforms = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_root_transforms(mock_transforms)
         result = view.get_root_transforms()
         result_np = result.numpy()
@@ -340,7 +340,7 @@ class TestMockArticulationViewWarpMockSetters:
     def test_set_mock_link_transforms(self, view):
         """Test mock link transform setter."""
         mock_data = np.random.randn(4, 13, 7).astype(np.float32)
-        mock_transforms = wp.array(mock_data, dtype=wp.transformf, device="cpu")
+        mock_transforms = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_link_transforms(mock_transforms)
         result = view.get_link_transforms()
         result_np = result.numpy()

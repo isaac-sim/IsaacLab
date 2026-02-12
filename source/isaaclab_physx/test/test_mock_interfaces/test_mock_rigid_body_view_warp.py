@@ -44,35 +44,34 @@ class TestMockRigidBodyViewWarpGetters:
         return MockRigidBodyViewWarp(count=4, device="cpu")
 
     def test_get_transforms_shape(self, view):
-        """Test transforms shape - should be (N,) with wp.transformf dtype."""
+        """Test transforms shape - should be (N, 7) with wp.float32 dtype."""
         transforms = view.get_transforms()
-        assert transforms.shape == (4,)
-        assert transforms.dtype == wp.transformf
+        assert transforms.shape == (4, 7)
+        assert transforms.dtype == wp.float32
 
     def test_get_transforms_default_quaternion(self, view):
         """Test that default quaternion is identity (xyzw format)."""
         transforms = view.get_transforms()
         transforms_np = transforms.numpy()
-        # wp.transformf stores [pos(3), quat_xyzw(4)] = 7 floats per transform
-        # Check that quat_xyz = 0 and quat_w = 1 for identity
+        # (N, 7) float32: [pos(3), quat_xyzw(4)]
         for i in range(4):
-            pos = transforms_np[i][:3]
-            quat = transforms_np[i][3:]  # xyzw
+            pos = transforms_np[i, :3]
+            quat = transforms_np[i, 3:]  # xyzw
             np.testing.assert_allclose(pos, [0.0, 0.0, 0.0])
             np.testing.assert_allclose(quat[:3], [0.0, 0.0, 0.0])  # xyz = 0
             np.testing.assert_allclose(quat[3], 1.0)  # w = 1
 
     def test_get_velocities_shape(self, view):
-        """Test velocities shape - should be (N,) with wp.spatial_vectorf dtype."""
+        """Test velocities shape - should be (N, 6) with wp.float32 dtype."""
         velocities = view.get_velocities()
-        assert velocities.shape == (4,)
-        assert velocities.dtype == wp.spatial_vectorf
+        assert velocities.shape == (4, 6)
+        assert velocities.dtype == wp.float32
 
     def test_get_accelerations_shape(self, view):
-        """Test accelerations shape - should be (N,) with wp.spatial_vectorf dtype."""
+        """Test accelerations shape - should be (N, 6) with wp.float32 dtype."""
         accelerations = view.get_accelerations()
-        assert accelerations.shape == (4,)
-        assert accelerations.dtype == wp.spatial_vectorf
+        assert accelerations.shape == (4, 6)
+        assert accelerations.dtype == wp.float32
 
     def test_get_masses_shape(self, view):
         """Test masses shape."""
@@ -87,10 +86,10 @@ class TestMockRigidBodyViewWarpGetters:
         np.testing.assert_allclose(masses_np, np.ones((4, 1)))
 
     def test_get_coms_shape(self, view):
-        """Test centers of mass shape - should be (N,) with wp.transformf dtype."""
+        """Test centers of mass shape - should be (N, 7) with wp.float32 dtype."""
         coms = view.get_coms()
-        assert coms.shape == (4,)
-        assert coms.dtype == wp.transformf
+        assert coms.shape == (4, 7)
+        assert coms.dtype == wp.float32
 
     def test_get_inertias_shape(self, view):
         """Test inertias shape."""
@@ -109,10 +108,10 @@ class TestMockRigidBodyViewWarpGetters:
         """Test that getters return clones, not references."""
         transforms1 = view.get_transforms()
         transforms1_np = transforms1.numpy()
-        transforms1_np[0][0] = 999.0
+        transforms1_np[0, 0] = 999.0
         transforms2 = view.get_transforms()
         transforms2_np = transforms2.numpy()
-        assert transforms2_np[0][0] != 999.0
+        assert transforms2_np[0, 0] != 999.0
 
 
 class TestMockRigidBodyViewWarpSetters:
@@ -127,7 +126,7 @@ class TestMockRigidBodyViewWarpSetters:
         """Test setting transforms."""
         # Create new transforms
         new_data = np.random.randn(4, 7).astype(np.float32)
-        new_transforms = wp.array(new_data, dtype=wp.transformf, device="cpu")
+        new_transforms = wp.array(new_data, dtype=wp.float32, device="cpu")
         view.set_transforms(new_transforms)
         result = view.get_transforms()
         result_np = result.numpy()
@@ -136,7 +135,7 @@ class TestMockRigidBodyViewWarpSetters:
     def test_set_transforms_with_indices(self, view):
         """Test setting transforms with indices."""
         new_data = np.random.randn(2, 7).astype(np.float32)
-        new_transforms = wp.array(new_data, dtype=wp.transformf, device="cpu")
+        new_transforms = wp.array(new_data, dtype=wp.float32, device="cpu")
         indices = wp.array([0, 2], dtype=wp.int32, device="cpu")
         view.set_transforms(new_transforms, indices=indices)
         result = view.get_transforms()
@@ -147,7 +146,7 @@ class TestMockRigidBodyViewWarpSetters:
     def test_set_velocities(self, view):
         """Test setting velocities."""
         new_data = np.random.randn(4, 6).astype(np.float32)
-        new_velocities = wp.array(new_data, dtype=wp.spatial_vectorf, device="cpu")
+        new_velocities = wp.array(new_data, dtype=wp.float32, device="cpu")
         view.set_velocities(new_velocities)
         result = view.get_velocities()
         result_np = result.numpy()
@@ -174,7 +173,7 @@ class TestMockRigidBodyViewWarpMockSetters:
     def test_set_mock_transforms(self, view):
         """Test mock transform setter."""
         mock_data = np.random.randn(4, 7).astype(np.float32)
-        mock_transforms = wp.array(mock_data, dtype=wp.transformf, device="cpu")
+        mock_transforms = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_transforms(mock_transforms)
         result = view.get_transforms()
         result_np = result.numpy()
@@ -183,7 +182,7 @@ class TestMockRigidBodyViewWarpMockSetters:
     def test_set_mock_velocities(self, view):
         """Test mock velocity setter."""
         mock_data = np.random.randn(4, 6).astype(np.float32)
-        mock_velocities = wp.array(mock_data, dtype=wp.spatial_vectorf, device="cpu")
+        mock_velocities = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_velocities(mock_velocities)
         result = view.get_velocities()
         result_np = result.numpy()
@@ -192,7 +191,7 @@ class TestMockRigidBodyViewWarpMockSetters:
     def test_set_mock_accelerations(self, view):
         """Test mock acceleration setter."""
         mock_data = np.random.randn(4, 6).astype(np.float32)
-        mock_accelerations = wp.array(mock_data, dtype=wp.spatial_vectorf, device="cpu")
+        mock_accelerations = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_accelerations(mock_accelerations)
         result = view.get_accelerations()
         result_np = result.numpy()
@@ -210,7 +209,7 @@ class TestMockRigidBodyViewWarpMockSetters:
     def test_set_mock_coms(self, view):
         """Test mock center of mass setter."""
         mock_data = np.random.randn(4, 7).astype(np.float32)
-        mock_coms = wp.array(mock_data, dtype=wp.transformf, device="cpu")
+        mock_coms = wp.array(mock_data, dtype=wp.float32, device="cpu")
         view.set_mock_coms(mock_coms)
         result = view.get_coms()
         result_np = result.numpy()
@@ -233,9 +232,9 @@ class TestMockRigidBodyViewWarpActions:
         """Test that apply_forces_and_torques_at_position is a no-op."""
         view = MockRigidBodyViewWarp(count=4)
         # Should not raise
-        forces = wp.zeros(4, dtype=wp.vec3f, device="cpu")
-        torques = wp.zeros(4, dtype=wp.vec3f, device="cpu")
-        positions = wp.zeros(4, dtype=wp.vec3f, device="cpu")
+        forces = wp.zeros((4, 3), dtype=wp.float32, device="cpu")
+        torques = wp.zeros((4, 3), dtype=wp.float32, device="cpu")
+        positions = wp.zeros((4, 3), dtype=wp.float32, device="cpu")
         view.apply_forces_and_torques_at_position(
             forces=forces,
             torques=torques,

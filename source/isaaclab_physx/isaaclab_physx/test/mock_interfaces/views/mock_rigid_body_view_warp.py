@@ -10,13 +10,9 @@ from __future__ import annotations
 import warp as wp
 
 from ..utils.kernels_mock import (
-    copy_spatial_vectors_1d,
-    copy_transforms_1d,
     init_identity_inertias_1d,
-    init_identity_transforms_1d,
-    init_zero_spatial_vectors_1d,
-    scatter_spatial_vectors_1d,
-    scatter_transforms_1d,
+    init_identity_transforms_1d_flat,
+    scatter_floats_2d,
 )
 
 
@@ -24,19 +20,16 @@ class MockRigidBodyViewWarp:
     """Mock implementation of physx.RigidBodyView using Warp arrays for unit testing.
 
     This class mimics the interface of the PhysX TensorAPI RigidBodyView using
-    Warp structured types, allowing tests to run without Isaac Sim or GPU simulation.
+    flat float32 arrays (matching real PhysX behavior), allowing tests to run
+    without Isaac Sim or GPU simulation.
 
-    Data Shapes (using Warp types):
-        - transforms: (N,) dtype=wp.transformf - [pos(3), quat_xyzw(4)]
-        - velocities: (N,) dtype=wp.spatial_vectorf - [ang_vel(3), lin_vel(3)]
-        - accelerations: (N,) dtype=wp.spatial_vectorf - [ang_acc(3), lin_acc(3)]
+    Data Shapes (flat float32, matching real PhysX views):
+        - transforms: (N, 7) dtype=wp.float32 - [pos(3), quat_xyzw(4)]
+        - velocities: (N, 6) dtype=wp.float32 - [ang_vel(3), lin_vel(3)]
+        - accelerations: (N, 6) dtype=wp.float32 - [ang_acc(3), lin_acc(3)]
         - masses: (N, 1) dtype=wp.float32
-        - coms: (N,) dtype=wp.transformf - center of mass [pos(3), quat_xyzw(4)]
+        - coms: (N, 7) dtype=wp.float32 - center of mass [pos(3), quat_xyzw(4)]
         - inertias: (N, 9) dtype=wp.float32 - flattened 3x3 inertia matrix (row-major)
-
-    Note:
-        wp.spatial_vectorf stores [angular(3), linear(3)] which differs from
-        torch's [linear(3), angular(3)] convention.
     """
 
     def __init__(
@@ -78,29 +71,12 @@ class MockRigidBodyViewWarp:
                 "Body properties must be set with CPU arrays."
             )
 
-    def _create_identity_transforms(self, count: int) -> wp.array:
-        """Create array of identity transforms."""
-        arr = wp.zeros(count, dtype=wp.transformf, device=self._device)
-        wp.launch(init_identity_transforms_1d, dim=count, inputs=[arr], device=self._device)
+    def _create_identity_transforms(self, count: int, device: str | None = None) -> wp.array:
+        """Create array of identity transforms as (count, 7) float32."""
+        dev = device or self._device
+        arr = wp.zeros((count, 7), dtype=wp.float32, device=dev)
+        wp.launch(init_identity_transforms_1d_flat, dim=count, inputs=[arr], device=dev)
         return arr
-
-    def _create_zero_spatial_vectors(self, count: int) -> wp.array:
-        """Create array of zero spatial vectors."""
-        arr = wp.zeros(count, dtype=wp.spatial_vectorf, device=self._device)
-        wp.launch(init_zero_spatial_vectors_1d, dim=count, inputs=[arr], device=self._device)
-        return arr
-
-    def _clone_transforms(self, src: wp.array) -> wp.array:
-        """Clone a transform array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_transforms_1d, dim=src.shape[0], inputs=[src, dst], device=self._device)
-        return dst
-
-    def _clone_spatial_vectors(self, src: wp.array) -> wp.array:
-        """Clone a spatial vector array."""
-        dst = wp.zeros_like(src)
-        wp.launch(copy_spatial_vectors_1d, dim=src.shape[0], inputs=[src, dst], device=self._device)
-        return dst
 
     # -- Properties --
 
@@ -120,34 +96,34 @@ class MockRigidBodyViewWarp:
         """Get world transforms of all rigid bodies.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.transformf.
-            Each transform contains [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w].
+            Warp array of shape (N, 7) with dtype=wp.float32.
+            Each row contains [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w].
         """
         if self._transforms is None:
             self._transforms = self._create_identity_transforms(self._count)
-        return self._clone_transforms(self._transforms)
+        return wp.clone(self._transforms)
 
     def get_velocities(self) -> wp.array:
         """Get velocities of all rigid bodies.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.spatial_vectorf.
-            Each spatial vector contains [ang_vel(3), lin_vel(3)].
+            Warp array of shape (N, 6) with dtype=wp.float32.
+            Each row contains [ang_vel(3), lin_vel(3)].
         """
         if self._velocities is None:
-            self._velocities = self._create_zero_spatial_vectors(self._count)
-        return self._clone_spatial_vectors(self._velocities)
+            self._velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
+        return wp.clone(self._velocities)
 
     def get_accelerations(self) -> wp.array:
         """Get accelerations of all rigid bodies.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.spatial_vectorf.
-            Each spatial vector contains [ang_acc(3), lin_acc(3)].
+            Warp array of shape (N, 6) with dtype=wp.float32.
+            Each row contains [ang_acc(3), lin_acc(3)].
         """
         if self._accelerations is None:
-            self._accelerations = self._create_zero_spatial_vectors(self._count)
-        return self._clone_spatial_vectors(self._accelerations)
+            self._accelerations = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
+        return wp.clone(self._accelerations)
 
     def get_masses(self) -> wp.array:
         """Get masses of all rigid bodies.
@@ -163,15 +139,12 @@ class MockRigidBodyViewWarp:
         """Get centers of mass of all rigid bodies.
 
         Returns:
-            Warp array of shape (N,) with dtype=wp.transformf. Always on CPU.
-            Each transform contains [pos(3), quat_xyzw(4)].
+            Warp array of shape (N, 7) with dtype=wp.float32. Always on CPU.
+            Each row contains [pos(3), quat_xyzw(4)].
         """
         if self._coms is None:
-            self._coms = wp.zeros(self._count, dtype=wp.transformf, device="cpu")
-            wp.launch(init_identity_transforms_1d, dim=self._count, inputs=[self._coms], device="cpu")
-        dst = wp.zeros_like(self._coms)
-        wp.launch(copy_transforms_1d, dim=self._count, inputs=[self._coms, dst], device="cpu")
-        return dst
+            self._coms = self._create_identity_transforms(self._count, device="cpu")
+        return wp.clone(self._coms)
 
     def get_inertias(self) -> wp.array:
         """Get inertia tensors of all rigid bodies.
@@ -195,15 +168,15 @@ class MockRigidBodyViewWarp:
         """Set world transforms of rigid bodies.
 
         Args:
-            transforms: Warp array of shape (N,) or (len(indices),) with dtype=wp.transformf.
+            transforms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32.
             indices: Optional Warp array of indices (dtype=wp.int32) of bodies to update.
         """
         if self._transforms is None:
             self._transforms = self._create_identity_transforms(self._count)
         if indices is not None:
             wp.launch(
-                scatter_transforms_1d,
-                dim=indices.shape[0],
+                scatter_floats_2d,
+                dim=(indices.shape[0], 7),
                 inputs=[transforms, indices, self._transforms],
                 device=self._device,
             )
@@ -218,15 +191,15 @@ class MockRigidBodyViewWarp:
         """Set velocities of rigid bodies.
 
         Args:
-            velocities: Warp array of shape (N,) or (len(indices),) with dtype=wp.spatial_vectorf.
+            velocities: Warp array of shape (N, 6) or (len(indices), 6) with dtype=wp.float32.
             indices: Optional Warp array of indices (dtype=wp.int32) of bodies to update.
         """
         if self._velocities is None:
-            self._velocities = self._create_zero_spatial_vectors(self._count)
+            self._velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
         if indices is not None:
             wp.launch(
-                scatter_spatial_vectors_1d,
-                dim=indices.shape[0],
+                scatter_floats_2d,
+                dim=(indices.shape[0], 6),
                 inputs=[velocities, indices, self._velocities],
                 device=self._device,
             )
@@ -268,7 +241,7 @@ class MockRigidBodyViewWarp:
         """Set centers of mass of rigid bodies.
 
         Args:
-            coms: Warp array of shape (N,) or (len(indices),) with dtype=wp.transformf. Must be on CPU.
+            coms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32. Must be on CPU.
             indices: Optional Warp array of indices (dtype=wp.int32) of bodies to update.
 
         Raises:
@@ -276,12 +249,13 @@ class MockRigidBodyViewWarp:
         """
         self._check_cpu_array(coms, "coms")
         if self._coms is None:
-            self._coms = wp.zeros(self._count, dtype=wp.transformf, device="cpu")
-            wp.launch(init_identity_transforms_1d, dim=self._count, inputs=[self._coms], device="cpu")
+            self._coms = self._create_identity_transforms(self._count, device="cpu")
         if indices is not None:
-            wp.launch(
-                scatter_transforms_1d, dim=indices.shape[0], inputs=[coms, indices, self._coms], device="cpu"
-            )
+            coms_np = coms.numpy()
+            indices_np = indices.numpy()
+            self_coms_np = self._coms.numpy()
+            self_coms_np[indices_np] = coms_np
+            self._coms = wp.array(self_coms_np, dtype=wp.float32, device="cpu")
         else:
             wp.copy(self._coms, coms)
 
@@ -319,7 +293,7 @@ class MockRigidBodyViewWarp:
         """Set mock transform data directly for testing.
 
         Args:
-            transforms: Warp array of shape (N,) with dtype=wp.transformf.
+            transforms: Warp array of shape (N, 7) with dtype=wp.float32.
         """
         self._transforms = wp.clone(transforms)
         if self._transforms.device.alias != self._device:
@@ -329,7 +303,7 @@ class MockRigidBodyViewWarp:
         """Set mock velocity data directly for testing.
 
         Args:
-            velocities: Warp array of shape (N,) with dtype=wp.spatial_vectorf.
+            velocities: Warp array of shape (N, 6) with dtype=wp.float32.
         """
         self._velocities = wp.clone(velocities)
         if self._velocities.device.alias != self._device:
@@ -339,7 +313,7 @@ class MockRigidBodyViewWarp:
         """Set mock acceleration data directly for testing.
 
         Args:
-            accelerations: Warp array of shape (N,) with dtype=wp.spatial_vectorf.
+            accelerations: Warp array of shape (N, 6) with dtype=wp.float32.
         """
         self._accelerations = wp.clone(accelerations)
         if self._accelerations.device.alias != self._device:
@@ -357,7 +331,7 @@ class MockRigidBodyViewWarp:
         """Set mock center of mass data directly for testing.
 
         Args:
-            coms: Warp array of shape (N,) with dtype=wp.transformf.
+            coms: Warp array of shape (N, 7) with dtype=wp.float32.
         """
         self._coms = wp.clone(coms)
 
@@ -382,9 +356,9 @@ class MockRigidBodyViewWarp:
         """Apply forces and torques at positions (no-op in mock).
 
         Args:
-            forces: Forces to apply, shape (N,) or (len(indices),) with dtype=wp.vec3f.
-            torques: Torques to apply, shape (N,) or (len(indices),) with dtype=wp.vec3f.
-            positions: Positions to apply forces at, shape (N,) or (len(indices),) with dtype=wp.vec3f.
+            forces: Forces to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            torques: Torques to apply, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
+            positions: Positions to apply forces at, shape (N, 3) or (len(indices), 3) with dtype=wp.float32.
             indices: Optional indices of bodies to apply to.
             is_global: Whether forces/torques are in global frame.
         """
