@@ -19,13 +19,13 @@ class ImuData(BaseImuData):
     """Data container for the PhysX Imu sensor."""
 
     @property
-    def pose_w(self) -> wp.array:
+    def pose_w(self) -> torch.Tensor:
         """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         logger.warning(
             "The `pose_w` property will be deprecated in a future release. Please use a dedicated sensor to measure"
             "sensor poses in world frame."
         )
-        return torch.cat((self._pos_w, self._quat_w), dim=-1)
+        return torch.cat((wp.to_torch(self._pos_w), wp.to_torch(self._quat_w)), dim=-1)
 
     @property
     def pos_w(self) -> wp.array:
@@ -77,11 +77,17 @@ class ImuData(BaseImuData):
             num_envs: Number of environments.
             device: Device for tensor storage.
         """
-        self._pos_w = torch.zeros(num_envs, 3, device=device)
-        self._quat_w = torch.zeros(num_envs, 4, device=device)
-        self._quat_w[:, 0] = 1.0
-        self._projected_gravity_b = torch.zeros(num_envs, 3, device=device)
-        self._lin_vel_b = torch.zeros(num_envs, 3, device=device)
-        self._ang_vel_b = torch.zeros(num_envs, 3, device=device)
-        self._lin_acc_b = torch.zeros(num_envs, 3, device=device)
-        self._ang_acc_b = torch.zeros(num_envs, 3, device=device)
+        self._pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        self._quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
+        # Initialize quaternion to identity (w=1): warp quatf is (x,y,z,w)
+        # Use torch interop to set the w component
+        quat_torch = wp.to_torch(self._quat_w)
+        quat_torch[:, 3] = 1.0
+        self._projected_gravity_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        # Initialize projected gravity to (0, 0, -1)
+        pg_torch = wp.to_torch(self._projected_gravity_b)
+        pg_torch[:, 2] = -1.0
+        self._lin_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        self._ang_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        self._lin_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        self._ang_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
