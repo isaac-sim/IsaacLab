@@ -300,9 +300,7 @@ class SummaryMetrics(MetricsBackendInterface):
             return name, total_mem
         return None, None
 
-    def _print_optional_measurement(
-        self, phase: TestPhase, name: str, unit_fallback: str | None = None
-    ) -> None:
+    def _print_optional_measurement(self, phase: TestPhase, name: str, unit_fallback: str | None = None) -> None:
         measurement = self._get_single_measurement(phase, name)
         if measurement is None:
             return
