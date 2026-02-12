@@ -255,7 +255,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     ):
         # resolve environment ids
         if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+            env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
         else:
             env_ids = env_ids.cpu()
 
@@ -265,7 +265,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         material_samples = self.material_buckets[bucket_ids]
 
         # retrieve material buffer from the physics simulation
-        materials = self.asset.root_view.get_material_properties()
+        materials = wp.to_torch(self.asset.root_view.get_material_properties())
 
         # update material buffer with new samples
         if self.num_shapes_per_body is not None:
@@ -282,7 +282,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             materials[env_ids] = material_samples[:]
 
         # apply to simulation
-        self.asset.root_view.set_material_properties(materials, env_ids)
+        self.asset.root_view.set_material_properties(wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32))
 
 
 class randomize_rigid_body_mass(ManagerTermBase):
@@ -353,24 +353,24 @@ class randomize_rigid_body_mass(ManagerTermBase):
         min_mass: float = 1e-6,
     ):
         if self.default_mass is None:
-            self.default_mass = self.asset.data.body_mass
+            self.default_mass = wp.to_torch(self.asset.data.body_mass).clone()
         if self.default_inertia is None:
-            self.default_inertia = self.asset.data.body_inertia
+            self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone()
 
         # resolve environment ids
         if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
+            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device, dtype=torch.int32)
         else:
             env_ids = env_ids.to(self.asset.device)
 
         # resolve body indices
         if self.asset_cfg.body_ids == slice(None):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)
         else:
-            body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
+            body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get the current masses of the bodies (num_assets, num_bodies)
-        masses = self.asset.data.body_mass.clone()
+        masses = wp.to_torch(self.asset.data.body_mass).clone()
 
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -394,7 +394,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             ratios = masses[env_ids[:, None], body_ids] / self.default_mass[env_ids[:, None], body_ids]
             # scale the inertia tensors by the the ratios
             # since mass randomization is done on default values, we can use the default inertia tensors
-            inertias = self.asset.data.body_inertia.clone()
+            inertias = wp.to_torch(self.asset.data.body_inertia).clone()
             print("inertias device: ", inertias.device)
             print("inertias shape: ", inertias.shape)
             if isinstance(self.asset, BaseArticulation):

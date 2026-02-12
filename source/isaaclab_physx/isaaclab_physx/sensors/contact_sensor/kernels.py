@@ -193,8 +193,8 @@ def compute_air_contact_time(
 @wp.kernel
 def unpack_contact_buffer_data(
     contact_data: wp.array(dtype=wp.vec3f),
-    buffer_count: wp.array2d(dtype=wp.int32),
-    buffer_start_indices: wp.array2d(dtype=wp.int32),
+    buffer_count: wp.array2d(dtype=wp.uint32),
+    buffer_start_indices: wp.array2d(dtype=wp.uint32),
     dst: wp.array3d(dtype=wp.vec3f),
     env_ids: wp.array(dtype=wp.int32),
     num_bodies: wp.int32,
@@ -209,8 +209,8 @@ def unpack_contact_buffer_data(
 
     Args:
         contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
-        buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M).
-        buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M).
+        buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
+        buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
         dst: Destination buffer. Shape is (N, B, M).
         env_ids: Environment indices. Shape is (num_env_ids,).
         num_bodies: Number of bodies per environment.
@@ -220,8 +220,8 @@ def unpack_contact_buffer_data(
     i, j, k = wp.tid()
     env_id = env_ids[i]
     flat_idx = env_id * num_bodies + j
-    count = buffer_count[flat_idx, k]
-    start = buffer_start_indices[flat_idx, k]
+    count = wp.int32(buffer_count[flat_idx, k])
+    start = wp.int32(buffer_start_indices[flat_idx, k])
 
     if count > 0:
         accum = wp.vec3f(0.0, 0.0, 0.0)

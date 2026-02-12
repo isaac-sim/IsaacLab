@@ -126,13 +126,13 @@ class AnymalCEnv(DirectRLEnv):
         # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         # feet air time
-        first_contact = self._contact_sensor.compute_first_contact(self.step_dt)[:, self._feet_ids]
-        last_air_time = self._contact_sensor.data.last_air_time[:, self._feet_ids]
+        first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
+        last_air_time = wp.to_torch(self._contact_sensor.data.last_air_time)[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
         # undesired contacts
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history
+        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
@@ -161,7 +161,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history
+        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )

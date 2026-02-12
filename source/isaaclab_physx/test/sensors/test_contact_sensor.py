@@ -484,7 +484,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
         scene["contact_sensor"].reset()
         scene["shape"].write_root_pose_to_sim(
-            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0])
+            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device)
         )
 
         # step sim once to compute friction forces
@@ -706,7 +706,7 @@ def _test_sensor_contact(
         duration = durations[idx]
         while current_test_time < duration:
             # set object states to contact the ground plane
-            shape.write_root_pose_to_sim(root_pose=test_pose)
+            shape.write_root_pose_to_sim(root_pose=torch.tensor(test_pose, device=shape.device))
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -738,7 +738,7 @@ def _test_sensor_contact(
             _test_friction_forces(shape, sensor, mode)
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim(root_pose=reset_pose)
+        shape.write_root_pose_to_sim(root_pose=torch.tensor(reset_pose, device=shape.device))
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
@@ -763,8 +763,8 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
             dt=sensor._sim_physics_dt
         )
         friction_forces_t = wp.to_torch(friction_forces)
-        buffer_count_t = wp.to_torch(buffer_count)
-        buffer_start_t = wp.to_torch(buffer_start_indices)
+        buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
+        buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)
         for i in range(sensor.num_instances * num_bodies):
             for j in range(sensor.contact_view.filter_count):
                 start_index_ij = buffer_start_t[i, j]
