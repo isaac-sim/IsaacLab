@@ -96,9 +96,9 @@ class TestCPUInfoRecorder:
 
         data = recorder.get_data()
         names = [m.name for m in data.measurements]
-        assert "cpu_utilization" in names
-        assert "cpu_utilization_std" in names
-        assert "cpu_utilization_n" in names
+        assert "CPU Utilization" in names
+        assert "CPU Utilization std" in names
+        assert "CPU Utilization n" in names
 
     def test_get_data_metadata_names(self, recorder):
         """Test that get_data returns metadata with correct names."""
@@ -191,8 +191,8 @@ class TestGPUInfoRecorder:
         assert "devices" in runtime_data["gpu_utilization"]
         # Check first device
         device_runtime = runtime_data["gpu_utilization"]["devices"][0]
-        assert "memory_allocated_mean_bytes" in device_runtime
-        assert "memory_allocated_std_bytes" in device_runtime
+        assert "memory_used_mean_bytes" in device_runtime
+        assert "memory_used_std_bytes" in device_runtime
         assert "memory_n" in device_runtime
         assert device_runtime["memory_n"] == 5
 
@@ -236,8 +236,8 @@ class TestGPUInfoRecorder:
 
         measurement_data = recorder.get_data()
         assert isinstance(measurement_data, MeasurementData)
-        # All GPU data is in metadata (no separate measurements)
-        assert len(measurement_data.measurements) == 0
+        # GPU data includes measurements (memory and utilization stats)
+        assert len(measurement_data.measurements) == 6  # memory (mean, std, n) + utilization (mean, std, n)
         # 4 metadata entries: device_count, current_device, cuda_version, gpu_devices dict
         assert len(measurement_data.metadata) == 4
 
@@ -278,15 +278,12 @@ class TestGPUInfoRecorder:
         device_count = data["gpu_metadata"]["device_count"]
         assert len(gpu_devices) == device_count
 
-        # Check first device has expected fields
+        # Check first device has expected hardware fields
         device_0 = gpu_devices["0"]
         assert "name" in device_0
         assert "total_memory_gb" in device_0
         assert "compute_capability" in device_0
         assert "multi_processor_count" in device_0
-        assert "memory_used_mean_bytes" in device_0
-        assert "memory_used_std_bytes" in device_0
-        assert "memory_n" in device_0
 
 
 # ==============================================================================

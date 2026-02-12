@@ -83,6 +83,9 @@ app.updateOrder.checkForHydraRenderComplete = 1000
 app.renderer.waitIdle=true
 app.hydraEngine.waitIdle=true
 
+# NuRec
+omni.rtx.nre.compositing.rendererHints = 3
+
 # Forces serial processing for omni graph to avoid NCCL timeout hangs in distributed training
 app.execution.debug.forceSerial = true
 

@@ -98,6 +98,10 @@ class BaseIsaacLabBenchmark:
         # Whether to use recorders to collect metrics.
         self._use_recorders = use_recorders
         self._use_frametime_recorders = frametime_recorders
+
+        # Initialize frametime recorders dict (always, even when not using recorders)
+        self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
+
         if self._use_recorders:
             # Recorders that need to be updated manually since they don't depend on the kit timeline.
             self._manual_recorders: dict[str, MeasurementDataRecorder] = {
@@ -108,7 +112,6 @@ class BaseIsaacLabBenchmark:
             }
 
             # If we're using Kit, then we can use IsaacSim's benchmark services to peak into the frametimes.
-            self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
             if self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
