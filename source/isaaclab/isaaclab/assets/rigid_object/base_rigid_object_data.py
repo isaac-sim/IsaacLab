@@ -80,11 +80,7 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def default_root_state(self) -> wp.array:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
-
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
-        are of the center of mass frame. Shape is (num_instances, 13).
-        """
+        """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
         raise NotImplementedError()
 
     ##
@@ -134,32 +130,19 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def root_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid body's center of mass frame.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def root_link_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
-        world. The orientation is provided in (x, y, z, w) format.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def root_com_state_w(self) -> wp.array:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
-        relative to the world. Center of mass frame is the orientation principle axes of inertia.
-        """
+        """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError()
 
     ##
@@ -210,35 +193,19 @@ class BaseRigidObjectData(ABC):
     @property
     @abstractmethod
     def body_state_w(self) -> wp.array:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def body_link_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def body_com_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (x, y, z, w) format.
-        """
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property

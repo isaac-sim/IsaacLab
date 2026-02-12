@@ -82,13 +82,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def default_root_state(self) -> wp.array:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
-
-        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-        velocities are of its center of mass frame. Shape is (num_instances, 13).
-
-        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-        """
+        """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
         raise NotImplementedError
 
     @property
@@ -395,32 +389,19 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
-        the linear and angular velocities are of the articulation root's center of mass frame.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def root_link_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
-        world.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def root_com_state_w(self) -> wp.array:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
-        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia. Shape is (num_instances, 13).
-        """
+        """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError
 
     ##
@@ -486,34 +467,19 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_state_w(self) -> wp.array:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
-        velocities are of the articulation links's center of mass frame.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def body_link_state_w(self) -> wp.array:
-        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def body_com_state_w(self) -> wp.array:
-        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia.
-        """
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError
 
     @property

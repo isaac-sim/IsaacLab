@@ -151,7 +151,7 @@ class BaseRigidObject(AssetBase):
     @abstractmethod
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str], wp.array]:
+    ) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -162,157 +162,13 @@ class BaseRigidObject(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices, names, and warp mask.
+            A tuple of lists containing the body indices and names.
         """
         raise NotImplementedError()
 
     """
     Operations - Write to simulation.
     """
-
-    @abstractmethod
-    def write_root_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set the root state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_root_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_root_com_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_root_com_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root center of mass state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_root_link_state_to_sim_index(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set the root link state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_root_link_state_to_sim_mask(
-        self,
-        root_state: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set the root link state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (num_instances, 13).
-            env_mask: Environment mask. If None, then all indices are used.
-        """
-        raise NotImplementedError()
 
     @abstractmethod
     def write_root_pose_to_sim_index(
@@ -783,47 +639,32 @@ class BaseRigidObject(AssetBase):
     Deprecated.
     """
 
+    @abstractmethod
     def write_root_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_state_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_state_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_root_state_to_sim_index(root_state, env_ids=env_ids)
+        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_velocity_to_sim_index`."""
+        raise NotImplementedError()
 
+    @abstractmethod
     def write_root_com_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_com_state_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_com_state_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_root_com_state_to_sim_index(root_state, env_ids=env_ids)
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and :meth:`write_root_velocity_to_sim_index`."""
+        raise NotImplementedError()
 
+    @abstractmethod
     def write_root_link_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_link_state_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_link_state_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_root_link_state_to_sim_index(root_state, env_ids=env_ids)
+        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        raise NotImplementedError()
 
     def write_root_pose_to_sim(
         self,
