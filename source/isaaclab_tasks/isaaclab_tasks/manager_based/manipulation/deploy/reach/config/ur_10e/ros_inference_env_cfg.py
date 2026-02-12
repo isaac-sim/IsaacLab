@@ -28,7 +28,6 @@ class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
             "wrist_2_joint",
             "wrist_3_joint",
         ]
-        self.policy_action_space = "joint"
         self.action_space = 6
         self.state_space = 19
         self.observation_space = 19
@@ -36,11 +35,11 @@ class UR10eReachROSInferenceEnvCfg(UR10eReachEnvCfg):
         # Set joint_action_scale from the existing arm_action.scale
         self.joint_action_scale = self.actions.arm_action.scale
 
-        self.action_scale_joint_space = [
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
+        # Dynamically generate action_scale_joint_space based on action_space
+        self.action_scale_joint_space = [self.joint_action_scale] * self.action_space
+
+        # Extract initial joint positions from robot configuration
+        # Convert joint_pos dict to list in the order specified by arm_joint_names
+        self.initial_joint_pos = [
+            self.scene.robot.init_state.joint_pos[joint_name] for joint_name in self.arm_joint_names
         ]
