@@ -119,15 +119,25 @@ class BaseIsaacLabBenchmark:
 
                     enable_extension("isaacsim.benchmark.services")
 
-                    from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
-                    from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
+                    try:
+                        from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
+                        from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
+                        from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
+                        from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
 
-                    self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
-                    self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
-                    self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
-                    self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
+                        self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
+                        self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
+                        self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
+                        self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
+                    except ImportError:
+                        # Fallback for Isaac Sim packaging that bundles frametime recorders in a single module.
+                        from isaacsim.benchmark.services.datarecorders.interface import InputContext
+                        from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
+
+                        context = InputContext(phase="frametime")
+                        self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
+                            context=context, gpu_frametime=False
+                        )
                 except ImportError as e:
                     logger.warning(
                         f"Could not import kit recorders: {e}. Kit related measurements will not be available."
