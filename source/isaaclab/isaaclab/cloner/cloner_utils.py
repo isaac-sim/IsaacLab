@@ -63,13 +63,11 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
         usd_replicate(stage, src_paths, dest_paths, world_indices, proto_mask)
         stage.GetPrimAtPath(cfg.template_root).SetActive(False)
-
+        replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_masking[0].unsqueeze(0)
+        get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
+        positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
         # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
         if torch.all(proto_idx == 0):
-            # args: src_paths, dest_paths, env_ids, mask
-            replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, clone_masking[0].unsqueeze(0)
-            get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
-            positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
             if cfg.clone_physics:
                 template_clone_cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
             if cfg.clone_usd:
@@ -80,7 +78,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
             replicate_args = selected_src, dest_paths, world_indices, clone_masking
             if cfg.clone_physics:
-                template_clone_cfg.physics_clone_fn(stage, *replicate_args)
+                template_clone_cfg.physics_clone_fn(stage, *replicate_args, positions=positions)
             if cfg.clone_usd:
                 usd_replicate(stage, *replicate_args)
 
