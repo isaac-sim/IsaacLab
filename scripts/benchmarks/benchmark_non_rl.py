@@ -100,11 +100,13 @@ imports_time_end = time.perf_counter_ns()
 
 
 # Create the benchmark
+backend_type = get_backend_type(args_cli.benchmark_backend)
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_non_rl",
-    backend_type=get_backend_type(args_cli.benchmark_backend),
+    backend_type=backend_type,
     output_path=args_cli.output_path,
     use_recorders=True,
+    frametime_recorders=backend_type == "summary",
     output_prefix=f"benchmark_non_rl_{args_cli.task}",
     workflow_metadata={
         "metadata": [
@@ -114,7 +116,6 @@ benchmark = BaseIsaacLabBenchmark(
             {"name": "num_frames", "data": args_cli.num_frames},
         ]
     },
-    frametime_recorders=True,
 )
 
 
