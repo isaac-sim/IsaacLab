@@ -292,8 +292,8 @@ def newton_replicate(
         quaternions[:, 3] = 1.0
 
     # load empty stage
-    scene = ModelBuilder(up_axis=up_axis)
-    stage_info = scene.add_usd(stage, ignore_paths=["/World/envs"] + sources)
+    builder = ModelBuilder(up_axis=up_axis)
+    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
     # build a prototype for each source
     protos: dict[str, ModelBuilder] = {}
@@ -310,18 +310,18 @@ def newton_replicate(
     newton_world_to_env_id = {}
     for col, env_id in enumerate(env_ids.tolist()):
         # begin a new world context (Newton assigns world ID = col)
-        scene.begin_world()
+        builder.begin_world()
         newton_world_to_env_id[col] = env_id
 
         # add all active sources for this world
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            scene.add_builder(
+            builder.add_builder(
                 protos[sources[row]],
                 xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
             )
 
         # end the world context
-        scene.end_world()
+        builder.end_world()
 
     # per-source, per-world renaming (strict prefix swap), compact style preserved
     for i, src_path in enumerate(sources):
@@ -332,14 +332,14 @@ def newton_replicate(
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
-            keys, worlds_arr = getattr(scene, f"{t}_key"), getattr(scene, f"{t}_world")
+            keys, worlds_arr = getattr(builder, f"{t}_key"), getattr(builder, f"{t}_world")
             for k, w in enumerate(worlds_arr):
                 if w in world_roots and keys[k].startswith(src_path):
                     keys[k] = swap(keys[k], world_roots[w])
 
-    NewtonManager.set_builder(scene)
+    NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
-    return scene, stage_info
+    return builder, stage_info
 
 
 def filter_collisions(
