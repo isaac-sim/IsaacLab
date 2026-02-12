@@ -30,7 +30,16 @@ parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
-    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    choices=[
+        "json",
+        "osmo",
+        "omniperf",
+        "summary",
+        "LocalLogMetrics",
+        "JSONFileMetrics",
+        "OsmoKPIFile",
+        "OmniPerfKPIFile",
+    ],
     help="Benchmarking backend options, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
