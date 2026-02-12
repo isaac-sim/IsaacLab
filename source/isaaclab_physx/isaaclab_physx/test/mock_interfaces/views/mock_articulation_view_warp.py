@@ -73,6 +73,7 @@ class MockArticulationViewWarp:
         self._device = device
         self._prim_paths = prim_paths or [f"/World/Articulation_{i}" for i in range(count)]
         self._backend = "warp"
+        self._noop_setters = False
 
         # Create shared metatype
         self._shared_metatype = MockSharedMetatype(
@@ -438,6 +439,8 @@ class MockArticulationViewWarp:
             transforms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         if self._root_transforms is None:
             self._root_transforms = self._create_identity_transforms_1d(self._count)
         if indices is not None:
@@ -461,6 +464,8 @@ class MockArticulationViewWarp:
             velocities: Warp array of shape (N, 6) or (len(indices), 6) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         if self._root_velocities is None:
             self._root_velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
         if indices is not None:
@@ -486,14 +491,17 @@ class MockArticulationViewWarp:
             positions: Warp array of shape (N, J) or (len(indices), J) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         if self._dof_positions is None:
             self._dof_positions = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
-            positions_np = positions.numpy()
-            indices_np = indices.numpy()
-            self_positions_np = self._dof_positions.numpy()
-            self_positions_np[indices_np] = positions_np
-            self._dof_positions = wp.array(self_positions_np, dtype=wp.float32, device=self._device)
+            wp.launch(
+                scatter_floats_2d,
+                dim=(indices.shape[0], self._num_dofs),
+                inputs=[positions, indices, self._dof_positions],
+                device=self._device,
+            )
         else:
             wp.copy(self._dof_positions, positions)
 
@@ -508,14 +516,17 @@ class MockArticulationViewWarp:
             velocities: Warp array of shape (N, J) or (len(indices), J) with dtype=wp.float32.
             indices: Optional indices of articulations to update.
         """
+        if self._noop_setters:
+            return
         if self._dof_velocities is None:
             self._dof_velocities = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device=self._device)
         if indices is not None:
-            velocities_np = velocities.numpy()
-            indices_np = indices.numpy()
-            self_velocities_np = self._dof_velocities.numpy()
-            self_velocities_np[indices_np] = velocities_np
-            self._dof_velocities = wp.array(self_velocities_np, dtype=wp.float32, device=self._device)
+            wp.launch(
+                scatter_floats_2d,
+                dim=(indices.shape[0], self._num_dofs),
+                inputs=[velocities, indices, self._dof_velocities],
+                device=self._device,
+            )
         else:
             wp.copy(self._dof_velocities, velocities)
 
@@ -572,6 +583,8 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If limits array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(limits, "dof_limits")
         if self._dof_limits is None:
             import numpy as np
@@ -581,11 +594,8 @@ class MockArticulationViewWarp:
             arr[:, :, 1] = float("inf")
             self._dof_limits = wp.array(arr, dtype=wp.float32, device="cpu")
         if indices is not None:
-            limits_np = limits.numpy()
-            indices_np = indices.numpy()
-            self_limits_np = self._dof_limits.numpy()
-            self_limits_np[indices_np] = limits_np
-            self._dof_limits = wp.array(self_limits_np, dtype=wp.float32, device="cpu")
+            # numpy() on CPU warp arrays is zero-copy; in-place write modifies the warp array directly
+            self._dof_limits.numpy()[indices.numpy()] = limits.numpy()
         else:
             wp.copy(self._dof_limits, limits)
 
@@ -603,15 +613,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If stiffnesses array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(stiffnesses, "dof_stiffnesses")
         if self._dof_stiffnesses is None:
             self._dof_stiffnesses = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device="cpu")
         if indices is not None:
-            stiffnesses_np = stiffnesses.numpy()
-            indices_np = indices.numpy()
-            self_stiffnesses_np = self._dof_stiffnesses.numpy()
-            self_stiffnesses_np[indices_np] = stiffnesses_np
-            self._dof_stiffnesses = wp.array(self_stiffnesses_np, dtype=wp.float32, device="cpu")
+            self._dof_stiffnesses.numpy()[indices.numpy()] = stiffnesses.numpy()
         else:
             wp.copy(self._dof_stiffnesses, stiffnesses)
 
@@ -629,15 +637,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If dampings array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(dampings, "dof_dampings")
         if self._dof_dampings is None:
             self._dof_dampings = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device="cpu")
         if indices is not None:
-            dampings_np = dampings.numpy()
-            indices_np = indices.numpy()
-            self_dampings_np = self._dof_dampings.numpy()
-            self_dampings_np[indices_np] = dampings_np
-            self._dof_dampings = wp.array(self_dampings_np, dtype=wp.float32, device="cpu")
+            self._dof_dampings.numpy()[indices.numpy()] = dampings.numpy()
         else:
             wp.copy(self._dof_dampings, dampings)
 
@@ -655,6 +661,8 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If max_forces array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(max_forces, "dof_max_forces")
         if self._dof_max_forces is None:
             import numpy as np
@@ -662,11 +670,7 @@ class MockArticulationViewWarp:
             arr = np.full((self._count, self._num_dofs), float("inf"), dtype=np.float32)
             self._dof_max_forces = wp.array(arr, dtype=wp.float32, device="cpu")
         if indices is not None:
-            max_forces_np = max_forces.numpy()
-            indices_np = indices.numpy()
-            self_max_forces_np = self._dof_max_forces.numpy()
-            self_max_forces_np[indices_np] = max_forces_np
-            self._dof_max_forces = wp.array(self_max_forces_np, dtype=wp.float32, device="cpu")
+            self._dof_max_forces.numpy()[indices.numpy()] = max_forces.numpy()
         else:
             wp.copy(self._dof_max_forces, max_forces)
 
@@ -684,6 +688,8 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If max_velocities array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(max_velocities, "dof_max_velocities")
         if self._dof_max_velocities is None:
             import numpy as np
@@ -691,11 +697,7 @@ class MockArticulationViewWarp:
             arr = np.full((self._count, self._num_dofs), float("inf"), dtype=np.float32)
             self._dof_max_velocities = wp.array(arr, dtype=wp.float32, device="cpu")
         if indices is not None:
-            max_velocities_np = max_velocities.numpy()
-            indices_np = indices.numpy()
-            self_max_velocities_np = self._dof_max_velocities.numpy()
-            self_max_velocities_np[indices_np] = max_velocities_np
-            self._dof_max_velocities = wp.array(self_max_velocities_np, dtype=wp.float32, device="cpu")
+            self._dof_max_velocities.numpy()[indices.numpy()] = max_velocities.numpy()
         else:
             wp.copy(self._dof_max_velocities, max_velocities)
 
@@ -713,15 +715,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If armatures array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(armatures, "dof_armatures")
         if self._dof_armatures is None:
             self._dof_armatures = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device="cpu")
         if indices is not None:
-            armatures_np = armatures.numpy()
-            indices_np = indices.numpy()
-            self_armatures_np = self._dof_armatures.numpy()
-            self_armatures_np[indices_np] = armatures_np
-            self._dof_armatures = wp.array(self_armatures_np, dtype=wp.float32, device="cpu")
+            self._dof_armatures.numpy()[indices.numpy()] = armatures.numpy()
         else:
             wp.copy(self._dof_armatures, armatures)
 
@@ -739,15 +739,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If friction_coefficients array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(friction_coefficients, "dof_friction_coefficients")
         if self._dof_friction_coefficients is None:
             self._dof_friction_coefficients = wp.zeros((self._count, self._num_dofs), dtype=wp.float32, device="cpu")
         if indices is not None:
-            friction_coefficients_np = friction_coefficients.numpy()
-            indices_np = indices.numpy()
-            self_friction_coefficients_np = self._dof_friction_coefficients.numpy()
-            self_friction_coefficients_np[indices_np] = friction_coefficients_np
-            self._dof_friction_coefficients = wp.array(self_friction_coefficients_np, dtype=wp.float32, device="cpu")
+            self._dof_friction_coefficients.numpy()[indices.numpy()] = friction_coefficients.numpy()
         else:
             wp.copy(self._dof_friction_coefficients, friction_coefficients)
 
@@ -765,17 +763,15 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If friction_properties array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(friction_properties, "dof_friction_properties")
         if self._dof_friction_properties is None:
             self._dof_friction_properties = wp.zeros(
                 (self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu"
             )
         if indices is not None:
-            friction_properties_np = friction_properties.numpy()
-            indices_np = indices.numpy()
-            self_friction_properties_np = self._dof_friction_properties.numpy()
-            self_friction_properties_np[indices_np] = friction_properties_np
-            self._dof_friction_properties = wp.array(self_friction_properties_np, dtype=wp.float32, device="cpu")
+            self._dof_friction_properties.numpy()[indices.numpy()] = friction_properties.numpy()
         else:
             wp.copy(self._dof_friction_properties, friction_properties)
 
@@ -795,15 +791,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If masses array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(masses, "masses")
         if self._masses is None:
             self._masses = wp.ones((self._count, self._num_links), dtype=wp.float32, device="cpu")
         if indices is not None:
-            masses_np = masses.numpy()
-            indices_np = indices.numpy()
-            self_masses_np = self._masses.numpy()
-            self_masses_np[indices_np] = masses_np
-            self._masses = wp.array(self_masses_np, dtype=wp.float32, device="cpu")
+            self._masses.numpy()[indices.numpy()] = masses.numpy()
         else:
             wp.copy(self._masses, masses)
 
@@ -821,15 +815,13 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If coms array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(coms, "coms")
         if self._coms is None:
             self._coms = self._create_identity_transforms_2d(self._count, self._num_links, device="cpu")
         if indices is not None:
-            coms_np = coms.numpy()
-            indices_np = indices.numpy()
-            self_coms_np = self._coms.numpy()
-            self_coms_np[indices_np] = coms_np
-            self._coms = wp.array(self_coms_np, dtype=wp.float32, device="cpu")
+            self._coms.numpy()[indices.numpy()] = coms.numpy()
         else:
             wp.copy(self._coms, coms)
 
@@ -847,6 +839,8 @@ class MockArticulationViewWarp:
         Raises:
             RuntimeError: If inertias array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(inertias, "inertias")
         if self._inertias is None:
             self._inertias = wp.zeros((self._count, self._num_links, 9), dtype=wp.float32, device="cpu")
@@ -857,11 +851,7 @@ class MockArticulationViewWarp:
                 device="cpu",
             )
         if indices is not None:
-            inertias_np = inertias.numpy()
-            indices_np = indices.numpy()
-            self_inertias_np = self._inertias.numpy()
-            self_inertias_np[indices_np] = inertias_np
-            self._inertias = wp.array(self_inertias_np, dtype=wp.float32, device="cpu")
+            self._inertias.numpy()[indices.numpy()] = inertias.numpy()
         else:
             wp.copy(self._inertias, inertias)
 

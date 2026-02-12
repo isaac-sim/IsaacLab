@@ -111,6 +111,7 @@ def create_test_articulation(
         device=device,
     )
     mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
 
     # Set up the mock view's metatype for accessing names/counts
     mock_metatype = MagicMock()

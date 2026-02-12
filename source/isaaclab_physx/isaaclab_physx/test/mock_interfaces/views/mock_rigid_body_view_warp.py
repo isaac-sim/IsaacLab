@@ -49,6 +49,7 @@ class MockRigidBodyViewWarp:
         self._prim_paths = prim_paths or [f"/World/RigidBody_{i}" for i in range(count)]
         self._device = device
         self._backend = "warp"
+        self._noop_setters = False
 
         # Internal state (lazily initialized)
         self._transforms: wp.array | None = None
@@ -171,6 +172,8 @@ class MockRigidBodyViewWarp:
             transforms: Warp array of shape (N, 7) or (len(indices), 7) with dtype=wp.float32.
             indices: Optional Warp array of indices (dtype=wp.int32) of bodies to update.
         """
+        if self._noop_setters:
+            return
         if self._transforms is None:
             self._transforms = self._create_identity_transforms(self._count)
         if indices is not None:
@@ -194,6 +197,8 @@ class MockRigidBodyViewWarp:
             velocities: Warp array of shape (N, 6) or (len(indices), 6) with dtype=wp.float32.
             indices: Optional Warp array of indices (dtype=wp.int32) of bodies to update.
         """
+        if self._noop_setters:
+            return
         if self._velocities is None:
             self._velocities = wp.zeros((self._count, 6), dtype=wp.float32, device=self._device)
         if indices is not None:
@@ -220,16 +225,13 @@ class MockRigidBodyViewWarp:
         Raises:
             RuntimeError: If masses array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(masses, "masses")
         if self._masses is None:
             self._masses = wp.ones((self._count, 1), dtype=wp.float32, device="cpu")
         if indices is not None:
-            # Manual scatter for 2D CPU arrays
-            masses_np = masses.numpy()
-            indices_np = indices.numpy()
-            self_masses_np = self._masses.numpy()
-            self_masses_np[indices_np] = masses_np
-            self._masses = wp.array(self_masses_np, dtype=wp.float32, device="cpu")
+            self._masses.numpy()[indices.numpy()] = masses.numpy()
         else:
             wp.copy(self._masses, masses)
 
@@ -247,15 +249,13 @@ class MockRigidBodyViewWarp:
         Raises:
             RuntimeError: If coms array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(coms, "coms")
         if self._coms is None:
             self._coms = self._create_identity_transforms(self._count, device="cpu")
         if indices is not None:
-            coms_np = coms.numpy()
-            indices_np = indices.numpy()
-            self_coms_np = self._coms.numpy()
-            self_coms_np[indices_np] = coms_np
-            self._coms = wp.array(self_coms_np, dtype=wp.float32, device="cpu")
+            self._coms.numpy()[indices.numpy()] = coms.numpy()
         else:
             wp.copy(self._coms, coms)
 
@@ -273,17 +273,14 @@ class MockRigidBodyViewWarp:
         Raises:
             RuntimeError: If inertias array is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_array(inertias, "inertias")
         if self._inertias is None:
             self._inertias = wp.zeros((self._count, 9), dtype=wp.float32, device="cpu")
             wp.launch(init_identity_inertias_1d, dim=self._count, inputs=[self._inertias], device="cpu")
         if indices is not None:
-            # Manual scatter for 2D CPU arrays
-            inertias_np = inertias.numpy()
-            indices_np = indices.numpy()
-            self_inertias_np = self._inertias.numpy()
-            self_inertias_np[indices_np] = inertias_np
-            self._inertias = wp.array(self_inertias_np, dtype=wp.float32, device="cpu")
+            self._inertias.numpy()[indices.numpy()] = inertias.numpy()
         else:
             wp.copy(self._inertias, inertias)
 
@@ -342,6 +339,47 @@ class MockRigidBodyViewWarp:
             inertias: Warp array of shape (N, 9) with dtype=wp.float32 - flattened 3x3 matrices.
         """
         self._inertias = wp.clone(inertias)
+
+    # -- Convenience method for benchmarking --
+
+    def set_random_mock_data(self) -> None:
+        """Set all internal state to random values for benchmarking.
+
+        This method initializes all mock data with random warp arrays,
+        useful for benchmarking where the actual values don't matter.
+        """
+        import numpy as np
+
+        N = self._count
+
+        # Transforms with normalized quaternions - on device
+        tf = np.random.randn(N, 7).astype(np.float32)
+        tf[:, 3:7] /= np.linalg.norm(tf[:, 3:7], axis=-1, keepdims=True)
+        self._transforms = wp.array(tf, dtype=wp.float32, device=self._device)
+
+        # Velocities and accelerations - on device
+        self._velocities = wp.array(
+            np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
+        self._accelerations = wp.array(
+            np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
+
+        # Mass properties - stored on CPU (PhysX requirement)
+        self._masses = wp.array((np.random.rand(N, 1) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
+
+        # Center of mass with normalized quaternions - stored on CPU (PhysX requirement)
+        c = np.random.randn(N, 7).astype(np.float32)
+        c[:, 3:7] /= np.linalg.norm(c[:, 3:7], axis=-1, keepdims=True)
+        self._coms = wp.array(c, dtype=wp.float32, device="cpu")
+
+        # Inertia tensors (positive definite diagonal) - flattened (N, 9) - stored on CPU (PhysX requirement)
+        diag_values = np.random.rand(N, 3).astype(np.float32) + 0.1
+        inertias = np.zeros((N, 9), dtype=np.float32)
+        inertias[:, 0] = diag_values[:, 0]
+        inertias[:, 4] = diag_values[:, 1]
+        inertias[:, 8] = diag_values[:, 2]
+        self._inertias = wp.array(inertias, dtype=wp.float32, device="cpu")
 
     # -- Actions (no-op for testing) --
 
