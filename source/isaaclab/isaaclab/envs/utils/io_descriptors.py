@@ -12,10 +12,10 @@ from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     import torch
-import warp as wp
-
     from isaaclab.assets.articulation import Articulation
     from isaaclab.envs import ManagerBasedEnv
+
+import warp as wp
 
 import dataclasses
 import functools
