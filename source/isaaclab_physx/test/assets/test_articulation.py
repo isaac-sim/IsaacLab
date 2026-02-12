@@ -376,8 +376,6 @@ def test_initialization_fixed_base(sim, num_articulations, device):
         default_root_state = wp.to_torch(articulation.data.default_root_state).clone()
         default_root_state[:, :3] = default_root_state[:, :3] + translations
 
-        print("default_root_state: ", default_root_state)
-        print("articulation.data.root_state_w: ", articulation.data.root_state_w)
         torch.testing.assert_close(wp.to_torch(articulation.data.root_state_w), default_root_state)
 
 
@@ -1905,7 +1903,6 @@ def test_setting_articulation_root_prim_path(sim, device):
     sim._app_control_on_stop_handle = None
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    print(articulation_cfg.spawn.usd_path)
     articulation_cfg.articulation_root_prim_path = "/torso"
     articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
@@ -1925,7 +1922,6 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     sim._app_control_on_stop_handle = None
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    print(articulation_cfg.spawn.usd_path)
     articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
@@ -2133,10 +2129,6 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
     joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
     joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
-    print("friction_props_from_sim: ", friction_props_from_sim)
-    print("dynamic_friction: ", dynamic_friction)
-    print("viscous_friction: ", viscous_friction)
-    print("friction: ", friction)
     assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
     assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
@@ -2177,11 +2169,6 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         joint_friction_coeff_sim_2 = friction_props_from_sim_2[:, :, 0]
         friction_dynamic_coef_sim_2 = friction_props_from_sim_2[:, :, 1]
         friction_viscous_coeff_sim_2 = friction_props_from_sim_2[:, :, 2]
-
-        print("friction_props_from_sim_2: ", friction_props_from_sim_2)
-        print("viscous_friction_2: ", viscous_friction_2)
-        print("dynamic_friction_2: ", dynamic_friction_2)
-        print("friction_2: ", friction_2)
 
         # Validate values propagated
         assert torch.allclose(friction_viscous_coeff_sim_2, viscous_friction_2.cpu())

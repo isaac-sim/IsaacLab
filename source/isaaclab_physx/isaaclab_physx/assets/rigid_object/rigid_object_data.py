@@ -347,9 +347,6 @@ class RigidObjectData(BaseRigidObjectData):
         The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
         relative to the world. Center of mass frame is the orientation principle axes of inertia.
         """
-        print("root_com_state_w timestamp: ", self._root_com_state_w.timestamp)
-        print("sim_timestamp: ", self._sim_timestamp)
-        print("root_com_pose_w: ", self.root_com_pose_w)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,

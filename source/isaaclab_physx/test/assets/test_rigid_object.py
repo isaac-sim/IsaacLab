@@ -1063,10 +1063,6 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                     cube_object.write_root_link_state_to_sim(rand_state, env_ids=env_idx)
 
             if state_location == "com":
-                print("timestamp: ", cube_object.data._sim_timestamp)
-                print("root com state w timestamp: ", cube_object.data._root_com_state_w.timestamp)
-                print("data root com state w: ", wp.to_torch(cube_object.data.root_com_state_w))
-                print("rand state: ", rand_state)
                 torch.testing.assert_close(rand_state, wp.to_torch(cube_object.data.root_com_state_w))
             elif state_location == "link":
                 torch.testing.assert_close(rand_state, wp.to_torch(cube_object.data.root_link_state_w))
@@ -1117,13 +1113,10 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         # update buffers
         cube_object.update(sim.cfg.dt)
 
-        print("root_com_state_w.timestamp on initial step: ", cube_object.data._root_com_state_w.timestamp)
         if state_location == "com":
             cube_object.write_root_com_state_to_sim(rand_state)
         elif state_location == "link":
-            print("root_com_state_w.timestamp prior to link write: ", cube_object.data._root_com_state_w.timestamp)
             cube_object.write_root_link_state_to_sim(rand_state)
-            print("root_com_state_w.timestamp on link write: ", cube_object.data._root_com_state_w.timestamp)
         elif state_location == "root":
             cube_object.write_root_state_to_sim(rand_state)
 
@@ -1151,10 +1144,8 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(expected_root_link_pose, root_state_w[:, :7])
             torch.testing.assert_close(root_com_state_w[:, 10:], root_state_w[:, 10:])
         elif state_location == "link":
-            print("root_com_state_w.timestamp: ", cube_object.data._root_com_state_w.timestamp)
             root_link_state_w = wp.to_torch(cube_object.data.root_link_state_w)
             body_com_pose_b = wp.to_torch(cube_object.data.body_com_pose_b)
-            print("root_com_state_w.timestamp: ", cube_object.data._root_com_state_w.timestamp)
             expected_com_pos, expected_com_quat = combine_frame_transforms(
                 root_link_state_w[:, :3],
                 root_link_state_w[:, 3:7],
@@ -1164,8 +1155,6 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
             root_com_state_w = wp.to_torch(cube_object.data.root_com_state_w)
             # test both root_pose and root_com_state_w successfully updated when root_link_state_w updates
-            print("root_com_state_w: ", root_com_state_w[:, :7])
-            print("expected_com_pose: ", expected_com_pose)
             torch.testing.assert_close(expected_com_pose, root_com_state_w[:, :7])
             # skip 7:10 because they differs from link frame, this should be fine because we are only checking
             # if velocity update is triggered, which can be determined by comparing angular velocity

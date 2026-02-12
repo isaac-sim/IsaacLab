@@ -1033,7 +1033,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(joint_ids, list):
             # Convert list to tensor explicitly for warp kernels
             joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
@@ -1128,7 +1128,7 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(joint_ids, list):
             # Convert list to tensor explicitly for warp kernels
             joint_ids = wp.array(joint_ids, dtype=wp.int32, device=self.device)
