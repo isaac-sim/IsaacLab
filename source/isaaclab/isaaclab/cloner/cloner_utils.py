@@ -292,8 +292,8 @@ def newton_replicate(
         quaternions[:, 3] = 1.0
 
     # load empty stage
-    scene = ModelBuilder(up_axis=up_axis)
-    stage_info = scene.add_usd(stage, ignore_paths=["/World/envs"] + sources)
+    builder = ModelBuilder(up_axis=up_axis)
+    stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
     # build a prototype for each source
     protos: dict[str, ModelBuilder] = {}
@@ -339,14 +339,14 @@ def newton_replicate(
         world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
 
         for t in ("body", "joint", "shape", "articulation"):
-            keys, worlds_arr = getattr(scene, f"{t}_key"), getattr(scene, f"{t}_world")
+            keys, worlds_arr = getattr(builder, f"{t}_key"), getattr(scene, f"{t}_world")
             for k, w in enumerate(worlds_arr):
                 if w in world_roots and keys[k].startswith(src_path):
                     keys[k] = swap(keys[k], world_roots[w])
 
-    NewtonManager.set_builder(scene)
+    NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
-    return scene, stage_info
+    return builder, stage_info
 
 
 def filter_collisions(
