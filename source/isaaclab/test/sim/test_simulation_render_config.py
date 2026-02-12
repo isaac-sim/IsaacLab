@@ -22,7 +22,8 @@ import toml
 import carb
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
-from isaaclab.sim.simulation_context import SimulationContext, to_flat_dict
+from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils.dict import to_flat_dict
 from isaaclab.utils.version import get_isaac_sim_version
 
 
