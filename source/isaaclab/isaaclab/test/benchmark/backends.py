@@ -255,7 +255,8 @@ class SummaryMetrics(MetricsBackendInterface):
                     unit_str = f" {measurement.unit}" if measurement.unit else ""
                     value = f"{self._format_scalar(measurement.mean)}{unit_str}"
                 elif isinstance(measurement, SingleMeasurement):
-                    value = f"{self._format_scalar(measurement.value)} {measurement.unit}"
+                    unit_str = f" {measurement.unit}" if measurement.unit else ""
+                    value = f"{self._format_scalar(measurement.value)}{unit_str}"
                 else:
                     continue
                 self._print_box_line(f"{label}: {value}")
