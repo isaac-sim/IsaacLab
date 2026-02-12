@@ -65,9 +65,6 @@ class WrenchComposer:
         self._ALL_ENV_INDICES_TORCH = wp.to_torch(self._ALL_ENV_INDICES_WP)
         self._ALL_BODY_INDICES_TORCH = wp.to_torch(self._ALL_BODY_INDICES_WP)
 
-        # # Flag to check if the link poses have been updated.
-        self._link_poses_updated = False
-
     @property
     def active(self) -> bool:
         """Whether the wrench composer is active."""
@@ -196,12 +193,10 @@ class WrenchComposer:
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         # Get the link positions and quaternions
-        if not self._link_poses_updated:
-            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(
-                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
-            )
-            # self._link_poses_updated = True
+        self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+        self._link_quaternions = wp.from_torch(
+            convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+        )
 
         # Set the active flag to true
         self._active = True
@@ -304,12 +299,10 @@ class WrenchComposer:
             positions = wp.from_torch(positions, dtype=wp.vec3f)
 
         # Get the link positions and quaternions
-        if not self._link_poses_updated:
-            self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
-            self._link_quaternions = wp.from_torch(
-                convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
-            )
-            # self._link_poses_updated = True
+        self._link_positions = wp.from_torch(self._get_link_position_fn().clone(), dtype=wp.vec3f)
+        self._link_quaternions = wp.from_torch(
+            convert_quat(self._get_link_quaternion_fn().clone(), to="xyzw"), dtype=wp.quatf
+        )
 
         # Set the active flag to true
         self._active = True
@@ -360,5 +353,3 @@ class WrenchComposer:
 
             self._composed_force_m[indices].zero_()
             self._composed_torque_m[indices].zero_()
-
-        self._link_poses_updated = False
