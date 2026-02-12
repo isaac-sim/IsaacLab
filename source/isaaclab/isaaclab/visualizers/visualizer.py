@@ -7,11 +7,19 @@
 
 from __future__ import annotations
 
+import logging
+import random
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
+
     from .visualizer_cfg import VisualizerCfg
+
+
+logger = logging.getLogger(__name__)
 
 
 class Visualizer(ABC):
@@ -23,13 +31,14 @@ class Visualizer(ABC):
     def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer with config."""
         self.cfg = cfg
+        self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
 
     @abstractmethod
-    def initialize(self, scene_data: dict[str, Any] | None = None) -> None:
-        """Initialize visualizer with scene data (model, state, usd_stage, etc.)."""
-        pass
+    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
+        """Initialize visualizer resources."""
+        raise NotImplementedError
 
     @abstractmethod
     def step(self, dt: float, state: Any | None = None) -> None:
@@ -39,22 +48,17 @@ class Visualizer(ABC):
             dt: Time step in seconds.
             state: Updated physics state (e.g., newton.State).
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def close(self) -> None:
         """Clean up resources."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def is_running(self) -> bool:
         """Check if visualizer is still running (e.g., window not closed)."""
-        pass
-
-    @abstractmethod
-    def is_stopped(self) -> bool:
-        """Check if visualizer is stopped (e.g., window closed)."""
-        pass
+        raise NotImplementedError
 
     def is_training_paused(self) -> bool:
         """Check if training is paused by visualizer controls."""
@@ -82,6 +86,39 @@ class Visualizer(ABC):
         """Check if visualizer supports LivePlots."""
         return False
 
+    def get_visualized_env_ids(self) -> list[int] | None:
+        """Return env IDs this visualizer is displaying, if any."""
+        return getattr(self, "_env_ids", None)
+
+    def _compute_visualized_env_ids(self) -> list[int] | None:
+        """Compute which env indices to show from config."""
+        if self._scene_data_provider is None:
+            return None
+        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
+        if num_envs <= 0:
+            logger.warning(
+                "[Visualizer] num_envs is 0 or missing from provider metadata; partial visualization disabled."
+            )
+            return None
+        filter_mode = getattr(self.cfg, "env_filter_mode", "none")
+        if filter_mode == "none":
+            return None
+        if filter_mode == "env_ids":
+            env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)
+            if env_ids_cfg is not None and len(env_ids_cfg) > 0:
+                return [i for i in env_ids_cfg if 0 <= i < num_envs]
+            return None
+        if filter_mode == "random_n":
+            count = int(getattr(self.cfg, "env_filter_random_n", 0))
+            if count <= 0:
+                return None
+            count = min(count, num_envs)
+            seed = int(getattr(self.cfg, "env_filter_seed", 0))
+            rng = random.Random(seed)
+            return sorted(rng.sample(range(num_envs), count))
+        logger.warning("[Visualizer] Unknown env_filter_mode='%s'; defaulting to all envs.", filter_mode)
+        return None
+
     def get_rendering_dt(self) -> float | None:
         """Get rendering time step. Returns None to use interface default."""
         return None
@@ -89,6 +126,75 @@ class Visualizer(ABC):
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view position. No-op by default."""
         pass
+
+    def _resolve_camera_pose_from_usd_path(
+        self, usd_path: str
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+        if self._scene_data_provider is None:
+            return None
+        transforms = self._scene_data_provider.get_camera_transforms()
+        if not transforms:
+            return None
+        order = transforms.get("order", [])
+        positions = transforms.get("positions", [])
+        orientations = transforms.get("orientations", [])
+
+        env_pattern = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
+        if match := env_pattern.match(usd_path):
+            env_id = int(match.group("id"))
+            template_path = match.group("root") + "%d" + match.group("path")
+        else:
+            env_id = 0
+            template_path = usd_path
+
+        if template_path not in order:
+            return None
+        idx = order.index(template_path)
+        if idx >= len(positions) or idx >= len(orientations):
+            return None
+        if env_id < 0 or env_id >= len(positions[idx]):
+            return None
+        pos = positions[idx][env_id]
+        ori = orientations[idx][env_id]
+        if pos is None or ori is None:
+            return None
+        pos_t = (float(pos[0]), float(pos[1]), float(pos[2]))
+        ori_t = (float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3]))
+        forward = self._quat_rotate_vec(ori_t, (0.0, 0.0, -1.0))
+        target = (pos_t[0] + forward[0], pos_t[1] + forward[1], pos_t[2] + forward[2])
+        return pos_t, target
+
+    @staticmethod
+    def _quat_rotate_vec(
+        quat_xyzw: tuple[float, float, float, float], vec: tuple[float, float, float]
+    ) -> tuple[float, float, float]:
+        x, y, z, w = quat_xyzw
+        vx, vy, vz = vec
+        tx = 2.0 * (y * vz - z * vy)
+        ty = 2.0 * (z * vx - x * vz)
+        tz = 2.0 * (x * vy - y * vx)
+        cx = y * tz - z * ty
+        cy = z * tx - x * tz
+        cz = x * ty - y * tx
+        return (vx + w * tx + cx, vy + w * ty + cy, vz + w * tz + cz)
+
+    @staticmethod
+    def _infer_spacing_from_env_origins(env_origins: Any | None) -> tuple[float, float, float]:
+        if env_origins is None:
+            return (5.0, 5.0, 0.0)
+        try:
+            origins = [tuple(map(float, o)) for o in env_origins]
+        except Exception:
+            return (5.0, 5.0, 0.0)
+        if not origins:
+            return (5.0, 5.0, 0.0)
+        xs = sorted({o[0] for o in origins})
+        ys = sorted({o[1] for o in origins})
+        dx = min((xs[i + 1] - xs[i] for i in range(len(xs) - 1) if xs[i + 1] > xs[i]), default=5.0)
+        dy = min((ys[i + 1] - ys[i] for i in range(len(ys) - 1) if ys[i + 1] > ys[i]), default=5.0)
+        dx = dx if dx > 0 else 5.0
+        dy = dy if dy > 0 else 5.0
+        return (float(dx), float(dy), 0.0)
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state. No-op by default."""

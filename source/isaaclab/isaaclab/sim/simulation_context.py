@@ -21,8 +21,9 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage_in_memory
-from isaaclab.visualizers import Visualizer
+from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
 
+from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -127,8 +128,12 @@ class SimulationContext:
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
 
-        # Initialize visualizers
-        self._init_visualizers()
+        # Initialize visualizer state (created after scene info is available)
+        self._scene_data_provider: SceneDataProvider | None = None
+        self._visualizers: list[Visualizer] = []
+        self._visualizer_step_counter = 0
+        self._num_envs: int | None = None
+        self._env_origins: Any = None
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
@@ -207,40 +212,116 @@ class SimulationContext:
         return self.physics_manager.get_physics_dt()
 
     # VISUALIZER MANAGEMENT
+    def set_scene_info(self, scene: Any) -> None:
+        """Set scene info (num_envs, env_origins) from an InteractiveScene-like object."""
+        if scene is None:
+            return
+
+        num_envs = getattr(scene, "num_envs", None)
+        if num_envs is not None:
+            self._num_envs = num_envs
+            if self._scene_data_provider is not None:
+                set_num_envs = getattr(self._scene_data_provider, "set_num_envs", None)
+                if callable(set_num_envs):
+                    set_num_envs(num_envs)
+
+        env_origins = getattr(scene, "env_origins", None)
+        if env_origins is not None:
+            self._env_origins = env_origins
+            if self._scene_data_provider is not None:
+                set_env_origins = getattr(self._scene_data_provider, "set_env_origins", None)
+                if callable(set_env_origins):
+                    set_env_origins(env_origins)
+
+    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
+        """Create default visualizer configs for requested types."""
+        default_configs = []
+        for viz_type in requested_visualizers:
+            try:
+                if viz_type == "newton":
+                    default_configs.append(NewtonVisualizerCfg())
+                elif viz_type == "rerun":
+                    default_configs.append(RerunVisualizerCfg())
+                elif viz_type == "omniverse":
+                    default_configs.append(OVVisualizerCfg())
+                else:
+                    logger.warning(
+                        f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
+                        "Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
+                    )
+            except Exception as exc:
+                logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
+        return default_configs
+
+    def resolve_visualizer_types(self) -> list[str]:
+        """Resolve visualizer types from config or CLI settings."""
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            requested = self.get_setting("/isaaclab/visualizer")
+            return [v.strip() for v in requested.split(",") if v.strip()] if requested else []
+
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
+        return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+
+    def initialize_visualizers(self) -> None:
+        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
+        if self._visualizers:
+            return
+        self._init_visualizers()
+
     def _init_visualizers(self) -> None:
         """Initialize visualizers based on config and settings."""
-        self._visualizers: list[Visualizer] = []
-        self._viz_dt = self.cfg.dt * self.cfg.render_interval
+        self._visualizers = []
+        physics_dt = getattr(self.cfg.physics, "dt", None)
+        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
-        # Determine which visualizers to create
-        viz_str = "omniverse"  # Default
-        requested = [v.strip() for v in viz_str.split(",") if v.strip()]
+        visualizer_cfgs: list = []
+        if self.cfg.visualizer_cfgs is not None:
+            visualizer_cfgs = (
+                self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) else [self.cfg.visualizer_cfgs]
+            )
 
-        if len(requested) > 0:
-            # Get or create visualizer configs
-            cfg_list = self.cfg.visualizer_cfgs
-            from isaaclab_physx.visualizers import OVVisualizerCfg
+        if len(visualizer_cfgs) == 0:
+            requested_visualizers = self.resolve_visualizer_types()
+            if not requested_visualizers:
+                return
+            visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
 
-            type_map = {"omniverse": OVVisualizerCfg}
-            viz_cfgs = []
-            if cfg_list is None:
-                for viz_type in requested:
-                    viz_cfgs.append(type_map[viz_type]())
-            else:
-                viz_cfgs = cfg_list if isinstance(cfg_list, list) else [cfg_list]
+        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
+        if any(viz in ("newton", "rerun") for viz in viz_types):
+            from .scene_data_providers import NewtonSceneDataProvider
 
-            # Create and initialize each visualizer
-            for cfg in viz_cfgs:
-                self._visualizers.append(cfg.create_visualizer())
-                # build scene data for visualizer initialization
-                if cfg.visualizer_type in ("newton", "rerun"):
-                    scene_data = {"scene_data_provider": None}
-                elif cfg.visualizer_type == "omniverse":
-                    scene_data = {"usd_stage": self.stage, "simulation_context": self}
-                else:
-                    scene_data = {}
-                self._visualizers[-1].initialize(scene_data)
-                logger.info(f"Initialized visualizer: {type(self._visualizers[-1]).__name__}")
+            self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs)
+        else:
+            from .scene_data_providers import OVSceneDataProvider
+
+            self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
+
+        if self._num_envs is not None and self._scene_data_provider is not None:
+            set_num_envs = getattr(self._scene_data_provider, "set_num_envs", None)
+            if callable(set_num_envs):
+                set_num_envs(self._num_envs)
+        if self._env_origins is not None and self._scene_data_provider is not None:
+            set_env_origins = getattr(self._scene_data_provider, "set_env_origins", None)
+            if callable(set_env_origins):
+                set_env_origins(self._env_origins)
+
+        if self._num_envs is None or self._num_envs <= 0:
+            logger.warning(
+                "[SimulationContext] Visualizers initialized before scene info is set; "
+                "num_envs/env_origins are unavailable. Call set_scene_info(...) before "
+                "initialize_visualizers for correct partial visualization."
+            )
+
+        for cfg in visualizer_cfgs:
+            try:
+                visualizer = cfg.create_visualizer()
+                visualizer.initialize(self._scene_data_provider)
+                self._visualizers.append(visualizer)
+                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
+            except Exception as exc:
+                logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
 
     @property
     def visualizers(self) -> list[Visualizer]:
@@ -271,6 +352,9 @@ class SimulationContext:
             viz.reset(soft)
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
+        if not self._visualizers:
+            # Initialize visualizers after PhysX sim view is ready.
+            self.initialize_visualizers()
         self._is_playing = True
         self._is_stopped = False
 
@@ -286,14 +370,57 @@ class SimulationContext:
 
     def render(self, mode: int | None = None) -> None:
         """Render the scene via all active visualizers."""
-        self.physics_manager.forward()
-        for viz in self._visualizers:
-            if not viz.is_rendering_paused() and viz.is_running():
-                viz.step(self.get_rendering_dt(), state=None)
+        self.update_visualizers(self.get_rendering_dt())
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
             for callback in self._render_callbacks.values():
                 callback(None)  # Pass None as event data
+
+    def update_visualizers(self, dt: float) -> None:
+        """Update visualizers without triggering renderer/GUI."""
+        if not self._visualizers:
+            return
+
+        if any(type(v).__name__ == "OVVisualizer" for v in self._visualizers):
+            self.physics_manager.forward()
+        self._visualizer_step_counter += 1
+        if self._scene_data_provider:
+            env_ids_union: list[int] = []
+            for viz in self._visualizers:
+                ids = getattr(viz, "get_visualized_env_ids", lambda: None)()
+                if ids is not None:
+                    env_ids_union.extend(ids)
+            env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+            self._scene_data_provider.update(env_ids)
+
+        visualizers_to_remove = []
+        for viz in self._visualizers:
+            try:
+                if viz.is_rendering_paused():
+                    continue
+                if getattr(viz, "is_closed", False):
+                    print(f"[SimulationContext] Visualizer closed: {type(viz).__name__}")
+                    visualizers_to_remove.append(viz)
+                    continue
+                if not viz.is_running():
+                    print(f"[SimulationContext] Visualizer not running: {type(viz).__name__}")
+                    visualizers_to_remove.append(viz)
+                    continue
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0, state=None)
+                viz.step(dt, state=None)
+            except Exception as exc:
+                logger.error(f"Error stepping visualizer '{type(viz).__name__}': {exc}")
+                print(f"[SimulationContext] Visualizer step error: {type(viz).__name__}: {exc}")
+                visualizers_to_remove.append(viz)
+
+        for viz in visualizers_to_remove:
+            try:
+                viz.close()
+                self._visualizers.remove(viz)
+                logger.info(f"Removed visualizer: {type(viz).__name__}")
+            except Exception as exc:
+                logger.error(f"Error closing visualizer: {exc}")
 
     def play(self) -> None:
         """Start or resume the simulation."""
@@ -349,6 +476,11 @@ class SimulationContext:
             for viz in cls._instance._visualizers:
                 viz.close()
             cls._instance._visualizers.clear()
+            if cls._instance._scene_data_provider is not None:
+                close_provider = getattr(cls._instance._scene_data_provider, "close", None)
+                if callable(close_provider):
+                    close_provider()
+                cls._instance._scene_data_provider = None
 
             # Remove stage from cache
             stage_cache = UsdUtils.StageCache.Get()

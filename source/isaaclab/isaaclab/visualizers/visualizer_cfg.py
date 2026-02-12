@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
@@ -26,9 +26,6 @@ class VisualizerCfg:
 
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'omniverse'). Must be overridden by subclasses."""
-
-    # Note: Partial environment visualization will come later
-    # env_ids: list[Integer] = []
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
@@ -49,6 +46,28 @@ class VisualizerCfg:
 
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z) in world coordinates."""
+
+    camera_source: Literal["cfg", "usd_path"] = "cfg"
+    """Camera source mode: 'cfg' uses camera_position/target, 'usd_path' follows a USD camera prim."""
+
+    camera_usd_path: str = "/World/envs/env_0/robot/..."
+    """Absolute USD path to a camera prim when camera_source='usd_path'."""
+
+    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
+    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
+
+    env_filter_random_n: int = 3  # 64
+    """If env_filter_mode='random_n', number of envs to sample."""
+
+    env_filter_seed: int = 0
+    """Seed for deterministic env sampling."""
+
+    env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
+    """If env_filter_mode='env_ids', only these env indices are shown.
+
+    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
+    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
+    """
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
@@ -74,6 +93,11 @@ class VisualizerCfg:
 
         visualizer_class = get_visualizer_class(self.visualizer_type)
         if visualizer_class is None:
+            if self.visualizer_type in ("newton", "rerun"):
+                raise ImportError(
+                    f"Visualizer '{self.visualizer_type}' requires the Newton Python module and its dependencies. "
+                    "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
+                )
             raise ValueError(
                 f"Visualizer type '{self.visualizer_type}' is not registered. "
                 "Valid types: 'newton', 'rerun', 'omniverse'."
