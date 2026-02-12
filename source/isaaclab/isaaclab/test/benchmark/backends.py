@@ -252,8 +252,8 @@ class SummaryMetrics(MetricsBackendInterface):
             for measurement in frametime_phase.measurements:
                 label = measurement.name
                 if isinstance(measurement, StatisticalMeasurement):
-                    value = f"{self._format_scalar(measurement.mean)} {measurement.unit}"
-                    value = f"{value} (std {self._format_scalar(measurement.std)})"
+                    unit_str = f" {measurement.unit}" if measurement.unit else ""
+                    value = f"{self._format_scalar(measurement.mean)}{unit_str}"
                 elif isinstance(measurement, SingleMeasurement):
                     value = f"{self._format_scalar(measurement.value)} {measurement.unit}"
                 else:
