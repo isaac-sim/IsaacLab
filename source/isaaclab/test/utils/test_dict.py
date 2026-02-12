@@ -97,3 +97,25 @@ def test_dict_to_md5():
     for _ in range(200):
         md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
         assert md5_hash_1 == md5_hash_2
+
+
+def test_to_flat_dict():
+    """Test dictionary flattening."""
+
+    # create a complex nested dictionary
+    test_dict = {
+        "a": 1,
+        "b": 2,
+        "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
+        "i": random.random(),
+        "k": dict_utils.callable_to_string(dict_utils.class_to_dict),
+    }
+    flattened_dict = dict_utils.to_flat_dict(test_dict)
+
+    # Test that we match the nesting
+    expected_keys = ["a", "b", "c.d", "c.e", "c.f.g", "c.f.h"]
+    expected_values = [1, 2, 3, 4, 5, 6]
+    assert len(flattened_dict) == len(expected_keys)
+    for key, value in flattened_dict:
+        assert key in expected_keys
+        assert value in expected_values

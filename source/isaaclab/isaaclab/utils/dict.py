@@ -342,3 +342,30 @@ def print_dict(val, nesting: int = -4, start: bool = True):
             print(callable_to_string(val))
         else:
             print(val)
+
+
+def to_flat_dict(input_dict: dict[str, Any], delimiter: str = ".") -> dict[str, Any]:
+    """A simple method to transform a nested dict with key strings into a flat dict
+    where keys are separated with a given delimiter. For example, if the input dictionary
+    is {"foo": "bar", "spam": {"egg": "ham"}}, and the delimiter is ".", then the output
+    would be {"foo": "bar", "spam.egg": "ham"}
+
+    Args:
+        input_dict (dict[str, Any]): Input dictionary with string keys, potentially nested.
+        delimiter (str, optional): Delimiter for concatenating keys. Defaults to ".".
+
+    Returns:
+        dict[str, Any]: Output flattened dictionary with nested keys.
+    """
+    out_dict = {}
+    for key, value in input_dict.items():
+        # If we have a dict inside the current value, we need to flatten it.
+        if isinstance(value, dict):
+            inner_flattened_dict = to_flat_dict(value, delimiter)
+            # Recursively combine parent key with inner flattened directory.
+            for inner_key, inner_value in inner_flattened_dict.items():
+                out_dict[f"{key}{delimiter}{inner_key}"] = inner_value
+        # If we are already flat, keep as is.
+        else:
+            out_dict[key] = value
+    return out_dict
