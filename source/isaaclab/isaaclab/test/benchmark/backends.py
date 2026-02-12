@@ -252,10 +252,10 @@ class SummaryMetrics(MetricsBackendInterface):
             for measurement in frametime_phase.measurements:
                 label = measurement.name
                 if isinstance(measurement, StatisticalMeasurement):
-                    unit_str = f" {measurement.unit}" if measurement.unit else ""
+                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
                     value = f"{self._format_scalar(measurement.mean)}{unit_str}"
                 elif isinstance(measurement, SingleMeasurement):
-                    unit_str = f" {measurement.unit}" if measurement.unit else ""
+                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
                     value = f"{self._format_scalar(measurement.value)}{unit_str}"
                 else:
                     continue
@@ -305,7 +305,7 @@ class SummaryMetrics(MetricsBackendInterface):
         measurement = self._get_single_measurement(phase, name)
         if measurement is None:
             return
-        unit = measurement.unit or unit_fallback
+        unit = (measurement.unit or unit_fallback or "").strip()
         suffix = f" {unit}" if unit else ""
         self._print_box_line(f"{name}: {self._format_scalar(measurement.value)}{suffix}")
 
@@ -342,7 +342,8 @@ class SummaryMetrics(MetricsBackendInterface):
         category_order = ["Collection", "Learning", "Step Times", "Throughput", "Other"]
         categorized: dict[str, list[str]] = {key: [] for key in category_order}
         for base, stats in series.items():
-            unit = units.get(base)
+            raw_unit = units.get(base)
+            unit = (raw_unit or "").strip() if isinstance(raw_unit, str) else ""
             unit_suffix = f" {unit}" if unit else ""
             min_val = self._format_scalar(stats.get("min", 0.0))
             mean_val = self._format_scalar(stats.get("mean", 0.0))
