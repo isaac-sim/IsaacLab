@@ -318,7 +318,7 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         prim_paths=envs_prim_paths,
         replicate_physics=True,
     )
-    physics_scene_path = sim.cfg.physics.physics_prim_path
+    physics_scene_path = sim.cfg.physics_prim_path
     cloner.filter_collisions(
         physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
