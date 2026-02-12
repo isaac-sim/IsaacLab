@@ -169,7 +169,7 @@ class LocomotionEnv(DirectRLEnv):
 
         to_target = self.targets[env_ids] - default_root_state[:, :3]
         to_target[:, 2] = 0.0
-        self.potentials[env_ids] = -torch.norm(to_target, p=2, dim=-1) / self.cfg.sim.dt
+        self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.cfg.sim.dt
 
         self._compute_intermediate_values()
 
@@ -261,7 +261,7 @@ def compute_intermediate_values(
     to_target = targets - torso_position
     to_target[:, 2] = 0.0
     prev_potentials[:] = potentials
-    potentials = -torch.norm(to_target, p=2, dim=-1) / dt
+    potentials = -torch.linalg.norm(to_target, ord=2, dim=-1) / dt
 
     return (
         up_proj,

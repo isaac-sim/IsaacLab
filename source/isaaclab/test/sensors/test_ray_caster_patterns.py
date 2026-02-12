@@ -172,7 +172,7 @@ class TestLidarPattern:
         ray_starts, ray_directions = patterns.lidar_pattern(cfg, device)
 
         # Check that all directions are unit vectors
-        norms = torch.norm(ray_directions, dim=1)
+        norms = torch.linalg.norm(ray_directions, dim=1)
         torch.testing.assert_close(norms, torch.ones_like(norms), rtol=1e-5, atol=1e-5)
 
         # All rays should start from origin
@@ -302,7 +302,7 @@ class TestBpearlPattern:
         ray_starts, ray_directions = patterns.bpearl_pattern(cfg, device)
 
         # Check that all directions are unit vectors
-        norms = torch.norm(ray_directions, dim=1)
+        norms = torch.linalg.norm(ray_directions, dim=1)
         torch.testing.assert_close(norms, torch.ones_like(norms), rtol=1e-5, atol=1e-5)
 
         # All rays should start from origin
@@ -375,7 +375,7 @@ class TestPinholeCameraPattern:
         ray_starts, ray_directions = patterns.pinhole_camera_pattern(cfg, intrinsic_matrix, device)
 
         # Check that all directions are unit vectors
-        norms = torch.norm(ray_directions, dim=2)
+        norms = torch.linalg.norm(ray_directions, dim=2)
         torch.testing.assert_close(norms, torch.ones_like(norms), rtol=1e-5, atol=1e-5)
 
         # All rays should start from origin

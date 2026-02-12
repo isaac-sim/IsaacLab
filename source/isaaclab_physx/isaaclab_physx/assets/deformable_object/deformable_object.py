@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING
 import torch
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .deformable_object_data import DeformableObjectData
 

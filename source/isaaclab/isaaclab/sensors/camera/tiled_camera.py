@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
+    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -47,6 +48,9 @@ class TiledCamera(Camera):
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: Alias for ``"distance_to_image_plane"``.
+    - ``"simple_shading_constant_diffuse"``: Simple shading (constant diffuse) RGB approximation.
+    - ``"simple_shading_diffuse_mdl"``: Simple shading (diffuse MDL) RGB approximation.
+    - ``"simple_shading_full_mdl"``: Simple shading (full MDL) RGB approximation.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -186,10 +190,55 @@ class TiledCamera(Camera):
         if self.cfg.renderer == "newton":
             self.renderer = NewtonWarpRenderer(self.scene)
 
-        else:
-            # Create replicator tiled render product
-            rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
-            self._render_product_paths = [rp.path]
+        if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+            rep.AnnotatorRegistry.register_annotator_from_aov(
+                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+            )
+            # Set simple shading mode (if requested) before rendering
+            simple_shading_mode = self._resolve_simple_shading_mode()
+            if simple_shading_mode is not None:
+                carb.settings.get_settings().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+        # Define the annotators based on requested data types
+        self._annotators = dict()
+        for annotator_type in self.cfg.data_types:
+            if annotator_type == "rgba" or annotator_type == "rgb":
+                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
+                self._annotators["rgba"] = annotator
+            elif annotator_type == "albedo":
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                rep.AnnotatorRegistry.register_annotator_from_aov(
+                    aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                )
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                )
+                self._annotators["albedo"] = annotator
+            elif annotator_type in self.SIMPLE_SHADING_MODES:
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
+                )
+                self._annotators[annotator_type] = annotator
+            elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
+                # keep depth for backwards compatibility
+                annotator = rep.AnnotatorRegistry.get_annotator(
+                    "distance_to_image_plane", device=self.device, do_array_copy=False
+                )
+                self._annotators[annotator_type] = annotator
+            # note: we are verbose here to make it easier to understand the code.
+            #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
+            #   if colorize is false, the data is returned as a uint32 image with ids as values.
+            else:
+                init_params = None
+                if annotator_type == "semantic_segmentation":
+                    init_params = {
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                    }
+                elif annotator_type == "instance_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                elif annotator_type == "instance_id_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
             # Define the annotators based on requested data types
             self._annotators = dict()
@@ -297,6 +346,8 @@ class TiledCamera(Camera):
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
             if data_type == "normals":
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            if data_type in self.SIMPLE_SHADING_MODES:
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             wp.launch(
                 kernel=reshape_tiled_image,
@@ -378,6 +429,11 @@ class TiledCamera(Camera):
             data_dict["albedo"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
             ).contiguous()
+        for data_type in self.SIMPLE_SHADING_MODES:
+            if data_type in self.cfg.data_types:
+                data_dict[data_type] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
+                ).contiguous()
         if "distance_to_image_plane" in self.cfg.data_types:
             data_dict["distance_to_image_plane"] = torch.zeros(
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32

@@ -105,8 +105,8 @@ class UniformPoseCommand(CommandTerm):
             self.robot.data.body_pos_w[:, self.body_idx],
             self.robot.data.body_quat_w[:, self.body_idx],
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+        self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets

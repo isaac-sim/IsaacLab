@@ -97,7 +97,7 @@ def pinhole_camera_pattern(
     transform_vec = torch.tensor([1, -1, -1], device=device).unsqueeze(0).unsqueeze(2)
     pix_in_cam_frame = pix_in_cam_frame[:, [2, 0, 1], :] * transform_vec
     # normalize ray directions
-    ray_directions = (pix_in_cam_frame / torch.norm(pix_in_cam_frame, dim=1, keepdim=True)).permute(0, 2, 1)
+    ray_directions = (pix_in_cam_frame / torch.linalg.norm(pix_in_cam_frame, dim=1, keepdim=True)).permute(0, 2, 1)
     # for camera, we always ray-cast from the sensor's origin
     ray_starts = torch.zeros_like(ray_directions, device=device)
 

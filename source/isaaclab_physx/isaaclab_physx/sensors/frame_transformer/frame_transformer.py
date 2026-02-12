@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -25,6 +24,8 @@ from isaaclab.utils.math import (
     quat_from_angle_axis,
     subtract_frame_transforms,
 )
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 
@@ -492,7 +493,7 @@ class FrameTransformer(BaseFrameTransformer):
             - The lengths of each connecting line. Shape is (N,).
         """
         direction = end_pos - start_pos
-        lengths = torch.norm(direction, dim=-1)
+        lengths = torch.linalg.norm(direction, dim=-1)
         positions = (start_pos + end_pos) / 2
 
         # Get default direction (along z-axis)
@@ -503,7 +504,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Calculate rotation from default direction to target direction
         rotation_axis = torch.linalg.cross(default_direction, direction_norm)
-        rotation_axis_norm = torch.norm(rotation_axis, dim=-1)
+        rotation_axis_norm = torch.linalg.norm(rotation_axis, dim=-1)
 
         # Handle case where vectors are parallel
         mask = rotation_axis_norm > 1e-6

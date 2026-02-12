@@ -29,10 +29,11 @@ parser.add_argument("--num_frames", type=int, default=100, help="Number of envir
 parser.add_argument(
     "--benchmark_backend",
     type=str,
-    default="OmniPerfKPIFile",
-    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
-    help="Benchmarking backend options, defaults OmniPerfKPIFile",
+    default="omniperf",
+    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    help="Benchmarking backend options, defaults omniperf",
 )
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -55,17 +56,13 @@ app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    get_backend_type,
     log_app_start_time,
     log_python_imports_time,
     log_runtime_step_times,
@@ -94,8 +91,12 @@ imports_time_end = time.perf_counter_ns()
 
 
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_non_rl",
+    backend_type=get_backend_type(args_cli.benchmark_backend),
+    output_path=args_cli.output_path,
+    use_recorders=True,
+    output_prefix=f"benchmark_non_rl_{args_cli.task}",
     workflow_metadata={
         "metadata": [
             {"name": "task", "data": args_cli.task},
@@ -104,7 +105,7 @@ benchmark = BaseIsaacBenchmark(
             {"name": "num_frames", "data": args_cli.num_frames},
         ]
     },
-    backend_type=args_cli.benchmark_backend,
+    frametime_recorders=True,
 )
 
 
@@ -138,7 +139,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     # wrap for video recording
     if args_cli.video:
-        log_root_path = os.path.abs(f"benchmark/{args_cli.task}")
+        log_root_path = os.path.abspath(f"benchmark/{args_cli.task}")
         log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         video_kwargs = {
             "video_folder": os.path.join(log_root_path, log_dir, "videos"),
@@ -154,34 +155,36 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     env.reset()
 
-    benchmark.set_phase("sim_runtime")
-
     # counter for number of frames to run for
     num_frames = 0
     # log frame times
     step_times = []
-    while simulation_app.is_running():
-        while num_frames < args_cli.num_frames:
-            # get upper and lower bounds of action space, sample actions randomly on this interval
-            action_high = 1
-            action_low = -1
-            actions = (action_high - action_low) * torch.rand(
-                env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
-            ) - action_high
 
-            # env stepping
-            env_step_time_begin = time.perf_counter_ns()
-            _ = env.step(actions)
-            end_step_time_end = time.perf_counter_ns()
-            step_times.append(end_step_time_end - env_step_time_begin)
+    # Run with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        while simulation_app.is_running():
+            while num_frames < args_cli.num_frames:
+                # get upper and lower bounds of action space, sample actions randomly on this interval
+                action_high = 1
+                action_low = -1
+                actions = (action_high - action_low) * torch.rand(
+                    env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device
+                ) - action_high
 
-            num_frames += 1
+                # env stepping
+                env_step_time_begin = time.perf_counter_ns()
+                _ = env.step(actions)
+                end_step_time_end = time.perf_counter_ns()
+                step_times.append(end_step_time_end - env_step_time_begin)
 
-        # terminate
-        break
+                num_frames += 1
+
+            # terminate
+            break
 
     if world_rank == 0:
-        benchmark.store_measurements()
+        # Final update after loop completes
+        benchmark.update_manual_recorders()
 
         # compute stats
         step_times = np.array(step_times) / 1e6  # ns to ms
@@ -203,7 +206,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_total_start_time(benchmark, (task_startup_time_end - app_start_time_begin) / 1e6)
         log_runtime_step_times(benchmark, environment_step_times, compute_stats=True)
 
-        benchmark.stop()
+        benchmark._finalize_impl()
 
     # close the simulator
     env.close()

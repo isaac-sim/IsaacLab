@@ -11,14 +11,21 @@ import torch
 import warp as wp
 
 import carb
-import isaacsim.core.utils.torch as torch_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.math import axis_angle_from_quat
+from isaaclab.utils.math import (
+    axis_angle_from_quat,
+    combine_frame_transforms,
+    euler_xyz_from_quat,
+    quat_conjugate,
+    quat_from_angle_axis,
+    quat_from_euler_xyz,
+    quat_mul,
+)
 
 from . import automate_algo_utils as automate_algo
 from . import automate_log_utils as automate_log
@@ -294,18 +301,18 @@ class AssemblyEnv(DirectRLEnv):
         self.joint_vel = self._robot.data.joint_vel.clone()
 
         # Compute pose of gripper goal and top of socket in socket frame
-        self.gripper_goal_quat, self.gripper_goal_pos = torch_utils.tf_combine(
-            self.fixed_quat,
+        self.gripper_goal_pos, self.gripper_goal_quat = combine_frame_transforms(
             self.fixed_pos,
-            self.plug_grasp_quat_local,
+            self.fixed_quat,
             self.plug_grasp_pos_local,
+            self.plug_grasp_quat_local,
         )
 
-        self.gripper_goal_quat, self.gripper_goal_pos = torch_utils.tf_combine(
-            self.gripper_goal_quat,
+        self.gripper_goal_pos, self.gripper_goal_quat = combine_frame_transforms(
             self.gripper_goal_pos,
-            self.robot_to_gripper_quat,
+            self.gripper_goal_quat,
             self.palm_to_finger_center,
+            self.robot_to_gripper_quat,
         )
 
         # Finite-differencing results in more reliable velocity estimates.
@@ -313,9 +320,7 @@ class AssemblyEnv(DirectRLEnv):
         self.prev_fingertip_pos = self.fingertip_midpoint_pos.clone()
 
         # Add state differences if velocity isn't being added.
-        rot_diff_quat = torch_utils.quat_mul(
-            self.fingertip_midpoint_quat, torch_utils.quat_conjugate(self.prev_fingertip_quat)
-        )
+        rot_diff_quat = quat_mul(self.fingertip_midpoint_quat, quat_conjugate(self.prev_fingertip_quat))
         rot_diff_quat *= torch.sign(rot_diff_quat[:, 3]).unsqueeze(-1)  # W component is at index 3 in XYZW format
         rot_diff_aa = axis_angle_from_quat(rot_diff_quat)
         self.ee_angvel_fd = rot_diff_aa / dt
@@ -326,26 +331,26 @@ class AssemblyEnv(DirectRLEnv):
         self.prev_joint_pos = self.joint_pos[:, 0:7].clone()
 
         # Keypoint tensors.
-        self.held_base_quat[:], self.held_base_pos[:] = torch_utils.tf_combine(
-            self.held_quat, self.held_pos, self.held_base_quat_local, self.held_base_pos_local
+        self.held_base_pos[:], self.held_base_quat[:] = combine_frame_transforms(
+            self.held_pos, self.held_quat, self.held_base_pos_local, self.held_base_quat_local
         )
-        self.target_held_base_quat[:], self.target_held_base_pos[:] = torch_utils.tf_combine(
-            self.fixed_quat, self.fixed_pos, self.identity_quat, self.fixed_success_pos_local
+        self.target_held_base_pos[:], self.target_held_base_quat[:] = combine_frame_transforms(
+            self.fixed_pos, self.fixed_quat, self.fixed_success_pos_local, self.identity_quat
         )
 
         # Compute pos of keypoints on held asset, and fixed asset in world frame
         for idx, keypoint_offset in enumerate(self.keypoint_offsets):
-            self.keypoints_held[:, idx] = torch_utils.tf_combine(
-                self.held_base_quat, self.held_base_pos, self.identity_quat, keypoint_offset.repeat(self.num_envs, 1)
-            )[1]
-            self.keypoints_fixed[:, idx] = torch_utils.tf_combine(
-                self.target_held_base_quat,
+            self.keypoints_held[:, idx] = combine_frame_transforms(
+                self.held_base_pos, self.held_base_quat, keypoint_offset.repeat(self.num_envs, 1), self.identity_quat
+            )[0]
+            self.keypoints_fixed[:, idx] = combine_frame_transforms(
                 self.target_held_base_pos,
-                self.identity_quat,
+                self.target_held_base_quat,
                 keypoint_offset.repeat(self.num_envs, 1),
-            )[1]
+                self.identity_quat,
+            )[0]
 
-        self.keypoint_dist = torch.norm(self.keypoints_held - self.keypoints_fixed, p=2, dim=-1).mean(-1)
+        self.keypoint_dist = torch.linalg.norm(self.keypoints_held - self.keypoints_fixed, ord=2, dim=-1).mean(-1)
         self.last_update_timestamp = self._robot._data._sim_timestamp
 
     def _get_observations(self):
@@ -410,23 +415,23 @@ class AssemblyEnv(DirectRLEnv):
         rot_actions = actions[:, 3:6]
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, ord=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
-        rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
+        rot_actions_quat = quat_from_angle_axis(angle, axis)
 
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1.0e-6,
             rot_actions_quat,
             torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
-        self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
+        self.ctrl_target_fingertip_midpoint_quat = quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
-        target_euler_xyz = torch.stack(torch_utils.get_euler_xyz(self.ctrl_target_fingertip_midpoint_quat), dim=1)
+        target_euler_xyz = torch.stack(euler_xyz_from_quat(self.ctrl_target_fingertip_midpoint_quat), dim=1)
         target_euler_xyz[:, 0] = 3.14159
         target_euler_xyz[:, 1] = 0.0
 
-        self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
+        self.ctrl_target_fingertip_midpoint_quat = quat_from_euler_xyz(
             roll=target_euler_xyz[:, 0], pitch=target_euler_xyz[:, 1], yaw=target_euler_xyz[:, 2]
         )
 
@@ -436,7 +441,7 @@ class AssemblyEnv(DirectRLEnv):
     def _apply_action(self):
         """Apply actions for policy as delta targets from current position."""
         # Get current yaw for success checking.
-        _, _, curr_yaw = torch_utils.get_euler_xyz(self.fingertip_midpoint_quat)
+        _, _, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat)
         self.curr_yaw = torch.where(curr_yaw > np.deg2rad(235), curr_yaw - 2 * np.pi, curr_yaw)
 
         # Note: We use finite-differenced velocities for control and observations.
@@ -462,22 +467,22 @@ class AssemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = self.fixed_pos_action_frame + pos_error_clipped
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, ord=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
-        rot_actions_quat = torch_utils.quat_from_angle_axis(angle, axis)
+        rot_actions_quat = quat_from_angle_axis(angle, axis)
         rot_actions_quat = torch.where(
             angle.unsqueeze(-1).repeat(1, 4) > 1e-6,
             rot_actions_quat,
             torch.tensor([0.0, 0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
         )
-        self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
+        self.ctrl_target_fingertip_midpoint_quat = quat_mul(rot_actions_quat, self.fingertip_midpoint_quat)
 
-        target_euler_xyz = torch.stack(torch_utils.get_euler_xyz(self.ctrl_target_fingertip_midpoint_quat), dim=1)
+        target_euler_xyz = torch.stack(euler_xyz_from_quat(self.ctrl_target_fingertip_midpoint_quat), dim=1)
         target_euler_xyz[:, 0] = 3.14159  # Restrict actions to be upright.
         target_euler_xyz[:, 1] = 0.0
 
-        self.ctrl_target_fingertip_midpoint_quat = torch_utils.quat_from_euler_xyz(
+        self.ctrl_target_fingertip_midpoint_quat = quat_from_euler_xyz(
             roll=target_euler_xyz[:, 0], pitch=target_euler_xyz[:, 1], yaw=target_euler_xyz[:, 2]
         )
 
@@ -663,18 +668,18 @@ class AssemblyEnv(DirectRLEnv):
     def _move_gripper_to_grasp_pose(self, env_ids):
         """Define grasp pose for plug and move gripper to pose."""
 
-        gripper_goal_quat, gripper_goal_pos = torch_utils.tf_combine(
-            self.held_quat,
+        gripper_goal_pos, gripper_goal_quat = combine_frame_transforms(
             self.held_pos,
-            self.plug_grasp_quat_local,
+            self.held_quat,
             self.plug_grasp_pos_local,
+            self.plug_grasp_quat_local,
         )
 
-        gripper_goal_quat, gripper_goal_pos = torch_utils.tf_combine(
-            gripper_goal_quat,
+        gripper_goal_pos, gripper_goal_quat = combine_frame_transforms(
             gripper_goal_pos,
-            self.robot_to_gripper_quat,
+            gripper_goal_quat,
             self.palm_to_finger_center,
+            self.robot_to_gripper_quat,
         )
 
         # Set target_pos
@@ -766,9 +771,7 @@ class AssemblyEnv(DirectRLEnv):
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_orn_euler = fixed_orn_init_yaw + fixed_orn_yaw_range * rand_sample
         fixed_orn_euler[:, 0:2] = 0.0  # Only change yaw.
-        fixed_orn_quat = torch_utils.quat_from_euler_xyz(
-            fixed_orn_euler[:, 0], fixed_orn_euler[:, 1], fixed_orn_euler[:, 2]
-        )
+        fixed_orn_quat = quat_from_euler_xyz(fixed_orn_euler[:, 0], fixed_orn_euler[:, 1], fixed_orn_euler[:, 2])
         fixed_state[:, 3:7] = fixed_orn_quat
         # (1.c.) Velocity
         fixed_state[:, 7:] = 0.0  # vel
@@ -829,8 +832,8 @@ class AssemblyEnv(DirectRLEnv):
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.height
         fixed_tip_pos_local[:, 2] += self.cfg_task.fixed_asset_cfg.base_height
 
-        _, fixed_tip_pos = torch_utils.tf_combine(
-            self.fixed_quat, self.fixed_pos, self.identity_quat, fixed_tip_pos_local
+        fixed_tip_pos, _ = combine_frame_transforms(
+            self.fixed_pos, self.fixed_quat, fixed_tip_pos_local, self.identity_quat
         )
         self.fixed_pos_obs_frame[:] = fixed_tip_pos
 

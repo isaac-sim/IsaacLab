@@ -607,6 +607,28 @@ class MockArticulationView:
         else:
             self._dof_friction_coefficients = friction_coefficients
 
+    def set_dof_friction_properties(
+        self,
+        friction_properties: torch.Tensor,
+        indices: torch.Tensor | None = None,
+    ) -> None:
+        """Set friction properties of all DOFs.
+
+        Args:
+            friction_properties: Tensor of shape (N, J, 3) with [static, dynamic, viscous]. Must be on CPU.
+            indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If friction_properties tensor is on GPU.
+        """
+        self._check_cpu_tensor(friction_properties, "dof_friction_properties")
+        if self._dof_friction_properties is None:
+            self._dof_friction_properties = torch.zeros(self._count, self._num_dofs, 3, device="cpu")
+        if indices is not None:
+            self._dof_friction_properties[indices] = friction_properties
+        else:
+            self._dof_friction_properties = friction_properties
+
     # -- Mass Property Setters --
 
     def set_masses(

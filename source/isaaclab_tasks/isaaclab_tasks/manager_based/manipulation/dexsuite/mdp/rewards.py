@@ -43,7 +43,7 @@ def object_ee_distance(
     object: RigidObject = env.scene[object_cfg.name]
     asset_pos = asset.data.body_pos_w[:, asset_cfg.body_ids]
     object_pos = object.data.root_pos_w
-    object_ee_distance = torch.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
+    object_ee_distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     return 1 - torch.tanh(object_ee_distance / std)
 
 
@@ -60,10 +60,10 @@ def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     middle_contact = middle_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
     ring_contact = ring_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
 
-    thumb_contact_mag = torch.norm(thumb_contact, dim=-1)
-    index_contact_mag = torch.norm(index_contact, dim=-1)
-    middle_contact_mag = torch.norm(middle_contact, dim=-1)
-    ring_contact_mag = torch.norm(ring_contact, dim=-1)
+    thumb_contact_mag = torch.linalg.norm(thumb_contact, dim=-1)
+    index_contact_mag = torch.linalg.norm(index_contact, dim=-1)
+    middle_contact_mag = torch.linalg.norm(middle_contact, dim=-1)
+    ring_contact_mag = torch.linalg.norm(ring_contact, dim=-1)
     good_contact_cond1 = (thumb_contact_mag > threshold) & (
         (index_contact_mag > threshold) | (middle_contact_mag > threshold) | (ring_contact_mag > threshold)
     )
@@ -88,11 +88,11 @@ def success_reward(
         asset.data.root_pos_w, asset.data.root_quat_w, command[:, :3], command[:, 3:7]
     )
     pos_err, rot_err = compute_pose_error(des_pos_w, des_quat_w, object.data.root_pos_w, object.data.root_quat_w)
-    pos_dist = torch.norm(pos_err, dim=1)
+    pos_dist = torch.linalg.norm(pos_err, dim=1)
     if not rot_std:
         # square is not necessary but this help to keep the final value between having rot_std or not roughly the same
         return (1 - torch.tanh(pos_dist / pos_std)) ** 2
-    rot_dist = torch.norm(rot_err, dim=1)
+    rot_dist = torch.linalg.norm(rot_err, dim=1)
     return (1 - torch.tanh(pos_dist / pos_std)) * (1 - torch.tanh(rot_dist / rot_std))
 
 
@@ -107,7 +107,7 @@ def position_command_error_tanh(
     # obtain the desired and current positions
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
-    distance = torch.norm(object.data.root_pos_w - des_pos_w, dim=1)
+    distance = torch.linalg.norm(object.data.root_pos_w - des_pos_w, dim=1)
     return (1 - torch.tanh(distance / std)) * contacts(env, 1.0).float()
 
 

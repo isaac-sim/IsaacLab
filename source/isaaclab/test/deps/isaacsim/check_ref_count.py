@@ -144,7 +144,7 @@ def main():
     print("---" * 10)
 
     # Clean up
-    sim.clear()
+    sim.clear_instance()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot))
