@@ -236,7 +236,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation and reshape
-            pose = self._reshape_view_to_data(self._root_view.get_transforms().view(wp.transformf))
+            pose = self._reshape_view_to_data_2d(self._root_view.get_transforms().view(wp.transformf))
             # set the buffer data and timestamp
             self._body_link_pose_w.data = pose
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -297,7 +297,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            vel = self._reshape_view_to_data(self._root_view.get_velocities().view(wp.spatial_vectorf))
+            vel = self._reshape_view_to_data_2d(self._root_view.get_velocities().view(wp.spatial_vectorf))
             self._body_com_vel_w.data = vel
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
@@ -381,7 +381,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            acc = self._reshape_view_to_data(self._root_view.get_accelerations().view(wp.spatial_vectorf))
+            acc = self._reshape_view_to_data_2d(self._root_view.get_accelerations().view(wp.spatial_vectorf))
             self._body_com_acc_w.data = acc
             self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w.data
@@ -396,7 +396,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # obtain the coms
-            poses = self._reshape_view_to_data(self._root_view.get_coms().view(wp.transformf))
+            poses = self._reshape_view_to_data_2d(self._root_view.get_coms().view(wp.transformf))
             # read data from simulation
             self._body_com_pose_b.data.assign(poses)
             self._body_com_pose_b.timestamp = self._sim_timestamp
@@ -650,7 +650,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])
         # Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.
-        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses())
+        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape((self.num_instances, self.num_bodies, 1))
         # Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.
         # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.
         self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)

@@ -186,19 +186,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_force).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_torque).view(wp.float32),
+                    force_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_force, device=self.device).view(wp.float32),
+                    torque_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_torque, device=self.device).view(wp.float32),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES_TORCH, self._ALL_BODY_INDICES_TORCH),
+                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device),
                     is_global=False,
                 )
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_force).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_torque).view(wp.float32),
+                    force_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_force, device=self.device).view(wp.float32),
+                    torque_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_torque, device=self.device).view(wp.float32),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES_TORCH, self._ALL_BODY_INDICES_TORCH),
+                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device),
                     is_global=False,
                 )
         self._instantaneous_wrench_composer.reset()
@@ -231,7 +231,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             A tuple of lists containing the body mask, names and indices.
         """
         obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.object_names, preserve_order)
-        return torch.tensor(obj_ids, device=self.device), obj_names
+        return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
 
     """
     Operations - Write to simulation.
@@ -260,8 +260,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
-        self.write_body_link_pose_to_sim_index(body_states[:, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_states[:, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
 
     def write_body_state_to_sim_mask(
         self,
@@ -286,8 +286,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, then all indices are used.
             body_mask: Body mask. If None, then all bodies are used.
         """
-        self.write_body_link_pose_to_sim_mask(body_states[:, :7], env_mask=env_mask, body_mask=body_mask)
-        self.write_body_com_velocity_to_sim_mask(body_states[:, 7:], env_mask=env_mask, body_mask=body_mask)
+        self.write_body_link_pose_to_sim_mask(body_states[:, :, :7], env_mask=env_mask, body_mask=body_mask)
+        self.write_body_com_velocity_to_sim_mask(body_states[:, :, 7:], env_mask=env_mask, body_mask=body_mask)
 
     def write_body_com_state_to_sim_index(
         self,
@@ -312,8 +312,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
-        self.write_body_com_pose_to_sim_index(body_states[:, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_states[:, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_state_to_sim_mask(
         self,
@@ -338,8 +338,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask: Environment mask. If None, then all indices are used.
             body_mask: Body mask. If None, then all bodies are used.
         """
-        self.write_body_com_pose_to_sim_mask(body_states[:, :7], env_mask=env_mask, body_mask=body_mask)
-        self.write_body_com_velocity_to_sim_mask(body_states[:, 7:], env_mask=env_mask, body_mask=body_mask)
+        self.write_body_com_pose_to_sim_mask(body_states[:, :, :7], env_mask=env_mask, body_mask=body_mask)
+        self.write_body_com_velocity_to_sim_mask(body_states[:, :, 7:], env_mask=env_mask, body_mask=body_mask)
 
     def write_body_link_state_to_sim_index(
         self,
@@ -364,8 +364,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
-        self.write_body_link_pose_to_sim_index(body_states[:, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_link_velocity_to_sim_index(body_states[:, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_state_to_sim_mask(
         self,
@@ -392,6 +392,121 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         self.write_body_link_pose_to_sim_mask(body_states[:, :7], env_mask=env_mask, body_mask=body_mask)
         self.write_body_link_velocity_to_sim_mask(body_states[:, 7:], env_mask=env_mask, body_mask=body_mask)
+
+    def write_body_pose_to_sim_index(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+    ) -> None:
+        """Set the body pose over selected environment and body indices into the simulation.
+
+        The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+            body_ids: Body indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_pose_to_sim_mask(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body pose over selected environment mask into the simulation.
+
+        The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+
+        Args:
+            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_ENV_INDICES
+        if body_mask is not None:
+            body_ids = wp.nonzero(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+
+    def write_body_velocity_to_sim_index(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+    ) -> None:
+        """Set the body velocity over selected environment and body indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_velocities: Body velocities in simulation frame.
+                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6).
+            env_ids: Environment indices. If None, then all indices are used.
+            body_ids: Body indices. If None, then all indices are used.
+        """
+        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_velocity_to_sim_mask(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_velocities: Body velocities in simulation frame.
+                Shape is (num_instances, num_bodies, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_ENV_INDICES
+        if body_mask is not None:
+            body_ids = wp.nonzero(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+
 
     def write_body_link_pose_to_sim_index(
         self,
@@ -503,7 +618,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_transforms(
-            self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device),
+            self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
 
@@ -908,7 +1023,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Helper functions.
     """
 
-    def reshape_view_to_data_2d(self, data: wp.array, device: str = "cuda:0") -> wp.array:
+    def reshape_view_to_data_2d(self, data: wp.array, device: str = "cpu") -> wp.array:
         """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
 
         The view returns data ordered as: (num_bodies * num_instances,)
@@ -936,7 +1051,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Clone to make contiguous
         return wp.clone(strided_view, device=device)
 
-    def reshape_view_to_data_3d(self, data: wp.array, data_dim: int, device: str = "cuda:0") -> wp.array:
+    def reshape_view_to_data_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D view data to (num_instances, num_bodies, data_dim).
 
         The view returns data ordered as: (num_bodies * num_instances, data_dim)
@@ -996,7 +1111,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Clone to make contiguous (now row-major num_bodies x num_instances), then flatten
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
     
-    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cuda:0") -> wp.array:
+    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D data to (num_bodies * num_instances, data_dim).
     
         Our internal methods consume and return data aranged as: (num_instances, num_bodies, data_dim)
@@ -1134,12 +1249,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.update(0.0)
 
     def _create_buffers(self):
-        # constants — warp arrays for kernel usage
-        self._ALL_ENV_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
-        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
-        # torch versions for view id computation and wrench composer
-        self._ALL_ENV_INDICES_TORCH = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES_TORCH = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+        # constants
+        self._ALL_ENV_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device, dtype=wp.int32)
+        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1179,13 +1291,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             The view indices.
         """
-        # the order is env_0/body_0, env_0/body_1, env_0/body_..., env_1/body_0, env_1/body_1, ...
+        # the order is body_0/env_0, body_0/env_1, body_0/env_..., body_1/env_0, body_1/env_1, ...
         # return a flat tensor of indices
-        view_ids = wp.zeros(env_ids.shape[0] * body_ids.shape[0], dtype=wp.int32, device=device)
+        num_query_envs = env_ids.shape[0]
+        view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
         wp.launch(
             resolve_view_ids,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[env_ids, body_ids, view_ids, self.num_instances],
+            dim=(num_query_envs, body_ids.shape[0]),
+            inputs=[env_ids, body_ids, view_ids, num_query_envs, self.num_instances],
             device=device,
         )
         return view_ids

@@ -46,6 +46,7 @@ class WrenchComposer:
         self._active = False
 
         # Avoid isinstance here due to potential circular import issues; check by attribute presence instead.
+        print(self._asset.data.body_link_pose_w)
         if hasattr(self._asset.data, "body_link_pose_w"):
             self._get_link_pose_fn = lambda a=self._asset: a.data.body_link_pose_w
         else:
@@ -412,7 +413,7 @@ class WrenchComposer:
                 env_ids = self._ALL_ENV_INDICES
             elif isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
-            else:
+            elif isinstance(env_ids, torch.Tensor):
                 env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
             wp.launch(
                 reset_wrench_composer_index,
