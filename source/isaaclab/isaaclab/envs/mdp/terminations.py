@@ -58,7 +58,7 @@ def bad_orientation(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle
+    return torch.acos(-wp.to_torch(asset.data.projected_gravity_b)[:, 2]).abs() > limit_angle
 
 
 def root_height_below_minimum(
@@ -71,7 +71,7 @@ def root_height_below_minimum(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2] < minimum_height
+    return wp.to_torch(asset.data.root_pos_w)[:, 2] < minimum_height
 
 
 """
@@ -86,9 +86,9 @@ def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
 
-    limits = asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids]
-    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
+    limits = wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids]
+    out_of_upper_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -105,8 +105,8 @@ def joint_pos_out_of_manual_limit(
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
     # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > bounds[1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < bounds[0], dim=1)
+    out_of_upper_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] < bounds[0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -115,8 +115,8 @@ def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
-    limits = asset.data.soft_joint_vel_limits
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
+    limits = wp.to_torch(asset.data.soft_joint_vel_limits)
+    return torch.any(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
 
 
 def joint_vel_out_of_manual_limit(
@@ -126,7 +126,7 @@ def joint_vel_out_of_manual_limit(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
+    return torch.any(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
 
 
 def joint_effort_out_of_limit(
@@ -142,7 +142,7 @@ def joint_effort_out_of_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        wp.to_torch(asset.data.computed_torque[:, asset_cfg.joint_ids]), wp.to_torch(asset.data.applied_torque[:, asset_cfg.joint_ids])
+        wp.to_torch(wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]), wp.to_torch(wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids])
     )
     return torch.any(out_of_limits, dim=1)
 

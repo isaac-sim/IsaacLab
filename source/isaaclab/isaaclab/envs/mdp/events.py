@@ -20,6 +20,7 @@ import re
 from typing import TYPE_CHECKING, Literal
 
 import torch
+import warp as wp
 from isaaclab_physx.assets import DeformableObject
 
 import carb
@@ -442,7 +443,7 @@ def randomize_rigid_body_com(
     ).unsqueeze(1)
 
     # get the current com of the bodies (num_assets, num_bodies)
-    coms = asset.data.body_com_pose_b.clone()
+    coms = wp.to_torch(asset.data.body_com_pose_b).clone()
 
     # Randomize the com in range
     coms[env_ids[:, None], body_ids, :3] += rand_samples
@@ -484,7 +485,7 @@ def randomize_rigid_body_collider_offsets(
     # sample collider properties from the given ranges and set into the physics simulation
     # -- rest offsets
     if rest_offset_distribution_params is not None:
-        rest_offset = asset.root_view.get_rest_offsets().clone()
+        rest_offset = wp.to_torch(asset.root_view.get_rest_offsets()).clone()
         rest_offset = _randomize_prop_by_op(
             rest_offset,
             rest_offset_distribution_params,
@@ -496,7 +497,7 @@ def randomize_rigid_body_collider_offsets(
         asset.root_view.set_rest_offsets(rest_offset, env_ids.cpu())
     # -- contact offsets
     if contact_offset_distribution_params is not None:
-        contact_offset = asset.root_view.get_contact_offsets().clone()
+        contact_offset = wp.to_torch(asset.root_view.get_contact_offsets()).clone()
         contact_offset = _randomize_prop_by_op(
             contact_offset,
             contact_offset_distribution_params,
@@ -1084,7 +1085,7 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = asset.data.root_vel_w[env_ids]
+    vel_w = wp.to_torch(asset.data.root_vel_w)[env_ids]
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
@@ -1116,7 +1117,7 @@ def reset_root_state_uniform(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
-    root_states = asset.data.default_root_state[env_ids].clone()
+    root_states = wp.to_torch(asset.data.default_root_state)[env_ids].clone()
 
     # poses
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -1168,7 +1169,7 @@ def reset_root_state_with_random_orientation(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
-    root_states = asset.data.default_root_state[env_ids].clone()
+    root_states = wp.to_torch(asset.data.default_root_state)[env_ids].clone()
 
     # poses
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
@@ -1235,7 +1236,7 @@ def reset_root_state_from_terrain(
     # sample random valid poses
     ids = torch.randint(0, valid_positions.shape[2], size=(len(env_ids),), device=env.device)
     positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
-    positions += asset.data.default_root_state[env_ids, :3]
+    positions += wp.to_torch(asset.data.default_root_state)[env_ids, :3]
 
     # sample random orientations
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
@@ -1250,7 +1251,7 @@ def reset_root_state_from_terrain(
     ranges = torch.tensor(range_list, device=asset.device)
     rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    velocities = asset.data.default_root_state[env_ids, 7:13] + rand_samples
+    velocities = wp.to_torch(asset.data.default_root_state)[env_ids, 7:13] + rand_samples
 
     # set into the physics simulation
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
@@ -1279,18 +1280,18 @@ def reset_joints_by_scale(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = asset.data.default_joint_pos[iter_env_ids, asset_cfg.joint_ids].clone()
-    joint_vel = asset.data.default_joint_vel[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_pos = wp.to_torch(asset.data.default_joint_pos)[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = wp.to_torch(asset.data.default_joint_vel)[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # scale these values randomly
     joint_pos *= math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits[iter_env_ids, asset_cfg.joint_ids]
+    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = asset.data.soft_joint_vel_limits[iter_env_ids, asset_cfg.joint_ids]
+    joint_vel_limits = wp.to_torch(asset.data.soft_joint_vel_limits)[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
@@ -1319,18 +1320,18 @@ def reset_joints_by_offset(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = asset.data.default_joint_pos[iter_env_ids, asset_cfg.joint_ids].clone()
-    joint_vel = asset.data.default_joint_vel[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_pos = wp.to_torch(asset.data.default_joint_pos)[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = wp.to_torch(asset.data.default_joint_vel)[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # bias these values randomly
     joint_pos += math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel += math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits[iter_env_ids, asset_cfg.joint_ids]
+    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = asset.data.soft_joint_vel_limits[iter_env_ids, asset_cfg.joint_ids]
+    joint_vel_limits = wp.to_torch(asset.data.soft_joint_vel_limits)[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
@@ -1359,7 +1360,7 @@ def reset_nodal_state_uniform(
     # extract the used quantities (to enable type-hinting)
     asset: DeformableObject = env.scene[asset_cfg.name]
     # get default root state
-    nodal_state = asset.data.default_nodal_state_w[env_ids].clone()
+    nodal_state = wp.to_torch(asset.data.default_nodal_state_w)[env_ids].clone()
 
     # position
     range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
