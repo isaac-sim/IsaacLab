@@ -305,12 +305,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_state_w(self) -> wp.array:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
@@ -328,12 +328,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_link_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
@@ -351,13 +351,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (x, y, z, w) format.
-        """
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_body_pose_and_vel_to_state,
