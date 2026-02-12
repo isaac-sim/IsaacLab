@@ -190,6 +190,8 @@ class RigidObjectData(BaseRigidObjectData):
             inputs=[
                 self._default_root_pose,
                 self._default_root_vel,
+            ],
+            outputs=[
                 self._default_root_state,
             ],
             device=self.device,
@@ -251,6 +253,8 @@ class RigidObjectData(BaseRigidObjectData):
                     self.root_com_vel_w,
                     self.root_link_pose_w,
                     self.body_com_pose_b,
+                ],
+                outputs=[
                     self._root_link_vel_w.data,
                 ],
                 device=self.device,
@@ -274,6 +278,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_link_pose_w,
                     self.body_com_pose_b,
+                ],
+                outputs=[
                     self._root_com_pose_w.data,
                 ],
                 device=self.device,
@@ -310,6 +316,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_link_pose_w,
                     self.root_com_vel_w,
+                ],
+                outputs=[
                     self._root_state_w.data,
                 ],
                 device=self.device,
@@ -333,6 +341,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_link_pose_w,
                     self.root_link_vel_w,
+                ],
+                outputs=[
                     self._root_link_state_w.data,
                 ],
                 device=self.device,
@@ -356,6 +366,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_com_pose_w,
                     self.root_com_vel_w,
+                ],
+                outputs=[
                     self._root_com_state_w.data,
                 ],
                 device=self.device,
@@ -431,6 +443,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_link_pose_w,
                     self.root_com_vel_w,
+                ],
+                outputs=[
                     self._root_state_w.data,
                 ],
                 device=self.device,
@@ -454,6 +468,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_link_pose_w,
                     self.root_link_vel_w,
+                ],
+                outputs=[
                     self._root_link_state_w.data,
                 ],
                 device=self.device,
@@ -477,6 +493,8 @@ class RigidObjectData(BaseRigidObjectData):
                 inputs=[
                     self.root_com_pose_w,
                     self.root_com_vel_w,
+                ],
+                outputs=[
                     self._root_com_state_w.data,
                 ],
                 device=self.device,
@@ -523,7 +541,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w, self._projected_gravity_b.data],
+                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
+                outputs=[self._projected_gravity_b.data],
                 device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
@@ -541,7 +560,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 root_heading_w,
                 dim=self._num_instances,
-                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w, self._heading_w.data],
+                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
+                outputs=[self._heading_w.data],
                 device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
@@ -558,7 +578,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w, self.root_link_quat_w, self._root_link_lin_vel_b.data],
+                inputs=[self.root_link_lin_vel_w, self.root_link_quat_w],
+                outputs=[self._root_link_lin_vel_b.data],
                 device=self.device,
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
@@ -575,7 +596,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w, self.root_link_quat_w, self._root_link_ang_vel_b.data],
+                inputs=[self.root_link_ang_vel_w, self.root_link_quat_w],
+                outputs=[self._root_link_ang_vel_b.data],
                 device=self.device,
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
@@ -592,7 +614,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w, self.root_link_quat_w, self._root_com_lin_vel_b.data],
+                inputs=[self.root_com_lin_vel_w, self.root_link_quat_w],
+                outputs=[self._root_com_lin_vel_b.data],
                 device=self.device,
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
@@ -609,7 +632,8 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w, self.root_link_quat_w, self._root_com_ang_vel_b.data],
+                inputs=[self.root_com_ang_vel_w, self.root_link_quat_w],
+                outputs=[self._root_com_ang_vel_b.data],
                 device=self.device,
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp

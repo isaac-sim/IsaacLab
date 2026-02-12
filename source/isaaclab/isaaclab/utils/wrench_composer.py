@@ -165,9 +165,11 @@ class WrenchComposer:
                 torques,
                 positions,
                 self._link_poses,
+                is_global,
+            ],
+            outputs=[
                 self._composed_force_b,
                 self._composed_torque_b,
-                is_global,
             ],
             device=self.device,
         )
@@ -234,9 +236,11 @@ class WrenchComposer:
                 torques,
                 positions,
                 self._link_poses,
+                is_global,
+            ],
+            outputs=[
                 self._composed_force_b,
                 self._composed_torque_b,
-                is_global,
             ],
             device=self.device,
         )
@@ -303,9 +307,11 @@ class WrenchComposer:
                 torques,
                 positions,
                 self._link_poses,
+                is_global,
+            ],
+            outputs=[
                 self._composed_force_b,
                 self._composed_torque_b,
-                is_global,
             ],
             device=self.device,
         )
@@ -368,9 +374,11 @@ class WrenchComposer:
                 torques,
                 positions,
                 self._link_poses,
+                is_global,
+            ],
+            outputs=[
                 self._composed_force_b,
                 self._composed_torque_b,
-                is_global,
             ],
             device=self.device,
         )
@@ -398,9 +406,11 @@ class WrenchComposer:
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,
-                dim=(self.num_envs,self.num_bodies),
+                dim=(self.num_envs, self.num_bodies),
                 inputs=[
                     env_mask,
+                ],
+                outputs=[
                     self._composed_force_b,
                     self._composed_torque_b,
                 ],
@@ -420,6 +430,8 @@ class WrenchComposer:
                 dim=(env_ids.shape[0], self.num_bodies),
                 inputs=[
                     env_ids,
+                ],
+                outputs=[
                     self._composed_force_b,
                     self._composed_torque_b,
                 ],

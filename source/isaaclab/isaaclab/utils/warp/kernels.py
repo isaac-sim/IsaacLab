@@ -367,28 +367,35 @@ def add_forces_and_torques_at_position_index(
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
     link_poses: wp.array2d(dtype=wp.transformf),
+    is_global: bool,
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
 ):
-    """Adds forces and torques to the composed force and torque at the user-provided positions.
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the
-    link frame of the body. When is_global is True, the user-provided positions are the global positions of the force
-    application.
+    """Add forces and torques to the composed wrench at user-provided positions using index selection.
+
+    When is_global is False, the user-provided positions offset the force application relative to
+    the link frame. When is_global is True, positions are in the global frame. Results are
+    accumulated (added) into the composed buffers.
 
     .. note::
-        Expects partial data from the user.
+        Expects partial data from the user (indexed by env_ids/body_ids).
 
     Args:
-        env_ids: The environment ids.
-        body_ids: The body ids.
-        forces: The forces.
-        torques: The torques.
-        positions: The positions.
-        link_poses: The link frame poses.
-        composed_forces_b: The composed forces.
-        composed_torques_b: The composed torques.
-        is_global: Whether the forces and torques are applied in the global frame.
+        env_ids: Input array of environment indices. Shape is (num_selected_envs,).
+        body_ids: Input array of body indices. Shape is (num_selected_bodies,).
+        forces: Input array of forces to apply. Shape is (num_selected_envs, num_selected_bodies).
+            Can be None if not provided.
+        torques: Input array of torques to apply. Shape is (num_selected_envs, num_selected_bodies).
+            Can be None if not provided.
+        positions: Input array of position offsets for force application.
+            Shape is (num_selected_envs, num_selected_bodies). Can be None if not provided.
+        link_poses: Input array of link frame poses in world frame.
+            Shape is (num_envs, num_bodies).
+        is_global: Input flag indicating whether forces/torques/positions are in the global frame.
+        composed_forces_b: Output array where forces in the link frame are accumulated.
+            Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques in the link frame are accumulated.
+            Shape is (num_envs, num_bodies).
     """
     # get the thread id
     tid_env, tid_body = wp.tid()
@@ -422,29 +429,35 @@ def set_forces_and_torques_at_position_index(
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
     link_poses: wp.array2d(dtype=wp.transformf),
+    is_global: bool,
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
 ):
-    """Sets forces and torques to the composed force and torque at the user-provided positions.
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively
-    to the link frame of the body. When is_global is True, the user-provided positions are the global positions
-    of the force application.
+    """Set forces and torques to the composed wrench at user-provided positions using index selection.
+
+    When is_global is False, the user-provided positions offset the force application relative to
+    the link frame. When is_global is True, positions are in the global frame. Results are
+    overwritten (set) in the composed buffers.
 
     .. note::
-        Expects partial data from the user.
+        Expects partial data from the user (indexed by env_ids/body_ids).
 
     Args:
-        env_ids: The environment ids.
-        body_ids: The body ids.
-        forces: The forces.
-        torques: The torques.
-        positions: The positions.
-        link_positions: The link frame positions.
-        link_quaternions: The link frame quaternions.
-        composed_forces_b: The composed forces.
-        composed_torques_b: The composed torques.
-        is_global: Whether the forces and torques are applied in the global frame.
+        env_ids: Input array of environment indices. Shape is (num_selected_envs,).
+        body_ids: Input array of body indices. Shape is (num_selected_bodies,).
+        forces: Input array of forces to apply. Shape is (num_selected_envs, num_selected_bodies).
+            Can be None if not provided.
+        torques: Input array of torques to apply. Shape is (num_selected_envs, num_selected_bodies).
+            Can be None if not provided.
+        positions: Input array of position offsets for force application.
+            Shape is (num_selected_envs, num_selected_bodies). Can be None if not provided.
+        link_poses: Input array of link frame poses in world frame.
+            Shape is (num_envs, num_bodies).
+        is_global: Input flag indicating whether forces/torques/positions are in the global frame.
+        composed_forces_b: Output array where forces in the link frame are written.
+            Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques in the link frame are written.
+            Shape is (num_envs, num_bodies).
     """
     # get the thread id
     tid_env, tid_body = wp.tid()
@@ -479,29 +492,36 @@ def add_forces_and_torques_at_position_mask(
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
     link_poses: wp.array2d(dtype=wp.transformf),
+    is_global: bool,
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
 ):
-    """Adds forces and torques to the composed force and torque at the user-provided positions.
+    """Add forces and torques to the composed wrench at user-provided positions using mask selection.
 
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively to the
-    link frame of the body. When is_global is True, the user-provided positions are the global positions of the force
-    application.
+    When is_global is False, the user-provided positions offset the force application relative to
+    the link frame. When is_global is True, positions are in the global frame. Results are
+    accumulated (added) into the composed buffers. Only entries where both env_mask and body_mask
+    are True are processed.
 
     .. note::
-        Expects full data from the user.
+        Expects full data from the user (num_envs x num_bodies).
 
     Args:
-        env_mask: The environment mask.
-        body_mask: The body mask.
-        forces: The forces.
-        torques: The torques.
-        positions: The positions.
-        link_poses: The link frame poses.
-        composed_forces_b: The composed forces.
-        composed_torques_b: The composed torques.
-        is_global: Whether the forces and torques are applied in the global frame.
+        env_mask: Input boolean mask for environments. Shape is (num_envs,).
+        body_mask: Input boolean mask for bodies. Shape is (num_bodies,).
+        forces: Input array of forces to apply. Shape is (num_envs, num_bodies).
+            Can be None if not provided.
+        torques: Input array of torques to apply. Shape is (num_envs, num_bodies).
+            Can be None if not provided.
+        positions: Input array of position offsets for force application.
+            Shape is (num_envs, num_bodies). Can be None if not provided.
+        link_poses: Input array of link frame poses in world frame.
+            Shape is (num_envs, num_bodies).
+        is_global: Input flag indicating whether forces/torques/positions are in the global frame.
+        composed_forces_b: Output array where forces in the link frame are accumulated.
+            Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques in the link frame are accumulated.
+            Shape is (num_envs, num_bodies).
     """
     # get the thread id
     tid_env, tid_body = wp.tid()
@@ -536,30 +556,36 @@ def set_forces_and_torques_at_position_mask(
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
     link_poses: wp.array2d(dtype=wp.transformf),
+    is_global: bool,
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
-    is_global: bool,
 ):
-    """Sets forces and torques to the composed force and torque at the user-provided positions.
+    """Set forces and torques to the composed wrench at user-provided positions using mask selection.
 
-    When is_global is False, the user-provided positions are offsetting the application of the force relatively
-    to the link frame of the body. When is_global is True, the user-provided positions are the global positions
-    of the force application.
+    When is_global is False, the user-provided positions offset the force application relative to
+    the link frame. When is_global is True, positions are in the global frame. Results are
+    overwritten (set) in the composed buffers. Only entries where both env_mask and body_mask
+    are True are processed.
 
     .. note::
-        Expects full data from the user.
+        Expects full data from the user (num_envs x num_bodies).
 
     Args:
-        env_mask: The environment mask.
-        body_mask: The body mask.
-        forces: The forces.
-        torques: The torques.
-        positions: The positions.
-        link_positions: The link frame positions.
-        link_quaternions: The link frame quaternions.
-        composed_forces_b: The composed forces.
-        composed_torques_b: The composed torques.
-        is_global: Whether the forces and torques are applied in the global frame.
+        env_mask: Input boolean mask for environments. Shape is (num_envs,).
+        body_mask: Input boolean mask for bodies. Shape is (num_bodies,).
+        forces: Input array of forces to apply. Shape is (num_envs, num_bodies).
+            Can be None if not provided.
+        torques: Input array of torques to apply. Shape is (num_envs, num_bodies).
+            Can be None if not provided.
+        positions: Input array of position offsets for force application.
+            Shape is (num_envs, num_bodies). Can be None if not provided.
+        link_poses: Input array of link frame poses in world frame.
+            Shape is (num_envs, num_bodies).
+        is_global: Input flag indicating whether forces/torques/positions are in the global frame.
+        composed_forces_b: Output array where forces in the link frame are written.
+            Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques in the link frame are written.
+            Shape is (num_envs, num_bodies).
     """
     # get the thread id
     tid_env, tid_body = wp.tid()
@@ -593,13 +619,12 @@ def reset_wrench_composer_index(
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
 ):
-    """Resets the composed force and torque at the user-provided indices.
+    """Reset the composed force and torque to zero at the specified environment indices.
 
     Args:
-        env_ids: The environment ids.
-        body_ids: The body ids.
-        composed_forces_b: The composed forces.
-        composed_torques_b: The composed torques.
+        env_ids: Input array of environment indices to reset. Shape is (num_selected_envs,).
+        composed_forces_b: Output array where forces are zeroed. Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques are zeroed. Shape is (num_envs, num_bodies).
     """
 
     # get the thread id
@@ -616,7 +641,12 @@ def reset_wrench_composer_mask(
     composed_forces_b: wp.array2d(dtype=wp.vec3f),
     composed_torques_b: wp.array2d(dtype=wp.vec3f),
 ):
-    """Resets the composed force and torque at the user-provided mask.
+    """Reset the composed force and torque to zero for environments matching the mask.
+
+    Args:
+        env_mask: Input boolean mask for environments. Shape is (num_envs,).
+        composed_forces_b: Output array where forces are zeroed. Shape is (num_envs, num_bodies).
+        composed_torques_b: Output array where torques are zeroed. Shape is (num_envs, num_bodies).
     """
     # get the thread id
     tid_env, tid_body = wp.tid()
