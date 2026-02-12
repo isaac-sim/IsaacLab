@@ -17,6 +17,7 @@ import pathlib
 
 import pytest
 import torch
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -201,21 +202,18 @@ class MySceneCfg(InteractiveSceneCfg):
 @pytest.fixture
 def setup_sim():
     """Create a simulation context and scene."""
-    # Create a new stage
-    sim_utils.create_new_stage()
-    # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.001)
-    sim_cfg.physx.solver_type = 0  # 0: PGS, 1: TGS --> use PGS for more accurate results
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # construct scene
-    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    yield sim, scene
-    # Cleanup
-    sim.clear_all_callbacks()
-    sim.clear_instance()
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.001, physics=PhysxCfg(solver_type=0)
+    )  # 0: PGS, 1: TGS --> use PGS for more accurate results
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        # construct scene
+        scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene = InteractiveScene(scene_cfg)
+        # Play the simulator
+        sim.reset()
+        yield sim, scene
+    # Cleanup is handled by build_simulation_context
 
 
 @pytest.mark.isaacsim_ci

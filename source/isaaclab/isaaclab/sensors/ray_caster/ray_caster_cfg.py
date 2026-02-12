@@ -5,6 +5,8 @@
 
 """Configuration for the ray-cast sensor."""
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 

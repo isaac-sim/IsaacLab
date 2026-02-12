@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -22,7 +21,8 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera, TiledCamera
 from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.utils.math import quat_apply, quat_inv, transform_points
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.math import quat_apply, quat_inv
 
 from .visuotactile_render import GelsightRender
 from .visuotactile_sensor_data import VisuoTactileSensorData
@@ -179,7 +179,7 @@ class VisuoTactileSensor(SensorBase):
         super()._initialize_impl()
 
         # Obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = SimulationContext.instance().physics_manager.get_physics_sim_view()
 
         # Initialize camera-based tactile sensing
         if self.cfg.enable_camera_tactile:
@@ -674,13 +674,16 @@ class VisuoTactileSensor(SensorBase):
             Points in contact object local coordinates and inverse quaternions
         """
         # Get inverse transformation (per environment)
-        # Compute inverse: quat_inv and -quat_apply(quat_inv, pos)
+        # xyzw quaternion convention
         contact_object_quat_inv = quat_inv(contact_object_quat_w)
-        contact_object_pos_inv = quat_apply(contact_object_quat_inv, -contact_object_pos_w)
+        contact_object_pos_inv = -quat_apply(contact_object_quat_inv, contact_object_pos_w)
+        num_pts = self.num_tactile_points
 
-        # Apply transformation to points
-        # transform_points expects (points, pos, quat) and applies: quat_apply(quat, points) + pos
-        points_sdf = transform_points(world_points, contact_object_pos_inv, contact_object_quat_inv)
+        contact_object_quat_expanded = contact_object_quat_inv.unsqueeze(1).expand(-1, num_pts, 4)
+        contact_object_pos_expanded = contact_object_pos_inv.unsqueeze(1).expand(-1, num_pts, 3)
+
+        # Apply transformation: rotate then translate
+        points_sdf = quat_apply(contact_object_quat_expanded, world_points) + contact_object_pos_expanded
 
         return points_sdf, contact_object_quat_inv
 
@@ -828,7 +831,7 @@ class VisuoTactileSensor(SensorBase):
             vt_world = relative_velocity_world - normals_world * torch.sum(
                 normals_world * relative_velocity_world, dim=-1, keepdim=True
             )
-            vt_norm = torch.norm(vt_world, dim=-1)
+            vt_norm = torch.linalg.norm(vt_world, dim=-1)
 
             # Compute friction force: F_t = min(k_t * |v_t|, mu * F_n)
             ft_static_norm = self.cfg.tangential_stiffness * vt_norm

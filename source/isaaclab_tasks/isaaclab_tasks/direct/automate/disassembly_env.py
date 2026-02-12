@@ -319,7 +319,7 @@ class DisassemblyEnv(DirectRLEnv):
         rot_actions = actions[:, 3:6]
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, ord=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = quat_from_angle_axis(angle, axis)
@@ -371,7 +371,7 @@ class DisassemblyEnv(DirectRLEnv):
         self.ctrl_target_fingertip_midpoint_pos = self.fixed_pos_action_frame + pos_error_clipped
 
         # Convert to quat and set rot target
-        angle = torch.norm(rot_actions, p=2, dim=-1)
+        angle = torch.linalg.norm(rot_actions, ord=2, dim=-1)
         axis = rot_actions / angle.unsqueeze(-1)
 
         rot_actions_quat = quat_from_angle_axis(angle, axis)
@@ -573,7 +573,7 @@ class DisassemblyEnv(DirectRLEnv):
             self.actions *= 0.0
             self.actions[env_ids, :6] = delta_hand_pose
 
-            is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+            is_rendering = self.sim.is_rendering
             # perform physics stepping
             for _ in range(self.cfg.decimation):
                 self._sim_step_counter += 1

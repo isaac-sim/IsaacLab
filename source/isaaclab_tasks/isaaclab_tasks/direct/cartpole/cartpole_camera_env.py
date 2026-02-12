@@ -21,6 +21,12 @@ from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
+SIMPLE_SHADING_TYPES = {
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+}
+
 
 @configclass
 class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
@@ -109,10 +115,71 @@ class CartpoleAlbedoCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     observation_space = [tiled_camera.height, tiled_camera.width, 3]
 
 
+@configclass
+class CartpoleSimpleShadingConstantCameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        data_types=["simple_shading_constant_diffuse"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=100,
+        height=100,
+    )
+
+    # spaces
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+
+
+@configclass
+class CartpoleSimpleShadingDiffuseCameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        data_types=["simple_shading_diffuse_mdl"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=100,
+        height=100,
+    )
+
+    # spaces
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+
+
+@configclass
+class CartpoleSimpleShadingFullCameraEnvCfg(CartpoleRGBCameraEnvCfg):
+    # camera
+    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/Camera",
+        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        data_types=["simple_shading_full_mdl"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        ),
+        width=100,
+        height=100,
+    )
+
+    # spaces
+    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+
+
 class CartpoleCameraEnv(DirectRLEnv):
     """Cartpole Camera Environment."""
 
-    cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg
+    cfg: (
+        CartpoleRGBCameraEnvCfg
+        | CartpoleDepthCameraEnvCfg
+        | CartpoleAlbedoCameraEnvCfg
+        | CartpoleSimpleShadingConstantCameraEnvCfg
+        | CartpoleSimpleShadingDiffuseCameraEnvCfg
+        | CartpoleSimpleShadingFullCameraEnvCfg
+    )
 
     def __init__(
         self, cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg, render_mode: str | None = None, **kwargs
@@ -169,6 +236,11 @@ class CartpoleCameraEnv(DirectRLEnv):
             camera_data -= mean_tensor
         elif "albedo" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type][..., :3] / 255.0
+            # normalize the camera data for better training results
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+        elif data_type in SIMPLE_SHADING_TYPES:
+            camera_data = self._tiled_camera.data.output[data_type] / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor

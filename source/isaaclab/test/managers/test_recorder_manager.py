@@ -198,6 +198,14 @@ def dataset_dir():
     shutil.rmtree(test_dir)
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Fixture to ensure SimulationContext is cleared after each test."""
+    yield
+    # Cleanup after test
+    SimulationContext.clear_instance()
+
+
 def test_str(dataset_dir):
     """Test the string representation of the recorder manager."""
     # create recorder manager

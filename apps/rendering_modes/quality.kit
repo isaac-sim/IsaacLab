@@ -19,6 +19,10 @@ rtx.rtpt.splitRoughReflection = true
 # these are even more costly, we should only set them to true if noise is observed
 # rtx.rtpt.splitGlass = true
 # rtx.rtpt.splitClearcoat = true
+
+# Improved adaptive sampling for disocclusion (reduces ghosting/temporal artifacts)
+rtx.rtpt.adaptiveSampling.disocclusion.enabled = true
+rtx.rtpt.adaptiveSampling.disocclusion.spp = 4
 ##############################################
 
 rtx.sceneDb.ambientLightIntensity = 1.0

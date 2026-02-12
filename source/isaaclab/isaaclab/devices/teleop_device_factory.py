@@ -5,6 +5,8 @@
 
 """Factory to create teleoperation devices from configuration."""
 
+from __future__ import annotations
+
 import inspect
 import logging
 from collections.abc import Callable

@@ -9,190 +9,14 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from typing import Any, Literal
+from __future__ import annotations
 
+from typing import Any, Literal  # Literal used by RenderCfg
+
+from isaaclab.physics import PhysicsCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
-
-from .spawners.materials import RigidBodyMaterialCfg
-
-
-@configclass
-class PhysxCfg:
-    """Configuration for PhysX solver-related parameters.
-
-    These parameters are used to configure the PhysX solver. For more information, see the `PhysX 5 SDK
-    documentation`_.
-
-    PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
-    by setting the :attr:`~SimulationCfg.device` to ``cpu`` in :class:`SimulationCfg`. Unlike CPU PhysX, the GPU
-    simulation feature is unable to dynamically grow all the buffers. Therefore, it is necessary to provide
-    a reasonable estimate of the buffer sizes for GPU features. If insufficient buffer sizes are provided, the
-    simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
-    ``gpu_*`` parameters.
-
-    .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxSceneDesc.html
-
-    """
-
-    solver_type: Literal[0, 1] = 1
-    """The type of solver to use.Default is 1 (TGS).
-
-    Available solvers:
-
-    * :obj:`0`: PGS (Projective Gauss-Seidel)
-    * :obj:`1`: TGS (Temporal Gauss-Seidel)
-    """
-
-    solve_articulation_contact_last: bool = False
-    """Changes the ordering inside the articulation solver. Default is False.
-
-    PhysX employs a strict ordering for handling constraints in an articulation. The outcome of
-    each constraint resolution modifies the joint and associated link speeds. However, the default
-    ordering may not be ideal for gripping scenarios because the solver favours the constraint
-    types that are resolved last. This is particularly true of stiff constraint systems that are hard
-    to resolve without resorting to vanishingly small simulation timesteps.
-
-    With dynamic contact resolution being such an important part of gripping, it may make
-    more sense to solve dynamic contact towards the end of the solver rather than at the
-    beginning. This parameter modifies the default ordering to enable this change.
-
-    For more information, please check `here <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/dev_guide/guides/articulation_stability_guide.html#articulation-solver-order>`__.
-
-    .. versionadded:: v2.3
-        This parameter is only available with Isaac Sim 5.1.
-
-    """
-
-    min_position_iteration_count: int = 1
-    """Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 1.
-
-    .. note::
-
-        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
-        the number of iterations specified by the actor with the highest iteration and clamps it to
-        the range ``[min_position_iteration_count, max_position_iteration_count]``.
-    """
-
-    max_position_iteration_count: int = 255
-    """Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.
-
-    .. note::
-
-        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
-        the number of iterations specified by the actor with the highest iteration and clamps it to
-        the range ``[min_position_iteration_count, max_position_iteration_count]``.
-    """
-
-    min_velocity_iteration_count: int = 0
-    """Minimum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 0.
-
-    .. note::
-
-        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
-        the number of iterations specified by the actor with the highest iteration and clamps it to
-        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-    """
-
-    max_velocity_iteration_count: int = 255
-    """Maximum number of solver velocity iterations (rigid bodies, cloth, particles etc.). Default is 255.
-
-    .. note::
-
-        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
-        the number of iterations specified by the actor with the highest iteration and clamps it to
-        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-    """
-
-    enable_ccd: bool = False
-    """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
-    Default is False."""
-
-    enable_stabilization: bool = False
-    """Enable/disable additional stabilization pass in solver. Default is False.
-
-    .. note::
-
-        We recommend setting this flag to true only when the simulation step size is large
-        (i.e., less than 30 Hz or more than 0.0333 seconds).
-
-    .. warning::
-
-        Enabling this flag may lead to incorrect contact forces report from the contact sensor.
-    """
-
-    enable_external_forces_every_iteration: bool = False
-    """Enable/disable external forces every position iteration in the TGS solver. Default is False.
-
-    When using the TGS solver (:attr:`solver_type` is 1), this flag allows enabling external forces every solver
-    position iteration. This can help improve the accuracy of velocity updates. Consider enabling this flag if
-    the velocities generated by the simulation are noisy. Increasing the number of velocity iterations, together
-    with this flag, can help improve the accuracy of velocity updates.
-
-    .. note::
-
-        This flag is ignored when using the PGS solver (:attr:`solver_type` is 0).
-    """
-
-    enable_enhanced_determinism: bool = False
-    """Enable/disable improved determinism at the expense of performance. Defaults to False.
-
-    For more information on PhysX determinism, please check `here`_.
-
-    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/RigidBodyDynamics.html#enhanced-determinism
-    """
-
-    bounce_threshold_velocity: float = 0.5
-    """Relative velocity threshold for contacts to bounce (in m/s). Default is 0.5 m/s."""
-
-    friction_offset_threshold: float = 0.04
-    """Threshold for contact point to experience friction force (in m). Default is 0.04 m."""
-
-    friction_correlation_distance: float = 0.025
-    """Distance threshold for merging contacts into a single friction anchor point (in m). Default is 0.025 m."""
-
-    gpu_max_rigid_contact_count: int = 2**23
-    """Size of rigid contact stream buffer allocated in pinned host memory. Default is 2 ** 23."""
-
-    gpu_max_rigid_patch_count: int = 5 * 2**15
-    """Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 5 * 2 ** 15."""
-
-    gpu_found_lost_pairs_capacity: int = 2**21
-    """Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 21.
-
-    This is used for the found/lost pair reports in the BP.
-    """
-
-    gpu_found_lost_aggregate_pairs_capacity: int = 2**25
-    """Capacity of found and lost buffers in aggregate system allocated in GPU global memory.
-    Default is 2 ** 25.
-
-    This is used for the found/lost pair reports in AABB manager.
-    """
-
-    gpu_total_aggregate_pairs_capacity: int = 2**21
-    """Capacity of total number of aggregate pairs allocated in GPU global memory. Default is 2 ** 21."""
-
-    gpu_collision_stack_size: int = 2**26
-    """Size of the collision stack buffer allocated in pinned host memory. Default is 2 ** 26."""
-
-    gpu_heap_capacity: int = 2**26
-    """Initial capacity of the GPU and pinned host memory heaps. Additional memory will be allocated
-    if more memory is required. Default is 2 ** 26."""
-
-    gpu_temp_buffer_capacity: int = 2**24
-    """Capacity of temp buffer allocated in pinned host memory. Default is 2 ** 24."""
-
-    gpu_max_num_partitions: int = 8
-    """Limitation for the partitions in the GPU dynamics pipeline. Default is 8.
-
-    This variable must be power of 2. A value greater than 32 is currently not supported. Range: (1, 32)
-    """
-
-    gpu_max_soft_body_contacts: int = 2**20
-    """Size of soft body contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
-
-    gpu_max_particle_contacts: int = 2**20
-    """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
+from isaaclab.visualizers import VisualizerCfg
 
 
 @configclass
@@ -214,9 +38,9 @@ class RenderCfg:
     """
 
     enable_translucency: bool | None = None
-    """Enables translucency for specular transmissive surfaces such as glass at the cost of some performance.
-    Default is False.
+    """Enables translucency for specular transmissive surfaces such as glass.
 
+    This comes at the cost of some performance. Default is False.
     This is set by the variable: ``/rtx/translucency/enabled``.
     """
 
@@ -236,8 +60,8 @@ class RenderCfg:
     """Selects the anti-aliasing mode to use. Defaults to DLSS.
 
     - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
-      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to
-      reconstruct native quality images.
+      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
+      native quality images.
     - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same
       Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize
       image quality.
@@ -327,97 +151,12 @@ class RenderCfg:
     This is set by the variable: ``/rtx/domeLight/upperLowerStrategy``.
     """
 
-    max_bounces: int | None = None
-    """Maximum number of ray bounces for path tracing (RT2). Default is 2.
-
-    For global illumination (indirect diffuse), this should be at least 3.
-
-    This is set by the variable: ``/rtx/rtpt/maxBounces``.
-    """
-
-    split_glass: bool | None = None
-    """Enables separate glass ray splitting for improved glass rendering (RT2). Default is False.
-
-    Enabling this can reduce noise on glass materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitGlass``.
-    """
-
-    split_clearcoat: bool | None = None
-    """Enables separate clearcoat ray splitting (RT2). Default is False.
-
-    Enabling this can reduce noise on clearcoat materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitClearcoat``.
-    """
-
-    split_rough_reflection: bool | None = None
-    """Enables separate rough reflection ray splitting (RT2). Default is False.
-
-    Enabling this can reduce noise on rough reflective materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitRoughReflection``.
-    """
-
-    ambient_light_intensity: float | None = None
-    """Scene ambient light intensity. Default is 1.0.
-
-    This is set by the variable: ``/rtx/sceneDb/ambientLightIntensity``.
-    """
-
-    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = None
-    """Ambient occlusion denoiser mode. Default is 1.
-
-    Valid values are:
-
-    * 0: Higher quality denoising
-    * 1: Performance-oriented denoising
-
-    This is set by the variable: ``/rtx/ambientOcclusion/denoiserMode``.
-    """
-
-    subpixel_mode: Literal[0, 1] | None = None
-    """Raytracing subpixel mode. Default is 0.
-
-    Valid values are:
-
-    * 0: Performance mode
-    * 1: Quality mode (better anti-aliasing)
-
-    This is set by the variable: ``/rtx/raytracing/subpixel/mode``.
-    """
-
-    enable_cached_raytracing: bool | None = None
-    """Enables cached raytracing for improved performance. Default is True.
-
-    This is set by the variable: ``/rtx/raytracing/cached/enabled``.
-    """
-
-    max_samples_per_launch: int | None = None
-    """Maximum samples per launch for path tracing. Default is 1000000.
-
-    This setting helps avoid replicator warnings when using large tile counts.
-
-    This is set by the variable: ``/rtx/pathtracing/maxSamplesPerLaunch``.
-    """
-
-    view_tile_limit: int | None = None
-    """Maximum number of view tiles. Default is 1000000.
-
-    This setting helps avoid silent trimming of tiles.
-
-    This is set by the variable: ``/rtx/viewTile/limit``.
-    """
-
     carb_settings: dict[str, Any] | None = None
     """A general dictionary for users to supply all carb rendering settings with native names.
 
     The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.
-    For instance, a key value pair can be:
-
-    - ``/rtx/translucency/enabled: False`` (carb)
-    - ``rtx.translucency.enabled: False`` (.kit)
-    - ``rtx_translucency_enabled: False`` (python)
+    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb),
+    ``rtx.translucency.enabled: False`` (.kit), or ``rtx_translucency_enabled: False`` (python).
     """
 
     rendering_mode: Literal["performance", "balanced", "quality"] | None = None
@@ -429,10 +168,11 @@ class RenderCfg:
 
 @configclass
 class SimulationCfg:
-    """Configuration for simulation physics."""
+    """Configuration for simulation physics.
 
-    physics_prim_path: str = "/physicsScene"
-    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
+    This class contains the main simulation parameters including physics time-step, gravity,
+    device settings, and physics backend configuration.
+    """
 
     device: str = "cuda:0"
     """The device to run the simulation on. Default is ``"cuda:0"``.
@@ -447,14 +187,34 @@ class SimulationCfg:
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
+    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
+    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
+
+    physics_prim_path: str = "/physicsScene"
+    """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
+
+    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
+    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg.
+
+    The physics engine defaults to this physics material for all the rigid body prims that do not have any
+    physics material specified on them.
+
+    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
+    """
+
+    use_fabric: bool = True
+    """Enable/disable reading of physics buffers directly. Default is True.
+
+    When running the simulation, updates in the states in the scene is normally synchronized with USD.
+    This leads to an overhead in reading the data and does not scale well with massive parallelization.
+    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
+
+    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
+    of primitives in the scene.
+    """
+
     render_interval: int = 1
     """The number of physics simulation steps per rendering step. Default is 1."""
-
-    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
-    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81).
-
-    If set to (0.0, 0.0, 0.0), gravity is disabled.
-    """
 
     enable_scene_query_support: bool = False
     """Enable/disable scene query support for collision shapes. Default is False.
@@ -471,36 +231,11 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_fabric: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
+    physics: PhysicsCfg | None = None
+    """Physics manager configuration. Default is None (uses PhysxCfg()).
 
-    When running the simulation, updates in the states in the scene is normally synchronized with USD.
-    This leads to an overhead in reading the data and does not scale well with massive parallelization.
-    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
-
-    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
-    of primitives in the scene.
-
-    Note:
-        When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
-        updates, please set this flag to :obj:`False`.
-
-        When using GPU simulation, it is required to enable Fabric to visualize updates in the renderer.
-        Transform updates are propagated to the renderer through Fabric. If Fabric is disabled with GPU simulation,
-        the renderer will not be able to render any updates in the simulation, although simulation will still be
-        running under the hood.
-    """
-
-    physx: PhysxCfg = PhysxCfg()
-    """PhysX solver settings. Default is PhysxCfg()."""
-
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().
-
-    The physics engine defaults to this physics material for all the rigid body prims that do not have any
-    physics material specified on them.
-
-    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
+    This configuration determines which physics manager to use. Override with
+    a different config (e.g., NewtonManagerCfg) to use a different physics backend.
     """
 
     render: RenderCfg = RenderCfg()
@@ -524,3 +259,6 @@ class SimulationCfg:
     If :attr:`save_logs_to_file` is True, the logs will be saved to the directory specified by :attr:`log_dir`.
     If None, the logs will be saved to the temp directory.
     """
+
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    """The list of visualizer configurations. Default is None."""

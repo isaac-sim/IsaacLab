@@ -74,16 +74,13 @@ class MySceneCfg(InteractiveSceneCfg):
 @pytest.fixture
 def sim():
     """Create a simulation context."""
-    # Create a new stage
-    sim_utils.create_new_stage()
-    # Load kit helper
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, device="cpu"))
-    # Set main camera
-    sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
-    yield sim
-    # Cleanup
-    sim.clear_all_callbacks()
-    sim.clear_instance()
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", dt=0.005)
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        # Set main camera
+        sim.set_camera_view(eye=(5.0, 5.0, 5.0), target=(0.0, 0.0, 0.0))
+        yield sim
+    # Cleanup is handled by build_simulation_context
 
 
 def test_frame_transformer_feet_wrt_base(sim):
@@ -763,7 +760,7 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         torch.testing.assert_close(source_quat_w, expected_source_base_quat_w, rtol=1e-5, atol=1e-5)
 
         # TEST 2: Explicit named frames (LF_SHANK) should have DIFFERENT world positions
-        lf_pos_difference = torch.norm(target_pos_w[:, robot_lf_idx] - target_pos_w[:, robot_1_lf_idx], dim=-1)
+        lf_pos_difference = torch.linalg.norm(target_pos_w[:, robot_lf_idx] - target_pos_w[:, robot_1_lf_idx], dim=-1)
         assert torch.all(lf_pos_difference > 1.0), (
             f"Robot_LF_SHANK and Robot_1_LF_SHANK should have different positions (got diff={lf_pos_difference}). "
             "This indicates body name collision bug."
@@ -775,7 +772,7 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
 
         # TEST 3: Implicit named frames (RF_SHANK) should also have DIFFERENT world positions
         # Even though they have the same frame name, internal body tracking uses full paths
-        rf_pos_difference = torch.norm(
+        rf_pos_difference = torch.linalg.norm(
             target_pos_w[:, rf_shank_indices[0]] - target_pos_w[:, rf_shank_indices[1]], dim=-1
         )
         assert torch.all(rf_pos_difference > 1.0), (

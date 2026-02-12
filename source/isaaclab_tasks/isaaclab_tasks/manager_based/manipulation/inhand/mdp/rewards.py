@@ -66,7 +66,7 @@ def track_pos_l2(
     # obtain the object position in the environment frame
     object_pos_e = asset.data.root_pos_w - env.scene.env_origins
 
-    return torch.norm(goal_pos_e - object_pos_e, p=2, dim=-1)
+    return torch.linalg.norm(goal_pos_e - object_pos_e, ord=2, dim=-1)
 
 
 def track_orientation_inv_l2(

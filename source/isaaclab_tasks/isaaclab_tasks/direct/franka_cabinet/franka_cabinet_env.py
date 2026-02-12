@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import torch
 
-from isaacsim.core.utils.torch.transformations import tf_combine, tf_inverse, tf_vector
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -20,7 +19,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import sample_uniform
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv, sample_uniform
 
 
 @configclass
@@ -187,7 +186,8 @@ class FrankaCabinetEnv(DirectRLEnv):
             qz = world_quat.imaginary[2]
             qw = world_quat.real
 
-            return torch.tensor([px, py, pz, qw, qx, qy, qz], device=device)
+            # Return pose as [pos(3), quat_xyzw(4)]
+            return torch.tensor([px, py, pz, qx, qy, qz, qw], device=device)
 
         self.dt = self.cfg.sim.dt * self.cfg.decimation
 
@@ -220,17 +220,22 @@ class FrankaCabinetEnv(DirectRLEnv):
 
         finger_pose = torch.zeros(7, device=self.device)
         finger_pose[0:3] = (lfinger_pose[0:3] + rfinger_pose[0:3]) / 2.0
-        finger_pose[3:7] = lfinger_pose[3:7]
-        hand_pose_inv_rot, hand_pose_inv_pos = tf_inverse(hand_pose[3:7], hand_pose[0:3])
+        finger_pose[3:7] = lfinger_pose[3:7]  # quaternion xyzw
 
-        robot_local_grasp_pose_rot, robot_local_pose_pos = tf_combine(
-            hand_pose_inv_rot, hand_pose_inv_pos, finger_pose[3:7], finger_pose[0:3]
+        # Compute inverse of hand pose: inv_q, inv_pos
+        hand_pose_inv_rot = quat_inv(hand_pose[3:7])
+        hand_pose_inv_pos = -quat_apply(hand_pose_inv_rot, hand_pose[0:3])
+
+        # Combine transforms: hand_inv * finger -> local grasp pose
+        robot_local_pose_pos, robot_local_grasp_pose_rot = combine_frame_transforms(
+            hand_pose_inv_pos, hand_pose_inv_rot, finger_pose[0:3], finger_pose[3:7]
         )
-        robot_local_pose_pos += torch.tensor([0, 0.04, 0], device=self.device)
+        robot_local_pose_pos = robot_local_pose_pos + torch.tensor([0, 0.04, 0], device=self.device)
         self.robot_local_grasp_pos = robot_local_pose_pos.repeat((self.num_envs, 1))
         self.robot_local_grasp_rot = robot_local_grasp_pose_rot.repeat((self.num_envs, 1))
 
-        drawer_local_grasp_pose = torch.tensor([0.3, 0.01, 0.0, 1.0, 0.0, 0.0, 0.0], device=self.device)
+        # Drawer local grasp pose: [pos(3), quat_xyzw(4)] - identity quaternion is [0,0,0,1]
+        drawer_local_grasp_pose = torch.tensor([0.3, 0.01, 0.0, 0.0, 0.0, 0.0, 1.0], device=self.device)
         self.drawer_local_grasp_pos = drawer_local_grasp_pose[0:3].repeat((self.num_envs, 1))
         self.drawer_local_grasp_rot = drawer_local_grasp_pose[3:7].repeat((self.num_envs, 1))
 
@@ -414,15 +419,15 @@ class FrankaCabinetEnv(DirectRLEnv):
         joint_positions,
     ):
         # distance from hand to the drawer
-        d = torch.norm(franka_grasp_pos - drawer_grasp_pos, p=2, dim=-1)
+        d = torch.linalg.norm(franka_grasp_pos - drawer_grasp_pos, ord=2, dim=-1)
         dist_reward = 1.0 / (1.0 + d**2)
         dist_reward *= dist_reward
         dist_reward = torch.where(d <= 0.02, dist_reward * 2, dist_reward)
 
-        axis1 = tf_vector(franka_grasp_rot, gripper_forward_axis)
-        axis2 = tf_vector(drawer_grasp_rot, drawer_inward_axis)
-        axis3 = tf_vector(franka_grasp_rot, gripper_up_axis)
-        axis4 = tf_vector(drawer_grasp_rot, drawer_up_axis)
+        axis1 = quat_apply(franka_grasp_rot, gripper_forward_axis)
+        axis2 = quat_apply(drawer_grasp_rot, drawer_inward_axis)
+        axis3 = quat_apply(franka_grasp_rot, gripper_up_axis)
+        axis4 = quat_apply(drawer_grasp_rot, drawer_up_axis)
 
         dot1 = (
             torch.bmm(axis1.view(num_envs, 1, 3), axis2.view(num_envs, 3, 1)).squeeze(-1).squeeze(-1)
@@ -483,11 +488,12 @@ class FrankaCabinetEnv(DirectRLEnv):
         drawer_local_grasp_rot,
         drawer_local_grasp_pos,
     ):
-        global_franka_rot, global_franka_pos = tf_combine(
-            hand_rot, hand_pos, franka_local_grasp_rot, franka_local_grasp_pos
+        # combine_frame_transforms returns (pos, quat)
+        global_franka_pos, global_franka_rot = combine_frame_transforms(
+            hand_pos, hand_rot, franka_local_grasp_pos, franka_local_grasp_rot
         )
-        global_drawer_rot, global_drawer_pos = tf_combine(
-            drawer_rot, drawer_pos, drawer_local_grasp_rot, drawer_local_grasp_pos
+        global_drawer_pos, global_drawer_rot = combine_frame_transforms(
+            drawer_pos, drawer_rot, drawer_local_grasp_pos, drawer_local_grasp_rot
         )
 
         return global_franka_rot, global_franka_pos, global_drawer_rot, global_drawer_pos

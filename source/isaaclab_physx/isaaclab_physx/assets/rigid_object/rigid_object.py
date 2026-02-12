@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,6 @@ import torch
 import warp as wp
 
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -21,6 +21,8 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.utils.wrench_composer import WrenchComposer
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
 
@@ -693,7 +695,9 @@ class RigidObject(BaseRigidObject):
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
-        logger.warning(
-            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        warnings.warn(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_view

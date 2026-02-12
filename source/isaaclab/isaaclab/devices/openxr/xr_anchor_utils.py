@@ -44,7 +44,7 @@ class XrAnchorSynchronizer:
 
         # Resolve USD layer identifier of the anchor for updates
         try:
-            from isaacsim.core.utils.stage import get_current_stage
+            from isaaclab.sim.utils.stage import get_current_stage
 
             stage = get_current_stage()
             xr_anchor_headset_prim = stage.GetPrimAtPath(self._xr_anchor_headset_path)

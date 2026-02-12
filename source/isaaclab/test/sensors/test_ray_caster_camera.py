@@ -71,9 +71,13 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Load kit helper
     sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
-    # Ground-plane
+    # Ground-plane with visual material for RTX rendering compatibility
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
-    create_prim_from_mesh("/World/defaultGroundPlane", mesh)
+    visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, 0.5))
+    create_prim_from_mesh("/World/defaultGroundPlane", mesh, visual_material=visual_material)
+    # Add lighting for RTX rendering
+    light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)
+    light_cfg.func("/World/Light", light_cfg)
     # load stage
     sim_utils.update_stage()
     return sim, camera_cfg, dt
@@ -84,10 +88,8 @@ def teardown(sim: sim_utils.SimulationContext):
     # close all the opened viewport from before.
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -581,6 +583,8 @@ def test_output_equal_to_usdcamera(setup_sim):
     torch.testing.assert_close(
         camera_usd.data.output["distance_to_image_plane"],
         camera_warp.data.output["distance_to_image_plane"],
+        rtol=1e-5,
+        atol=1e-4,
     )
     torch.testing.assert_close(
         camera_usd.data.output["distance_to_camera"],

@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The IsaacLab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to benchmark RL agent with RSL-RL."""
 
 """Launch Isaac Sim Simulator first."""
@@ -37,10 +32,11 @@ parser.add_argument(
 parser.add_argument(
     "--benchmark_backend",
     type=str,
-    default="OmniPerfKPIFile",
-    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
-    help="Benchmarking backend options, defaults OmniPerfKPIFile",
+    default="omniperf",
+    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    help="Benchmarking backend options, defaults omniperf",
 )
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -85,14 +81,11 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 imports_time_end = time.perf_counter_ns()
 
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    get_backend_type,
     log_app_start_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
@@ -111,8 +104,12 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_rsl_rl_train",
+    backend_type=get_backend_type(args_cli.benchmark_backend),
+    output_path=args_cli.output_path,
+    use_recorders=True,
+    output_prefix=f"benchmark_rsl_rl_train_{args_cli.task}",
     workflow_metadata={
         "metadata": [
             {"name": "task", "data": args_cli.task},
@@ -121,7 +118,6 @@ benchmark = BaseIsaacBenchmark(
             {"name": "max_iterations", "data": args_cli.max_iterations},
         ]
     },
-    backend_type=args_cli.benchmark_backend,
 )
 
 
@@ -129,7 +125,6 @@ benchmark = BaseIsaacBenchmark(
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg):
     """Train with RSL-RL agent."""
     # parse configuration
-    benchmark.set_phase("loading", start_recording_frametime=False, start_recording_runtime=True)
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -215,13 +210,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
-    benchmark.set_phase("sim_runtime")
-
-    # run training
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+    # run training with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     if world_rank == 0:
-        benchmark.store_measurements()
+        # Final update after training completes
+        benchmark.update_manual_recorders()
 
         # parse tensorboard file stats
         log_data = parse_tf_logs(log_dir)
@@ -252,7 +247,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
         log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
 
-        benchmark.stop()
+        benchmark._finalize_impl()
 
     # close the simulator
     env.close()

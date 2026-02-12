@@ -304,17 +304,20 @@ def test_openxr_constructors(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = OpenXRDevice(config)
@@ -527,17 +530,20 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg, callbacks)
@@ -569,17 +575,20 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg)

@@ -116,7 +116,7 @@ def get_pose_error(
 
         fingertip_midpoint_quat_norm = quat_mul(fingertip_midpoint_quat, quat_conjugate(fingertip_midpoint_quat))[
             :, 3
-        ]  # scalar component (w component in XYZW format)
+        ]  # W component is at index 3 in XYZW format
         fingertip_midpoint_quat_inv = quat_conjugate(fingertip_midpoint_quat) / fingertip_midpoint_quat_norm.unsqueeze(
             -1
         )

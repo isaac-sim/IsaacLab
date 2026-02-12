@@ -117,7 +117,8 @@ class UniformVelocityCommand(CommandTerm):
         max_command_step = max_command_time / self._env.step_dt
         # logs data
         self.metrics["error_vel_xy"] += (
-            torch.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b[:, :2], dim=-1) / max_command_step
+            torch.linalg.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b[:, :2], dim=-1)
+            / max_command_step
         )
         self.metrics["error_vel_yaw"] += (
             torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]) / max_command_step
