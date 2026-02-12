@@ -297,11 +297,12 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position and orientation are of the rigid body's actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid body's center of mass frame.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
+        warnings.warn(
+            "The `root_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and `root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
@@ -319,11 +320,12 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the rigid body root frame relative to the
-        world. The orientation is provided in (w, x, y, z) format.
-        """
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
+        warnings.warn(
+            "The `root_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and `root_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
@@ -341,12 +343,12 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_state_w(self) -> wp.array:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the rigid body's center of mass frame
-        relative to the world. Center of mass frame is the orientation principle axes of inertia.
-        """
+        """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
+        warnings.warn(
+            "The `root_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_com_pose_w` and `root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 concat_root_pose_and_vel_to_state,
@@ -415,34 +417,72 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_state_w(self) -> wp.array:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
-        return self.root_state_w.reshape((self._num_instances, 1))
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
+        if self._root_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                    self._root_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_state_w.timestamp = self._sim_timestamp
+        return self._root_state_w.data.reshape((self._num_instances, 1))
 
     @property
     def body_link_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (w, x, y, z) format.
-        """
-        return self.root_link_state_w.reshape((self._num_instances, 1))
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
+        if self._root_link_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                    self._root_link_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_link_state_w.timestamp = self._sim_timestamp
+        return self._root_link_state_w.data.reshape((self._num_instances, 1))
 
     @property
     def body_com_state_w(self) -> wp.array:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (w, x, y, z) format.
-        """
-        return self.root_com_state_w.reshape((self._num_instances, 1))
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and `body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access internal buffer directly to avoid cascading deprecation warnings from root_com_state_w
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                    self._root_com_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_com_state_w.timestamp = self._sim_timestamp
+        return self._root_com_state_w.data.reshape((self._num_instances, 1))
 
     @property
     def body_com_acc_w(self) -> wp.array:

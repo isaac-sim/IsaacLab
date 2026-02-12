@@ -540,73 +540,6 @@ class ArticulationData(BaseArticulationData):
 
         return self._root_com_vel_w.data
 
-    @property
-    def root_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position and quaternion are of the articulation root's actor frame relative to the world. Meanwhile,
-        the linear and angular velocities are of the articulation root's center of mass frame.
-        """
-        if self._root_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=(self._num_instances),
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_com_vel_w,
-                    self._root_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._root_state_w.timestamp = self._sim_timestamp
-
-        return self._root_state_w.data
-
-    @property
-    def root_link_state_w(self) -> wp.array:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
-
-        The position, quaternion, and linear/angular velocity are of the articulation root's actor frame relative to the
-        world.
-        """
-        if self._root_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_link_vel_w,
-                    self._root_link_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._root_link_state_w.timestamp = self._sim_timestamp
-
-        return self._root_link_state_w.data
-
-    @property
-    def root_com_state_w(self) -> wp.array:
-        """Root center of mass state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        The position, quaternion, and linear/angular velocity are of the articulation root link's center of mass frame
-        relative to the world. Center of mass frame is assumed to be the same orientation as the link rather than the
-        orientation of the principle inertia. Shape is (num_instances, 13).
-        """
-        if self._root_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w,
-                    self.root_com_vel_w,
-                    self._root_com_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._root_com_state_w.timestamp = self._sim_timestamp
-
-        return self._root_com_state_w.data
-
     """
     Body state properties.
     """
@@ -1312,3 +1245,77 @@ class ArticulationData(BaseArticulationData):
             strides=spatial_vector.strides,
             device=self.device,
         )
+    
+
+    """
+    Deprecated properties.
+    """
+
+    @property
+    def root_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
+        warnings.warn(
+            "The `root_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and `root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=(self._num_instances),
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                    self._root_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_state_w.timestamp = self._sim_timestamp
+
+        return self._root_state_w.data
+
+    @property
+    def root_link_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
+        warnings.warn(
+            "The `root_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and `root_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_link_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                    self._root_link_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_link_state_w.timestamp = self._sim_timestamp
+
+        return self._root_link_state_w.data
+
+    @property
+    def root_com_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
+        warnings.warn(
+            "The `root_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_com_pose_w` and `root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_com_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                    self._root_com_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._root_com_state_w.timestamp = self._sim_timestamp
+
+        return self._root_com_state_w.data
