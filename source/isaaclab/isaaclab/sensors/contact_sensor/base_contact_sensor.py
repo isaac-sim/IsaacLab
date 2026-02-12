@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.string as string_utils
 
@@ -142,8 +143,8 @@ class BaseContactSensor(SensorBase):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
         # check if the bodies are in contact
-        currently_in_contact = self.data.current_contact_time > 0.0
-        less_than_dt_in_contact = self.data.current_contact_time < (dt + abs_tol)
+        currently_in_contact = wp.to_torch(self.data.current_contact_time) > 0.0
+        less_than_dt_in_contact = wp.to_torch(self.data.current_contact_time) < (dt + abs_tol)
         return currently_in_contact * less_than_dt_in_contact
 
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
@@ -177,8 +178,8 @@ class BaseContactSensor(SensorBase):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
         # check if the sensor is configured to track contact time
-        currently_detached = self.data.current_air_time > 0.0
-        less_than_dt_detached = self.data.current_air_time < (dt + abs_tol)
+        currently_detached = wp.to_torch(self.data.current_air_time) > 0.0
+        less_than_dt_detached = wp.to_torch(self.data.current_air_time) < (dt + abs_tol)
         return currently_detached * less_than_dt_detached
 
     """
