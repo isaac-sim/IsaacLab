@@ -190,56 +190,19 @@ class TiledCamera(Camera):
         if self.cfg.renderer == "newton":
             self.renderer = NewtonWarpRenderer(self.scene)
 
-        if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-            rep.AnnotatorRegistry.register_annotator_from_aov(
-                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
-            )
-            # Set simple shading mode (if requested) before rendering
-            simple_shading_mode = self._resolve_simple_shading_mode()
-            if simple_shading_mode is not None:
-                carb.settings.get_settings().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
-        # Define the annotators based on requested data types
-        self._annotators = dict()
-        for annotator_type in self.cfg.data_types:
-            if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
-                self._annotators["rgba"] = annotator
-            elif annotator_type == "albedo":
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
-                rep.AnnotatorRegistry.register_annotator_from_aov(
-                    aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
-                )
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
-                )
-                self._annotators["albedo"] = annotator
-            elif annotator_type in self.SIMPLE_SHADING_MODES:
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-            elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
-                # keep depth for backwards compatibility
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "distance_to_image_plane", device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-            # note: we are verbose here to make it easier to understand the code.
-            #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-            #   if colorize is false, the data is returned as a uint32 image with ids as values.
-            else:
-                init_params = None
-                if annotator_type == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
+        else:
+            # Create replicator tiled render product
+            rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
+            self._render_product_paths = [rp.path]
 
+            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
+                rep.AnnotatorRegistry.register_annotator_from_aov(
+                    aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+                )
+                # Set simple shading mode (if requested) before rendering
+                simple_shading_mode = self._resolve_simple_shading_mode()
+                if simple_shading_mode is not None:
+                    carb.settings.get_settings().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
             # Define the annotators based on requested data types
             self._annotators = dict()
             for annotator_type in self.cfg.data_types:
@@ -256,6 +219,11 @@ class TiledCamera(Camera):
                         "DiffuseAlbedoSD", device=self.device, do_array_copy=False
                     )
                     self._annotators["albedo"] = annotator
+                elif annotator_type in self.SIMPLE_SHADING_MODES:
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
                 elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
                     # keep depth for backwards compatibility
                     annotator = rep.AnnotatorRegistry.get_annotator(
