@@ -191,6 +191,7 @@ class RigidObjectCollection(AssetBase):
                     torques=self._permanent_wrench_composer.composed_torque,
                     body_ids=self._ALL_OBJ_INDICES_WP,
                     env_ids=self._ALL_ENV_INDICES_WP,
+                    is_global=True,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_physx_view.apply_forces_and_torques_at_position(
@@ -198,7 +199,7 @@ class RigidObjectCollection(AssetBase):
                     torque_data=self.reshape_data_to_view(self._instantaneous_wrench_composer.composed_torque_as_torch),
                     position_data=None,
                     indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                    is_global=False,
+                    is_global=True,
                 )
             else:
                 # Apply permanent wrench to the simulation
@@ -207,7 +208,7 @@ class RigidObjectCollection(AssetBase):
                     torque_data=self.reshape_data_to_view(self._permanent_wrench_composer.composed_torque_as_torch),
                     position_data=None,
                     indices=self._env_obj_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_OBJ_INDICES),
-                    is_global=False,
+                    is_global=True,
                 )
         self._instantaneous_wrench_composer.reset()
 
