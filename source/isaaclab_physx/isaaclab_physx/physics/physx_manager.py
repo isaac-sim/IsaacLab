@@ -244,8 +244,8 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
-        cfg = PhysicsManager._cfg
-        if cfg is None:
+        sim = PhysicsManager._sim
+        if sim is None:
             return
 
         if cls._anim_recorder and cls._anim_recorder.enabled and cls._anim_recorder.update():
@@ -253,7 +253,7 @@ class PhysxManager(PhysicsManager):
             omni.kit.app.get_app().shutdown()
             return
 
-        cls._physx_sim.simulate(cfg.dt, 0.0)
+        cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
 
         device = PhysicsManager._device
@@ -457,16 +457,17 @@ class PhysxManager(PhysicsManager):
             settings.set_bool("/physics/suppressReadback", False)
             PhysicsManager._device = "cpu"
 
-        # physx scene api
+        # physx scene api (use sim.cfg for shared parameters like physics_prim_path, dt, physics_material)
+        sim_cfg = sim.cfg
         stage = sim.stage
-        scene_prim = stage.GetPrimAtPath(cfg.physics_prim_path)
+        scene_prim = stage.GetPrimAtPath(sim_cfg.physics_prim_path)
         PhysxSchema.PhysxSceneAPI.Apply(scene_prim)
         scene_api = PhysxSchema.PhysxSceneAPI(scene_prim)
 
         # timestep and frame rate
-        steps_per_sec = int(1.0 / cfg.dt)
+        steps_per_sec = int(1.0 / sim_cfg.dt)
         scene_api.CreateTimeStepsPerSecondAttr(steps_per_sec)
-        render_interval = max(sim.cfg.render_interval, 1)
+        render_interval = max(sim_cfg.render_interval, 1)
         settings.set_int("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)
 
         # gpu dynamics
@@ -504,16 +505,20 @@ class PhysxManager(PhysicsManager):
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
                 sim_utils.safe_set_attribute_on_usd_schema(scene_api, attr_name, value, camel_case=True)
 
-        # default physics material
-        if cfg.physics_material:
-            mat_path = f"{cfg.physics_prim_path}/defaultMaterial"
-            cfg.physics_material.func(mat_path, cfg.physics_material)
-            sim_utils.bind_physics_material(cfg.physics_prim_path, mat_path)
+        # default physics material (from SimulationCfg, or create default if None)
+        physics_material = sim_cfg.physics_material
+        if physics_material is None:
+            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+
+            physics_material = RigidBodyMaterialCfg()
+        mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
+        physics_material.func(mat_path, physics_material)
+        sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
         if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
             logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
-        if not cfg.enable_stabilization and cfg.dt > 0.0333:
+        if not cfg.enable_stabilization and sim_cfg.dt > 0.0333:
             logger.warning("Large timestep without stabilization may cause physics issues.")
 
     @classmethod

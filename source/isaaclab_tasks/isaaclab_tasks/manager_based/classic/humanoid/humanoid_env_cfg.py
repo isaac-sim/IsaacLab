@@ -5,6 +5,7 @@
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -214,7 +215,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.physics.bounce_threshold_velocity = 0.2
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
         # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0

@@ -14,6 +14,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
@@ -129,6 +130,10 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,
+        physics_material=RigidBodyMaterialCfg(
+            static_friction=1.0,
+            dynamic_friction=1.0
+        ),
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
         ),
@@ -240,6 +245,10 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 60,
         render_interval=decimation,
+        physics_material=RigidBodyMaterialCfg(
+            static_friction=1.0,
+            dynamic_friction=1.0
+        ),
         physics=PhysxCfg(
             bounce_threshold_velocity=0.2,
             gpu_max_rigid_contact_count=2**23,

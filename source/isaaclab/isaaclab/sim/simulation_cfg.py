@@ -235,7 +235,6 @@ class SimulationCfg:
 
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
-    If None, PhysxCfg() will be used by default.
     """
 
     render: RenderCfg = RenderCfg()
@@ -262,35 +261,3 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
     """The list of visualizer configurations. Default is None."""
-
-    def __post_init__(self):
-        """Initialize defaults if not set."""
-
-        # Helper to check if a value is MISSING (compare by type name since instances may differ)
-        def _is_missing(value) -> bool:
-            return type(value).__name__ == "_MISSING_TYPE"
-
-        # Set default physics backend if None
-        if self.physics is None:
-            from isaaclab_physx.physics import PhysxCfg
-
-            self.physics = PhysxCfg()
-
-        # Propagate parameters from SimulationCfg to physics config if they are MISSING
-        if _is_missing(self.physics.dt):
-            self.physics.dt = self.dt
-        if _is_missing(self.physics.gravity):
-            self.physics.gravity = self.gravity
-        if _is_missing(self.physics.physics_prim_path):
-            self.physics.physics_prim_path = self.physics_prim_path
-        if _is_missing(self.physics.physics_material):
-            self.physics.physics_material = self.physics_material
-
-        # Set default physics material if None
-        if self.physics_material is None:
-            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
-
-            self.physics_material = RigidBodyMaterialCfg()
-            # Also propagate to physics if it was MISSING
-            if _is_missing(self.physics.physics_material):
-                self.physics.physics_material = self.physics_material

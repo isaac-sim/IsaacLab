@@ -11,6 +11,7 @@ as well as certain object properties, to better suit the smaller robot.
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -278,5 +279,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics.bounce_threshold_velocity = 0.01
-        self.sim.physics.friction_correlation_distance = 0.00625
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            friction_correlation_distance=0.00625,
+        )

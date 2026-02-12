@@ -7,6 +7,7 @@
 import os
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
@@ -133,7 +134,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
         self.episode_length_s = 30.0
 
         # Enable CCD to avoid tunneling
-        self.sim.physics.enable_ccd = True
+        self.sim.physics = PhysxCfg(enable_ccd=True)
 
         self.teleop_devices = DevicesCfg(
             devices={

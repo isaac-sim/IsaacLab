@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -425,8 +426,10 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
-        self.sim.physics.bounce_threshold_velocity = 0.01
-        self.sim.physics.gpu_max_rigid_patch_count = 4 * 5 * 2**15
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        )
 
         if self.curriculum is not None:
             self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2

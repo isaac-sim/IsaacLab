@@ -7,6 +7,7 @@ import os
 from dataclasses import MISSING
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -192,10 +193,12 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.render_interval = self.decimation
 
-        self.sim.physics.bounce_threshold_velocity = 0.01
-        self.sim.physics.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physics.gpu_total_aggregate_pairs_capacity = 16 * 1024
-        self.sim.physics.friction_correlation_distance = 0.00625
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=16 * 1024,
+            friction_correlation_distance=0.00625,
+        )
 
         # set viewer to see the whole scene
         self.viewer.eye = [1.5, -1.0, 1.5]

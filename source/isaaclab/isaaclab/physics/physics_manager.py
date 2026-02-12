@@ -286,7 +286,7 @@ class PhysicsManager(ABC):
     @classmethod
     def get_physics_dt(cls) -> float:
         """Get the physics timestep in seconds."""
-        return PhysicsManager._cfg.dt if PhysicsManager._cfg else 1.0 / 60.0
+        return PhysicsManager._sim.cfg.dt if PhysicsManager._sim else 1.0 / 60.0
 
     @classmethod
     def get_device(cls) -> str:

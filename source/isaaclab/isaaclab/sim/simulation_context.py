@@ -118,6 +118,11 @@ class SimulationContext:
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
+        # Set default physics backend if not specified
+        if self.cfg.physics is None:
+            from isaaclab_physx.physics import PhysxCfg
+
+            self.cfg.physics = PhysxCfg()
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
