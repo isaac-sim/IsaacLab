@@ -36,6 +36,7 @@ from .schemas import (
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
     activate_contact_sensors,
+    create_joint,
     define_articulation_root_properties,
     define_collision_properties,
     define_deformable_body_properties,
@@ -76,6 +77,8 @@ __all__ = [
     "ArticulationRootPropertiesCfg",
     "define_articulation_root_properties",
     "modify_articulation_root_properties",
+    # joints
+    "create_joint",
     # rigid bodies
     "RigidBodyPropertiesCfg",
     "define_rigid_body_properties",
