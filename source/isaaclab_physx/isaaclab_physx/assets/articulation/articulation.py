@@ -1047,10 +1047,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
@@ -1138,10 +1135,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
@@ -1238,10 +1232,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
@@ -1335,10 +1326,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
@@ -1433,10 +1421,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
@@ -1529,10 +1514,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
@@ -1635,10 +1617,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
@@ -1742,10 +1721,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
@@ -1827,10 +1803,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
@@ -1909,10 +1882,7 @@ class Articulation(BaseArticulation):
         )
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
 
     def set_masses_mask(
@@ -1986,10 +1956,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_coms(wp.clone(self.data._body_com_pose_b.data, device="cpu"), indices=cpu_env_ids)
 
     def set_coms_mask(
@@ -2063,10 +2030,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
         self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
 
     def set_inertias_mask(
@@ -3868,12 +3832,12 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of environment indices.
         """
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
             return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
