@@ -751,6 +751,34 @@ class MockArticulationViewWarp:
         else:
             wp.copy(self._dof_friction_coefficients, friction_coefficients)
 
+    def set_dof_friction_properties(
+        self,
+        friction_properties: wp.array,
+        indices: wp.array | None = None,
+    ) -> None:
+        """Set friction properties of all DOFs.
+
+        Args:
+            friction_properties: Warp array of shape (N, J, 3) with [static, dynamic, viscous]. Must be on CPU.
+            indices: Optional indices of articulations to update.
+
+        Raises:
+            RuntimeError: If friction_properties array is on GPU.
+        """
+        self._check_cpu_array(friction_properties, "dof_friction_properties")
+        if self._dof_friction_properties is None:
+            self._dof_friction_properties = wp.zeros(
+                (self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu"
+            )
+        if indices is not None:
+            friction_properties_np = friction_properties.numpy()
+            indices_np = indices.numpy()
+            self_friction_properties_np = self._dof_friction_properties.numpy()
+            self_friction_properties_np[indices_np] = friction_properties_np
+            self._dof_friction_properties = wp.array(self_friction_properties_np, dtype=wp.float32, device="cpu")
+        else:
+            wp.copy(self._dof_friction_properties, friction_properties)
+
     # -- Mass Property Setters --
 
     def set_masses(

@@ -69,10 +69,10 @@ class TestMockArticulationViewWarpRootGetters:
         return MockArticulationViewWarp(count=4, num_dofs=12, num_links=13, device="cpu")
 
     def test_get_root_transforms_shape(self, view):
-        """Test root transforms shape - should be (N, 7) with wp.float32 dtype."""
+        """Test root transforms shape - should be (N,) with wp.transformf dtype."""
         transforms = view.get_root_transforms()
-        assert transforms.shape == (4, 7)
-        assert transforms.dtype == wp.float32
+        assert transforms.shape == (4,)
+        assert transforms.dtype == wp.transformf
 
     def test_get_root_transforms_default_quaternion(self, view):
         """Test that default quaternion is identity (xyzw format)."""
@@ -83,10 +83,10 @@ class TestMockArticulationViewWarpRootGetters:
             np.testing.assert_allclose(quat[3], 1.0)  # w = 1
 
     def test_get_root_velocities_shape(self, view):
-        """Test root velocities shape - should be (N, 6) with wp.float32 dtype."""
+        """Test root velocities shape - should be (N,) with wp.spatial_vectorf dtype."""
         velocities = view.get_root_velocities()
-        assert velocities.shape == (4, 6)
-        assert velocities.dtype == wp.float32
+        assert velocities.shape == (4,)
+        assert velocities.dtype == wp.spatial_vectorf
 
 
 class TestMockArticulationViewWarpLinkGetters:
@@ -98,28 +98,28 @@ class TestMockArticulationViewWarpLinkGetters:
         return MockArticulationViewWarp(count=4, num_dofs=12, num_links=13, device="cpu")
 
     def test_get_link_transforms_shape(self, view):
-        """Test link transforms shape - should be (N, L, 7) with wp.float32 dtype."""
+        """Test link transforms shape - should be (N, L) with wp.transformf dtype."""
         transforms = view.get_link_transforms()
-        assert transforms.shape == (4, 13, 7)
-        assert transforms.dtype == wp.float32
+        assert transforms.shape == (4, 13)
+        assert transforms.dtype == wp.transformf
 
     def test_get_link_velocities_shape(self, view):
-        """Test link velocities shape - should be (N, L, 6) with wp.float32 dtype."""
+        """Test link velocities shape - should be (N, L) with wp.spatial_vectorf dtype."""
         velocities = view.get_link_velocities()
-        assert velocities.shape == (4, 13, 6)
-        assert velocities.dtype == wp.float32
+        assert velocities.shape == (4, 13)
+        assert velocities.dtype == wp.spatial_vectorf
 
     def test_get_link_accelerations_shape(self, view):
-        """Test link accelerations shape."""
+        """Test link accelerations shape - should be (N, L) with wp.spatial_vectorf dtype."""
         accelerations = view.get_link_accelerations()
-        assert accelerations.shape == (4, 13, 6)
-        assert accelerations.dtype == wp.float32
+        assert accelerations.shape == (4, 13)
+        assert accelerations.dtype == wp.spatial_vectorf
 
     def test_get_link_incoming_joint_force_shape(self, view):
-        """Test link incoming joint force shape."""
+        """Test link incoming joint force shape - should be (N, L) with wp.spatial_vectorf dtype."""
         forces = view.get_link_incoming_joint_force()
-        assert forces.shape == (4, 13, 6)
-        assert forces.dtype == wp.float32
+        assert forces.shape == (4, 13)
+        assert forces.dtype == wp.spatial_vectorf
 
 
 class TestMockArticulationViewWarpDOFGetters:
@@ -149,10 +149,10 @@ class TestMockArticulationViewWarpDOFGetters:
         assert forces.dtype == wp.float32
 
     def test_get_dof_limits_shape(self, view):
-        """Test DOF limits shape."""
+        """Test DOF limits shape - should be (N, J) with wp.vec2f dtype."""
         limits = view.get_dof_limits()
-        assert limits.shape == (4, 12, 2)
-        assert limits.dtype == wp.float32
+        assert limits.shape == (4, 12)
+        assert limits.dtype == wp.vec2f
 
     def test_get_dof_limits_default_values(self, view):
         """Test that default limits are infinite."""
@@ -219,10 +219,10 @@ class TestMockArticulationViewWarpMassGetters:
         assert masses.dtype == wp.float32
 
     def test_get_coms_shape(self, view):
-        """Test centers of mass shape - should be (N, L, 7) with wp.float32 dtype."""
+        """Test centers of mass shape - should be (N, L) with wp.transformf dtype."""
         coms = view.get_coms()
-        assert coms.shape == (4, 13, 7)
-        assert coms.dtype == wp.float32
+        assert coms.shape == (4, 13)
+        assert coms.dtype == wp.transformf
 
     def test_get_inertias_shape(self, view):
         """Test inertias shape."""

@@ -1978,7 +1978,7 @@ class Articulation(BaseArticulation):
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
-                self.data._body_com_pose_b,
+                self.data._body_com_pose_b.data,
                 env_ids,
                 body_ids,
                 full_data,
@@ -1990,7 +1990,7 @@ class Articulation(BaseArticulation):
             cpu_env_ids = wp.clone(env_ids, device="cpu")
         else:
             cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
-        self.root_view.set_coms(wp.clone(self.data._body_com_pose_b, device="cpu"), indices=cpu_env_ids)
+        self.root_view.set_coms(wp.clone(self.data._body_com_pose_b.data, device="cpu"), indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
