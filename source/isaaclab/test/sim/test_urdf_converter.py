@@ -147,4 +147,4 @@ def test_config_drive_type(sim_config):
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
     np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_allclose(drive_damping.numpy(), config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
