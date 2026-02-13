@@ -20,6 +20,8 @@ from isaaclab_tasks.direct.inhand_manipulation.inhand_manipulation_env import In
 from .feature_extractor import FeatureExtractor, FeatureExtractorCfg
 from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
+from PIL import Image
+
 
 @configclass
 class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
@@ -30,7 +32,7 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         renderer_type="newton_warp",
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(0, 0.35, 1.0), rot=(0.7071, 0.0, 0.7071, 0.0), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0, .35, -0.5), rot=(0, 0.0, 0, 1), convention="opengl"),
         data_types=["rgb", "depth", "semantic_segmentation"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -42,7 +44,7 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
 
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
-    state_space = 187 + 27  # asymettric states + vision CNN embedding
+    state_space = 187 + 27  # asymmetric states + vision CNN embedding
 
 
 @configclass
@@ -94,6 +96,9 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
             self._tiled_camera.data.output["semantic_segmentation"][..., :3],
             object_pose,
         )
+
+        # img = Image.fromarray(self._tiled_camera.data.output["rgb"].cpu().numpy()[0])
+        # img.save("/home/rgresia/shadow_hand.png")
 
         self.embeddings = embeddings.clone().detach()
         # compute keypoints for goal cube
