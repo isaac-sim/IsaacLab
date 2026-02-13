@@ -36,7 +36,7 @@ class AntEnvCfg(DirectRLEnvCfg):
         ls_iterations=20,
         cone="pyramidal",
         ls_parallel=True,
-        integrator="implicit",
+        integrator="implicitfast",
         impratio=1,
     )
     newton_cfg = NewtonCfg(

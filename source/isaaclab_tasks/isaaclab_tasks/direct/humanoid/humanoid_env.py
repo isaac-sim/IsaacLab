@@ -37,7 +37,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         ls_parallel=True,
         cone="pyramidal",
         update_data_interval=2,
-        integrator="implicit",
+        integrator="implicitfast",
         impratio=1,
     )
     newton_cfg = NewtonCfg(

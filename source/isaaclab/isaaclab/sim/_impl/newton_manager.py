@@ -10,10 +10,8 @@ import numpy as np
 import re
 
 import warp as wp
-from newton import Axis, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.examples import create_collision_pipeline
+from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton.sensors import SensorContact as NewtonContactSensor
-from newton.sensors import populate_contacts
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
@@ -55,7 +53,7 @@ class NewtonManager:
     _contacts: Contacts = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
-    _newton_contact_sensor: NewtonContactSensor = None  # TODO: allow several contact sensors
+    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _report_contacts: bool = False
     _graph = None
     _newton_stage_path = None
@@ -82,7 +80,7 @@ class NewtonManager:
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
         NewtonManager._collision_pipeline = None
-        NewtonManager._newton_contact_sensor = None
+        NewtonManager._newton_contact_sensors = {}
         NewtonManager._report_contacts = False
         NewtonManager._graph = None
         NewtonManager._newton_stage_path = None
@@ -120,6 +118,8 @@ class NewtonManager:
         """Starts the simulation.
 
         This function finalizes the model and initializes the simulation state.
+        Note: Collision pipeline is initialized later in initialize_solver() after
+        we determine whether the solver needs external collision detection.
         """
 
         print(f"[INFO] Builder: {NewtonManager._builder}")
@@ -130,6 +130,8 @@ class NewtonManager:
             callback()
         print(f"[INFO] Finalizing model on device: {NewtonManager._device}")
         NewtonManager._builder.up_axis = Axis.from_string(NewtonManager._up_axis)
+        # Set smaller contact margin for manipulation examples (default 10cm is too large)
+        NewtonManager._builder.default_shape_cfg.contact_margin = 0.01
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", enable=True, format="ms"):
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
             NewtonManager._model.set_gravity(NewtonManager._gravity_vector)
@@ -139,13 +141,8 @@ class NewtonManager:
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
         NewtonManager.forward_kinematics()
-        if NewtonManager._needs_collision_pipeline:
-            NewtonManager._collision_pipeline = create_collision_pipeline(NewtonManager._model)
-            NewtonManager._contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
-            )
-        else:
-            NewtonManager._contacts = Contacts(0, 0)
+        # Initialize empty contacts - will be replaced in initialize_solver() if collision pipeline is needed
+        NewtonManager._contacts = Contacts(0, 0)
         print("[INFO] Running on start callbacks")
         for callback in NewtonManager._on_start_callbacks:
             callback()
@@ -176,11 +173,42 @@ class NewtonManager:
         NewtonManager._cfg = NewtonCfg(**newton_params)
 
     @classmethod
+    def _initialize_contacts(cls) -> None:
+        """Unified method to initialize contacts and collision pipeline.
+
+        This method handles both Newton collision pipeline and MuJoCo contact modes.
+        It ensures contacts are properly initialized with force attributes if sensors are registered.
+        """
+        if NewtonManager._needs_collision_pipeline:
+            # Newton collision pipeline: create pipeline and generate contacts
+            if NewtonManager._collision_pipeline is None:
+                NewtonManager._collision_pipeline = CollisionPipeline.from_model(
+                    NewtonManager._model, broad_phase_mode=BroadPhaseMode.EXPLICIT
+                )
+            NewtonManager._contacts = NewtonManager._model.collide(
+                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+            )
+        elif NewtonManager._solver is not None and isinstance(NewtonManager._solver, SolverMuJoCo):
+            # MuJoCo contacts mode: create properly sized Contacts object
+            # The solver's update_contacts() will populate this from MuJoCo data
+            naconmax = NewtonManager._solver.mjw_data.naconmax
+            requested_attributes = {"force"} if NewtonManager._report_contacts else set()
+            NewtonManager._contacts = Contacts(
+                rigid_contact_max=naconmax,
+                soft_contact_max=0,
+                device=NewtonManager._device,
+                requested_attributes=requested_attributes,
+            )
+
+    @classmethod
     def initialize_solver(cls):
-        """Initializes the solver.
+        """Initializes the solver and collision pipeline.
 
         This function initializes the solver based on the specified solver type. Currently, only XPBD and MuJoCoWarp
-        are supported. The graphing of the simulation is performed in this function if the simulation is ran using
+        are supported. If the solver requires external collision detection (i.e., not using MuJoCo's internal
+        contacts), a unified collision pipeline is created.
+
+        The graphing of the simulation is performed in this function if the simulation is ran using
         a CUDA enabled device.
 
         .. warning::
@@ -192,12 +220,19 @@ class NewtonManager:
             NewtonManager._num_substeps = NewtonManager._cfg.num_substeps
             NewtonManager._solver_dt = NewtonManager._dt / NewtonManager._num_substeps
             NewtonManager._solver = NewtonManager._get_solver(NewtonManager._model, NewtonManager._cfg.solver_cfg)
+
+            # Determine if we need external collision detection
+            # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
+            # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
+            # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(NewtonManager._solver, SolverMuJoCo):
-                NewtonManager._needs_collision_pipeline = not NewtonManager._cfg.solver_cfg.get(
-                    "use_mujoco_contacts", False
-                )
+                use_mujoco_contacts = NewtonManager._cfg.solver_cfg.get("use_mujoco_contacts", False)
+                NewtonManager._needs_collision_pipeline = not use_mujoco_contacts
             else:
                 NewtonManager._needs_collision_pipeline = True
+
+            # Initialize contacts and collision pipeline
+            NewtonManager._initialize_contacts()
 
         # Capture the graph if CUDA is enabled
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:", enable=True, format="ms"):
@@ -227,6 +262,8 @@ class NewtonManager:
             contacts = NewtonManager._model.collide(
                 NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
             )
+            # Update class-level contacts for sensor evaluation
+            NewtonManager._contacts = contacts
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):
@@ -264,9 +301,14 @@ class NewtonManager:
                             state_1_dict[key].assign(state_temp_dict[key])
                 NewtonManager._state_0.clear_forces()
 
+        # Transfer contact forces from solver to Newton contacts for sensor evaluation
         if NewtonManager._report_contacts:
-            populate_contacts(NewtonManager._contacts, NewtonManager._solver)
-            NewtonManager._newton_contact_sensor.eval(NewtonManager._contacts)
+            # For newton_contacts (unified pipeline): use locally computed contacts
+            # For mujoco_contacts: use class-level _contacts, solver populates it from MuJoCo data
+            eval_contacts = contacts if contacts is not None else NewtonManager._contacts
+            NewtonManager._solver.update_contacts(eval_contacts, NewtonManager._state_0)
+            for sensor in NewtonManager._newton_contact_sensors.values():
+                sensor.eval(eval_contacts)
 
     @classmethod
     def set_device(cls, device: str) -> None:
@@ -377,7 +419,7 @@ class NewtonManager:
         shape_names_expr: str | list[str] | None = None,
         contact_partners_body_expr: str | list[str] | None = None,
         contact_partners_shape_expr: str | list[str] | None = None,
-        prune_noncolliding: bool = False,
+        prune_noncolliding: bool = True,
         verbose: bool = False,
     ):
         """Adds a contact view.
@@ -423,7 +465,12 @@ class NewtonManager:
                         f"[INFO] Adding contact view for {shape_names_expr} with filter {contact_partners_shape_expr}."
                     )
 
-        NewtonManager._newton_contact_sensor = NewtonContactSensor(
+        # Create unique key for this sensor
+        sensor_key = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
+
+        # Create and store the sensor
+        # Note: SensorContact constructor requests 'force' attribute from the model
+        newton_sensor = NewtonContactSensor(
             NewtonManager._model,
             sensing_obj_bodies=body_names_expr,
             sensing_obj_shapes=shape_names_expr,
@@ -434,4 +481,14 @@ class NewtonManager:
             prune_noncolliding=prune_noncolliding,
             verbose=verbose,
         )
+        NewtonManager._newton_contact_sensors[sensor_key] = newton_sensor
         NewtonManager._report_contacts = True
+
+        # Regenerate contacts only if they were already created without force attribute
+        # If solver is not initialized, contacts will be created with force in initialize_solver()
+        if NewtonManager._solver is not None and NewtonManager._contacts is not None:
+            # Only regenerate if contacts don't have force attribute (sensor.eval() requires it)
+            if NewtonManager._contacts.force is None:
+                NewtonManager._initialize_contacts()
+
+        return sensor_key

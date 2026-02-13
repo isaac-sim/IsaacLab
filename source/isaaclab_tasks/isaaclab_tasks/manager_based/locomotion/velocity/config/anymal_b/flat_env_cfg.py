@@ -22,7 +22,7 @@ class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
                 cone="elliptic",
                 impratio=100,
                 ls_parallel=True,
-                integrator="implicit",
+                integrator="implicitfast",
             ),
             num_substeps=1,
             debug_mode=False,

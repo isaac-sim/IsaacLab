@@ -29,7 +29,7 @@ class G1_29_DOFs_FlatEnvCfg(G1_29_DOFs_RoughEnvCfg):
                 ls_parallel=True,
                 cone="pyramidal",
                 impratio=1,
-                integrator="implicit",
+                integrator="implicitfast",
             ),
             num_substeps=1,
             debug_mode=False,

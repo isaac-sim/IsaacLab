@@ -32,7 +32,7 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         solver="newton",
-        integrator="implicit",
+        integrator="implicitfast",
         njmax=70,
         nconmax=70,
         impratio=10.0,
