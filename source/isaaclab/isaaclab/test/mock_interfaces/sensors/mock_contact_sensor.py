@@ -64,8 +64,7 @@ class MockContactSensorData(BaseContactSensorData):
         self._net_forces_w: wp.array | None = None
         self._net_forces_w_history: wp.array | None = None
         self._force_matrix_w: wp.array | None = None
-        # torch.Tensor due to 5D requirement exceeding warp's 4D limit
-        self._force_matrix_w_history: torch.Tensor | None = None
+        self._force_matrix_w_history: torch.Tensor | None = None  # 5D, exceeds warp's 4D limit
         self._contact_pos_w: wp.array | None = None
         self._friction_forces_w: wp.array | None = None
         self._last_air_time: wp.array | None = None
@@ -137,7 +136,7 @@ class MockContactSensorData(BaseContactSensorData):
     def force_matrix_w_history(self) -> torch.Tensor | None:
         """History of filtered forces. Shape: (N, T, B, M, 3).
 
-        Note: Returns torch.Tensor instead of wp.array because warp has 4D limit.
+        Note: Returns torch.Tensor instead of wp.array due to 5D shape limitation in warp (max 4D).
         """
         if self._history_length == 0 or self._num_filter_bodies == 0:
             return None
@@ -226,8 +225,11 @@ class MockContactSensorData(BaseContactSensorData):
         self._force_matrix_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_force_matrix_w_history(self, value: torch.Tensor) -> None:
-        """Set filtered forces history."""
-        self._force_matrix_w_history = value.to(self.device)
+        """Set filtered forces history.
+
+        Note: Stores as torch.Tensor instead of wp.array due to 5D shape limitation in warp (max 4D).
+        """
+        self._force_matrix_w_history = value.to(self.device).contiguous()
 
     def set_contact_pos_w(self, value: torch.Tensor) -> None:
         """Set contact point positions."""

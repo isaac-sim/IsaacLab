@@ -97,7 +97,7 @@ class MockRigidObjectData(BaseRigidObjectData):
         if self._default_root_pose is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._default_root_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_root_pose
 
     @property
@@ -122,7 +122,7 @@ class MockRigidObjectData(BaseRigidObjectData):
         if self._root_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._root_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._root_link_pose_w
 
     @property
@@ -139,18 +139,19 @@ class MockRigidObjectData(BaseRigidObjectData):
         vel = wp.to_torch(self.root_link_vel_w)
         return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
-    # Sliced properties (convert through torch for simplicity in mock)
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
     def root_link_pos_w(self) -> wp.array:
-        """Root link position. Shape: (N, 3)."""
-        pose_torch = wp.to_torch(self.root_link_pose_w)
-        return wp.from_torch(pose_torch[:, :3])
+        """Root link position. Shape: (N,), dtype=wp.vec3f."""
+        t = self.root_link_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
+    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation. Shape: (N, 4)."""
-        pose_torch = wp.to_torch(self.root_link_pose_w)
-        return wp.from_torch(pose_torch[:, 3:7])
+        """Root link orientation. Shape: (N,), dtype=wp.quatf."""
+        t = self.root_link_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
@@ -192,18 +193,19 @@ class MockRigidObjectData(BaseRigidObjectData):
         vel = wp.to_torch(self.root_com_vel_w)
         return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
-    # Sliced properties (convert through torch for simplicity in mock)
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
     def root_com_pos_w(self) -> wp.array:
-        """Root CoM position. Shape: (N, 3)."""
-        pose_torch = wp.to_torch(self.root_com_pose_w)
-        return wp.from_torch(pose_torch[:, :3])
+        """Root CoM position. Shape: (N,), dtype=wp.vec3f."""
+        t = self.root_com_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
+    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def root_com_quat_w(self) -> wp.array:
-        """Root CoM orientation. Shape: (N, 4)."""
-        pose_torch = wp.to_torch(self.root_com_pose_w)
-        return wp.from_torch(pose_torch[:, 3:7])
+        """Root CoM orientation. Shape: (N,), dtype=wp.quatf."""
+        t = self.root_com_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
@@ -223,10 +225,7 @@ class MockRigidObjectData(BaseRigidObjectData):
         if self._body_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, 1, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            # Reshape to (N, 7) for viewing, then reshape back
-            pose_np_flat = pose_np.reshape(-1, 7)
-            arr = wp.array(pose_np_flat, dtype=wp.float32, device=self.device).view(wp.transformf)
-            return arr.reshape((self._num_instances, 1))
+            self._body_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_link_pose_w
 
     @property
@@ -243,18 +242,19 @@ class MockRigidObjectData(BaseRigidObjectData):
         vel = wp.to_torch(self.body_link_vel_w)
         return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
-    # Sliced properties (convert through torch for simplicity in mock)
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
     def body_link_pos_w(self) -> wp.array:
-        """Body link position. Shape: (N, 1, 3)."""
-        pose_torch = wp.to_torch(self.body_link_pose_w)
-        return wp.from_torch(pose_torch[:, :, :3])
+        """Body link position. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_link_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
+    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Body link orientation. Shape: (N, 1, 4)."""
-        pose_torch = wp.to_torch(self.body_link_pose_w)
-        return wp.from_torch(pose_torch[:, :, 3:7])
+        """Body link orientation. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_link_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
@@ -311,24 +311,21 @@ class MockRigidObjectData(BaseRigidObjectData):
         if self._body_com_pose_b is None:
             pose_np = np.zeros((self._num_instances, 1, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            # Reshape to (N, 7) for viewing, then reshape back
-            pose_np_flat = pose_np.reshape(-1, 7)
-            arr = wp.array(pose_np_flat, dtype=wp.float32, device=self.device).view(wp.transformf)
-            return arr.reshape((self._num_instances, 1))
+            self._body_com_pose_b = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_com_pose_b
 
-    # Sliced properties (convert through torch for simplicity in mock)
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Body CoM position. Shape: (N, 1, 3)."""
-        pose_torch = wp.to_torch(self.body_com_pose_w)
-        return wp.from_torch(pose_torch[:, :, :3])
+        """Body CoM position. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_com_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Body CoM orientation. Shape: (N, 1, 4)."""
-        pose_torch = wp.to_torch(self.body_com_pose_w)
-        return wp.from_torch(pose_torch[:, :, 3:7])
+        """Body CoM orientation. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_com_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
@@ -356,15 +353,15 @@ class MockRigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_pos_b(self) -> wp.array:
-        """Body CoM position in body frame. Shape: (N, 1, 3)."""
-        pose_torch = wp.to_torch(self.body_com_pose_b)
-        return wp.from_torch(pose_torch[:, :, :3])
+        """Body CoM position in body frame. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_com_pose_b
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
     def body_com_quat_b(self) -> wp.array:
-        """Body CoM orientation in body frame. Shape: (N, 1, 4)."""
-        pose_torch = wp.to_torch(self.body_com_pose_b)
-        return wp.from_torch(pose_torch[:, :, 3:7])
+        """Body CoM orientation in body frame. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_com_pose_b
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     # -- Body properties --
 
@@ -420,21 +417,18 @@ class MockRigidObjectData(BaseRigidObjectData):
         """Root CoM angular velocity in body frame. Shape: (N, 3)."""
         return wp.clone(self.root_com_ang_vel_w, self.device)
 
-    # -- Convenience aliases for CoM in body frame (root body only) --
+    # -- Shorthand properties (root_pose_w, body_pos_w, com_pos_b, etc.) --
 
     @property
     def com_pos_b(self) -> wp.array:
-        """Root body CoM position in body frame. Shape: (N, 3)."""
-        # Since RigidObject only has one body, this is the same as body_com_pos_b but squeezed
-        return wp.from_torch(wp.to_torch(self.body_com_pos_b)[:, 0, :])
+        """Convenience alias for root_com_pos_w. Shape: (N, 3)."""
+        return wp.clone(self.root_com_pos_w, self.device)
 
     @property
     def com_quat_b(self) -> wp.array:
-        """Root body CoM orientation in body frame. Shape: (N, 4)."""
-        # Since RigidObject only has one body, this is the same as body_com_quat_b but squeezed
-        return wp.from_torch(wp.to_torch(self.body_com_quat_b)[:, 0, :])
+        """Convenience alias for root_com_quat_w. Shape: (N, 4)."""
+        return wp.clone(self.root_com_quat_w, self.device)
 
-    # -- Shorthand properties (root_pose_w, body_pos_w, com_pos_b, etc.) --
     # Inherited from BaseRigidObjectData
 
     # -- Deprecated properties (default_mass, default_inertia) --

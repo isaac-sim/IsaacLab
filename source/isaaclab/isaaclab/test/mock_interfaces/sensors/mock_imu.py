@@ -66,9 +66,9 @@ class MockImuData(BaseImuData):
     def quat_w(self) -> wp.array:
         """Orientation (x, y, z, w) in world frame. Shape: (N, 4)."""
         if self._quat_w is None:
-            # Default to identity quaternion in XYZW format: (x, y, z, w) = (0, 0, 0, 1)
+            # Default to identity quaternion (x, y, z, w) = (0, 0, 0, 1)
             quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
-            quat_np[:, 3] = 1.0  # w component at index 3
+            quat_np[:, 3] = 1.0  # w component is at index 3 in XYZW format
             return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._quat_w
 
@@ -162,7 +162,7 @@ class MockImuData(BaseImuData):
 
         Args:
             pos_w: Position in world frame. Shape: (N, 3).
-            quat_w: Orientation (w, x, y, z) in world frame. Shape: (N, 4).
+            quat_w: Orientation (x, y, z, w) in world frame. Shape: (N, 4).
             projected_gravity_b: Gravity direction in body frame. Shape: (N, 3).
             lin_vel_b: Linear velocity in body frame. Shape: (N, 3).
             ang_vel_b: Angular velocity in body frame. Shape: (N, 3).
