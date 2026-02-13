@@ -1,6 +1,109 @@
 Changelog
 ---------
 
+
+3.2.0 (2026-02-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.SimulationContext` to use :class:`~isaaclab.physics.PhysicsManager`
+  abstraction layer for cleaner separation between simulation orchestration and physics backend.
+
+
+3.1.0 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark` class replacing dependency on
+  ``isaacsim.benchmark.services`` for benchmarking workflows. This provides a standalone framework
+  for measuring performance of Isaac Lab components.
+
+* Added measurement types in :mod:`isaaclab.test.benchmark.measurements`:
+
+  * :class:`~isaaclab.test.benchmark.SingleMeasurement`: Single floating-point measurement with unit.
+  * :class:`~isaaclab.test.benchmark.StatisticalMeasurement`: Mean, std, and sample count.
+  * :class:`~isaaclab.test.benchmark.DictMeasurement`: Dictionary-valued measurement.
+  * :class:`~isaaclab.test.benchmark.ListMeasurement`: List-valued measurement.
+  * :class:`~isaaclab.test.benchmark.BooleanMeasurement`: Boolean measurement.
+
+* Added metadata types in :mod:`isaaclab.test.benchmark.measurements`:
+
+  * :class:`~isaaclab.test.benchmark.StringMetadata`: String metadata.
+  * :class:`~isaaclab.test.benchmark.IntMetadata`: Integer metadata.
+  * :class:`~isaaclab.test.benchmark.FloatMetadata`: Float metadata.
+  * :class:`~isaaclab.test.benchmark.DictMetadata`: Dictionary metadata.
+
+* Added :class:`~isaaclab.test.benchmark.TestPhase` for organizing measurements and metadata
+  into logical phases within a benchmark.
+
+* Added :class:`~isaaclab.test.benchmark.BenchmarkMonitor` context manager for async system
+  resource monitoring during blocking operations like RL training loops.
+
+* Added pluggable backend architecture in :mod:`isaaclab.test.benchmark.backends`:
+
+  * ``json``: Full JSON output with all phases, measurements, and metadata.
+  * ``osmo``: Osmo KPI format for CI/CD integration.
+  * ``omniperf``: OmniPerf format for database upload.
+
+* Added system recorders in :mod:`isaaclab.test.benchmark.recorders`:
+
+  * :class:`~isaaclab.test.benchmark.recorders.CPUInfoRecorder`: CPU information capture.
+  * :class:`~isaaclab.test.benchmark.recorders.GPUInfoRecorder`: GPU information capture.
+  * :class:`~isaaclab.test.benchmark.recorders.MemoryInfoRecorder`: Memory usage tracking.
+  * :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder`: Software version capture.
+
+* Added CLI arguments for benchmark scripts: ``--benchmark_backend``, ``--output_path``.
+
+* Added shell scripts for running benchmark suites:
+
+  * ``scripts/benchmarks/run_non_rl_benchmarks.sh``: Non-RL environment stepping benchmarks.
+  * ``scripts/benchmarks/run_physx_benchmarks.sh``: PhysX micro-benchmarks.
+  * ``scripts/benchmarks/run_training_benchmarks.sh``: RL training benchmarks.
+
+Changed
+^^^^^^^
+
+* Refactored benchmark scripts to use new :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`
+  class instead of ``isaacsim.benchmark.services``.
+
+Removed
+^^^^^^^
+
+* Removed hard dependency on ``isaacsim.benchmark.services`` extension for benchmarking.
+  The extension is now optional and only used for frametime recorders when available.
+
+
+3.0.3 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified all the base classes so that they implement the shorthands and the deprecation cycle to IsaacLab 4.0
+
+
+3.0.2 (2026-02-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed exact version pinning for URDF asset importer extension that is incompatible with Isaac Sim 6.0.
+
+
+3.0.1 (2026-02-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :file:`isaaclab.sh` to use libstdc++ CXXABI_1.3.15 from conda for systems that lack that version (e.g., Ubuntu 22.04).
+
+
 3.0.0 (2026-02-02)
 ~~~~~~~~~~~~~~~~~~
 
@@ -165,6 +268,7 @@ Migration
 
 * See :ref:`migrating-to-isaaclab-3-0` for detailed migration instructions.
 
+
 1.0.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -179,7 +283,7 @@ Changed
 * Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
 
 
-0.54.4 (2026-01-30)
+0.54.5 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -191,6 +295,19 @@ Changed
 ^^^^^^^
 
 * Changed :class:`~isaaclab.utils.timer.Timer` class to use the online Welford's algorithm to compute the mean and standard deviation of the elapsed time.
+
+
+0.54.4 (2026-02-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` and
+  :class:`~isaaclab.envs.mdp.actions.EMAJointPositionToLimitsAction` ignoring
+  ``preserve_order=True`` when the number of specified joints matches the total
+  number of joints in the asset. The optimization that replaced joint indices with
+  ``slice(None)`` now correctly checks for the ``preserve_order`` flag.
 
 
 0.54.3 (2026-01-28)

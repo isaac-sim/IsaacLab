@@ -54,7 +54,7 @@ def object_away_from_goal(
     asset_pos_e = asset.data.root_pos_w - env.scene.env_origins
     goal_pos_e = command_term.command[:, :3]
 
-    return torch.norm(asset_pos_e - goal_pos_e, p=2, dim=1) > threshold
+    return torch.linalg.norm(asset_pos_e - goal_pos_e, ord=2, dim=1) > threshold
 
 
 def object_away_from_robot(
@@ -79,6 +79,6 @@ def object_away_from_robot(
     object = env.scene[object_cfg.name]
 
     # compute distance
-    dist = torch.norm(robot.data.root_pos_w - object.data.root_pos_w, dim=1)
+    dist = torch.linalg.norm(robot.data.root_pos_w - object.data.root_pos_w, dim=1)
 
     return dist > threshold

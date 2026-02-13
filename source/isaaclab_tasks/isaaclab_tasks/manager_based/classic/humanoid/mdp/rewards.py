@@ -56,7 +56,7 @@ class progress_reward(ManagerTermBase):
         target_pos = torch.tensor(self.cfg.params["target_pos"], device=self.device)
         to_target_pos = target_pos - asset.data.root_pos_w[env_ids, :3]
         # reward terms
-        self.potentials[env_ids] = -torch.norm(to_target_pos, p=2, dim=-1) / self._env.step_dt
+        self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
         self.prev_potentials[env_ids] = self.potentials[env_ids]
 
     def __call__(
@@ -73,7 +73,7 @@ class progress_reward(ManagerTermBase):
         to_target_pos[:, 2] = 0.0
         # update history buffer and compute new potential
         self.prev_potentials[:] = self.potentials[:]
-        self.potentials[:] = -torch.norm(to_target_pos, p=2, dim=-1) / env.step_dt
+        self.potentials[:] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / env.step_dt
 
         return self.potentials - self.prev_potentials
 

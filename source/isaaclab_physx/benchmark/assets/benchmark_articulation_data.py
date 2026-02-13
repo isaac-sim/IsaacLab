@@ -19,105 +19,55 @@ Example:
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
 import argparse
-import sys
+
+from isaaclab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(
+    description="Micro-benchmarking framework for ArticulationData class.",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
+parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
+parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
+parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
+parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
+parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
+parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args = parser.parse_args()
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True, args=args)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import warnings
-from types import ModuleType
-
-import torch
-import warp as wp
-
-# Initialize Warp first
-wp.init()
-
-
-# =============================================================================
-# Mock Setup - Must happen BEFORE importing ArticulationData
-# =============================================================================
-
-
-class MockPhysicsSimView:
-    """Simple mock for the physics simulation view."""
-
-    def get_gravity(self):
-        """Return gravity as a tuple of 3 floats."""
-        return (0.0, 0.0, -9.81)
-
-    def update_articulations_kinematic(self):
-        """No-op for kinematic updates."""
-        pass
-
-
-class MockSimulationManager:
-    """Simple mock for SimulationManager."""
-
-    @staticmethod
-    def get_physics_sim_view():
-        return MockPhysicsSimView()
-
-
-# Mock isaacsim.core.simulation_manager
-mock_sim_manager_module = ModuleType("isaacsim.core.simulation_manager")
-mock_sim_manager_module.SimulationManager = MockSimulationManager
-sys.modules["isaacsim"] = ModuleType("isaacsim")
-sys.modules["isaacsim.core"] = ModuleType("isaacsim.core")
-sys.modules["isaacsim.core.simulation_manager"] = mock_sim_manager_module
-
-
-# Mock BaseArticulationData - this is just an abstract class, so we provide an empty one
-# to avoid importing the whole isaaclab.assets package
-class BaseArticulationData:
-    """Mock base class to avoid importing isaaclab.assets (which has many dependencies)."""
-
-    def __init__(self, root_view, device: str):
-        self.device = device
-
-
-# Create mock module for isaaclab.assets.articulation.base_articulation_data
-mock_base_module = ModuleType("isaaclab.assets.articulation.base_articulation_data")
-mock_base_module.BaseArticulationData = BaseArticulationData
-sys.modules["isaaclab.assets.articulation.base_articulation_data"] = mock_base_module
-
-# Mock pxr (USD library - not available in headless docker, used by isaaclab.utils.mesh)
 from unittest.mock import MagicMock
 
-sys.modules["pxr"] = MagicMock()
-sys.modules["pxr.Usd"] = MagicMock()
-sys.modules["pxr.UsdGeom"] = MagicMock()
+import torch
 
-# Now we can directly import ArticulationData
-import importlib.util
-from pathlib import Path
+# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
+# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
+# but there's no actual physics scene when running benchmarks
+_mock_physics_sim_view = MagicMock()
+_mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
-benchmark_dir = Path(__file__).resolve().parent
-articulation_data_path = (
-    benchmark_dir.parents[1] / "isaaclab_physx" / "assets" / "articulation" / "articulation_data.py"
-)
+from isaacsim.core.simulation_manager import SimulationManager
 
-spec = importlib.util.spec_from_file_location(
-    "isaaclab_physx.assets.articulation.articulation_data", articulation_data_path
-)
-articulation_data_module = importlib.util.module_from_spec(spec)
-sys.modules["isaaclab_physx.assets.articulation.articulation_data"] = articulation_data_module
-spec.loader.exec_module(articulation_data_module)
-ArticulationData = articulation_data_module.ArticulationData
+SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-# Import shared utilities from common module
-# Import mock classes from PhysX test utilities
+from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
 
-from isaaclab.test.benchmark import (
-    BenchmarkConfig,
-    BenchmarkResult,
-    MethodBenchmark,
-    benchmark_method,
-    export_results_csv,
-    export_results_json,
-    get_default_output_filename,
-    get_hardware_info,
-    print_hardware_info,
-    print_results,
-)
+from isaaclab.test.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
 # Suppress deprecation warnings during benchmarking
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -291,7 +241,7 @@ def get_benchmarkable_properties(articulation_data: ArticulationData) -> list[st
     return sorted(all_properties)
 
 
-def setup_mock_environment(config: BenchmarkConfig) -> MockArticulationView:
+def setup_mock_environment(config: MethodBenchmarkRunnerConfig) -> MockArticulationView:
     """Set up the mock environment for benchmarking."""
     mock_view = MockArticulationView(
         count=config.num_instances,
@@ -302,9 +252,16 @@ def setup_mock_environment(config: BenchmarkConfig) -> MockArticulationView:
     return mock_view
 
 
-def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
-    """Run all benchmarks for ArticulationData."""
-    results = []
+def main():
+    """Main entry point for the benchmarking script."""
+    config = MethodBenchmarkRunnerConfig(
+        num_iterations=args.num_iterations,
+        warmup_steps=args.warmup_steps,
+        num_instances=args.num_instances,
+        num_bodies=args.num_bodies,
+        num_joints=args.num_joints,
+        device=args.device,
+    )
 
     # Setup mock environment
     mock_view = setup_mock_environment(config)
@@ -317,7 +274,7 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
     properties = get_benchmarkable_properties(articulation_data)
 
     # Generator that updates mock data and invalidates timestamp
-    def gen_mock_data(cfg: BenchmarkConfig) -> dict:
+    def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
         mock_view.set_mock_coms(torch.randn(cfg.num_instances, cfg.num_bodies, 7, device=cfg.device))
         mock_view.set_mock_inertias(torch.randn(cfg.num_instances, cfg.num_bodies, 3, 3, device=cfg.device))
         mock_view.set_mock_root_transforms(torch.randn(cfg.num_instances, 7, device=cfg.device))
@@ -330,90 +287,28 @@ def run_benchmarks(config: BenchmarkConfig) -> list[BenchmarkResult]:
         articulation_data._sim_timestamp += 1.0
         return {}
 
-    # Create benchmarks dynamically
-    benchmarks = []
-    for prop_name in properties:
-        benchmarks.append(
-            MethodBenchmark(
-                name=prop_name,
-                method_name=prop_name,
-                input_generators={"default": gen_mock_data},
-                category="property",
-            )
-        )
-
-    print(f"\nBenchmarking {len(benchmarks)} properties...")
-    print(f"Config: {config.num_iterations} iterations, {config.warmup_steps} warmup steps")
-    print(f"        {config.num_instances} instances, {config.num_bodies} bodies, {config.num_joints} joints")
-    print("-" * 80)
-
-    for i, benchmark in enumerate(benchmarks):
-
-        def prop_accessor(prop=benchmark.method_name, **kwargs):
-            return getattr(articulation_data, prop)
-
-        print(f"[{i + 1}/{len(benchmarks)}] [DEFAULT] {benchmark.name}...", end=" ", flush=True)
-
-        result = benchmark_method(
-            method=prop_accessor,
-            method_name=benchmark.name,
-            generator=gen_mock_data,
-            config=config,
-            dependencies=PROPERTY_DEPENDENCIES,
-        )
-        result.mode = "default"
-        results.append(result)
-
-        if result.skipped:
-            print(f"SKIPPED ({result.skip_reason})")
-        else:
-            print(f"{result.mean_time_us:.2f} ± {result.std_time_us:.2f} µs")
-
-    return results
-
-
-def main():
-    """Main entry point for the benchmarking script."""
-    parser = argparse.ArgumentParser(
-        description="Micro-benchmarking framework for ArticulationData class.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    parser.add_argument("--num_iterations", type=int, default=1000, help="Number of iterations")
-    parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warmup steps")
-    parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
-    parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
-    parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
-    parser.add_argument("--device", type=str, default="cuda:0", help="Device")
-    parser.add_argument("--output", type=str, default=None, help="Output JSON filename")
-    parser.add_argument("--no_csv", action="store_true", help="Disable CSV output")
-
-    args = parser.parse_args()
-
-    config = BenchmarkConfig(
-        num_iterations=args.num_iterations,
-        warmup_steps=args.warmup_steps,
-        num_instances=args.num_instances,
-        num_bodies=args.num_bodies,
-        num_joints=args.num_joints,
-        device=args.device,
+    # Create runner
+    runner = MethodBenchmarkRunner(
+        benchmark_name="articulation_data_benchmark",
+        config=config,
+        backend_type=args.backend,
+        output_path=args.output_dir,
+        use_recorders=True,
     )
 
-    results = run_benchmarks(config)
+    # Run property benchmarks
+    runner.run_property_benchmarks(
+        target_data=articulation_data,
+        properties=properties,
+        gen_mock_data=gen_mock_data,
+        dependencies=PROPERTY_DEPENDENCIES,
+        category="property",
+    )
 
-    hardware_info = get_hardware_info()
-    print_hardware_info(hardware_info)
-    print_results(results, include_mode=False)
+    runner.finalize()
 
-    if args.output:
-        json_filename = args.output
-    else:
-        json_filename = get_default_output_filename("articulation_data_benchmark")
-
-    export_results_json(results, config, hardware_info, json_filename)
-
-    if not args.no_csv:
-        csv_filename = json_filename.replace(".json", ".csv")
-        export_results_csv(results, csv_filename)
+    # Close the simulation app
+    simulation_app.close()
 
 
 if __name__ == "__main__":

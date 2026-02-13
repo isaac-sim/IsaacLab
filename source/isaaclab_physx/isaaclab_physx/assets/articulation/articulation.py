@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -16,7 +17,6 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaacsim.core.simulation_manager import SimulationManager
 from pxr import PhysxSchema, UsdPhysics
 
 import isaaclab.utils.math as math_utils
@@ -27,6 +27,8 @@ from isaaclab.utils.string import resolve_matching_names, resolve_matching_names
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
 
@@ -2225,64 +2227,12 @@ class Articulation(BaseArticulation):
     Deprecated methods.
     """
 
-    def write_joint_friction_to_sim(
-        self,
-        joint_friction: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write joint friction coefficients into the simulation.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
-        """
-        logger.warning(
-            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim' instead."
-        )
-        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
-
-    def write_joint_limits_to_sim(
-        self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        warn_limit_violation: bool = True,
-    ):
-        """Write joint limits into the simulation.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`write_joint_position_limit_to_sim` instead.
-        """
-        logger.warning(
-            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_limit_to_sim' instead."
-        )
-        self.write_joint_position_limit_to_sim(
-            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
-        )
-
-    def set_fixed_tendon_limit(
-        self,
-        limit: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon position limits into internal buffers.
-
-        .. deprecated:: 2.1.0
-            Please use :meth:`set_fixed_tendon_position_limit` instead.
-        """
-        logger.warning(
-            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_position_limit' instead."
-        )
-        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
-        logger.warning(
-            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
+        warnings.warn(
+            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
         return self.root_view

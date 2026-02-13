@@ -132,7 +132,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in set_robot_to_grasp_pose configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
         if "gripper_joint_setter_func" not in cfg.params:
             raise ValueError(
@@ -320,8 +320,8 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Check convergence
-            pos_error_norm = torch.norm(pos_error, dim=-1)
-            rot_error_norm = torch.norm(axis_angle_error, dim=-1)
+            pos_error_norm = torch.linalg.norm(pos_error, dim=-1)
+            rot_error_norm = torch.linalg.norm(axis_angle_error, dim=-1)
 
             if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
                 break

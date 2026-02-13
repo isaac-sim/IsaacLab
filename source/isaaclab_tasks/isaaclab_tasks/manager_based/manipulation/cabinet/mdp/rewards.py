@@ -33,7 +33,7 @@ def approach_ee_handle(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor
     handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
 
     # Compute the distance of the end-effector to the handle
-    distance = torch.norm(handle_pos - ee_tcp_pos, dim=-1, p=2)
+    distance = torch.linalg.norm(handle_pos - ee_tcp_pos, dim=-1, ord=2)
 
     # Reward the robot for reaching the handle
     reward = 1.0 / (1.0 + distance**2)
@@ -130,7 +130,7 @@ def grasp_handle(
     handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
     gripper_joint_pos = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids]
 
-    distance = torch.norm(handle_pos - ee_tcp_pos, dim=-1, p=2)
+    distance = torch.linalg.norm(handle_pos - ee_tcp_pos, dim=-1, ord=2)
     is_close = distance <= threshold
 
     return is_close * torch.sum(open_joint_pos - gripper_joint_pos, dim=-1)

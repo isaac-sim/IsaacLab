@@ -11,7 +11,6 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import re
 import weakref
@@ -20,12 +19,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import omni.kit.app
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -255,7 +254,7 @@ class SensorBase(ABC):
     """
 
     def _register_callbacks(self):
-        """Registers the timeline and prim deletion callbacks."""
+        """Registers physics lifecycle and prim deletion callbacks."""
 
         # register simulator callbacks (with weakref safety to avoid crashes on deletion)
         def safe_callback(callback_name, event, obj_ref):
@@ -268,27 +267,24 @@ class SensorBase(ABC):
                 pass
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
         obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
-        # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
+        # Register PHYSICS_READY callback for initialization (order=10 for lower priority)
+        self._initialize_handle = PhysxManager.register_callback(
+            lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
+            PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        # register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
+        # Register TIMELINE_STOP callback for invalidation (PhysX-specific)
+        self._invalidate_initialize_handle = PhysxManager.register_callback(
             lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
+            IsaacEvents.TIMELINE_STOP,
             order=10,
         )
-        # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
+        # Register PRIM_DELETION callback (PhysX-specific)
+        self._prim_deletion_handle = PhysxManager.register_callback(
             lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
+            IsaacEvents.PRIM_DELETION,
         )
 
     def _initialize_callback(self, event):
@@ -302,8 +298,8 @@ class SensorBase(ABC):
             try:
                 self._initialize_impl()
             except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
+                # Store exception to be raised after callback completes
+                PhysxManager.store_callback_exception(e)
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
@@ -313,15 +309,16 @@ class SensorBase(ABC):
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
+    def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
 
         Args:
-            prim_path: The path to the prim that is being deleted.
+            event: The prim deletion event containing the prim path in payload.
 
-        .. note::
+        Note:
             This function is called when the prim is deleted.
         """
+        prim_path = event.payload["prim_path"]
         if prim_path == "/":
             self._clear_callbacks()
             return
@@ -333,17 +330,17 @@ class SensorBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears the callbacks."""
-        if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
-            self._prim_deletion_callback_id = None
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
+        if self._initialize_handle is not None:
+            self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle:
-            self._invalidate_initialize_handle.unsubscribe()
+        if self._invalidate_initialize_handle is not None:
+            self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        # clear debug visualization
-        if self._debug_vis_handle:
+        if self._prim_deletion_handle is not None:
+            self._prim_deletion_handle.deregister()
+            self._prim_deletion_handle = None
+        # Clear debug visualization
+        if self._debug_vis_handle is not None:
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
 

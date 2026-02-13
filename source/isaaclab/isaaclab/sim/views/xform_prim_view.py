@@ -1083,9 +1083,6 @@ class XformPrimView:
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # Ensure authored USD transforms are flushed before reading into Fabric.
-        sim_utils.update_stage()
-
         # Read authoritative transforms from USD and write once into Fabric.
         positions_usd, orientations_usd = self._get_world_poses_usd()
         scales_usd = self._get_scales_usd()

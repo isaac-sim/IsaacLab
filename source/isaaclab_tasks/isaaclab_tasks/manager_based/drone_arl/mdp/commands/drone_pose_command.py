@@ -48,8 +48,8 @@ class DroneUniformPoseCommand(UniformPoseCommand):
             self.robot.data.body_pos_w[:, self.body_idx],
             self.robot.data.body_quat_w[:, self.body_idx],
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+        self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
 
     def _debug_vis_callback(self, event):
         # check if robot is initialized

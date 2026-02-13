@@ -277,7 +277,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
         # compute reward
-        goal_dist = torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+        goal_dist = torch.linalg.norm(self.object_pos - self.goal_pos, ord=2, dim=-1)
         rew_dist = 2 * torch.exp(-self.cfg.dist_reward_scale * goal_dist)
 
         # log reward components

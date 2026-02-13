@@ -6,6 +6,12 @@ Micro-Benchmarks for Performance Testing
 Isaac Lab provides micro-benchmarking tools to measure the performance of asset
 setter/writer methods and data property accessors without requiring Isaac Sim.
 
+.. seealso::
+
+   For full-simulation benchmarks (environment stepping, RL training), see
+   :ref:`testing_benchmarks`. This page covers method-level micro-benchmarks
+   that use mock interfaces.
+
 Overview
 --------
 
@@ -225,10 +231,17 @@ The benchmarks use mock interfaces to simulate PhysX views without Isaac Sim:
    └─────────────────────┘     └──────────────────────┘
             │
             v
-   ┌─────────────────────┐
-   │   Benchmark         │
-   │   Framework         │
-   └─────────────────────┘
+   ┌───────────────────────────┐
+   │   MethodBenchmarkRunner   │
+   │   (extends BaseIsaacLab-  │
+   │    Benchmark)             │
+   └───────────────────────────┘
+            │
+            v
+   ┌───────────────────────────┐
+   │   Output Backends         │
+   │   (json, osmo, omniperf)  │
+   └───────────────────────────┘
 
 Key Components
 ~~~~~~~~~~~~~~
@@ -238,12 +251,13 @@ Key Components
    - ``MockArticulationView`` - Mimics PhysX ArticulationView
    - ``MockRigidBodyView`` - Mimics PhysX RigidBodyView
 
-2. **Benchmark Utilities** (``isaaclab/test/benchmark/``)
+2. **Benchmark Framework** (``isaaclab/test/benchmark/``)
 
-   - ``BenchmarkConfig`` - Configuration dataclass
-   - ``MethodBenchmark`` - Benchmark definition
-   - ``benchmark_method()`` - Core timing function
-   - Export utilities for JSON/CSV
+   - :class:`~isaaclab.test.benchmark.MethodBenchmarkRunner` - Runner extending
+     :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark` for method-level benchmarks
+   - :class:`~isaaclab.test.benchmark.MethodBenchmarkRunnerConfig` - Configuration dataclass
+   - :class:`~isaaclab.test.benchmark.MethodBenchmarkDefinition` - Benchmark definition
+   - Multiple output backends (JSON, Osmo, OmniPerf)
 
 3. **Module Mocking**
 
@@ -260,23 +274,27 @@ Adding a Method Benchmark
 
 .. code-block:: python
 
-   def gen_my_method_torch_list(config: BenchmarkConfig) -> dict:
+   from isaaclab.test.benchmark import MethodBenchmarkRunnerConfig
+
+   def gen_my_method_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
        return {
            "param1": torch.rand(config.num_instances, 3, device=config.device),
            "env_ids": list(range(config.num_instances)),
        }
 
-   def gen_my_method_torch_tensor(config: BenchmarkConfig) -> dict:
+   def gen_my_method_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
        return {
            "param1": torch.rand(config.num_instances, 3, device=config.device),
-           "env_ids": make_tensor_env_ids(config.num_instances, config.device),
+           "env_ids": torch.arange(config.num_instances, device=config.device),
        }
 
 2. Add to the ``BENCHMARKS`` list:
 
 .. code-block:: python
 
-   MethodBenchmark(
+   from isaaclab.test.benchmark import MethodBenchmarkDefinition
+
+   MethodBenchmarkDefinition(
        name="my_method",
        method_name="my_method",
        input_generators={

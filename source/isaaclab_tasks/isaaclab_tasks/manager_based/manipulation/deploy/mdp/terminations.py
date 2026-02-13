@@ -51,7 +51,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_dropped configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -185,7 +185,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(gear_quat_world, self.gear_grasp_offsets_buffer)
 
         # Compute distances
-        distances = torch.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
+        distances = torch.linalg.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
 
         # Check distance threshold
         self.reset_flags[:] = distances > distance_threshold
@@ -221,7 +221,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_orientation_exceeds_threshold"
-                " configuration. It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                " configuration. It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]

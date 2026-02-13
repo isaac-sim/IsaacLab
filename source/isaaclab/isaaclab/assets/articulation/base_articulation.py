@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -1127,7 +1128,6 @@ class BaseArticulation(AssetBase):
     Deprecated methods.
     """
 
-    @abstractmethod
     def write_joint_friction_to_sim(
         self,
         joint_friction: torch.Tensor | float,
@@ -1139,9 +1139,14 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_friction_coefficient_to_sim' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
-    @abstractmethod
     def write_joint_limits_to_sim(
         self,
         limits: torch.Tensor | float,
@@ -1154,9 +1159,16 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_position_limit_to_sim` instead.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_position_limit_to_sim' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_position_limit_to_sim(
+            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
 
-    @abstractmethod
     def set_fixed_tendon_limit(
         self,
         limit: torch.Tensor,
@@ -1168,4 +1180,10 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`set_fixed_tendon_position_limit` instead.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
+            " use 'set_fixed_tendon_position_limit' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_fixed_tendon_position_limit(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
