@@ -452,7 +452,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             newton_cfg=NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(
                     solver="newton",
-                    integrator="implicit",
+                    integrator="implicitfast",
                     njmax=600,
                     nconmax=70,
                     impratio=10.0,
