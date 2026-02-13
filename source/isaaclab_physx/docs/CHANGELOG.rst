@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.3.1 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a bug in the :meth:`~isaaclab_physx.assets.Articulation.write_data_to_sim` method where the joint properties were not being set correctly.
+
+
 0.3.0 (2026-02-11)
 ~~~~~~~~~~~~~~~~~~
 
@@ -21,11 +30,6 @@ Added
 * Added :class:`~isaaclab_physx.physics.IsaacEvents` enum for PhysX-specific simulation events.
 * Added monkey-patching of ``isaacsim.core.simulation_manager.SimulationManager`` in package init
   to ensure Isaac Sim uses :class:`~isaaclab_physx.physics.PhysxManager` for callback handling.
-
-Fixed
-^^^^^
-
-* Fixed a bug in the :meth:`~isaaclab_physx.assets.Articulation.write_data_to_sim` method where the joint properties were not being set correctly.
 
 
 0.2.0 (2026-02-05)
