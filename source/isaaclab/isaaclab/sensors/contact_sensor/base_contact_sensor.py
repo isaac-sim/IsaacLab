@@ -125,12 +125,12 @@ class BaseContactSensor(SensorBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, masks: wp.array(dtype=wp.bool) | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array(dtype=wp.bool) | None = None):
         """Resets the sensor.
 
         Args:
             env_ids: The indices of the environments to reset. Defaults to None: all the environments are reset.
-            masks: The masks of the environments to reset. Defaults to None: all the environments are reset.
+            env_mask: The masks of the environments to reset. Defaults to None: all the environments are reset.
         """
         # reset the timers and counters
         super().reset(env_ids)
@@ -138,7 +138,7 @@ class BaseContactSensor(SensorBase):
     @abstractmethod
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[wp.array, list[int], list[str]]:
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the articulation based on the name keys.
 
         Args:
@@ -146,7 +146,7 @@ class BaseContactSensor(SensorBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body mask, names and indices.
+            A tuple containing the body mask (wp.array), names (list[str]), and indices (list[int]).
         """
         raise NotImplementedError(f"Find bodies is not implemented for {self.__class__.__name__}.")
 

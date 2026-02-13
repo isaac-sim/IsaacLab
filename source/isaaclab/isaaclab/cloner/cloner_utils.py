@@ -510,7 +510,11 @@ def get_inverse_env_xform(stage, src_path: str):
     inv_rotation = inv_xform.ExtractRotationQuat()
 
     inv_pos = (inv_translation[0], inv_translation[1], inv_translation[2])
-    inv_quat = (inv_rotation.GetImaginary()[0], inv_rotation.GetImaginary()[1], 
-                inv_rotation.GetImaginary()[2], inv_rotation.GetReal())
+    inv_quat = (
+        inv_rotation.GetImaginary()[0],
+        inv_rotation.GetImaginary()[1],
+        inv_rotation.GetImaginary()[2],
+        inv_rotation.GetReal(),
+    )
 
     return wp.transform(inv_pos, inv_quat)

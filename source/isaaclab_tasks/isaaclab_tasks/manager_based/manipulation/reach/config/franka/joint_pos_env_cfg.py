@@ -41,7 +41,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             ),
             num_substeps=1,
             debug_mode=True,
-        )
+        ),
     )
 
     def __post_init__(self):
