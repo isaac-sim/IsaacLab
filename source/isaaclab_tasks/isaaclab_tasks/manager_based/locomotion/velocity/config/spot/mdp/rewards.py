@@ -12,8 +12,9 @@ specify the reward function and its parameters.
 from __future__ import annotations
 
 import torch
-import warp as wp
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from isaaclab.assets import Articulation  # , RigidObject
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg

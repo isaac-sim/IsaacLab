@@ -335,10 +335,10 @@ class ContactSensor(BaseContactSensor):
 
         # prepare data buffers
         logger.info(
-            f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_sensors: {self._num_sensors},"
-            f" num_filter_objects: {self._num_filter_objects}, history_length: {self.cfg.history_length},"
-            f" generate_force_matrix: {self._generate_force_matrix}, track_air_time: {self.cfg.track_air_time},"
-            f" track_pose: {self.cfg.track_pose}, device: {self._device}"
+            f"Creating buffers for contact sensor data with num_envs: {self._num_envs}, num_sensors:"
+            f" {self._num_sensors}, num_filter_objects: {self._num_filter_objects}, history_length:"
+            f" {self.cfg.history_length}, generate_force_matrix: {self._generate_force_matrix}, track_air_time:"
+            f" {self.cfg.track_air_time}, track_pose: {self.cfg.track_pose}, device: {self._device}"
         )
         self._data.create_buffers(
             self._num_envs,

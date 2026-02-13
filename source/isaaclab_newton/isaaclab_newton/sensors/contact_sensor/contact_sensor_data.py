@@ -214,9 +214,7 @@ class ContactSensorData(BaseContactSensorData):
         # Create owned buffer for force matrix - shape: (num_envs, num_sensors, num_filter_objects)
         # None if no filter objects configured
         if num_filter_objects > 0:
-            self._force_matrix_w = wp.zeros(
-                (num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
-            )
+            self._force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device)
         else:
             self._force_matrix_w = None
 
