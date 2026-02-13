@@ -9,14 +9,29 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import numpy as np
 import torch
+import warp as wp
+
+try:
+    from isaaclab.sensors.imu.base_imu_data import BaseImuData
+except (ImportError, ModuleNotFoundError):
+    # Direct import bypassing isaaclab.sensors.__init__.py (which needs omni)
+    import importlib.util
+    from pathlib import Path
+
+    _file = Path(__file__).resolve().parents[3] / "sensors" / "imu" / "base_imu_data.py"
+    _spec = importlib.util.spec_from_file_location("_base_imu_data", str(_file))
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    BaseImuData = _mod.BaseImuData
 
 
-class MockImuData:
+class MockImuData(BaseImuData):
     """Mock data container for IMU sensor.
 
     This class mimics the interface of BaseImuData for testing purposes.
-    All tensor properties return zero tensors with correct shapes if not explicitly set.
+    All tensor properties return zero warp arrays with correct shapes if not explicitly set.
     """
 
     def __init__(self, num_instances: int, device: str = "cpu"):
@@ -27,108 +42,111 @@ class MockImuData:
             device: Device for tensor allocation.
         """
         self._num_instances = num_instances
-        self._device = device
+        self.device = device
 
         # Internal storage for mock data
-        self._pos_w: torch.Tensor | None = None
-        self._quat_w: torch.Tensor | None = None
-        self._projected_gravity_b: torch.Tensor | None = None
-        self._lin_vel_b: torch.Tensor | None = None
-        self._ang_vel_b: torch.Tensor | None = None
-        self._lin_acc_b: torch.Tensor | None = None
-        self._ang_acc_b: torch.Tensor | None = None
+        self._pos_w: wp.array | None = None
+        self._quat_w: wp.array | None = None
+        self._projected_gravity_b: wp.array | None = None
+        self._lin_vel_b: wp.array | None = None
+        self._ang_vel_b: wp.array | None = None
+        self._lin_acc_b: wp.array | None = None
+        self._ang_acc_b: wp.array | None = None
 
     # -- Properties --
 
     @property
-    def pos_w(self) -> torch.Tensor:
+    def pos_w(self) -> wp.array:
         """Position of sensor origin in world frame. Shape: (N, 3)."""
         if self._pos_w is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._pos_w
 
     @property
-    def quat_w(self) -> torch.Tensor:
+    def quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) in world frame. Shape: (N, 4)."""
         if self._quat_w is None:
             # Default to identity quaternion (w, x, y, z) = (1, 0, 0, 0)
-            quat = torch.zeros(self._num_instances, 4, device=self._device)
-            quat[:, 0] = 1.0
-            return quat
+            quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
+            quat_np[:, 0] = 1.0
+            return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._quat_w
 
     @property
-    def pose_w(self) -> torch.Tensor:
+    def pose_w(self) -> wp.array:
         """Pose in world frame (pos + quat). Shape: (N, 7)."""
-        return torch.cat([self.pos_w, self.quat_w], dim=-1)
+        pos_t = wp.to_torch(self.pos_w)
+        quat_t = wp.to_torch(self.quat_w)
+        pose_t = torch.cat([pos_t, quat_t], dim=-1)
+        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
 
     @property
-    def projected_gravity_b(self) -> torch.Tensor:
+    def projected_gravity_b(self) -> wp.array:
         """Gravity direction in IMU body frame. Shape: (N, 3)."""
         if self._projected_gravity_b is None:
             # Default gravity pointing down in body frame
-            gravity = torch.zeros(self._num_instances, 3, device=self._device)
-            gravity[:, 2] = -1.0
-            return gravity
+            gravity_np = np.zeros((self._num_instances, 3), dtype=np.float32)
+            gravity_np[:, 2] = -1.0
+            return wp.array(gravity_np, dtype=wp.float32, device=self.device)
         return self._projected_gravity_b
 
     @property
-    def lin_vel_b(self) -> torch.Tensor:
+    def lin_vel_b(self) -> wp.array:
         """Linear velocity in IMU body frame. Shape: (N, 3)."""
         if self._lin_vel_b is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._lin_vel_b
 
     @property
-    def ang_vel_b(self) -> torch.Tensor:
+    def ang_vel_b(self) -> wp.array:
         """Angular velocity in IMU body frame. Shape: (N, 3)."""
         if self._ang_vel_b is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._ang_vel_b
 
     @property
-    def lin_acc_b(self) -> torch.Tensor:
+    def lin_acc_b(self) -> wp.array:
         """Linear acceleration in IMU body frame. Shape: (N, 3)."""
         if self._lin_acc_b is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._lin_acc_b
 
     @property
-    def ang_acc_b(self) -> torch.Tensor:
+    def ang_acc_b(self) -> wp.array:
         """Angular acceleration in IMU body frame. Shape: (N, 3)."""
         if self._ang_acc_b is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._ang_acc_b
 
     # -- Setters --
 
     def set_pos_w(self, value: torch.Tensor) -> None:
         """Set position in world frame."""
-        self._pos_w = value.to(self._device)
+        self._pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_quat_w(self, value: torch.Tensor) -> None:
         """Set orientation in world frame."""
-        self._quat_w = value.to(self._device)
+        self._quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_projected_gravity_b(self, value: torch.Tensor) -> None:
         """Set projected gravity in body frame."""
-        self._projected_gravity_b = value.to(self._device)
+        self._projected_gravity_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_lin_vel_b(self, value: torch.Tensor) -> None:
         """Set linear velocity in body frame."""
-        self._lin_vel_b = value.to(self._device)
+        self._lin_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_ang_vel_b(self, value: torch.Tensor) -> None:
         """Set angular velocity in body frame."""
-        self._ang_vel_b = value.to(self._device)
+        self._ang_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_lin_acc_b(self, value: torch.Tensor) -> None:
         """Set linear acceleration in body frame."""
-        self._lin_acc_b = value.to(self._device)
+        self._lin_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_ang_acc_b(self, value: torch.Tensor) -> None:
         """Set angular acceleration in body frame."""
-        self._ang_acc_b = value.to(self._device)
+        self._ang_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_mock_data(
         self,

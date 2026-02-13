@@ -88,7 +88,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     count = 0
 
     # Nodal kinematic targets of the deformable bodies
-    nodal_kinematic_target = cube_object.data.nodal_kinematic_target.clone()
+    nodal_kinematic_target = wp.to_torch(cube_object.data.nodal_kinematic_target).clone()
 
     # Simulate physics
     while simulation_app.is_running():
@@ -99,7 +99,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             count = 0
 
             # reset the nodal state of the object
-            nodal_state = cube_object.data.default_nodal_state_w.clone()
+            nodal_state = wp.to_torch(cube_object.data.default_nodal_state_w).clone()
             # apply random pose to the object
             pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)

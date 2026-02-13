@@ -278,7 +278,7 @@ class PickAndPlaceEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         # Get the observations
-        gripper_state = self.gripper.state.clone()
+        gripper_state = wp.to_torch(self.gripper.state).clone()
         obs = torch.cat(
             (
                 self.joint_pos[:, self._x_dof_idx[0]].unsqueeze(dim=1),

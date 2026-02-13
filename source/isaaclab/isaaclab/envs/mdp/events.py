@@ -1420,7 +1420,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
         # obtain default and set into the physics simulation
-        nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
+        nodal_state = wp.to_torch(deformable_object.data.default_nodal_state_w)[env_ids].clone()
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
 

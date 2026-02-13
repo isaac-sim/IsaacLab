@@ -842,8 +842,8 @@ def _check_prim_contact_state_times(
     assert pytest.approx(measured_last_contact_time.item(), 0.01) == expected_last_contact_time
     assert pytest.approx(measured_last_air_time.item(), 0.01) == expected_last_air_time
     # check current contact mode
-    assert sensor.compute_first_contact(dt=dt).item() == in_contact
-    assert sensor.compute_first_air(dt=dt).item() == in_air
+    assert wp.to_torch(sensor.compute_first_contact(dt=dt)).item() == in_contact
+    assert wp.to_torch(sensor.compute_first_air(dt=dt)).item() == in_air
 
 
 def _perform_sim_step(sim, scene, sim_dt):

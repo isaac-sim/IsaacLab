@@ -156,7 +156,8 @@ def run_simulator(
         # Print the gripper state
         print(f"[INFO]: Gripper state: {surface_gripper_state}")
         mapped_commands = [
-            "Open" if state == -1 else "Closing" if state == 0 else "Closed" for state in surface_gripper_state.tolist()
+            "Open" if state == -1 else "Closing" if state == 0 else "Closed"
+            for state in wp.to_torch(surface_gripper_state).tolist()
         ]
         print(f"[INFO]: Mapped commands: {mapped_commands}")
 

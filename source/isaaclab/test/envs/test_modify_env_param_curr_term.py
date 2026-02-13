@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+import warp as wp
 
 import omni.usd
 
@@ -89,14 +90,14 @@ def test_curriculum_modify_env_param(device):
                 # test before curriculum kicks in, value agrees with default configuration
                 joint_ids = env.event_manager.cfg.reset_cart_position.params["asset_cfg"].joint_ids
                 assert env.observation_manager.cfg.policy.joint_pos_rel.func == mdp.joint_pos_rel
-                assert torch.any(robot.data.joint_pos[:, joint_ids] != 0.0)
+                assert torch.any(wp.to_torch(robot.data.joint_pos)[:, joint_ids] != 0.0)
                 assert env.max_episode_length_s == env_cfg.episode_length_s
 
             if count == 2:
                 # test after curriculum makes effect, value agrees with new values
                 assert env.observation_manager.cfg.policy.joint_pos_rel.func == mdp.joint_pos
                 joint_ids = env.event_manager.cfg.reset_cart_position.params["asset_cfg"].joint_ids
-                assert torch.all(robot.data.joint_pos[:, joint_ids] == 0.0)
+                assert torch.all(wp.to_torch(robot.data.joint_pos)[:, joint_ids] == 0.0)
                 assert env.max_episode_length_s == 20
 
             env.step(actions)

@@ -10,14 +10,30 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+import numpy as np
 import torch
+import warp as wp
+
+try:
+    from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
+except (ImportError, ModuleNotFoundError):
+    # Direct import bypassing isaaclab.assets.__init__.py (which needs omni.timeline)
+    import importlib.util
+    from pathlib import Path
+
+    _file = Path(__file__).resolve().parents[3] / "assets" / "rigid_object" / "base_rigid_object_data.py"
+    _spec = importlib.util.spec_from_file_location("_base_rigid_object_data", str(_file))
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    BaseRigidObjectData = _mod.BaseRigidObjectData
 
 
-class MockRigidObjectData:
+class MockRigidObjectData(BaseRigidObjectData):
     """Mock data container for rigid object asset.
 
-    This class mimics the interface of BaseRigidObjectData for testing purposes.
-    All tensor properties return zero tensors with correct shapes if not explicitly set.
+    This class inherits from BaseRigidObjectData to get shorthand and deprecated properties
+    for free (e.g., root_pose_w, body_pos_w, com_pos_b, default_mass, etc.).
+    All tensor properties return zero warp arrays with correct shapes if not explicitly set.
     """
 
     def __init__(
@@ -33,440 +49,370 @@ class MockRigidObjectData:
             body_names: Names of bodies (single body for rigid object).
             device: Device for tensor allocation.
         """
+        super().__init__(root_view=None, device=device)
+        self._create_buffers()
+
         self._num_instances = num_instances
         self._num_bodies = 1  # Rigid object always has 1 body
-        self._device = device
 
         self.body_names = body_names or ["body"]
 
         # Default states
-        self._default_root_pose: torch.Tensor | None = None
-        self._default_root_vel: torch.Tensor | None = None
+        self._default_root_pose: wp.array | None = None
+        self._default_root_vel: wp.array | None = None
 
         # Root state (link frame)
-        self._root_link_pose_w: torch.Tensor | None = None
-        self._root_link_vel_w: torch.Tensor | None = None
+        self._root_link_pose_w: wp.array | None = None
+        self._root_link_vel_w: wp.array | None = None
 
         # Root state (CoM frame)
-        self._root_com_pose_w: torch.Tensor | None = None
-        self._root_com_vel_w: torch.Tensor | None = None
+        self._root_com_pose_w: wp.array | None = None
+        self._root_com_vel_w: wp.array | None = None
 
         # Body state (link frame)
-        self._body_link_pose_w: torch.Tensor | None = None
-        self._body_link_vel_w: torch.Tensor | None = None
+        self._body_link_pose_w: wp.array | None = None
+        self._body_link_vel_w: wp.array | None = None
 
         # Body state (CoM frame)
-        self._body_com_pose_w: torch.Tensor | None = None
-        self._body_com_vel_w: torch.Tensor | None = None
-        self._body_com_acc_w: torch.Tensor | None = None
-        self._body_com_pose_b: torch.Tensor | None = None
+        self._body_com_pose_w: wp.array | None = None
+        self._body_com_vel_w: wp.array | None = None
+        self._body_com_acc_w: wp.array | None = None
+        self._body_com_pose_b: wp.array | None = None
 
         # Body properties
-        self._body_mass: torch.Tensor | None = None
-        self._body_inertia: torch.Tensor | None = None
+        self._body_mass: wp.array | None = None
+        self._body_inertia: wp.array | None = None
 
-    @property
-    def device(self) -> str:
-        """Device for tensor allocation."""
-        return self._device
-
-    def _identity_quat(self, *shape: int) -> torch.Tensor:
-        """Create identity quaternion tensor (w, x, y, z) = (1, 0, 0, 0)."""
-        quat = torch.zeros(*shape, 4, device=self._device)
-        quat[..., 0] = 1.0
-        return quat
+    def _identity_quat(self, *shape: int) -> wp.array:
+        """Create identity quaternion warp array (w, x, y, z) = (1, 0, 0, 0)."""
+        quat_np = np.zeros((*shape, 4), dtype=np.float32)
+        quat_np[..., 0] = 1.0
+        return wp.array(quat_np, dtype=wp.float32, device=self.device)
 
     # -- Default state properties --
 
     @property
-    def default_root_pose(self) -> torch.Tensor:
-        """Default root pose. Shape: (N, 7)."""
+    def default_root_pose(self) -> wp.array:
+        """Default root pose. dtype=wp.transformf, shape: (N,)."""
         if self._default_root_pose is None:
-            pose = torch.zeros(self._num_instances, 7, device=self._device)
-            pose[:, 3:7] = self._identity_quat(self._num_instances)
-            return pose
+            pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
+            pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
+            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_root_pose
 
     @property
-    def default_root_vel(self) -> torch.Tensor:
+    def default_root_vel(self) -> wp.array:
         """Default root velocity. Shape: (N, 6)."""
         if self._default_root_vel is None:
-            return torch.zeros(self._num_instances, 6, device=self._device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
         return self._default_root_vel
 
     @property
-    def default_root_state(self) -> torch.Tensor:
+    def default_root_state(self) -> wp.array:
         """Default root state. Shape: (N, 13)."""
-        return torch.cat([self.default_root_pose, self.default_root_vel], dim=-1)
+        pose = wp.to_torch(self.default_root_pose)
+        vel = wp.to_torch(self.default_root_vel)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
     # -- Root state properties (link frame) --
 
     @property
-    def root_link_pose_w(self) -> torch.Tensor:
-        """Root link pose in world frame. Shape: (N, 7)."""
+    def root_link_pose_w(self) -> wp.array:
+        """Root link pose in world frame. dtype=wp.transformf, shape: (N,)."""
         if self._root_link_pose_w is None:
-            pose = torch.zeros(self._num_instances, 7, device=self._device)
-            pose[:, 3:7] = self._identity_quat(self._num_instances)
-            return pose
+            pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
+            pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
+            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._root_link_pose_w
 
     @property
-    def root_link_vel_w(self) -> torch.Tensor:
+    def root_link_vel_w(self) -> wp.array:
         """Root link velocity in world frame. Shape: (N, 6)."""
         if self._root_link_vel_w is None:
-            return torch.zeros(self._num_instances, 6, device=self._device)
+            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device)
         return self._root_link_vel_w
 
     @property
-    def root_link_state_w(self) -> torch.Tensor:
+    def root_link_state_w(self) -> wp.array:
         """Root link state in world frame. Shape: (N, 13)."""
-        return torch.cat([self.root_link_pose_w, self.root_link_vel_w], dim=-1)
+        pose = wp.to_torch(self.root_link_pose_w)
+        vel = wp.to_torch(self.root_link_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
+    @property
+    def root_link_pos_w(self) -> wp.array:
+        """Root link position. Shape: (N,), dtype=wp.vec3f."""
+        t = self.root_link_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
-    def root_link_pos_w(self) -> torch.Tensor:
-        """Root link position. Shape: (N, 3)."""
-        return self.root_link_pose_w[:, :3]
+    def root_link_quat_w(self) -> wp.array:
+        """Root link orientation. Shape: (N,), dtype=wp.quatf."""
+        t = self.root_link_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
-    def root_link_quat_w(self) -> torch.Tensor:
-        """Root link orientation. Shape: (N, 4)."""
-        return self.root_link_pose_w[:, 3:7]
-
-    @property
-    def root_link_lin_vel_w(self) -> torch.Tensor:
+    def root_link_lin_vel_w(self) -> wp.array:
         """Root link linear velocity. Shape: (N, 3)."""
         return self.root_link_vel_w[:, :3]
 
     @property
-    def root_link_ang_vel_w(self) -> torch.Tensor:
+    def root_link_ang_vel_w(self) -> wp.array:
         """Root link angular velocity. Shape: (N, 3)."""
         return self.root_link_vel_w[:, 3:6]
 
     # -- Root state properties (CoM frame) --
 
     @property
-    def root_com_pose_w(self) -> torch.Tensor:
-        """Root CoM pose in world frame. Shape: (N, 7)."""
+    def root_com_pose_w(self) -> wp.array:
+        """Root CoM pose in world frame. dtype=wp.transformf, shape: (N,)."""
         if self._root_com_pose_w is None:
-            return self.root_link_pose_w.clone()
+            return wp.clone(self.root_link_pose_w, self.device)
         return self._root_com_pose_w
 
     @property
-    def root_com_vel_w(self) -> torch.Tensor:
+    def root_com_vel_w(self) -> wp.array:
         """Root CoM velocity in world frame. Shape: (N, 6)."""
         if self._root_com_vel_w is None:
-            return self.root_link_vel_w.clone()
+            return wp.clone(self.root_link_vel_w, self.device)
         return self._root_com_vel_w
 
     @property
-    def root_com_state_w(self) -> torch.Tensor:
+    def root_com_state_w(self) -> wp.array:
         """Root CoM state in world frame. Shape: (N, 13)."""
-        return torch.cat([self.root_com_pose_w, self.root_com_vel_w], dim=-1)
+        pose = wp.to_torch(self.root_com_pose_w)
+        vel = wp.to_torch(self.root_com_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
     @property
-    def root_state_w(self) -> torch.Tensor:
+    def root_state_w(self) -> wp.array:
         """Root state (link pose + CoM velocity). Shape: (N, 13)."""
-        return torch.cat([self.root_link_pose_w, self.root_com_vel_w], dim=-1)
+        pose = wp.to_torch(self.root_link_pose_w)
+        vel = wp.to_torch(self.root_com_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
+    @property
+    def root_com_pos_w(self) -> wp.array:
+        """Root CoM position. Shape: (N,), dtype=wp.vec3f."""
+        t = self.root_com_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
-    def root_com_pos_w(self) -> torch.Tensor:
-        """Root CoM position. Shape: (N, 3)."""
-        return self.root_com_pose_w[:, :3]
+    def root_com_quat_w(self) -> wp.array:
+        """Root CoM orientation. Shape: (N,), dtype=wp.quatf."""
+        t = self.root_com_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
-    def root_com_quat_w(self) -> torch.Tensor:
-        """Root CoM orientation. Shape: (N, 4)."""
-        return self.root_com_pose_w[:, 3:7]
-
-    @property
-    def root_com_lin_vel_w(self) -> torch.Tensor:
+    def root_com_lin_vel_w(self) -> wp.array:
         """Root CoM linear velocity. Shape: (N, 3)."""
         return self.root_com_vel_w[:, :3]
 
     @property
-    def root_com_ang_vel_w(self) -> torch.Tensor:
+    def root_com_ang_vel_w(self) -> wp.array:
         """Root CoM angular velocity. Shape: (N, 3)."""
         return self.root_com_vel_w[:, 3:6]
 
     # -- Body state properties (link frame) --
 
     @property
-    def body_link_pose_w(self) -> torch.Tensor:
-        """Body link pose in world frame. Shape: (N, 1, 7)."""
+    def body_link_pose_w(self) -> wp.array:
+        """Body link pose in world frame. dtype=wp.transformf, shape: (N, 1)."""
         if self._body_link_pose_w is None:
-            pose = torch.zeros(self._num_instances, 1, 7, device=self._device)
-            pose[..., 3:7] = self._identity_quat(self._num_instances, 1)
-            return pose
+            pose_np = np.zeros((self._num_instances, 1, 7), dtype=np.float32)
+            pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
+            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_link_pose_w
 
     @property
-    def body_link_vel_w(self) -> torch.Tensor:
+    def body_link_vel_w(self) -> wp.array:
         """Body link velocity in world frame. Shape: (N, 1, 6)."""
         if self._body_link_vel_w is None:
-            return torch.zeros(self._num_instances, 1, 6, device=self._device)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device)
         return self._body_link_vel_w
 
     @property
-    def body_link_state_w(self) -> torch.Tensor:
+    def body_link_state_w(self) -> wp.array:
         """Body link state in world frame. Shape: (N, 1, 13)."""
-        return torch.cat([self.body_link_pose_w, self.body_link_vel_w], dim=-1)
+        pose = wp.to_torch(self.body_link_pose_w)
+        vel = wp.to_torch(self.body_link_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
+    @property
+    def body_link_pos_w(self) -> wp.array:
+        """Body link position. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_link_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
-    def body_link_pos_w(self) -> torch.Tensor:
-        """Body link position. Shape: (N, 1, 3)."""
-        return self.body_link_pose_w[..., :3]
+    def body_link_quat_w(self) -> wp.array:
+        """Body link orientation. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_link_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
-    def body_link_quat_w(self) -> torch.Tensor:
-        """Body link orientation. Shape: (N, 1, 4)."""
-        return self.body_link_pose_w[..., 3:7]
-
-    @property
-    def body_link_lin_vel_w(self) -> torch.Tensor:
+    def body_link_lin_vel_w(self) -> wp.array:
         """Body link linear velocity. Shape: (N, 1, 3)."""
         return self.body_link_vel_w[..., :3]
 
     @property
-    def body_link_ang_vel_w(self) -> torch.Tensor:
+    def body_link_ang_vel_w(self) -> wp.array:
         """Body link angular velocity. Shape: (N, 1, 3)."""
         return self.body_link_vel_w[..., 3:6]
 
     # -- Body state properties (CoM frame) --
 
     @property
-    def body_com_pose_w(self) -> torch.Tensor:
-        """Body CoM pose in world frame. Shape: (N, 1, 7)."""
+    def body_com_pose_w(self) -> wp.array:
+        """Body CoM pose in world frame. dtype=wp.transformf, shape: (N, 1)."""
         if self._body_com_pose_w is None:
-            return self.body_link_pose_w.clone()
+            return wp.clone(self.body_link_pose_w, self.device)
         return self._body_com_pose_w
 
     @property
-    def body_com_vel_w(self) -> torch.Tensor:
+    def body_com_vel_w(self) -> wp.array:
         """Body CoM velocity in world frame. Shape: (N, 1, 6)."""
         if self._body_com_vel_w is None:
-            return self.body_link_vel_w.clone()
+            return wp.clone(self.body_link_vel_w, self.device)
         return self._body_com_vel_w
 
     @property
-    def body_com_state_w(self) -> torch.Tensor:
+    def body_com_state_w(self) -> wp.array:
         """Body CoM state in world frame. Shape: (N, 1, 13)."""
-        return torch.cat([self.body_com_pose_w, self.body_com_vel_w], dim=-1)
+        pose = wp.to_torch(self.body_com_pose_w)
+        vel = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
     @property
-    def body_com_acc_w(self) -> torch.Tensor:
+    def body_state_w(self) -> wp.array:
+        """Body state (link pose + CoM vel). Shape: (N, 1, 13)."""
+        pose = wp.to_torch(self.body_link_pose_w)
+        vel = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(torch.cat([pose, vel], dim=-1))
+
+    @property
+    def body_com_acc_w(self) -> wp.array:
         """Body CoM acceleration in world frame. Shape: (N, 1, 6)."""
         if self._body_com_acc_w is None:
-            return torch.zeros(self._num_instances, 1, 6, device=self._device)
+            return wp.zeros((self._num_instances, 1, 6), dtype=wp.float32, device=self.device)
         return self._body_com_acc_w
 
     @property
-    def body_com_pose_b(self) -> torch.Tensor:
-        """Body CoM pose in body frame. Shape: (N, 1, 7)."""
+    def body_com_pose_b(self) -> wp.array:
+        """Body CoM pose in body frame. dtype=wp.transformf, shape: (N, 1)."""
         if self._body_com_pose_b is None:
-            pose = torch.zeros(self._num_instances, 1, 7, device=self._device)
-            pose[..., 3:7] = self._identity_quat(self._num_instances, 1)
-            return pose
+            pose_np = np.zeros((self._num_instances, 1, 7), dtype=np.float32)
+            pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
+            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_com_pose_b
 
+    # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def body_com_pos_w(self) -> torch.Tensor:
-        """Body CoM position. Shape: (N, 1, 3)."""
-        return self.body_com_pose_w[..., :3]
+    def body_com_pos_w(self) -> wp.array:
+        """Body CoM position. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_com_pose_w
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
-    def body_com_quat_w(self) -> torch.Tensor:
-        """Body CoM orientation. Shape: (N, 1, 4)."""
-        return self.body_com_pose_w[..., 3:7]
+    def body_com_quat_w(self) -> wp.array:
+        """Body CoM orientation. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_com_pose_w
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     @property
-    def body_com_lin_vel_w(self) -> torch.Tensor:
+    def body_com_lin_vel_w(self) -> wp.array:
         """Body CoM linear velocity. Shape: (N, 1, 3)."""
         return self.body_com_vel_w[..., :3]
 
     @property
-    def body_com_ang_vel_w(self) -> torch.Tensor:
+    def body_com_ang_vel_w(self) -> wp.array:
         """Body CoM angular velocity. Shape: (N, 1, 3)."""
         return self.body_com_vel_w[..., 3:6]
 
     @property
-    def body_com_lin_acc_w(self) -> torch.Tensor:
+    def body_com_lin_acc_w(self) -> wp.array:
         """Body CoM linear acceleration. Shape: (N, 1, 3)."""
         return self.body_com_acc_w[..., :3]
 
     @property
-    def body_com_ang_acc_w(self) -> torch.Tensor:
+    def body_com_ang_acc_w(self) -> wp.array:
         """Body CoM angular acceleration. Shape: (N, 1, 3)."""
         return self.body_com_acc_w[..., 3:6]
 
     @property
-    def body_com_pos_b(self) -> torch.Tensor:
-        """Body CoM position in body frame. Shape: (N, 1, 3)."""
-        return self.body_com_pose_b[..., :3]
+    def body_com_pos_b(self) -> wp.array:
+        """Body CoM position in body frame. Shape: (N, 1), dtype=wp.vec3f."""
+        t = self.body_com_pose_b
+        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
 
     @property
-    def body_com_quat_b(self) -> torch.Tensor:
-        """Body CoM orientation in body frame. Shape: (N, 1, 4)."""
-        return self.body_com_pose_b[..., 3:7]
+    def body_com_quat_b(self) -> wp.array:
+        """Body CoM orientation in body frame. Shape: (N, 1), dtype=wp.quatf."""
+        t = self.body_com_pose_b
+        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
     # -- Body properties --
 
     @property
-    def body_mass(self) -> torch.Tensor:
+    def body_mass(self) -> wp.array:
         """Body mass. Shape: (N, 1, 1)."""
         if self._body_mass is None:
-            return torch.ones(self._num_instances, 1, 1, device=self._device)
+            return wp.ones((self._num_instances, 1, 1), dtype=wp.float32, device=self.device)
         return self._body_mass
 
     @property
-    def body_inertia(self) -> torch.Tensor:
+    def body_inertia(self) -> wp.array:
         """Body inertia (flattened 3x3). Shape: (N, 1, 9)."""
         if self._body_inertia is None:
-            inertia = torch.zeros(self._num_instances, 1, 9, device=self._device)
-            inertia[..., 0] = 1.0  # Ixx
-            inertia[..., 4] = 1.0  # Iyy
-            inertia[..., 8] = 1.0  # Izz
-            return inertia
+            inertia_np = np.zeros((self._num_instances, 1, 9), dtype=np.float32)
+            inertia_np[..., 0] = 1.0  # Ixx
+            inertia_np[..., 4] = 1.0  # Iyy
+            inertia_np[..., 8] = 1.0  # Izz
+            return wp.array(inertia_np, dtype=wp.float32, device=self.device)
         return self._body_inertia
 
     # -- Derived properties --
 
     @property
-    def projected_gravity_b(self) -> torch.Tensor:
+    def projected_gravity_b(self) -> wp.array:
         """Gravity projection on body. Shape: (N, 3)."""
-        gravity = torch.zeros(self._num_instances, 3, device=self._device)
-        gravity[:, 2] = -1.0
-        return gravity
+        gravity_np = np.zeros((self._num_instances, 3), dtype=np.float32)
+        gravity_np[:, 2] = -1.0
+        return wp.array(gravity_np, dtype=wp.float32, device=self.device)
 
     @property
-    def heading_w(self) -> torch.Tensor:
+    def heading_w(self) -> wp.array:
         """Yaw heading in world frame. Shape: (N,)."""
-        return torch.zeros(self._num_instances, device=self._device)
+        return wp.zeros((self._num_instances,), dtype=wp.float32, device=self.device)
 
     @property
-    def root_link_lin_vel_b(self) -> torch.Tensor:
+    def root_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity in body frame. Shape: (N, 3)."""
-        return self.root_link_lin_vel_w.clone()
+        return wp.clone(self.root_link_lin_vel_w, self.device)
 
     @property
-    def root_link_ang_vel_b(self) -> torch.Tensor:
+    def root_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity in body frame. Shape: (N, 3)."""
-        return self.root_link_ang_vel_w.clone()
+        return wp.clone(self.root_link_ang_vel_w, self.device)
 
     @property
-    def root_com_lin_vel_b(self) -> torch.Tensor:
+    def root_com_lin_vel_b(self) -> wp.array:
         """Root CoM linear velocity in body frame. Shape: (N, 3)."""
-        return self.root_com_lin_vel_w.clone()
+        return wp.clone(self.root_com_lin_vel_w, self.device)
 
     @property
-    def root_com_ang_vel_b(self) -> torch.Tensor:
+    def root_com_ang_vel_b(self) -> wp.array:
         """Root CoM angular velocity in body frame. Shape: (N, 3)."""
-        return self.root_com_ang_vel_w.clone()
+        return wp.clone(self.root_com_ang_vel_w, self.device)
 
-    # -- Convenience aliases for root state (without _link_ or _com_ prefix) --
+    # -- Shorthand properties (root_pose_w, body_pos_w, com_pos_b, etc.) --
+    # Inherited from BaseRigidObjectData
 
-    @property
-    def root_pos_w(self) -> torch.Tensor:
-        """Root position (alias for root_link_pos_w). Shape: (N, 3)."""
-        return self.root_link_pos_w
-
-    @property
-    def root_quat_w(self) -> torch.Tensor:
-        """Root orientation (alias for root_link_quat_w). Shape: (N, 4)."""
-        return self.root_link_quat_w
-
-    @property
-    def root_pose_w(self) -> torch.Tensor:
-        """Root pose (alias for root_link_pose_w). Shape: (N, 7)."""
-        return self.root_link_pose_w
-
-    @property
-    def root_vel_w(self) -> torch.Tensor:
-        """Root velocity (alias for root_com_vel_w). Shape: (N, 6)."""
-        return self.root_com_vel_w
-
-    @property
-    def root_lin_vel_w(self) -> torch.Tensor:
-        """Root linear velocity (alias for root_com_lin_vel_w). Shape: (N, 3)."""
-        return self.root_com_lin_vel_w
-
-    @property
-    def root_ang_vel_w(self) -> torch.Tensor:
-        """Root angular velocity (alias for root_com_ang_vel_w). Shape: (N, 3)."""
-        return self.root_com_ang_vel_w
-
-    @property
-    def root_lin_vel_b(self) -> torch.Tensor:
-        """Root linear velocity in body frame (alias for root_com_lin_vel_b). Shape: (N, 3)."""
-        return self.root_com_lin_vel_b
-
-    @property
-    def root_ang_vel_b(self) -> torch.Tensor:
-        """Root angular velocity in body frame (alias for root_com_ang_vel_b). Shape: (N, 3)."""
-        return self.root_com_ang_vel_b
-
-    # -- Convenience aliases for body state (without _link_ or _com_ prefix) --
-
-    @property
-    def body_pos_w(self) -> torch.Tensor:
-        """Body positions (alias for body_link_pos_w). Shape: (N, 1, 3)."""
-        return self.body_link_pos_w
-
-    @property
-    def body_quat_w(self) -> torch.Tensor:
-        """Body orientations (alias for body_link_quat_w). Shape: (N, 1, 4)."""
-        return self.body_link_quat_w
-
-    @property
-    def body_pose_w(self) -> torch.Tensor:
-        """Body poses (alias for body_link_pose_w). Shape: (N, 1, 7)."""
-        return self.body_link_pose_w
-
-    @property
-    def body_vel_w(self) -> torch.Tensor:
-        """Body velocities (alias for body_com_vel_w). Shape: (N, 1, 6)."""
-        return self.body_com_vel_w
-
-    @property
-    def body_state_w(self) -> torch.Tensor:
-        """Body states (alias for body_com_state_w). Shape: (N, 1, 13)."""
-        return self.body_com_state_w
-
-    @property
-    def body_lin_vel_w(self) -> torch.Tensor:
-        """Body linear velocities (alias for body_com_lin_vel_w). Shape: (N, 1, 3)."""
-        return self.body_com_lin_vel_w
-
-    @property
-    def body_ang_vel_w(self) -> torch.Tensor:
-        """Body angular velocities (alias for body_com_ang_vel_w). Shape: (N, 1, 3)."""
-        return self.body_com_ang_vel_w
-
-    @property
-    def body_acc_w(self) -> torch.Tensor:
-        """Body accelerations (alias for body_com_acc_w). Shape: (N, 1, 6)."""
-        return self.body_com_acc_w
-
-    @property
-    def body_lin_acc_w(self) -> torch.Tensor:
-        """Body linear accelerations (alias for body_com_lin_acc_w). Shape: (N, 1, 3)."""
-        return self.body_com_lin_acc_w
-
-    @property
-    def body_ang_acc_w(self) -> torch.Tensor:
-        """Body angular accelerations (alias for body_com_ang_acc_w). Shape: (N, 1, 3)."""
-        return self.body_com_ang_acc_w
-
-    # -- CoM in body frame --
-
-    @property
-    def com_pos_b(self) -> torch.Tensor:
-        """CoM position in body frame. Shape: (N, 3)."""
-        return self.body_com_pose_b[:, 0, :3]
-
-    @property
-    def com_quat_b(self) -> torch.Tensor:
-        """CoM orientation in body frame. Shape: (N, 4)."""
-        return self.body_com_pose_b[:, 0, 3:7]
+    # -- Deprecated properties (default_mass, default_inertia) --
+    # Inherited from BaseRigidObjectData
 
     # -- Update method --
 
@@ -477,46 +423,46 @@ class MockRigidObjectData:
     # -- Setters --
 
     def set_default_root_pose(self, value: torch.Tensor) -> None:
-        self._default_root_pose = value.to(self._device)
+        self._default_root_pose = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_default_root_vel(self, value: torch.Tensor) -> None:
-        self._default_root_vel = value.to(self._device)
+        self._default_root_vel = wp.from_torch(value.to(self.device).contiguous())
 
     def set_root_link_pose_w(self, value: torch.Tensor) -> None:
-        self._root_link_pose_w = value.to(self._device)
+        self._root_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_root_link_vel_w(self, value: torch.Tensor) -> None:
-        self._root_link_vel_w = value.to(self._device)
+        self._root_link_vel_w = wp.from_torch(value.to(self.device).contiguous())
 
     def set_root_com_pose_w(self, value: torch.Tensor) -> None:
-        self._root_com_pose_w = value.to(self._device)
+        self._root_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_root_com_vel_w(self, value: torch.Tensor) -> None:
-        self._root_com_vel_w = value.to(self._device)
+        self._root_com_vel_w = wp.from_torch(value.to(self.device).contiguous())
 
     def set_body_link_pose_w(self, value: torch.Tensor) -> None:
-        self._body_link_pose_w = value.to(self._device)
+        self._body_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_body_link_vel_w(self, value: torch.Tensor) -> None:
-        self._body_link_vel_w = value.to(self._device)
+        self._body_link_vel_w = wp.from_torch(value.to(self.device).contiguous())
 
     def set_body_com_pose_w(self, value: torch.Tensor) -> None:
-        self._body_com_pose_w = value.to(self._device)
+        self._body_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_body_com_vel_w(self, value: torch.Tensor) -> None:
-        self._body_com_vel_w = value.to(self._device)
+        self._body_com_vel_w = wp.from_torch(value.to(self.device).contiguous())
 
     def set_body_com_acc_w(self, value: torch.Tensor) -> None:
-        self._body_com_acc_w = value.to(self._device)
+        self._body_com_acc_w = wp.from_torch(value.to(self.device).contiguous())
 
     def set_body_com_pose_b(self, value: torch.Tensor) -> None:
-        self._body_com_pose_b = value.to(self._device)
+        self._body_com_pose_b = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
 
     def set_body_mass(self, value: torch.Tensor) -> None:
-        self._body_mass = value.to(self._device)
+        self._body_mass = wp.from_torch(value.to(self.device).contiguous())
 
     def set_body_inertia(self, value: torch.Tensor) -> None:
-        self._body_inertia = value.to(self._device)
+        self._body_inertia = wp.from_torch(value.to(self.device).contiguous())
 
     def set_mock_data(self, **kwargs) -> None:
         """Bulk setter for mock data."""
@@ -756,4 +702,138 @@ class MockRigidObject:
         is_global: bool = True,
     ) -> None:
         """Set external forces and torques."""
+        pass
+
+    # -- Index/Mask methods (no-op for mock) --
+
+    def write_root_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_link_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_link_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_com_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_com_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_com_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_link_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def write_root_link_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_masses_index(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_masses_mask(
+        self,
+        masses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_coms_index(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_coms_mask(
+        self,
+        coms: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_inertias_index(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        pass
+
+    def set_inertias_mask(
+        self,
+        inertias: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
         pass

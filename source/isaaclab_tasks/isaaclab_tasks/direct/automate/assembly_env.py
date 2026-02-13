@@ -89,11 +89,11 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
-        inertias = self._robot.root_view.get_inertias()
+        inertias = wp.to_torch(self._robot.root_view.get_inertias())
         offset = torch.zeros_like(inertias)
         offset[:, :, [0, 4, 8]] += 0.01
         new_inertias = inertias + offset
-        self._robot.root_view.set_inertias(new_inertias, torch.arange(self.num_envs))
+        self._robot.root_view.set_inertias(wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32)))
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -280,25 +280,25 @@ class AssemblyEnv(DirectRLEnv):
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
         # TODO: A lot of these can probably only be set once?
-        self.fixed_pos = self._fixed_asset.data.root_pos_w - self.scene.env_origins
-        self.fixed_quat = self._fixed_asset.data.root_quat_w
+        self.fixed_pos = wp.to_torch(self._fixed_asset.data.root_pos_w) - self.scene.env_origins
+        self.fixed_quat = wp.to_torch(self._fixed_asset.data.root_quat_w)
 
-        self.held_pos = self._held_asset.data.root_pos_w - self.scene.env_origins
-        self.held_quat = self._held_asset.data.root_quat_w
+        self.held_pos = wp.to_torch(self._held_asset.data.root_pos_w) - self.scene.env_origins
+        self.held_quat = wp.to_torch(self._held_asset.data.root_quat_w)
 
-        self.fingertip_midpoint_pos = self._robot.data.body_pos_w[:, self.fingertip_body_idx] - self.scene.env_origins
-        self.fingertip_midpoint_quat = self._robot.data.body_quat_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_linvel = self._robot.data.body_lin_vel_w[:, self.fingertip_body_idx]
-        self.fingertip_midpoint_angvel = self._robot.data.body_ang_vel_w[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_pos = wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        self.fingertip_midpoint_quat = wp.to_torch(self._robot.data.body_quat_w)[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_linvel = wp.to_torch(self._robot.data.body_lin_vel_w)[:, self.fingertip_body_idx]
+        self.fingertip_midpoint_angvel = wp.to_torch(self._robot.data.body_ang_vel_w)[:, self.fingertip_body_idx]
 
-        jacobians = self._robot.root_view.get_jacobians()
+        jacobians = wp.to_torch(self._robot.root_view.get_jacobians())
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
         self.arm_mass_matrix = self._robot.root_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
-        self.joint_pos = self._robot.data.joint_pos.clone()
-        self.joint_vel = self._robot.data.joint_vel.clone()
+        self.joint_pos = wp.to_torch(self._robot.data.joint_pos).clone()
+        self.joint_vel = wp.to_torch(self._robot.data.joint_vel).clone()
 
         # Compute pose of gripper goal and top of socket in socket frame
         self.gripper_goal_pos, self.gripper_goal_quat = combine_frame_transforms(

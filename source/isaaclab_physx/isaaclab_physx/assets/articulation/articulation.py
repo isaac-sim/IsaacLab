@@ -3748,8 +3748,8 @@ class Articulation(BaseArticulation):
         """
         # check that the default values are within the limits
         joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
-        out_of_range = wp.to_torch(self._data.default_joint_pos[0]) < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.default_joint_pos[0]) > joint_pos_limits[:, 1]
+        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
+        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:

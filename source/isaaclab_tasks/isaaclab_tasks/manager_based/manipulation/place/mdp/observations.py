@@ -99,7 +99,7 @@ def object_grasped(
 
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1, 1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_closed = (suction_cup_status == 1).to(torch.float32)
         grasped = torch.logical_and(suction_cup_is_closed, pose_diff < diff_threshold)
 

@@ -10,14 +10,29 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+import numpy as np
 import torch
+import warp as wp
+
+try:
+    from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
+except (ImportError, ModuleNotFoundError):
+    # Direct import bypassing isaaclab.sensors.__init__.py (which needs omni)
+    import importlib.util
+    from pathlib import Path
+
+    _file = Path(__file__).resolve().parents[3] / "sensors" / "contact_sensor" / "base_contact_sensor_data.py"
+    _spec = importlib.util.spec_from_file_location("_base_contact_sensor_data", str(_file))
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    BaseContactSensorData = _mod.BaseContactSensorData
 
 
-class MockContactSensorData:
+class MockContactSensorData(BaseContactSensorData):
     """Mock data container for contact sensor.
 
     This class mimics the interface of BaseContactSensorData for testing purposes.
-    All tensor properties return zero tensors with correct shapes if not explicitly set.
+    All tensor properties return zero warp arrays with correct shapes if not explicitly set.
     """
 
     def __init__(
@@ -39,184 +54,200 @@ class MockContactSensorData:
         """
         self._num_instances = num_instances
         self._num_bodies = num_bodies
-        self._device = device
+        self.device = device
         self._history_length = history_length
         self._num_filter_bodies = num_filter_bodies
 
         # Internal storage for mock data
-        self._pos_w: torch.Tensor | None = None
-        self._quat_w: torch.Tensor | None = None
-        self._net_forces_w: torch.Tensor | None = None
-        self._net_forces_w_history: torch.Tensor | None = None
-        self._force_matrix_w: torch.Tensor | None = None
-        self._force_matrix_w_history: torch.Tensor | None = None
-        self._contact_pos_w: torch.Tensor | None = None
-        self._friction_forces_w: torch.Tensor | None = None
-        self._last_air_time: torch.Tensor | None = None
-        self._current_air_time: torch.Tensor | None = None
-        self._last_contact_time: torch.Tensor | None = None
-        self._current_contact_time: torch.Tensor | None = None
+        self._pos_w: wp.array | None = None
+        self._quat_w: wp.array | None = None
+        self._net_forces_w: wp.array | None = None
+        self._net_forces_w_history: wp.array | None = None
+        self._force_matrix_w: wp.array | None = None
+        self._force_matrix_w_history: wp.array | None = None
+        self._contact_pos_w: wp.array | None = None
+        self._friction_forces_w: wp.array | None = None
+        self._last_air_time: wp.array | None = None
+        self._current_air_time: wp.array | None = None
+        self._last_contact_time: wp.array | None = None
+        self._current_contact_time: wp.array | None = None
 
     # -- Properties --
 
     @property
-    def pos_w(self) -> torch.Tensor | None:
+    def pos_w(self) -> wp.array | None:
         """Position of sensor origins in world frame. Shape: (N, B, 3)."""
         if self._pos_w is None:
-            return torch.zeros(self._num_instances, self._num_bodies, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device)
         return self._pos_w
 
     @property
-    def quat_w(self) -> torch.Tensor | None:
+    def quat_w(self) -> wp.array | None:
         """Orientation (w, x, y, z) in world frame. Shape: (N, B, 4)."""
         if self._quat_w is None:
             # Default to identity quaternion
-            quat = torch.zeros(self._num_instances, self._num_bodies, 4, device=self._device)
-            quat[..., 0] = 1.0
-            return quat
+            quat_np = np.zeros((self._num_instances, self._num_bodies, 4), dtype=np.float32)
+            quat_np[..., 0] = 1.0
+            return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._quat_w
 
     @property
-    def pose_w(self) -> torch.Tensor | None:
+    def pose_w(self) -> wp.array | None:
         """Pose in world frame (pos + quat). Shape: (N, B, 7)."""
-        return torch.cat([self.pos_w, self.quat_w], dim=-1)
+        pos_t = wp.to_torch(self.pos_w)
+        quat_t = wp.to_torch(self.quat_w)
+        pose_t = torch.cat([pos_t, quat_t], dim=-1)
+        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
 
     @property
-    def net_forces_w(self) -> torch.Tensor:
+    def net_forces_w(self) -> wp.array:
         """Net normal contact forces in world frame. Shape: (N, B, 3)."""
         if self._net_forces_w is None:
-            return torch.zeros(self._num_instances, self._num_bodies, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device)
         return self._net_forces_w
 
     @property
-    def net_forces_w_history(self) -> torch.Tensor | None:
+    def net_forces_w_history(self) -> wp.array | None:
         """History of net forces. Shape: (N, T, B, 3)."""
         if self._history_length == 0:
             return None
         if self._net_forces_w_history is None:
-            return torch.zeros(self._num_instances, self._history_length, self._num_bodies, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._history_length, self._num_bodies, 3),
+                dtype=wp.float32,
+                device=self.device,
+            )
         return self._net_forces_w_history
 
     @property
-    def force_matrix_w(self) -> torch.Tensor | None:
+    def force_matrix_w(self) -> wp.array | None:
         """Filtered contact forces. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
         if self._force_matrix_w is None:
-            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._num_bodies, self._num_filter_bodies, 3),
+                dtype=wp.float32,
+                device=self.device,
+            )
         return self._force_matrix_w
 
     @property
-    def force_matrix_w_history(self) -> torch.Tensor | None:
+    def force_matrix_w_history(self) -> wp.array | None:
         """History of filtered forces. Shape: (N, T, B, M, 3)."""
         if self._history_length == 0 or self._num_filter_bodies == 0:
             return None
         if self._force_matrix_w_history is None:
-            return torch.zeros(
-                self._num_instances,
-                self._history_length,
-                self._num_bodies,
-                self._num_filter_bodies,
-                3,
-                device=self._device,
+            return wp.zeros(
+                shape=(self._num_instances, self._history_length, self._num_bodies, self._num_filter_bodies, 3),
+                dtype=wp.float32,
+                device=self.device,
             )
         return self._force_matrix_w_history
 
     @property
-    def contact_pos_w(self) -> torch.Tensor | None:
+    def contact_pos_w(self) -> wp.array | None:
         """Contact point positions in world frame. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
         if self._contact_pos_w is None:
-            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._num_bodies, self._num_filter_bodies, 3),
+                dtype=wp.float32,
+                device=self.device,
+            )
         return self._contact_pos_w
 
     @property
-    def friction_forces_w(self) -> torch.Tensor | None:
+    def friction_forces_w(self) -> wp.array | None:
         """Friction forces in world frame. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
         if self._friction_forces_w is None:
-            return torch.zeros(self._num_instances, self._num_bodies, self._num_filter_bodies, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._num_bodies, self._num_filter_bodies, 3),
+                dtype=wp.float32,
+                device=self.device,
+            )
         return self._friction_forces_w
 
     @property
-    def last_air_time(self) -> torch.Tensor:
+    def last_air_time(self) -> wp.array:
         """Time in air before last contact. Shape: (N, B)."""
         if self._last_air_time is None:
-            return torch.zeros(self._num_instances, self._num_bodies, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
         return self._last_air_time
 
     @property
-    def current_air_time(self) -> torch.Tensor:
+    def current_air_time(self) -> wp.array:
         """Current time in air. Shape: (N, B)."""
         if self._current_air_time is None:
-            return torch.zeros(self._num_instances, self._num_bodies, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
         return self._current_air_time
 
     @property
-    def last_contact_time(self) -> torch.Tensor:
+    def last_contact_time(self) -> wp.array:
         """Time in contact before last detach. Shape: (N, B)."""
         if self._last_contact_time is None:
-            return torch.zeros(self._num_instances, self._num_bodies, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
         return self._last_contact_time
 
     @property
-    def current_contact_time(self) -> torch.Tensor:
+    def current_contact_time(self) -> wp.array:
         """Current time in contact. Shape: (N, B)."""
         if self._current_contact_time is None:
-            return torch.zeros(self._num_instances, self._num_bodies, device=self._device)
+            return wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
         return self._current_contact_time
 
     # -- Setters --
 
     def set_pos_w(self, value: torch.Tensor) -> None:
         """Set position in world frame."""
-        self._pos_w = value.to(self._device)
+        self._pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_quat_w(self, value: torch.Tensor) -> None:
         """Set orientation in world frame."""
-        self._quat_w = value.to(self._device)
+        self._quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_net_forces_w(self, value: torch.Tensor) -> None:
         """Set net contact forces."""
-        self._net_forces_w = value.to(self._device)
+        self._net_forces_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_net_forces_w_history(self, value: torch.Tensor) -> None:
         """Set net forces history."""
-        self._net_forces_w_history = value.to(self._device)
+        self._net_forces_w_history = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_force_matrix_w(self, value: torch.Tensor) -> None:
         """Set filtered contact forces."""
-        self._force_matrix_w = value.to(self._device)
+        self._force_matrix_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_force_matrix_w_history(self, value: torch.Tensor) -> None:
         """Set filtered forces history."""
-        self._force_matrix_w_history = value.to(self._device)
+        self._force_matrix_w_history = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_contact_pos_w(self, value: torch.Tensor) -> None:
         """Set contact point positions."""
-        self._contact_pos_w = value.to(self._device)
+        self._contact_pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_friction_forces_w(self, value: torch.Tensor) -> None:
         """Set friction forces."""
-        self._friction_forces_w = value.to(self._device)
+        self._friction_forces_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_last_air_time(self, value: torch.Tensor) -> None:
         """Set last air time."""
-        self._last_air_time = value.to(self._device)
+        self._last_air_time = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_current_air_time(self, value: torch.Tensor) -> None:
         """Set current air time."""
-        self._current_air_time = value.to(self._device)
+        self._current_air_time = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_last_contact_time(self, value: torch.Tensor) -> None:
         """Set last contact time."""
-        self._last_contact_time = value.to(self._device)
+        self._last_contact_time = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_current_contact_time(self, value: torch.Tensor) -> None:
         """Set current contact time."""
-        self._current_contact_time = value.to(self._device)
+        self._current_contact_time = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_mock_data(
         self,
@@ -385,7 +416,7 @@ class MockContactSensor:
         Returns:
             Boolean tensor of shape (N, B) indicating first contact.
         """
-        return self._data.current_contact_time < (dt + abs_tol)
+        return wp.to_torch(self._data.current_contact_time) < (dt + abs_tol)
 
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
         """Check which bodies broke contact within dt seconds.
@@ -397,7 +428,7 @@ class MockContactSensor:
         Returns:
             Boolean tensor of shape (N, B) indicating first air.
         """
-        return self._data.current_air_time < (dt + abs_tol)
+        return wp.to_torch(self._data.current_air_time) < (dt + abs_tol)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Reset sensor state for specified environments.
