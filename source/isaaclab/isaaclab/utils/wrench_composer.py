@@ -132,7 +132,7 @@ class WrenchComposer:
         It first convert them to the mixed representation and then add them to the already composed force and torque.
 
         Forces and torques are always stored in mixed representation: global frame orientation and application point at the link frame.
-        
+
         Positions are NOT stored - they are used to compute torque contributions from forces applied at
         offset positions (τ = (pos - link_origin) × force).
 
@@ -232,10 +232,10 @@ class WrenchComposer:
 
         It can compose global wrenches and local wrenches.
         It first convert them to the mixed representation and then add them to the already composed force and torque.
-        
+
         Forces and torques are always stored in "mixed" representation: global frame orientation,
         with application point at the link frame.
-        
+
         Positions are NOT stored - they are used to compute torque
         contributions from forces applied at offset positions (τ = (pos - link_origin) × force).
 

@@ -405,12 +405,14 @@ def add_forces_and_torques_at_position(
         if positions:
             composed_torques_m[env_ids[tid_env], body_ids[tid_body]] += wp.cross(
                 cast_position_to_mixed_frame(
-                    positions[tid_env, tid_body], link_positions[env_ids[tid_env], body_ids[tid_body]],
-                    link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    positions[tid_env, tid_body],
+                    link_positions[env_ids[tid_env], body_ids[tid_body]],
+                    link_quaternions[env_ids[tid_env], body_ids[tid_body]],
+                    is_global,
                 ),
                 cast_force_to_mixed_frame(
                     forces[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
-                )
+                ),
             )
     if torques:
         composed_torques_m[env_ids[tid_env], body_ids[tid_body]] += cast_torque_to_mixed_frame(
@@ -472,10 +474,12 @@ def set_forces_and_torques_at_position(
         if positions:
             composed_torques_m[env_ids[tid_env], body_ids[tid_body]] += wp.cross(
                 cast_position_to_mixed_frame(
-                    positions[tid_env, tid_body], link_positions[env_ids[tid_env], body_ids[tid_body]],
-                    link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
+                    positions[tid_env, tid_body],
+                    link_positions[env_ids[tid_env], body_ids[tid_body]],
+                    link_quaternions[env_ids[tid_env], body_ids[tid_body]],
+                    is_global,
                 ),
                 cast_force_to_mixed_frame(
                     forces[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
-                )
+                ),
             )

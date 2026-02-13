@@ -613,6 +613,7 @@ def test_90_degree_rotation_global_force(device: str):
         f"90-degree rotation test failed.\nExpected:\n{expected_force_mixed}\nGot:\n{composed_force_np}"
     )
 
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_90_degree_rotation_local_force(device: str):
     """Test local force with a known 90-degree rotation for easy verification."""
@@ -704,7 +705,9 @@ def test_local_forces_and_torques_at_local_position(device: str, num_envs: int, 
         positions_local = wp.from_numpy(positions_local_np, dtype=wp.vec3f, device=device)
 
         # Apply local forces and torques at local positions
-        wrench_composer.add_forces_and_torques(forces=forces_local, torques=torques_local, positions=positions_local, is_global=False)
+        wrench_composer.add_forces_and_torques(
+            forces=forces_local, torques=torques_local, positions=positions_local, is_global=False
+        )
 
         # In mixed repr: local forces get rotated to global
         expected_forces = quat_rotate_np(link_quat_np, forces_local_np)
@@ -774,11 +777,7 @@ def test_forces_after_asset_pose_change(device: str):
     link_pos_torch = torch.from_numpy(link_pos_np)
     link_quat_torch = torch.from_numpy(link_quat_np)
 
-    mock_asset = MockRigidObject(
-        num_envs, num_bodies, device,
-        link_pos=link_pos_torch,
-        link_quat=link_quat_torch
-    )
+    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
     wrench_composer = WrenchComposer(mock_asset)
 
     # Track expected accumulated force in mixed representation
