@@ -66,8 +66,8 @@ class OVSceneDataProvider:
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
 
-        self._stage = stage
         self._simulation_context = simulation_context
+        self._stage = stage if stage is not None else getattr(simulation_context, "stage", None)
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         self._rigid_body_view = None
         self._articulation_view = None
@@ -83,11 +83,17 @@ class OVSceneDataProvider:
         self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
         # Metadata: only fixed backend info. num_envs/env_origins come from get_num_envs()/self._env_origins.
+        # Gravity lives on SimulationCfg (not physics backend config) after physics decoupling.
         self._metadata = {
             "physics_backend": "omni",
-            "gravity_vector": tuple(self._simulation_context.cfg.physics.gravity),
+            "gravity_vector": tuple(self._simulation_context.cfg.gravity),
             "clone_physics_only": False,
         }
+        if self._stage is None:
+            raise RuntimeError(
+                "[OVSceneDataProvider] USD stage is None and not available from simulation_context. "
+                "Ensure the simulation context has a valid stage when using OV/Newton/Rerun visualizers."
+            )
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
         self._num_envs_at_last_newton_build: int | None = None  # for _refresh_newton_model_if_needed
 
@@ -679,7 +685,9 @@ class OVSceneDataProvider:
 
     def get_usd_stage(self) -> Any:
         """Return the USD stage handle."""
-        return self._stage
+        if self._stage is not None:
+            return self._stage
+        return getattr(self._simulation_context, "stage", None)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """Return per-camera, per-env transforms (positions, orientations)."""

@@ -33,7 +33,7 @@ class NewtonSceneDataProvider:
         return None
 
     def get_usd_stage(self) -> Any | None:
-        """UNAVAILABLE: Newton backend doesn't provide USD stage."""
+        """Newton backend does not provide a USD stage."""
         return None
 
     def get_metadata(self) -> dict[str, Any]:

@@ -29,6 +29,9 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
+# Visualizer type names (CLI and config). App launcher stores --visualizer a b c as space-separated.
+_VISUALIZER_TYPES = ("newton", "rerun", "omniverse")
+
 
 class SettingsHelper:
     """Helper for typed Carbonite settings access."""
@@ -204,8 +207,12 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI or RTX sensors)."""
-        return self._has_gui or self.get_setting("/isaaclab/render/rtx_sensors")
+        """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
+        return (
+            self._has_gui
+            or self.get_setting("/isaaclab/render/rtx_sensors")
+            or bool(self.get_setting("/isaaclab/visualizer"))
+        )
 
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
@@ -247,18 +254,25 @@ class SimulationContext:
                 else:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
-                        "Valid types: 'newton', 'rerun', 'omniverse'. Skipping."
+                        f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
                     )
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
         return default_configs
 
+    def _get_cli_visualizer_types(self) -> list[str]:
+        """Return list of visualizer types requested via CLI (carb setting)."""
+        requested = self.get_setting("/isaaclab/visualizer")
+        if not requested:
+            return []
+        parts = [p.strip() for p in requested.split(",") if p.strip()]
+        return [v for part in parts for v in part.split() if v]
+
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
-            requested = self.get_setting("/isaaclab/visualizer")
-            return [v.strip() for v in requested.split(",") if v.strip()] if requested else []
+            return self._get_cli_visualizer_types()
 
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
@@ -287,9 +301,24 @@ class SimulationContext:
             if not requested_visualizers:
                 return
             visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
+        else:
+            # Merge CLI-requested types into config so --visualizer omniverse rerun newton
+            # is honored even when task only provides rerun/newton (ensures OV provider + stage).
+            cli_requested = self._get_cli_visualizer_types()
+            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
+            for viz_type in cli_requested:
+                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                    visualizer_cfgs.append(self._create_default_visualizer_configs([viz_type])[0])
+                    existing_types.add(viz_type)
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
-        if any(viz in ("newton", "rerun") for viz in viz_types):
+        # Prefer OV when omniverse is requested so all three (OV + Newton + Rerun) can run
+        # with one provider that has stage and Newton sync; else use Newton stub for newton/rerun only.
+        if "omniverse" in viz_types:
+            from .scene_data_providers import OVSceneDataProvider
+
+            self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
+        elif any(viz in ("newton", "rerun") for viz in viz_types):
             from .scene_data_providers import NewtonSceneDataProvider
 
             self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs)
