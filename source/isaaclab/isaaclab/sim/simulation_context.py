@@ -235,10 +235,6 @@ class SimulationContext:
         env_origins = getattr(scene, "env_origins", None)
         if env_origins is not None:
             self._env_origins = env_origins
-            if self._scene_data_provider is not None:
-                set_env_origins = getattr(self._scene_data_provider, "set_env_origins", None)
-                if callable(set_env_origins):
-                    set_env_origins(env_origins)
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types."""
@@ -331,16 +327,12 @@ class SimulationContext:
             set_num_envs = getattr(self._scene_data_provider, "set_num_envs", None)
             if callable(set_num_envs):
                 set_num_envs(self._num_envs)
-        if self._env_origins is not None and self._scene_data_provider is not None:
-            set_env_origins = getattr(self._scene_data_provider, "set_env_origins", None)
-            if callable(set_env_origins):
-                set_env_origins(self._env_origins)
 
         if self._num_envs is None or self._num_envs <= 0:
             logger.warning(
                 "[SimulationContext] Visualizers initialized before scene info is set; "
-                "num_envs/env_origins are unavailable. Call set_scene_info(...) before "
-                "initialize_visualizers for correct partial visualization."
+                "num_envs is unavailable. Call set_scene_info(...) before initialize_visualizers "
+                "for correct partial visualization."
             )
 
         for cfg in visualizer_cfgs:

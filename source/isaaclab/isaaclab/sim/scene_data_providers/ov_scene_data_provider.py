@@ -15,6 +15,9 @@ from pxr import UsdGeom
 
 logger = logging.getLogger(__name__)
 
+# Path pattern for env prims: /World/envs/env_<id>/...
+_ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
+
 
 class OVSceneDataProvider:
     """Scene data provider for Omni PhysX backend.
@@ -28,46 +31,25 @@ class OVSceneDataProvider:
     """
 
     @staticmethod
-    def _env_id_from_rigid_body_path(path: str) -> int | None:
-        """Extract env id from path like /World/envs/env_42/... Return None if no match."""
-        match = re.search(r"/World/envs/env_(\d+)(/|$)", path)
-        return int(match.group(1)) if match else None
-
-    def _count_envs_from_stage(self) -> int:
-        """Infer number of envs from USD stage by counting /World/envs/env_* prims. Returns 0 on failure."""
-        if self._stage is None:
-            return 0
-        env_pattern = re.compile(r"^/World/envs/env_(\d+)$")
-        count = 0
-        try:
-            prim = self._stage.GetPrimAtPath("/World/envs")
-            if not prim.IsValid():
-                return 0
-            for child in prim.GetChildren():
-                path = child.GetPath().pathString
-                if env_pattern.match(path):
-                    count += 1
-            return count
-        except Exception:
-            return 0
+    def _env_id_from_path(path: str) -> int | None:
+        """Extract env id from path (e.g. /World/envs/env_42/...). Used to map body paths to envs for sync."""
+        m = _ENV_ID_RE.search(path)
+        return int(m.group(1)) if m else None
 
     def get_num_envs(self) -> int:
-        """Return number of envs: from set value, or inferred from stage with a warning."""
+        """Return number of envs from scene info (set via set_num_envs)."""
         if self._num_envs is not None and self._num_envs > 0:
             return self._num_envs
-        n = self._count_envs_from_stage()
-        if n <= 0:
-            logger.warning(
-                "[OVSceneDataProvider] num_envs was not set and could not be inferred from stage. "
-                "Call set_num_envs() after scene creation for correct behavior."
-            )
-        return n if n > 0 else 0
+        logger.warning(
+            "[OVSceneDataProvider] num_envs was not set. Call set_num_envs() after scene creation."
+        )
+        return 0
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
 
         self._simulation_context = simulation_context
-        self._stage = stage if stage is not None else getattr(simulation_context, "stage", None)
+        self._stage = stage
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         self._rigid_body_view = None
         self._articulation_view = None
@@ -75,20 +57,15 @@ class OVSceneDataProvider:
         self._xform_view_failures: set[str] = set()
         self._view_body_index_map: dict[str, list[int]] = {}
 
-        # Scene info: set via set_num_envs/set_env_origins after creation (by sim, from env).
+        # Scene info: set via set_num_envs after creation (by sim, from env).
         self._num_envs: int | None = None
-        self._env_origins: Any = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
         self._needs_newton_sync = bool({"newton", "rerun"} & viz_types)
 
-        # Metadata: only fixed backend info. num_envs/env_origins come from get_num_envs()/self._env_origins.
-        # Gravity lives on SimulationCfg (not physics backend config) after physics decoupling.
-        self._metadata = {
-            "physics_backend": "omni",
-            "gravity_vector": tuple(self._simulation_context.cfg.gravity),
-            "clone_physics_only": False,
-        }
+        # Fixed metadata for visualizers. get_metadata() returns this plus num_envs so visualizers
+        # can .get("num_envs", 0), .get("physics_backend", ...) etc. without the provider exposing many methods.
+        self._metadata = {"physics_backend": "omni"}
         if self._stage is None:
             raise RuntimeError(
                 "[OVSceneDataProvider] USD stage is None and not available from simulation_context. "
@@ -127,10 +104,6 @@ class OVSceneDataProvider:
         if self._needs_newton_sync and self._newton_model is not None:
             self._refresh_newton_model_if_needed()
 
-    def set_env_origins(self, env_origins: Any) -> None:
-        """Set env origins tensor/array (num_envs, 3). Called after scene creation when available."""
-        self._env_origins = env_origins
-
     @staticmethod
     def _wildcard_env_paths(paths: list[str]) -> list[str]:
         """Convert /World/envs/env_0 paths to a wildcard pattern when possible."""
@@ -140,7 +113,7 @@ class OVSceneDataProvider:
         return list(dict.fromkeys(wildcard_paths)) if wildcard_paths else paths
 
     def _refresh_newton_model_if_needed(self) -> None:
-        """Rebuild Newton model/state and PhysX views if env count changes."""
+        """Rebuild Newton model/state and PhysX views if env count changes. Only called from set_num_envs (once after scene creation), not every frame."""
         num_envs = self.get_num_envs()
         if num_envs <= 0:
             return
@@ -235,7 +208,7 @@ class OVSceneDataProvider:
         """Build mapping env_id -> list of body indices from rigid_body_paths."""
         self._env_id_to_body_indices = {}
         for body_idx, path in enumerate(self._rigid_body_paths):
-            eid = self._env_id_from_rigid_body_path(path)
+            eid = self._env_id_from_path(path)
             if eid is not None:
                 self._env_id_to_body_indices.setdefault(eid, []).append(body_idx)
 
@@ -551,7 +524,6 @@ class OVSceneDataProvider:
         if not self._needs_newton_sync or self._newton_state is None:
             return
 
-        self._refresh_newton_model_if_needed()
         try:
             import warp as wp
 
@@ -751,16 +723,10 @@ class OVSceneDataProvider:
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return backend metadata (num_envs, gravity, etc.). num_envs is resolved dynamically when not set."""
+        """Return metadata for visualizers (num_envs, physics_backend, etc.)."""
         out = dict(self._metadata)
         out["num_envs"] = self.get_num_envs()
-        if self._env_origins is not None:
-            out["env_origins"] = self._env_origins
         return out
-
-    def get_env_origins(self) -> Any | None:
-        """Return env origins (num_envs, 3) when set by the scene. None if not set."""
-        return self._env_origins
 
     def get_transforms(self) -> dict[str, Any] | None:
         """Return merged body transforms from available PhysX views."""
