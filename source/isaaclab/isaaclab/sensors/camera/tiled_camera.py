@@ -275,7 +275,7 @@ class TiledCamera(Camera):
                 if output_name == "rgb":
                     continue
                 self.renderer.convert_output(self, output_name, output_data)
-                return
+            return
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
