@@ -1428,7 +1428,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_index` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_index`
+        function.
 
         .. note::
             This method expects partial data.
@@ -1450,7 +1451,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon damping into internal buffers.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_mask` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_mask`
+        function.
 
         .. note::
             This method expects full data.
@@ -1472,8 +1474,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim_index`
-        function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim_index` function.
 
         .. note::
             This method expects partial data.
@@ -1499,8 +1501,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim_mask`
-        function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` function.
 
         .. note::
             This method expects full data.
@@ -1526,7 +1528,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon position limits into internal buffers.
 
         This function does not apply the tendon limit to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim_index` function.
+        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim_index`
+        function.
 
         .. note::
             This method expects partial data.
@@ -1552,7 +1555,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon position limits into internal buffers.
 
         This function does not apply the tendon limit to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim_mask` function.
+        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim_mask`
+        function.
 
         .. note::
             This method expects full data.
@@ -1632,7 +1636,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon offset into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim_index` function.
+        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim_index`
+        function.
 
         .. note::
             This method expects partial data.
@@ -1658,7 +1663,8 @@ class BaseArticulation(AssetBase):
         """Set fixed tendon offset into internal buffers.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim_mask` function.
+        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim_mask`
+        function.
 
         .. note::
             This method expects full data.
@@ -1824,8 +1830,8 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim_index`
-        function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim_index` function.
 
         .. note::
             This method expects partial data.
@@ -1851,8 +1857,8 @@ class BaseArticulation(AssetBase):
         """Set spatial tendon limit stiffness into internal buffers.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the :meth:`write_spatial_tendon_properties_to_sim_mask`
-        function.
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim_mask` function.
 
         .. note::
             This method expects full data.
@@ -2134,7 +2140,8 @@ class BaseArticulation(AssetBase):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     def write_root_pose_to_sim(
@@ -2229,7 +2236,8 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | slice | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     def write_joint_position_to_sim(

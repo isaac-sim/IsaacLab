@@ -1327,7 +1327,8 @@ class ArticulationData(BaseArticulationData):
     def root_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         warnings.warn(
-            "The `root_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and `root_com_vel_w` instead.",
+            "The `root_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -1352,7 +1353,8 @@ class ArticulationData(BaseArticulationData):
     def root_link_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         warnings.warn(
-            "The `root_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and `root_link_vel_w` instead.",
+            "The `root_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_link_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -1377,7 +1379,8 @@ class ArticulationData(BaseArticulationData):
     def root_com_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         warnings.warn(
-            "The `root_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_com_pose_w` and `root_com_vel_w` instead.",
+            "The `root_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_com_pose_w` and "
+            "`root_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )

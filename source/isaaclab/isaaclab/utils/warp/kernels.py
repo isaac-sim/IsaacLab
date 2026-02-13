@@ -544,7 +544,8 @@ def add_forces_and_torques_at_position_mask(
     tid_env, tid_body = wp.tid()
 
     if env_mask[tid_env] and body_mask[tid_body]:
-        # add the forces to the composed force, if the positions are provided, also adds a torque to the composed torque.
+        # add the forces to the composed force, if the positions are provided, also adds a torque to the composed
+        # torque.
         if forces:
             # add the forces to the composed force
             composed_forces_b[tid_env, tid_body] += cast_force_to_link_frame(

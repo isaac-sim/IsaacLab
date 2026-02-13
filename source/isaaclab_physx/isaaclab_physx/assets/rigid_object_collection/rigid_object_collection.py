@@ -771,7 +771,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Invalidate the cached buffer
         self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for PhysX.
+        # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
+        # PhysX.
         com_view_order = self.reshape_data_to_view_2d(self.data._body_com_pose_b.data, device="cpu")  # (B*I, 7)
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_coms(com_view_order, indices=view_ids)
@@ -1227,7 +1228,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and :meth:`write_body_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_body_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_body_link_pose_to_sim_index' and 'write_body_com_velocity_to_sim_index' instead.",
@@ -1243,7 +1245,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and :meth:`write_body_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_body_com_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_body_com_pose_to_sim_index' and 'write_body_com_velocity_to_sim_index' instead.",
@@ -1259,7 +1262,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and :meth:`write_body_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_body_link_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_body_link_pose_to_sim_index' and 'write_body_link_velocity_to_sim_index' instead.",

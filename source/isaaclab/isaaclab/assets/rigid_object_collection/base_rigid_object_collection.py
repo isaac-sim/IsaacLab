@@ -696,7 +696,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and :meth:`write_body_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -706,7 +707,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and :meth:`write_body_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -716,7 +718,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and :meth:`write_body_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     def write_body_pose_to_sim(
@@ -883,7 +886,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and :meth:`write_body_link_velocity_to_sim_index` instead."""
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_state_to_sim` method will be deprecated in a future release. Please use"
             " `write_body_pose_to_sim_index` and `write_body_link_velocity_to_sim_index` instead.",
@@ -898,7 +902,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` and :meth:`write_body_velocity_to_sim_index` instead."""
+        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` and
+        :meth:`write_body_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_com_state_to_sim` method will be deprecated in a future release. Please use"
             " `write_body_com_pose_to_sim_index` and `write_body_velocity_to_sim_index` instead.",
@@ -913,7 +918,8 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and :meth:`write_body_link_velocity_to_sim_index` instead."""
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_link_state_to_sim` method will be deprecated in a future release. Please use"
             " `write_body_pose_to_sim_index` and `write_body_link_velocity_to_sim_index` instead.",

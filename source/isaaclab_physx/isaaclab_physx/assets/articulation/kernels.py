@@ -111,7 +111,7 @@ def write_joint_limit_data_to_buffer(
     joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     default_joint_pos: wp.array2d(dtype=wp.float32),
-    clamped_defaults: bool,
+    clamped_defaults: wp.array(dtype=wp.int32),
 ):
     """Write joint limit data to the output buffers and compute soft limits.
 
@@ -135,8 +135,8 @@ def write_joint_limit_data_to_buffer(
             Shape is (num_envs, num_joints).
         default_joint_pos: Input/output array of default joint positions. If any values fall
             outside the limits, they are clamped. Shape is (num_envs, num_joints).
-        clamped_defaults: Output flag indicating whether any default joint positions were
-            clamped. This is set to True if any clamping occurred.
+        clamped_defaults: Output 1-element array flag indicating whether any default joint
+            positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
     """
     i, j = wp.tid()
     if from_mask:
@@ -146,7 +146,7 @@ def write_joint_limit_data_to_buffer(
     if (
         default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]
     ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
-        clamped_defaults = True
+        wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(
             default_joint_pos[env_ids[i], joint_ids[j]],
             joint_pos_limits[env_ids[i], joint_ids[j]][0],

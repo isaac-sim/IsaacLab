@@ -312,7 +312,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         warnings.warn(
-            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_com_vel_w` instead.",
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -337,7 +338,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_link_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         warnings.warn(
-            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and `body_link_vel_w` instead.",
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -362,7 +364,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_com_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         warnings.warn(
-            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and `body_com_vel_w` instead.",
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
             DeprecationWarning,
             stacklevel=2,
         )

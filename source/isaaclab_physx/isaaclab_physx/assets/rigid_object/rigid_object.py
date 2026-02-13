@@ -638,7 +638,8 @@ class RigidObject(BaseRigidObject):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies) if full_data.
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies)
+                if full_data.
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -718,7 +719,8 @@ class RigidObject(BaseRigidObject):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7) if full_data.
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
+                (num_instances, num_bodies, 7) if full_data.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -797,7 +799,8 @@ class RigidObject(BaseRigidObject):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or (num_instances, num_bodies, 9) if full_data.
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
+                (num_instances, num_bodies, 9) if full_data.
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -1018,7 +1021,8 @@ class RigidObject(BaseRigidObject):
     def write_root_state_to_sim(
         self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
     ):
-        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and :meth:`write_root_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
@@ -1031,7 +1035,8 @@ class RigidObject(BaseRigidObject):
     def write_root_com_state_to_sim(
         self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
     ):
-        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and :meth:`write_root_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
@@ -1044,7 +1049,8 @@ class RigidObject(BaseRigidObject):
     def write_root_link_state_to_sim(
         self, root_state: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
     ):
-        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",

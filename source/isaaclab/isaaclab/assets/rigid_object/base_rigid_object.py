@@ -663,7 +663,8 @@ class BaseRigidObject(AssetBase):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_pose_to_sim_index`
+        and :meth:`write_root_link_velocity_to_sim_index`."""
         raise NotImplementedError()
 
     def write_root_pose_to_sim(

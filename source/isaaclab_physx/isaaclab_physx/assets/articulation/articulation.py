@@ -640,7 +640,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -721,7 +722,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or (num_instances, 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -796,7 +798,8 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
@@ -1217,7 +1220,7 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
 
-        clamped_defaults = False
+        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         if isinstance(limits, float):
@@ -1241,7 +1244,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Log a warning if the default joint positions are outside of the new limits.
-        if clamped_defaults:
+        if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
@@ -1729,7 +1732,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -1812,7 +1816,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -1902,7 +1907,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies) if full_data.
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies)
+                if full_data.
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -1979,7 +1985,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7) if full_data.
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
+                (num_instances, num_bodies, 7) if full_data.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2061,7 +2068,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or (num_instances, num_bodies, 9) if full_data.
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
+                (num_instances, num_bodies, 9) if full_data.
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2140,7 +2148,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
+            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2217,7 +2226,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
+            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2294,7 +2304,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
+            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2376,7 +2387,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2449,7 +2461,8 @@ class Articulation(BaseArticulation):
         """Set fixed tendon damping into internal buffers using indices.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_index` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_index`
+        function.
 
         .. note::
             This method expects partial data or full data.
@@ -2459,7 +2472,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2541,7 +2555,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2625,7 +2640,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2709,7 +2725,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2793,7 +2810,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2865,7 +2883,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None (all fixed tendons).
+            fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None
+                (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
@@ -2922,7 +2941,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons) if full_data.
+            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -3006,7 +3026,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons) if full_data.
+            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -3090,8 +3111,10 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons) if full_data.
-            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all spatial tendons).
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None
+                (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -3174,7 +3197,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or (num_instances, num_spatial_tendons) if full_data.
+            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -4084,8 +4108,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Deprecated, same as :meth:`write_joint_viscous_friction_coefficient_to_sim_index`."""
         warnings.warn(
-            "The function 'write_joint_viscous_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_viscous_friction_coefficient_to_sim_index' instead.",
+            "The function 'write_joint_viscous_friction_coefficient_to_sim' will be deprecated in a future release. "
+            "Please use 'write_joint_viscous_friction_coefficient_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -4102,8 +4126,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Deprecated, same as :meth:`write_joint_dynamic_friction_coefficient_to_sim_index`."""
         warnings.warn(
-            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_dynamic_friction_coefficient_to_sim_index' instead.",
+            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release. "
+            "Please use 'write_joint_dynamic_friction_coefficient_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -4116,7 +4140,8 @@ class Articulation(BaseArticulation):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and :meth:`write_root_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
@@ -4131,7 +4156,8 @@ class Articulation(BaseArticulation):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and :meth:`write_root_com_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
@@ -4146,7 +4172,8 @@ class Articulation(BaseArticulation):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",

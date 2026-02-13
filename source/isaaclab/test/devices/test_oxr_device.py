@@ -207,7 +207,7 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     xr_anchor_view = sim_utils.XformPrimView("/World/XRAnchor")
     assert xr_anchor_view.count == 1
 
-    position, orientation = xr_anchor_prim.get_world_poses()
+    position, orientation = xr_anchor_view.get_world_poses()
     np.testing.assert_almost_equal(position.numpy().tolist(), [[0, 0, 0]])
     np.testing.assert_almost_equal(orientation.numpy().tolist(), [[0, 0, 0, 1]])
 
@@ -230,7 +230,7 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     xr_anchor_view = sim_utils.XformPrimView("/World/XRAnchor")
     assert xr_anchor_view.count == 1
 
-    position, orientation = xr_anchor_prim.get_world_poses()
+    position, orientation = xr_anchor_view.get_world_poses()
     np.testing.assert_almost_equal(position.numpy().tolist(), [[0, 0, 0]])
     np.testing.assert_almost_equal(orientation.numpy().tolist(), [[0, 0, 0, 1]])
 

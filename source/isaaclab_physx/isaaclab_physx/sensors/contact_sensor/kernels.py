@@ -286,8 +286,8 @@ def reset_vec3f_4d(
         env_ids: Environment indices to reset. Shape is (num_env_ids,).
         val: Value to fill with.
     """
-    i, j, k, l = wp.tid()
-    buf[env_ids[i], j, k, l] = val
+    i, j, k, m = wp.tid()
+    buf[env_ids[i], j, k, m] = val
 
 
 @wp.kernel

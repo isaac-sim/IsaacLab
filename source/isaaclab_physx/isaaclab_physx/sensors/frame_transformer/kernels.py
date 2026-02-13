@@ -36,7 +36,8 @@ def frame_transformer_update_kernel(
     Args:
         raw_transforms: Raw transforms from PhysX view. Shape is (N*M,) where N is num_envs and M is num_bodies.
         source_raw_indices: Indices into raw_transforms for source frame per environment. Shape is (N,).
-        target_raw_indices: Indices into raw_transforms for target frames per (env, frame). Shape is (N, M) where M is num_target_frames.
+        target_raw_indices: Indices into raw_transforms for target frames per (env, frame). Shape is (N, M) where M is
+            num_target_frames.
         source_offset_pos: Optional position offset for source frame. Shape is (N, 3).
         source_offset_quat: Optional quaternion offset for source frame. Shape is (N, 4).
         target_offset_pos: Optional position offsets for target frames. Shape is (M, 3).
@@ -53,10 +54,6 @@ def frame_transformer_update_kernel(
     # Get source frame transform
     source_idx = source_raw_indices[env_id]
     source_tf = raw_transforms[source_idx]
-
-    # Apply source offset if needed
-    source_pos = wp.transform_get_translation(source_tf)
-    source_quat = wp.transform_get_rotation(source_tf)
 
     # Apply source frame offset
     source_offset_tf = wp.transform(source_offset_pos[env_id], source_offset_quat[env_id])

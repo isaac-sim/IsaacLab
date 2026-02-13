@@ -20,7 +20,8 @@ class FrameTransformerData(BaseFrameTransformerData):
 
     @property
     def target_pose_source(self) -> None:
-        """Not available for warp backend (cannot concatenate vec3f and quatf). Use target_pos_source / target_quat_source."""
+        """Not available for warp backend (cannot concatenate vec3f and quatf). Use target_pos_source /
+        target_quat_source."""
         return None
 
     @property
