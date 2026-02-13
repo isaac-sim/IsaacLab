@@ -113,7 +113,9 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
+    ) -> None:
         """Reset the rigid object.
 
         .. caution::
@@ -149,9 +151,7 @@ class BaseRigidObject(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -758,8 +758,7 @@ class BaseRigidObject(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
         warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please"
-            " use 'set_masses_index' instead.",
+            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -773,8 +772,7 @@ class BaseRigidObject(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
         warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please"
-            " use 'set_coms_index' instead.",
+            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -811,4 +809,6 @@ class BaseRigidObject(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.permanent_wrench_composer.set_forces_and_torques(forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global)
+        self.permanent_wrench_composer.set_forces_and_torques(
+            forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global
+        )

@@ -44,8 +44,8 @@ def air_time_reward(
     if contact_sensor.cfg.track_air_time is False:
         raise RuntimeError("Activate ContactSensor's track_air_time!")
     # compute the reward
-    current_air_time = contact_sensor.data.current_air_time[:, sensor_cfg.body_ids]
-    current_contact_time = contact_sensor.data.current_contact_time[:, sensor_cfg.body_ids]
+    current_air_time = wp.to_torch(contact_sensor.data.current_air_time)[:, sensor_cfg.body_ids]
+    current_contact_time = wp.to_torch(contact_sensor.data.current_contact_time)[:, sensor_cfg.body_ids]
 
     t_max = torch.max(current_air_time, current_contact_time)
     t_min = torch.clip(t_max, max=mode_time)
@@ -162,8 +162,8 @@ class GaitReward(ManagerTermBase):
 
     def _sync_reward_func(self, foot_0: int, foot_1: int) -> torch.Tensor:
         """Reward synchronization of two feet."""
-        air_time = self.contact_sensor.data.current_air_time
-        contact_time = self.contact_sensor.data.current_contact_time
+        air_time = wp.to_torch(self.contact_sensor.data.current_air_time)
+        contact_time = wp.to_torch(self.contact_sensor.data.current_contact_time)
         # penalize the difference between the most recent air time and contact time of synced feet pairs.
         se_air = torch.clip(torch.square(air_time[:, foot_0] - air_time[:, foot_1]), max=self.max_err**2)
         se_contact = torch.clip(torch.square(contact_time[:, foot_0] - contact_time[:, foot_1]), max=self.max_err**2)
@@ -171,8 +171,8 @@ class GaitReward(ManagerTermBase):
 
     def _async_reward_func(self, foot_0: int, foot_1: int) -> torch.Tensor:
         """Reward anti-synchronization of two feet."""
-        air_time = self.contact_sensor.data.current_air_time
-        contact_time = self.contact_sensor.data.current_contact_time
+        air_time = wp.to_torch(self.contact_sensor.data.current_air_time)
+        contact_time = wp.to_torch(self.contact_sensor.data.current_contact_time)
         # penalize the difference between opposing contact modes air time of feet 1 to contact time of feet 2
         # and contact time of feet 1 to air time of feet 2) of feet pairs that are not in sync with each other.
         se_act_0 = torch.clip(torch.square(air_time[:, foot_0] - contact_time[:, foot_1]), max=self.max_err**2)

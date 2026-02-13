@@ -120,7 +120,9 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
-            self.fingertip_force_sensors = wp.to_torch(self.hand.root_view.get_link_incoming_joint_force())[:, self.finger_bodies]
+            self.fingertip_force_sensors = wp.to_torch(self.hand.root_view.get_link_incoming_joint_force())[
+                :, self.finger_bodies
+            ]
 
         if self.cfg.obs_type == "openai":
             obs = self.compute_reduced_observations()

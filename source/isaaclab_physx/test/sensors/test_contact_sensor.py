@@ -797,12 +797,9 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
         pos_w_torch = wp.to_torch(sensor._data.pos_w)
-        contact_position = pos_w_torch + torch.tensor(
-            [[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device
-        )
+        contact_position = pos_w_torch + torch.tensor([[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device)
         assert torch.all(
-            torch.abs(torch.linalg.norm(contact_pos_torch - contact_position.unsqueeze(1), ord=2, dim=-1))
-            < 1e-2
+            torch.abs(torch.linalg.norm(contact_pos_torch - contact_position.unsqueeze(1), ord=2, dim=-1)) < 1e-2
         ).item()
     elif mode == ContactTestMode.NON_CONTACT:
         assert torch.all(torch.isnan(contact_pos_torch)).item()

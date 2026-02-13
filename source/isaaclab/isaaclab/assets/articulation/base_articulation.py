@@ -190,7 +190,9 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
+    ) -> None:
         """Reset the articulation.
 
         .. caution::
@@ -2244,7 +2246,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
-        
+
     def write_joint_velocity_to_sim(
         self,
         velocity: torch.Tensor | wp.array,
@@ -2259,7 +2261,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
-        
 
     def write_joint_stiffness_to_sim(
         self,
@@ -2275,7 +2276,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_stiffness_to_sim_index(stiffness, joint_ids=joint_ids, env_ids=env_ids)
-        
+
     def write_joint_damping_to_sim(
         self,
         damping: torch.Tensor | float | wp.array,
@@ -2305,12 +2306,16 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_position_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation)
-            
-    def write_joint_velocity_limit_to_sim(self,
+        self.write_joint_position_limit_to_sim_index(
+            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+        )
+
+    def write_joint_velocity_limit_to_sim(
+        self,
         limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,) -> None:
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Deprecated, same as :meth:`write_joint_velocity_limit_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_velocity_limit_to_sim' will be deprecated in a future release. Please"
@@ -2319,11 +2324,13 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_velocity_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids)
-            
-    def write_joint_effort_limit_to_sim(self,
+
+    def write_joint_effort_limit_to_sim(
+        self,
         limits: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,) -> None:
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Deprecated, same as :meth:`write_joint_effort_limit_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_effort_limit_to_sim' will be deprecated in a future release. Please"
@@ -2332,7 +2339,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_effort_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids)
-            
+
     def write_joint_armature_to_sim(
         self,
         armature: torch.Tensor | float | wp.array,
@@ -2347,7 +2354,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_armature_to_sim_index(armature, joint_ids=joint_ids, env_ids=env_ids)
-            
+
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: torch.Tensor | float | wp.array,
@@ -2362,7 +2369,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids)
-            
+
     def set_masses(
         self,
         masses: torch.Tensor | wp.array,
@@ -2371,13 +2378,12 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
         warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please"
-            " use 'set_masses_index' instead.",
+            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
-            
+
     def set_coms(
         self,
         coms: torch.Tensor | wp.array,
@@ -2386,13 +2392,12 @@ class BaseArticulation(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
         warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please"
-            " use 'set_coms_index' instead.",
+            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
-            
+
     def set_inertias(
         self,
         inertias: torch.Tensor | wp.array,
@@ -2407,7 +2412,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
-            
+
     def set_external_force_and_torque(
         self,
         forces: torch.Tensor | wp.array,
@@ -2424,8 +2429,10 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.permanent_wrench_composer.set_forces_and_torques(forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global)
-            
+        self.permanent_wrench_composer.set_forces_and_torques(
+            forces, torques, positions=positions, body_ids=body_ids, env_ids=env_ids, is_global=is_global
+        )
+
     def set_joint_position_target(
         self,
         target: torch.Tensor | wp.array,
@@ -2440,11 +2447,13 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_joint_position_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
-            
-    def set_joint_velocity_target(self,
+
+    def set_joint_velocity_target(
+        self,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,) -> None:
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Deprecated, same as :meth:`set_joint_velocity_target_index`."""
         warnings.warn(
             "The function 'set_joint_velocity_target' will be deprecated in a future release. Please"
@@ -2453,7 +2462,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_joint_velocity_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
-            
+
     def set_joint_effort_target(
         self,
         target: torch.Tensor | wp.array,
@@ -2468,7 +2477,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_joint_effort_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
-            
+
     def set_fixed_tendon_stiffness(
         self,
         stiffness: torch.Tensor | wp.array,
@@ -2483,7 +2492,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_stiffness_index(stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
 
     def set_fixed_tendon_damping(
         self,
@@ -2499,7 +2507,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_damping_index(damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
+
     def set_fixed_tendon_limit_stiffness(
         self,
         limit_stiffness: torch.Tensor | wp.array,
@@ -2514,7 +2522,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_limit_stiffness_index(limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
 
     def set_fixed_tendon_position_limit(
         self,
@@ -2530,7 +2537,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_position_limit_index(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
+
     def set_fixed_tendon_rest_length(
         self,
         rest_length: torch.Tensor | wp.array,
@@ -2545,7 +2552,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_rest_length_index(rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
+
     def set_fixed_tendon_offset(
         self,
         offset: torch.Tensor | wp.array,
@@ -2560,7 +2567,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_fixed_tendon_offset_index(offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-            
 
     def write_fixed_tendon_properties_to_sim(
         self,
@@ -2576,7 +2582,7 @@ class BaseArticulation(AssetBase):
         )
         # Removing the fixed tendon ids argument as it is not used.
         self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
-            
+
     def set_spatial_tendon_stiffness(
         self,
         stiffness: torch.Tensor | wp.array,
@@ -2591,7 +2597,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_spatial_tendon_stiffness_index(stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
-            
 
     def set_spatial_tendon_damping(
         self,
@@ -2607,7 +2612,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_spatial_tendon_damping_index(damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
-            
+
     def set_spatial_tendon_limit_stiffness(
         self,
         limit_stiffness: torch.Tensor | wp.array,
@@ -2621,8 +2626,10 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_spatial_tendon_limit_stiffness_index(limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
-            
+        self.set_spatial_tendon_limit_stiffness_index(
+            limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
+        )
+
     def set_spatial_tendon_offset(
         self,
         offset: torch.Tensor,
@@ -2637,7 +2644,6 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_spatial_tendon_offset_index(offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
-            
 
     def write_spatial_tendon_properties_to_sim(
         self,
@@ -2653,4 +2659,3 @@ class BaseArticulation(AssetBase):
         )
         # Removing the spatial tendon ids argument as it is not used.
         self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
-            

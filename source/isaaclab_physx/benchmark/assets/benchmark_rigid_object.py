@@ -65,7 +65,6 @@ from isaacsim.core.simulation_manager import SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
-import warp as wp
 
 from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject
 from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData

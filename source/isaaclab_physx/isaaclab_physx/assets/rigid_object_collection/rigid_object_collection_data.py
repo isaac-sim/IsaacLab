@@ -79,9 +79,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = wp.from_torch(
-            gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f
-        )
+        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f)
         self.FORWARD_VEC_B = wp.from_torch(
             torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_bodies, 1),
             dtype=wp.vec3f,
@@ -640,7 +638,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
         self._body_link_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
-        self._body_link_vel_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_link_vel_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
+        )
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
         # -- com frame w.r.t. world frame
@@ -653,8 +653,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_state_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, vec13f)
 
         # -- Default state
-        self._default_body_pose = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
-        self._default_body_vel = wp.zeros((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_body_pose = wp.zeros(
+            (self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device
+        )
+        self._default_body_vel = wp.zeros(
+            (self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device
+        )
         self._default_body_state = None
 
         # -- Derived properties
@@ -667,7 +671,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])
         # Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.
-        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape((self.num_instances, self.num_bodies, 1))
+        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape(
+            (self.num_instances, self.num_bodies, 1)
+        )
         # Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.
         # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.
         self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)

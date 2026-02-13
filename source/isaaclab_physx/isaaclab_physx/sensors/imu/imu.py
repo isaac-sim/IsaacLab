@@ -210,9 +210,7 @@ class Imu(BaseImu):
         if len(env_ids) == self._num_envs:
             env_ids_wp = self._ALL_ENV_INDICES
         else:
-            env_ids_wp = wp.from_torch(
-                torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32
-            )
+            env_ids_wp = wp.from_torch(torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32)
 
         # Fetch view data as warp typed arrays
         transforms = self._view.get_transforms().view(wp.transformf)
@@ -263,9 +261,7 @@ class Imu(BaseImu):
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
         # Set gravity bias
-        gravity_bias_torch = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(
-            self._view.count, 1
-        )
+        gravity_bias_torch = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(self._view.count, 1)
         self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
 
         # Pre-allocate all-env indices for fast path

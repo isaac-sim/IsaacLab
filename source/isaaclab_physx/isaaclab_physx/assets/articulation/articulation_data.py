@@ -14,7 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
+from isaaclab.utils.math import normalize
 
 from .kernels import *
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -207,7 +207,7 @@ class ArticulationData(BaseArticulationData):
             ],
             device=self.device,
         )
-        return self._default_root_state 
+        return self._default_root_state
 
     @property
     def default_joint_pos(self) -> wp.array:
@@ -763,7 +763,9 @@ class ArticulationData(BaseArticulationData):
         """
 
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
-            self._body_incoming_joint_wrench_b.data = self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf)
+            self._body_incoming_joint_wrench_b.data = self._root_view.get_link_incoming_joint_force().view(
+                wp.spatial_vectorf
+            )
             self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
         return self._body_incoming_joint_wrench_b.data
 
@@ -1100,15 +1102,21 @@ class ArticulationData(BaseArticulationData):
         self._root_link_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
         self._root_link_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
         self._body_link_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
-        self._body_link_vel_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
+        self._body_link_vel_w = TimestampedBuffer(
+            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+        )
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
         self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
         self._body_com_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
-        self._body_com_vel_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
-        self._body_com_acc_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_vel_w = TimestampedBuffer(
+            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+        )
+        self._body_com_acc_w = TimestampedBuffer(
+            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+        )
         # -- combined state (these are cached as they concatenate)
         self._root_state_w = TimestampedBuffer((self._num_instances), self.device, vec13f)
         self._root_link_state_w = TimestampedBuffer((self._num_instances), self.device, vec13f)
@@ -1120,7 +1128,9 @@ class ArticulationData(BaseArticulationData):
         self._joint_pos = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         self._joint_vel = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         self._joint_acc = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
-        self._body_incoming_joint_wrench_b = TimestampedBuffer((self._num_instances, self._num_bodies, self._num_joints), self.device, wp.spatial_vectorf)
+        self._body_incoming_joint_wrench_b = TimestampedBuffer(
+            (self._num_instances, self._num_bodies, self._num_joints), self.device, wp.spatial_vectorf
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
         self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
@@ -1132,8 +1142,12 @@ class ArticulationData(BaseArticulationData):
         # Default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
-        self._default_joint_pos = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._default_joint_vel = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._default_joint_pos = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._default_joint_vel = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
 
         # Initialize history for finite differencing
         self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(), device=self.device)
@@ -1142,7 +1156,9 @@ class ArticulationData(BaseArticulationData):
         # -- Joint commands (set into simulation)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_effort_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_effort_target = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         # -- Joint commands (explicit actuator model)
         self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1150,26 +1166,51 @@ class ArticulationData(BaseArticulationData):
         self._joint_stiffness = wp.clone(self._root_view.get_dof_stiffnesses(), device=self.device)
         self._joint_damping = wp.clone(self._root_view.get_dof_dampings(), device=self.device)
         self._joint_armature = wp.clone(self._root_view.get_dof_armatures(), device=self.device)
-        friction_props = self._root_view.get_dof_friction_properties()
-        self._joint_friction_coeff = wp.clone(friction_props[:, :, 0], device=self.device)
-        self._joint_dynamic_friction_coeff = wp.clone(friction_props[:, :, 1], device=self.device)
-        self._joint_viscous_friction_coeff = wp.clone(friction_props[:, :, 2], device=self.device)
+        friction_props = wp.clone(self._root_view.get_dof_friction_properties(), device=self.device)
+        # Initialize output arrays
+        self._joint_friction_coeff = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_dynamic_friction_coeff = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_viscous_friction_coeff = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        # Extract friction properties using kernel
+        wp.launch(
+            extract_friction_properties,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[friction_props],
+            outputs=[
+                self._joint_friction_coeff,
+                self._joint_dynamic_friction_coeff,
+                self._joint_viscous_friction_coeff,
+            ],
+            device=self.device,
+        )
         self._joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
         self._joint_pos_limits.assign(self._root_view.get_dof_limits().view(wp.vec2f))
         self._joint_vel_limits = wp.clone(self._root_view.get_dof_max_velocities(), device=self.device)
         self._joint_effort_limits = wp.clone(self._root_view.get_dof_max_forces(), device=self.device)
         # -- Joint properties (custom)
-        self._soft_joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
-        self._soft_joint_vel_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._soft_joint_pos_limits = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
+        )
+        self._soft_joint_vel_limits = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- Fixed tendon properties
         if self._num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = wp.clone(self._root_view.get_fixed_tendon_stiffnesses(), device=self.device)
             self._fixed_tendon_damping = wp.clone(self._root_view.get_fixed_tendon_dampings(), device=self.device)
-            self._fixed_tendon_limit_stiffness = (
-                wp.clone(self._root_view.get_fixed_tendon_limit_stiffnesses(), device=self.device)
+            self._fixed_tendon_limit_stiffness = wp.clone(
+                self._root_view.get_fixed_tendon_limit_stiffnesses(), device=self.device
             )
-            self._fixed_tendon_rest_length = wp.clone(self._root_view.get_fixed_tendon_rest_lengths(), device=self.device)
+            self._fixed_tendon_rest_length = wp.clone(
+                self._root_view.get_fixed_tendon_rest_lengths(), device=self.device
+            )
             self._fixed_tendon_offset = wp.clone(self._root_view.get_fixed_tendon_offsets(), device=self.device)
             self._fixed_tendon_pos_limits = wp.clone(self._root_view.get_fixed_tendon_limits(), device=self.device)
         else:
@@ -1181,10 +1222,12 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_pos_limits = None
         # -- Spatial tendon properties
         if self._num_spatial_tendons > 0:
-            self._spatial_tendon_stiffness = wp.clone(self._root_view.get_spatial_tendon_stiffnesses(), device=self.device)
+            self._spatial_tendon_stiffness = wp.clone(
+                self._root_view.get_spatial_tendon_stiffnesses(), device=self.device
+            )
             self._spatial_tendon_damping = wp.clone(self._root_view.get_spatial_tendon_dampings(), device=self.device)
-            self._spatial_tendon_limit_stiffness = (
-                wp.clone(self._root_view.get_spatial_tendon_limit_stiffnesses(), device=self.device)
+            self._spatial_tendon_limit_stiffness = wp.clone(
+                self._root_view.get_spatial_tendon_limit_stiffnesses(), device=self.device
             )
             self._spatial_tendon_offset = wp.clone(self._root_view.get_spatial_tendon_offsets(), device=self.device)
         else:
@@ -1196,7 +1239,6 @@ class ArticulationData(BaseArticulationData):
         self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
         self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
         self._default_root_state = None
-
 
     """
     Internal helpers.
@@ -1229,13 +1271,13 @@ class ArticulationData(BaseArticulationData):
             The quaternion array. Shape is (N, 4).
         """
         return wp.array(
-            ptr=transform.ptr + 3*4,
+            ptr=transform.ptr + 3 * 4,
             shape=transform.shape,
             dtype=wp.quatf,
             strides=transform.strides,
             device=self.device,
         )
-    
+
     def _get_lin_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
         """Generates a linear velocity array from a spatial vector array.
 
@@ -1252,7 +1294,7 @@ class ArticulationData(BaseArticulationData):
             strides=spatial_vector.strides,
             device=self.device,
         )
-    
+
     def _get_ang_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
         """Generates an angular velocity array from a spatial vector array.
 
@@ -1263,13 +1305,12 @@ class ArticulationData(BaseArticulationData):
             The angular velocity array. Shape is (N, 3).
         """
         return wp.array(
-            ptr=spatial_vector.ptr + 3*4,
+            ptr=spatial_vector.ptr + 3 * 4,
             shape=spatial_vector.shape,
             dtype=wp.vec3f,
             strides=spatial_vector.strides,
             device=self.device,
         )
-    
 
     """
     Deprecated properties.

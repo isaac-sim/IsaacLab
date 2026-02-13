@@ -817,8 +817,7 @@ class BaseRigidObjectCollection(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
         warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please"
-            " use 'set_masses_index' instead.",
+            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -832,8 +831,7 @@ class BaseRigidObjectCollection(AssetBase):
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
         warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please"
-            " use 'set_coms_index' instead.",
+            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )

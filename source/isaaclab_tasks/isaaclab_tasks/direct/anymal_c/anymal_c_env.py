@@ -76,7 +76,9 @@ class AnymalCEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
-        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(self._robot.data.default_joint_pos)
+        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(
+            self._robot.data.default_joint_pos
+        )
 
     def _apply_action(self):
         self._robot.set_joint_position_target(self._processed_actions)
@@ -110,7 +112,9 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         # linear velocity tracking
-        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1)
+        lin_vel_error = torch.sum(
+            torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1
+        )
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
         # yaw rate tracking
         yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])

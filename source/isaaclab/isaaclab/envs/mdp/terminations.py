@@ -116,7 +116,9 @@ def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
     limits = wp.to_torch(asset.data.soft_joint_vel_limits)
-    return torch.any(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
+    return torch.any(
+        torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1
+    )
 
 
 def joint_vel_out_of_manual_limit(
@@ -142,7 +144,8 @@ def joint_effort_out_of_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids], wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
+        wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids],
+        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids],
     )
     return torch.any(out_of_limits, dim=1)
 
@@ -156,7 +159,7 @@ def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneE
     """Terminate when the contact force on the sensor exceeds the force threshold."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = wp.to_torch(contact_sensor.data.net_forces_w_history)
     # check if any contact force exceeds the threshold
     return torch.any(
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1

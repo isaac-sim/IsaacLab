@@ -510,7 +510,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            self._body_com_acc_w.data = self._root_view.get_accelerations().view(wp.spatial_vectorf).reshape((self._num_instances, 1))
+            self._body_com_acc_w.data = (
+                self._root_view.get_accelerations().view(wp.spatial_vectorf).reshape((self._num_instances, 1))
+            )
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
         return self._body_com_acc_w.data
@@ -525,7 +527,9 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
-            self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf).reshape((self._num_instances, 1)))
+            self._body_com_pose_b.data.assign(
+                self._root_view.get_coms().view(wp.transformf).reshape((self._num_instances, 1))
+            )
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         return self._body_com_pose_b.data
@@ -835,8 +839,8 @@ class RigidObjectData(BaseRigidObjectData):
         self._default_root_state = None
 
         # -- Body properties
-        self._body_mass = wp.clone(self._root_view.get_masses())
-        self._body_inertia = wp.clone(self._root_view.get_inertias())
+        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
+        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
 
     """
     Internal helpers.
@@ -855,7 +859,7 @@ class RigidObjectData(BaseRigidObjectData):
     def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array."""
         return wp.array(
-            ptr=transform.ptr + 3*4,
+            ptr=transform.ptr + 3 * 4,
             shape=transform.shape,
             dtype=wp.quatf,
             strides=transform.strides,
@@ -875,7 +879,7 @@ class RigidObjectData(BaseRigidObjectData):
     def _get_ang_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
         """Generates an angular velocity array from a spatial vector array."""
         return wp.array(
-            ptr=spatial_vector.ptr + 3*4,
+            ptr=spatial_vector.ptr + 3 * 4,
             shape=spatial_vector.shape,
             dtype=wp.vec3f,
             strides=spatial_vector.strides,

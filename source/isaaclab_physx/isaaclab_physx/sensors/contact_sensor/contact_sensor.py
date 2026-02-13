@@ -31,7 +31,6 @@ from .kernels import (
     copy_flat_vec3f_to_2d,
     copy_flat_vec3f_to_3d,
     reset_float_2d,
-    reset_quatf_2d,
     reset_vec3f_2d,
     reset_vec3f_3d,
     reset_vec3f_4d,
@@ -525,6 +524,4 @@ class ContactSensor(BaseContactSensor):
         if isinstance(ids, torch.Tensor):
             return wp.from_torch(ids.to(dtype=torch.int32, device=self._device).contiguous(), dtype=wp.int32)
         else:
-            return wp.from_torch(
-                torch.tensor(list(ids), dtype=torch.int32, device=self._device), dtype=wp.int32
-            )
+            return wp.from_torch(torch.tensor(list(ids), dtype=torch.int32, device=self._device), dtype=wp.int32)

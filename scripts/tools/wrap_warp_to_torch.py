@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Migration tool: wrap asset .data.* property accesses with wp.to_torch().
 
 After the warp migration, all .data.* properties on asset objects return wp.array
@@ -36,32 +41,38 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 # Known asset class names whose .data properties return wp.array
-ASSET_CLASSES: frozenset[str] = frozenset({
-    "Articulation",
-    "BaseArticulation",
-    "RigidObject",
-    "BaseRigidObject",
-    "RigidObjectCollection",
-    "BaseRigidObjectCollection",
-    "DeformableObject",
-    "AssetBase",
-})
+ASSET_CLASSES: frozenset[str] = frozenset(
+    {
+        "Articulation",
+        "BaseArticulation",
+        "RigidObject",
+        "BaseRigidObject",
+        "RigidObjectCollection",
+        "BaseRigidObjectCollection",
+        "DeformableObject",
+        "AssetBase",
+    }
+)
 
 # Properties on .data that do NOT return wp.array (strings, device, methods, etc.)
-BLACKLISTED_PROPERTIES: frozenset[str] = frozenset({
-    "body_names",
-    "joint_names",
-    "fixed_tendon_names",
-    "spatial_tendon_names",
-    "device",
-    "update",
-    "reset",
-})
+BLACKLISTED_PROPERTIES: frozenset[str] = frozenset(
+    {
+        "body_names",
+        "joint_names",
+        "fixed_tendon_names",
+        "spatial_tendon_names",
+        "device",
+        "update",
+        "reset",
+    }
+)
 
 # Direct attributes on asset objects (not under .data) that are now wp.array
-WARP_ASSET_ATTRIBUTES: frozenset[str] = frozenset({
-    "_ALL_INDICES",
-})
+WARP_ASSET_ATTRIBUTES: frozenset[str] = frozenset(
+    {
+        "_ALL_INDICES",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -150,12 +161,7 @@ class AssetVariableCollector(ast.NodeVisitor):
             if chain:
                 self.asset_vars.add(chain)
         # Also detect when the *value* is an asset constructor
-        if (
-            node.target
-            and node.value
-            and isinstance(node.value, ast.Call)
-            and _is_asset_class_node(node.value.func)
-        ):
+        if node.target and node.value and isinstance(node.value, ast.Call) and _is_asset_class_node(node.value.func):
             chain = get_attr_chain(node.target)
             if chain:
                 self.asset_vars.add(chain)
@@ -287,11 +293,7 @@ class DataAccessFinder(ast.NodeVisitor):
 
     def _is_getattr_data_call(self, node: ast.Call) -> bool:
         """Return True if *node* is ``getattr(asset.data, key)``."""
-        if not (
-            isinstance(node.func, ast.Name)
-            and node.func.id == "getattr"
-            and len(node.args) >= 2
-        ):
+        if not (isinstance(node.func, ast.Name) and node.func.id == "getattr" and len(node.args) >= 2):
             return False
         first_arg = node.args[0]
         if not (isinstance(first_arg, ast.Attribute) and first_arg.attr == "data"):
@@ -339,9 +341,7 @@ def apply_wraps(source: str, targets: list[WrapTarget]) -> str:
     lines = source.split("\n")
 
     # Sort bottom-right → top-left so earlier edits don't shift later offsets
-    sorted_targets = sorted(
-        targets, key=lambda t: (t.start_line, t.start_col), reverse=True
-    )
+    sorted_targets = sorted(targets, key=lambda t: (t.start_line, t.start_col), reverse=True)
 
     for target in sorted_targets:
         target.original_text = _extract_text_span(lines, target)
@@ -358,15 +358,9 @@ def apply_wraps(source: str, targets: list[WrapTarget]) -> str:
         else:
             # Multi-line: suffix on last line first, then prefix on first line
             last = lines[target.end_line - 1]
-            lines[target.end_line - 1] = (
-                last[: target.end_col] + ")" + last[target.end_col :]
-            )
+            lines[target.end_line - 1] = last[: target.end_col] + ")" + last[target.end_col :]
             first = lines[target.start_line - 1]
-            lines[target.start_line - 1] = (
-                first[: target.start_col]
-                + "wp.to_torch("
-                + first[target.start_col :]
-            )
+            lines[target.start_line - 1] = first[: target.start_col] + "wp.to_torch(" + first[target.start_col :]
 
     return "\n".join(lines)
 
@@ -585,9 +579,7 @@ def process_file(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Wrap asset .data.* property accesses with wp.to_torch()."
-    )
+    parser = argparse.ArgumentParser(description="Wrap asset .data.* property accesses with wp.to_torch().")
     parser.add_argument("path", help="File or directory to process")
     parser.add_argument(
         "--apply",
@@ -605,9 +597,7 @@ def main() -> None:
         default=2,
         help="Lines of context around each change (default: 2)",
     )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed output per transform"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Show detailed output per transform")
     args = parser.parse_args()
 
     target_path = Path(args.path)
@@ -652,10 +642,7 @@ def main() -> None:
             print("\nQuitting early (user requested).")
             break
 
-    print(
-        f"\nSummary: {total_changes} wraps across {files_changed} file(s), "
-        f"{total_imports} import(s) added"
-    )
+    print(f"\nSummary: {total_changes} wraps across {files_changed} file(s), {total_imports} import(s) added")
 
 
 if __name__ == "__main__":

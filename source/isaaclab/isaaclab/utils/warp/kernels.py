@@ -404,20 +404,28 @@ def add_forces_and_torques_at_position_index(
     if forces:
         # add the forces to the composed force
         composed_forces_b[env_ids[tid_env], body_ids[tid_body]] += cast_force_to_link_frame(
-            forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+            forces[tid_env, tid_body],
+            wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+            is_global,
         )
         # if there is a position offset, add a torque to the composed torque.
         if positions:
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += wp.skew(
                 cast_to_link_frame(
-                    positions[tid_env, tid_body], wp.transform_get_translation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+                    positions[tid_env, tid_body],
+                    wp.transform_get_translation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+                    is_global,
                 )
             ) @ cast_force_to_link_frame(
-                forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+                forces[tid_env, tid_body],
+                wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+                is_global,
             )
     if torques:
         composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += cast_torque_to_link_frame(
-            torques[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+            torques[tid_env, tid_body],
+            wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+            is_global,
         )
 
 
@@ -465,24 +473,33 @@ def set_forces_and_torques_at_position_index(
     # set the torques to the composed torque
     if torques:
         composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = cast_torque_to_link_frame(
-            torques[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+            torques[tid_env, tid_body],
+            wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+            is_global,
         )
     # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque
     # from the force at that position.
     if forces:
         # set the forces to the composed force
         composed_forces_b[env_ids[tid_env], body_ids[tid_body]] = cast_force_to_link_frame(
-            forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+            forces[tid_env, tid_body],
+            wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+            is_global,
         )
         # if there is a position offset, set the torque from the force at that position.
         if positions:
             composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = wp.skew(
                 cast_to_link_frame(
-                    positions[tid_env, tid_body], wp.transform_get_translation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+                    positions[tid_env, tid_body],
+                    wp.transform_get_translation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+                    is_global,
                 )
             ) @ cast_force_to_link_frame(
-                forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]), is_global
+                forces[tid_env, tid_body],
+                wp.transform_get_rotation(link_poses[env_ids[tid_env], body_ids[tid_body]]),
+                is_global,
             )
+
 
 @wp.kernel
 def add_forces_and_torques_at_position_mask(
@@ -537,7 +554,9 @@ def add_forces_and_torques_at_position_mask(
             if positions:
                 composed_torques_b[tid_env, tid_body] += wp.skew(
                     cast_to_link_frame(
-                        positions[tid_env, tid_body], wp.transform_get_translation(link_poses[tid_env, tid_body]), is_global
+                        positions[tid_env, tid_body],
+                        wp.transform_get_translation(link_poses[tid_env, tid_body]),
+                        is_global,
                     )
                 ) @ cast_force_to_link_frame(
                     forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[tid_env, tid_body]), is_global
@@ -607,11 +626,14 @@ def set_forces_and_torques_at_position_mask(
             if positions:
                 composed_torques_b[tid_env, tid_body] = wp.skew(
                     cast_to_link_frame(
-                        positions[tid_env, tid_body], wp.transform_get_translation(link_poses[tid_env, tid_body]), is_global
+                        positions[tid_env, tid_body],
+                        wp.transform_get_translation(link_poses[tid_env, tid_body]),
+                        is_global,
                     )
                 ) @ cast_force_to_link_frame(
                     forces[tid_env, tid_body], wp.transform_get_rotation(link_poses[tid_env, tid_body]), is_global
                 )
+
 
 @wp.kernel
 def reset_wrench_composer_index(

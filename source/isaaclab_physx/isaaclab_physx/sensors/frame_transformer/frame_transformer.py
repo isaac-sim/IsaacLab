@@ -368,12 +368,8 @@ class FrameTransformer(BaseFrameTransformer):
         # --- Pre-compute warp offset arrays (always created; identity when not configured) ---
         # Source offsets: (N,)
         if self._apply_source_frame_offset:
-            self._source_offset_pos_wp = wp.from_torch(
-                self._source_frame_offset_pos.contiguous(), dtype=wp.vec3f
-            )
-            self._source_offset_quat_wp = wp.from_torch(
-                self._source_frame_offset_quat.contiguous(), dtype=wp.quatf
-            )
+            self._source_offset_pos_wp = wp.from_torch(self._source_frame_offset_pos.contiguous(), dtype=wp.vec3f)
+            self._source_offset_quat_wp = wp.from_torch(self._source_frame_offset_quat.contiguous(), dtype=wp.quatf)
         else:
             self._source_offset_pos_wp = wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device)
             self._source_offset_quat_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)

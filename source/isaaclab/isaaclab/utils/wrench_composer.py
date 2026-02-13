@@ -5,20 +5,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 import warnings
-import numpy as np
+from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
 from isaaclab.utils.warp.kernels import (
     add_forces_and_torques_at_position_index,
+    add_forces_and_torques_at_position_mask,
+    reset_wrench_composer_index,
+    reset_wrench_composer_mask,
     set_forces_and_torques_at_position_index,
     set_forces_and_torques_at_position_mask,
-    add_forces_and_torques_at_position_mask,
-    reset_wrench_composer_mask,
-    reset_wrench_composer_index,
 )
 
 if TYPE_CHECKING:
@@ -56,7 +56,9 @@ class WrenchComposer:
         self._composed_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._composed_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._ALL_ENV_INDICES = wp.array(np.arange(self.num_envs, dtype=np.int32), dtype=wp.int32, device=self.device)
-        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), dtype=wp.int32, device=self.device)
+        self._ALL_BODY_INDICES = wp.array(
+            np.arange(self.num_bodies, dtype=np.int32), dtype=wp.int32, device=self.device
+        )
         self._ALL_ENV_MASK = wp.ones((self.num_envs), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies), dtype=wp.bool, device=self.device)
 
@@ -278,9 +280,9 @@ class WrenchComposer:
             ValueError: If the input is a slice and it is not None.
         """
         # Resolve all indices
-        if (env_mask is None):
+        if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        if (body_mask is None):
+        if body_mask is None:
             body_mask = self._ALL_BODY_MASK
         if forces is None and torques is None:
             warnings.warn(
@@ -345,9 +347,9 @@ class WrenchComposer:
             ValueError: If the input is a slice and it is not None.
         """
         # Resolve all indices
-        if (env_mask is None):
+        if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        if (body_mask is None):
+        if body_mask is None:
             body_mask = self._ALL_BODY_MASK
         if forces is None and torques is None:
             warnings.warn(
@@ -382,6 +384,7 @@ class WrenchComposer:
             ],
             device=self.device,
         )
+
     def reset(self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None):
         """Reset the composed force and torque.
 
@@ -417,9 +420,7 @@ class WrenchComposer:
                 device=self.device,
             )
         else:
-            if env_ids is None:
-                env_ids = self._ALL_ENV_INDICES
-            elif env_ids == slice(None):
+            if env_ids is None or env_ids == slice(None):
                 env_ids = self._ALL_ENV_INDICES
             elif isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)

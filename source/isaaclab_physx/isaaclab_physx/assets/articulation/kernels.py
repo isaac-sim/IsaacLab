@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
 
 from ..kernels import *
@@ -6,17 +11,18 @@ from ..kernels import *
 Articulation-specific warp functions.
 """
 
+
 @wp.func
 def compute_soft_joint_pos_limits_func(
     joint_pos_limits: wp.vec2f,
     soft_limit_factor: wp.float32,
 ):
     """Compute the soft joint position limits.
-    
+
     Args:
         joint_pos_limits: The joint position limits.
         soft_limit_factor: The soft limit factor.
-    
+
     Returns:
         The soft joint position limits.
     """
@@ -24,12 +30,14 @@ def compute_soft_joint_pos_limits_func(
     joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
     return wp.vec2f(
         joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
-        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
+        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
     )
+
 
 """
 Articulation-specific warp kernels.
 """
+
 
 @wp.kernel
 def get_joint_acc_from_joint_vel(
@@ -39,11 +47,11 @@ def get_joint_acc_from_joint_vel(
     joint_acc: wp.array2d(dtype=wp.float32),
 ):
     """Compute the joint acceleration from the joint velocity using finite differencing.
-    
+
     This kernel computes the joint acceleration by taking the difference between the current
     and previous joint velocities, divided by the time step. It also updates the previous
     joint velocity buffer with the current values.
-    
+
     Args:
         joint_vel: Input array of current joint velocities. Shape is (num_envs, num_joints).
         prev_joint_vel: Input/output array of previous joint velocities. Shape is (num_envs, num_joints).
@@ -54,6 +62,7 @@ def get_joint_acc_from_joint_vel(
     i, j = wp.tid()
     joint_acc[i, j] = (joint_vel[i, j] - prev_joint_vel[i, j]) / dt
     prev_joint_vel[i, j] = joint_vel[i, j]
+
 
 @wp.kernel
 def write_joint_vel_data(
@@ -69,7 +78,7 @@ def write_joint_vel_data(
 
     This kernel writes joint velocity data from the input array to the output buffers.
     It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
-    
+
     Args:
         in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints) or
             (num_selected_envs, num_selected_joints) depending on from_mask.
@@ -84,7 +93,7 @@ def write_joint_vel_data(
         joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
             (num_envs, num_joints).
     """
-    i,j = wp.tid()
+    i, j = wp.tid()
     if from_mask:
         joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
         prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
@@ -107,11 +116,11 @@ def write_joint_limit_data_to_buffer(
     clamped_defaults: bool,
 ):
     """Write joint limit data to the output buffers and compute soft limits.
-    
+
     This kernel writes joint position limits from the input array to the output buffer,
     computes soft joint position limits, and clamps default joint positions if they
     fall outside the limits.
-    
+
     Args:
         in_data: Input array containing joint position limits as vec2f (lower, upper).
             Shape is (num_envs, num_joints) or (num_selected_envs, num_selected_joints)
@@ -136,10 +145,19 @@ def write_joint_limit_data_to_buffer(
         joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
     else:
         joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[i, j]
-    if (default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
+    if (
+        default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]
+    ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
         clamped_defaults = True
-        default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(default_joint_pos[env_ids[i], joint_ids[j]], joint_pos_limits[env_ids[i], joint_ids[j]][0], joint_pos_limits[env_ids[i], joint_ids[j]][1])
-    soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(joint_pos_limits[env_ids[i], joint_ids[j]], soft_limit_factor)
+        default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(
+            default_joint_pos[env_ids[i], joint_ids[j]],
+            joint_pos_limits[env_ids[i], joint_ids[j]][0],
+            joint_pos_limits[env_ids[i], joint_ids[j]][1],
+        )
+    soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(
+        joint_pos_limits[env_ids[i], joint_ids[j]], soft_limit_factor
+    )
+
 
 @wp.kernel
 def write_joint_friction_data_to_buffer(
@@ -155,10 +173,10 @@ def write_joint_friction_data_to_buffer(
     friction_props: wp.array3d(dtype=wp.float32),
 ):
     """Write joint friction data to the output buffers.
-    
+
     This kernel writes joint friction coefficients from input arrays to output buffers
     and updates the friction properties array used by the physics simulation.
-    
+
     Args:
         in_friction: Input array containing joint friction coefficients. Shape is
             (num_envs, num_joints) or (num_selected_envs, num_selected_joints) depending
@@ -205,6 +223,7 @@ def write_joint_friction_data_to_buffer(
     if in_viscous_friction:
         friction_props[env_ids[i], joint_ids[j], 2] = out_viscous_friction[env_ids[i], joint_ids[j]]
 
+
 @wp.kernel
 def write_joint_friction_param_to_buffer(
     in_data: wp.array2d(dtype=wp.float32),
@@ -216,10 +235,10 @@ def write_joint_friction_param_to_buffer(
     out_buffer: wp.array3d(dtype=wp.float32),
 ):
     """Write a joint friction parameter to the output buffers.
-    
+
     This kernel writes a single joint friction parameter (e.g., dynamic or viscous friction)
     from the input array to both a 2D output array and a specific slice of a 3D buffer array.
-    
+
     Args:
         in_data: Input array containing joint friction parameter values. Shape is
             (num_envs, num_joints) or (num_selected_envs, num_selected_joints) depending
@@ -244,6 +263,7 @@ def write_joint_friction_param_to_buffer(
         out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
         out_buffer[env_ids[i], joint_ids[j], buffer_index] = in_data[i, j]
 
+
 @wp.kernel
 def float_data_to_buffer_with_indices(
     in_data: wp.float32,
@@ -252,18 +272,19 @@ def float_data_to_buffer_with_indices(
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write a scalar float value to a 2D buffer at specified indices.
-    
+
     This kernel broadcasts a single scalar float value to all specified (env_id, joint_id)
     locations in the output buffer.
-    
+
     Args:
         in_data: Input scalar float value to broadcast.
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
         out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
     """
-    i,j = wp.tid()
+    i, j = wp.tid()
     out_data[env_ids[i], joint_ids[j]] = in_data
+
 
 @wp.kernel
 def update_soft_joint_pos_limits(
@@ -272,11 +293,11 @@ def update_soft_joint_pos_limits(
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
 ):
     """Update soft joint position limits based on hard limits and a soft limit factor.
-    
+
     This kernel computes soft joint position limits from hard joint position limits using
     a soft limit factor. Soft limits are typically used to provide a safety margin before
     reaching the hard limits.
-    
+
     Args:
         joint_pos_limits: Input array of hard joint position limits as vec2f (lower, upper).
             Shape is (num_envs, num_joints).
@@ -289,6 +310,7 @@ def update_soft_joint_pos_limits(
     i, j = wp.tid()
     soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
 
+
 @wp.kernel
 def update_default_joint_values(
     source: wp.array(dtype=wp.float32),
@@ -296,10 +318,10 @@ def update_default_joint_values(
     target: wp.array2d(dtype=wp.float32),
 ):
     """Update default joint values from a source array using joint indices.
-    
+
     This kernel writes values from a 1D source array to specific joint indices in a 2D
     target array for all environments.
-    
+
     Args:
         source: Input array containing joint values to write. Shape is (num_joints,).
         ids: Input array of joint indices specifying which joints to update. Shape is
@@ -309,6 +331,7 @@ def update_default_joint_values(
     """
     i, j = wp.tid()
     target[i, ids[j]] = source[j]
+
 
 @wp.kernel
 def update_targets(
@@ -321,11 +344,11 @@ def update_targets(
     target_joint_efforts: wp.array2d(dtype=wp.float32),
 ):
     """Update joint target values from source arrays using joint indices.
-    
+
     This kernel copies joint positions, velocities, and efforts from source arrays to
     target arrays, remapping joint indices using the provided joint_indices array.
     Only non-None source arrays are processed.
-    
+
     Args:
         source_joint_positions: Input array of source joint positions. Shape is
             (num_envs, num_selected_joints). Can be None if not provided.
@@ -350,6 +373,7 @@ def update_targets(
     if source_joint_efforts:
         target_joint_efforts[i, joint_indices[j]] = source_joint_efforts[i, j]
 
+
 @wp.kernel
 def update_actuator_state_model(
     source_computed_effort: wp.array2d(dtype=wp.float32),
@@ -363,11 +387,11 @@ def update_actuator_state_model(
     target_soft_joint_vel_limits: wp.array2d(dtype=wp.float32),
 ):
     """Update actuator state model parameters from source arrays using joint indices.
-    
+
     This kernel copies actuator state model parameters (computed effort, applied effort,
     gear ratio, and velocity limits) from source arrays to target arrays, remapping
     joint indices using the provided joint_indices array.
-    
+
     Args:
         source_computed_effort: Input array of source computed effort values. Shape is
             (num_envs, num_selected_joints).
@@ -394,3 +418,32 @@ def update_actuator_state_model(
     target_soft_joint_vel_limits[i, joint_indices[j]] = source_vel_limits[i, j]
     if source_gear_ratio:
         target_gear_ratio[i, joint_indices[j]] = source_gear_ratio[i, j]
+
+
+@wp.kernel
+def extract_friction_properties(
+    friction_props: wp.array3d(dtype=wp.float32),
+    out_friction: wp.array2d(dtype=wp.float32),
+    out_dynamic_friction: wp.array2d(dtype=wp.float32),
+    out_viscous_friction: wp.array2d(dtype=wp.float32),
+):
+    """Extract friction properties from a 3D array into separate 2D arrays.
+
+    This kernel extracts the three friction components (static friction, dynamic friction,
+    and viscous friction) from a 3D friction properties array into three separate 2D arrays.
+
+    Args:
+        friction_props: Input 3D array containing friction properties. Shape is
+            (num_envs, num_joints, 3) where the last dimension contains
+            [friction, dynamic_friction, viscous_friction].
+        out_friction: Output array where static friction coefficients are written.
+            Shape is (num_envs, num_joints).
+        out_dynamic_friction: Output array where dynamic friction coefficients are written.
+            Shape is (num_envs, num_joints).
+        out_viscous_friction: Output array where viscous friction coefficients are written.
+            Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    out_friction[i, j] = friction_props[i, j, 0]
+    out_dynamic_friction[i, j] = friction_props[i, j, 1]
+    out_viscous_friction[i, j] = friction_props[i, j, 2]

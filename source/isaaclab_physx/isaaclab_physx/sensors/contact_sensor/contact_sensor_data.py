@@ -192,7 +192,9 @@ class ContactSensorData(BaseContactSensorData):
         # Contact points (optional) - filled with NaN
         if track_contact_points:
             self._contact_pos_w = wp.full(
-                (num_envs, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device,
+                (num_envs, num_bodies, num_filter_shapes),
+                dtype=wp.vec3f,
+                device=device,
                 value=wp.vec3f(math.nan, math.nan, math.nan),
             )
         else:
@@ -200,8 +202,6 @@ class ContactSensorData(BaseContactSensorData):
 
         # Friction forces (optional)
         if track_friction_forces:
-            self._friction_forces_w = wp.zeros(
-                (num_envs, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device
-            )
+            self._friction_forces_w = wp.zeros((num_envs, num_bodies, num_filter_shapes), dtype=wp.vec3f, device=device)
         else:
             self._friction_forces_w = None

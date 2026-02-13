@@ -358,12 +358,8 @@ class MockRigidBodyViewWarp:
         self._transforms = wp.array(tf, dtype=wp.float32, device=self._device)
 
         # Velocities and accelerations - on device
-        self._velocities = wp.array(
-            np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device
-        )
-        self._accelerations = wp.array(
-            np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device
-        )
+        self._velocities = wp.array(np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._accelerations = wp.array(np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device)
 
         # Mass properties - stored on CPU (PhysX requirement)
         self._masses = wp.array((np.random.rand(N, 1) * 10).astype(np.float32), dtype=wp.float32, device="cpu")

@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
+
 class BaseRigidObjectCollectionData(ABC):
     """Data container for a rigid object collection.
 

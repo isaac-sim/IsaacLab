@@ -1,4 +1,8 @@
-from typing import Any
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import warp as wp
 
 vec13f = wp.types.vector(length=13, dtype=wp.float32)
@@ -6,6 +10,7 @@ vec13f = wp.types.vector(length=13, dtype=wp.float32)
 """
 Shared @wp.func helpers.
 """
+
 
 @wp.func
 def get_link_vel_from_root_com_vel_func(
@@ -26,8 +31,12 @@ def get_link_vel_from_root_com_vel_func(
     Returns:
         Link spatial velocity (angular, linear).
     """
-    projected_vel = wp.cross(wp.spatial_bottom(com_vel), wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose)))
+    projected_vel = wp.cross(
+        wp.spatial_bottom(com_vel),
+        wp.quat_rotate(wp.transform_get_rotation(link_pose), -wp.transform_get_translation(body_com_pose)),
+    )
     return wp.spatial_vector(wp.spatial_top(com_vel) + projected_vel, wp.spatial_bottom(com_vel))
+
 
 @wp.func
 def get_com_pose_from_link_pose_func(
@@ -45,6 +54,7 @@ def get_com_pose_from_link_pose_func(
     """
     return link_pose * body_com_pose
 
+
 @wp.func
 def concat_pose_and_vel_to_state_func(
     pose: wp.transformf,
@@ -61,7 +71,10 @@ def concat_pose_and_vel_to_state_func(
     Returns:
         13-element state vector.
     """
-    return vec13f(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5])
+    return vec13f(
+        pose[0], pose[1], pose[2], pose[3], pose[4], pose[5], pose[6], vel[0], vel[1], vel[2], vel[3], vel[4], vel[5]
+    )
+
 
 @wp.func
 def compute_heading_w_func(
@@ -79,8 +92,9 @@ def compute_heading_w_func(
     Returns:
         Heading angle in radians.
     """
-    forward_w =  wp.quat_rotate(quat, forward_vec)
+    forward_w = wp.quat_rotate(quat, forward_vec)
     return wp.atan2(forward_w[1], forward_w[0])
+
 
 @wp.func
 def set_state_transforms_func(
@@ -108,6 +122,7 @@ def set_state_transforms_func(
     state[6] = transform[6]
     return state
 
+
 @wp.func
 def set_state_velocities_func(
     state: vec13f,
@@ -133,6 +148,7 @@ def set_state_velocities_func(
     state[12] = velocity[5]
     return state
 
+
 @wp.func
 def get_link_velocity_in_com_frame_func(
     link_velocity_w: wp.spatial_vectorf,
@@ -153,10 +169,14 @@ def get_link_velocity_in_com_frame_func(
         COM spatial velocity in world frame (angular, linear).
     """
     return wp.spatial_vector(
-        wp.spatial_top(link_velocity_w) + wp.cross(wp.spatial_bottom(link_velocity_w),
-        wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b))),
-        wp.spatial_bottom(link_velocity_w)
+        wp.spatial_top(link_velocity_w)
+        + wp.cross(
+            wp.spatial_bottom(link_velocity_w),
+            wp.quat_rotate(wp.transform_get_rotation(link_pose_w), wp.transform_get_translation(body_com_pose_b)),
+        ),
+        wp.spatial_bottom(link_velocity_w),
     )
+
 
 @wp.func
 def get_com_pose_in_link_frame_func(
@@ -176,15 +196,19 @@ def get_com_pose_in_link_frame_func(
         Link pose in world frame.
     """
     T2 = wp.transform(
-        wp.quat_rotate(wp.quat_inverse(wp.transform_get_rotation(com_pose_b)),
-        - wp.transform_get_translation(com_pose_b)), wp.quat_inverse(wp.transform_get_rotation(com_pose_b))
+        wp.quat_rotate(
+            wp.quat_inverse(wp.transform_get_rotation(com_pose_b)), -wp.transform_get_translation(com_pose_b)
+        ),
+        wp.quat_inverse(wp.transform_get_rotation(com_pose_b)),
     )
     link_pose_w = com_pose_w * T2
     return link_pose_w
 
+
 """
 Root-level @wp.kernel (1D — used by RigidObject + Articulation).
 """
+
 
 @wp.kernel
 def get_root_link_vel_from_root_com_vel(
@@ -248,9 +272,39 @@ def concat_root_pose_and_vel_to_state(
     i = wp.tid()
     state[i] = concat_pose_and_vel_to_state_func(pose[i], vel[i])
 
+
+@wp.kernel
+def split_state_to_root_pose_and_vel(
+    state: wp.array2d(dtype=wp.float32),
+    pose: wp.array(dtype=wp.transformf),
+    vel: wp.array(dtype=wp.spatial_vectorf),
+):
+    """Split a 13-element state vector into root pose and velocity.
+
+    This kernel extracts a 7-element pose (pos + quat) and a 6-element velocity
+    (angular + linear) from a 13-element state vector.
+
+    Args:
+        state: Input array of root states. Shape is (num_envs, 13).
+        pose: Output array where root poses are written. Shape is (num_envs,).
+        vel: Output array where root spatial velocities are written. Shape is (num_envs,).
+    """
+    i = wp.tid()
+    # Extract pose: [pos(3), quat(4)] = state[0:7]
+    pose[i] = wp.transform(
+        wp.vec3f(state[i, 0], state[i, 1], state[i, 2]), wp.quatf(state[i, 3], state[i, 4], state[i, 5], state[i, 6])
+    )
+    # Extract velocity: [ang_vel(3), lin_vel(3)] = state[7:13]
+    vel[i] = wp.spatial_vector(
+        wp.vec3f(state[i, 7], state[i, 8], state[i, 9]),  # angular velocity
+        wp.vec3f(state[i, 10], state[i, 11], state[i, 12]),  # linear velocity
+    )
+
+
 """
 Body-level @wp.kernel (2D — used by Articulation + RigidObjectCollection).
 """
+
 
 @wp.kernel
 def get_body_link_vel_from_body_com_vel(
@@ -271,7 +325,9 @@ def get_body_link_vel_from_body_com_vel(
         body_link_vel: Output array where body link velocities are written. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
-    body_link_vel[i, j] = get_link_vel_from_root_com_vel_func(body_com_vel[i, j], body_link_pose[i, j], body_com_pose[i, j])
+    body_link_vel[i, j] = get_link_vel_from_root_com_vel_func(
+        body_com_vel[i, j], body_link_pose[i, j], body_com_pose[i, j]
+    )
 
 
 @wp.kernel
@@ -293,6 +349,7 @@ def get_body_com_pose_from_body_link_pose(
     i, j = wp.tid()
     body_com_pose_w[i, j] = get_com_pose_from_link_pose_func(body_link_pose[i, j], body_com_pose_b[i, j])
 
+
 @wp.kernel
 def concat_body_pose_and_vel_to_state(
     pose: wp.array2d(dtype=wp.transformf),
@@ -313,9 +370,11 @@ def concat_body_pose_and_vel_to_state(
     i, j = wp.tid()
     state[i, j] = concat_pose_and_vel_to_state_func(pose[i, j], vel[i, j])
 
+
 """
 Derived property kernels.
 """
+
 
 @wp.kernel
 def quat_apply_inverse_1D_kernel(
@@ -337,6 +396,7 @@ def quat_apply_inverse_1D_kernel(
     i = wp.tid()
     projected_gravity[i] = wp.quat_rotate_inv(quat[i], gravity[i])
 
+
 @wp.kernel
 def root_heading_w(
     forward_vec: wp.array(dtype=wp.vec3f),
@@ -356,6 +416,7 @@ def root_heading_w(
     i = wp.tid()
     heading_w[i] = compute_heading_w_func(forward_vec[i], quat[i])
 
+
 @wp.kernel
 def quat_apply_inverse_2D_kernel(
     vec: wp.array2d(dtype=wp.vec3f),
@@ -374,6 +435,7 @@ def quat_apply_inverse_2D_kernel(
     """
     i, j = wp.tid()
     result[i, j] = wp.quat_rotate_inv(quat[i, j], vec[i, j])
+
 
 @wp.kernel
 def body_heading_w(
@@ -395,9 +457,11 @@ def body_heading_w(
     i, j = wp.tid()
     heading_w[i, j] = compute_heading_w_func(forward_vec[i, j], quat[i, j])
 
+
 """
 Root-level write kernels (1D — used by RigidObject + Articulation).
 """
+
 
 @wp.kernel
 def set_root_link_pose_to_sim(
@@ -439,6 +503,7 @@ def set_root_link_pose_to_sim(
             root_link_state_w[env_ids[i]] = set_state_transforms_func(root_link_state_w[env_ids[i]], data[i])
         if root_state_w:
             root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], data[i])
+
 
 @wp.kernel
 def set_root_com_pose_to_sim(
@@ -491,9 +556,12 @@ def set_root_com_pose_to_sim(
         root_com_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
     )
     if root_link_state_w:
-        root_link_state_w[env_ids[i]] = set_state_transforms_func(root_link_state_w[env_ids[i]], root_link_pose_w[env_ids[i]])
+        root_link_state_w[env_ids[i]] = set_state_transforms_func(
+            root_link_state_w[env_ids[i]], root_link_pose_w[env_ids[i]]
+        )
     if root_state_w:
         root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], root_link_pose_w[env_ids[i]])
+
 
 @wp.kernel
 def set_root_com_velocity_to_sim(
@@ -544,6 +612,7 @@ def set_root_com_velocity_to_sim(
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
 
 @wp.kernel
 def set_root_link_velocity_to_sim(
@@ -604,16 +673,20 @@ def set_root_link_velocity_to_sim(
         root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
     )
     if root_com_state_w:
-        root_com_state_w[env_ids[i]] = set_state_velocities_func(root_com_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]])
+        root_com_state_w[env_ids[i]] = set_state_velocities_func(
+            root_com_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]]
+        )
     if root_state_w:
         root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]])
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
+
 """
 Body-level write kernels (2D — used by RigidObjectCollection).
 """
+
 
 @wp.kernel
 def set_body_link_pose_to_sim(
@@ -647,15 +720,24 @@ def set_body_link_pose_to_sim(
     if from_mask:
         body_link_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
         if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
         if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
     else:
         body_link_pose_w[env_ids[i], body_ids[j]] = data[i, j]
         if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_link_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_link_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
         if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
+
 
 @wp.kernel
 def set_body_com_pose_to_sim(
@@ -699,19 +781,28 @@ def set_body_com_pose_to_sim(
     if from_mask:
         body_com_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
         if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
     else:
         body_com_pose_w[env_ids[i], body_ids[j]] = data[i, j]
         if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_com_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+                body_com_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
     # Get the link pose from com pose
     body_link_pose_w[env_ids[i], body_ids[j]] = get_com_pose_in_link_frame_func(
         body_com_pose_w[env_ids[i], body_ids[j]], body_com_pose_b[env_ids[i], body_ids[j]]
     )
     if body_link_state_w:
-        body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_link_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]])
+        body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+            body_link_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]]
+        )
     if body_state_w:
-        body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(body_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]])
+        body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
+            body_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]]
+        )
+
 
 @wp.kernel
 def set_body_com_velocity_to_sim(
@@ -749,17 +840,26 @@ def set_body_com_velocity_to_sim(
     if from_mask:
         body_com_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
         if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
         if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
     else:
         body_com_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
         if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
         if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_com_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_com_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
     # Make the acceleration zero to prevent reporting old values
     body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
 
 @wp.kernel
 def set_body_link_velocity_to_sim(
@@ -809,25 +909,37 @@ def set_body_link_velocity_to_sim(
     if from_mask:
         body_link_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
         if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]])
+            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
+            )
     else:
         body_link_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
         if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_link_state_w[env_ids[i], body_ids[j]], data[i, j])
+            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+                body_link_state_w[env_ids[i], body_ids[j]], data[i, j]
+            )
     # Get the link velocity in the com frame
     body_com_velocity_w[env_ids[i], body_ids[j]] = get_link_velocity_in_com_frame_func(
-        body_link_velocity_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]], body_com_pose_b[env_ids[i], body_ids[j]]
+        body_link_velocity_w[env_ids[i], body_ids[j]],
+        body_link_pose_w[env_ids[i], body_ids[j]],
+        body_com_pose_b[env_ids[i], body_ids[j]],
     )
     if body_com_state_w:
-        body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_com_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]])
+        body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+            body_com_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]]
+        )
     if body_state_w:
-        body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(body_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]])
+        body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
+            body_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]]
+        )
     # Make the acceleration zero to prevent reporting old values
     body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
 
 """
 Generic buffer-writing kernels (used by Articulation + RigidObject + RigidObjectCollection).
 """
+
 
 @wp.kernel
 def write_2d_data_to_buffer_with_indices(
@@ -852,11 +964,12 @@ def write_2d_data_to_buffer_with_indices(
             directly using the thread indices.
         out_data: Output array where data is written. Shape is (num_envs, num_joints).
     """
-    i,j = wp.tid()
+    i, j = wp.tid()
     if from_mask:
         out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
     else:
         out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+
 
 @wp.kernel
 def write_body_inertia_to_buffer(
@@ -886,6 +999,35 @@ def write_body_inertia_to_buffer(
     else:
         for k in range(9):
             out_data[env_ids[i], body_ids[j], k] = in_data[i, j, k]
+
+
+@wp.kernel
+def write_single_body_inertia_to_buffer(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+    out_data: wp.array2d(dtype=wp.float32),
+):
+    """Write body inertia data to a buffer at specified indices.
+
+    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
+    to an output buffer at the specified environment and body indices.
+
+    Args:
+        in_data: Input array containing inertia data. Shape is (num_envs, 9) or
+            (num_selected_envs, 9) depending on from_mask.
+        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
+        from_mask: Input flag indicating whether to use masked indexing.
+        out_data: Output array where inertia data is written. Shape is (num_envs, 9).
+    """
+    i = wp.tid()
+    if from_mask:
+        for k in range(9):
+            out_data[env_ids[i], k] = in_data[env_ids[i], k]
+    else:
+        for k in range(9):
+            out_data[env_ids[i], k] = in_data[i, k]
+
 
 @wp.kernel
 def write_body_com_pose_to_buffer(

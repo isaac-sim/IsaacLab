@@ -183,7 +183,10 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
-    angle = wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    angle = (
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    )
     return torch.sum(torch.abs(angle), dim=1)
 
 
@@ -196,10 +199,12 @@ def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     out_of_limits = -(
-        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0]
     ).clip(max=0.0)
     out_of_limits += (
-        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1]
     ).clip(min=0.0)
     return torch.sum(out_of_limits, dim=1)
 
@@ -245,7 +250,8 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
     out_of_limits = torch.abs(
-        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids] - wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]
+        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]
     )
     return torch.sum(out_of_limits, dim=1)
 
@@ -270,7 +276,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: Sce
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # check if contact force is above threshold
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = wp.to_torch(contact_sensor.data.net_forces_w_history)
     is_contact = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
     )
@@ -282,7 +288,8 @@ def desired_contacts(env, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) ->
     """Penalize if none of the desired contacts are present."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contacts = (
-        contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > threshold
+        wp.to_torch(contact_sensor.data.net_forces_w_history)[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0]
+        > threshold
     )
     zero_contact = (~contacts).all(dim=1)
     return 1.0 * zero_contact
@@ -292,7 +299,7 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
     """Penalize contact forces as the amount of violations of the net contact force."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = wp.to_torch(contact_sensor.data.net_forces_w_history)
     # compute the violation
     violation = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] - threshold
@@ -314,7 +321,9 @@ def track_lin_vel_xy_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
     lin_vel_error = torch.sum(
-        torch.square(env.command_manager.get_command(command_name)[:, :2] - wp.to_torch(asset.data.root_lin_vel_b)[:, :2]),
+        torch.square(
+            env.command_manager.get_command(command_name)[:, :2] - wp.to_torch(asset.data.root_lin_vel_b)[:, :2]
+        ),
         dim=1,
     )
     return torch.exp(-lin_vel_error / std**2)
@@ -327,5 +336,7 @@ def track_ang_vel_z_exp(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
-    ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - wp.to_torch(asset.data.root_ang_vel_b)[:, 2])
+    ang_vel_error = torch.square(
+        env.command_manager.get_command(command_name)[:, 2] - wp.to_torch(asset.data.root_ang_vel_b)[:, 2]
+    )
     return torch.exp(-ang_vel_error / std**2)

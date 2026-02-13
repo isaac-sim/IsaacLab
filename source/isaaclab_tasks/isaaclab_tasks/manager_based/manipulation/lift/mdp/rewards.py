@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -23,7 +24,7 @@ def object_is_lifted(
 ) -> torch.Tensor:
     """Reward the agent for lifting the object above the minimal height."""
     object: RigidObject = env.scene[object_cfg.name]
-    return torch.where(object.data.root_pos_w[:, 2] > minimal_height, 1.0, 0.0)
+    return torch.where(wp.to_torch(object.data.root_pos_w)[:, 2] > minimal_height, 1.0, 0.0)
 
 
 def object_ee_distance(
@@ -37,9 +38,9 @@ def object_ee_distance(
     object: RigidObject = env.scene[object_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
     # Target object position: (num_envs, 3)
-    cube_pos_w = object.data.root_pos_w
+    cube_pos_w = wp.to_torch(object.data.root_pos_w)
     # End-effector position: (num_envs, 3)
-    ee_w = ee_frame.data.target_pos_w[..., 0, :]
+    ee_w = wp.to_torch(ee_frame.data.target_pos_w)[..., 0, :]
     # Distance of the end-effector to the object: (num_envs,)
     object_ee_distance = torch.linalg.norm(cube_pos_w - ee_w, dim=1)
 
@@ -61,8 +62,11 @@ def object_goal_distance(
     command = env.command_manager.get_command(command_name)
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w, robot.data.root_quat_w, des_pos_b)
+    des_pos_w, _ = combine_frame_transforms(
+        wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), des_pos_b
+    )
     # distance of the end-effector to the object: (num_envs,)
-    distance = torch.linalg.norm(des_pos_w - object.data.root_pos_w, dim=1)
+    object_pos_w = wp.to_torch(object.data.root_pos_w)
+    distance = torch.linalg.norm(des_pos_w - object_pos_w, dim=1)
     # rewarded if the object is lifted above the threshold
-    return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
+    return (object_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))

@@ -211,9 +211,7 @@ class MockArticulationViewWarp:
         """
         if self._link_transforms is None:
             self._link_transforms = self._create_identity_transforms_2d(self._count, self._num_links)
-        return wp.clone(self._as_structured(
-            self._link_transforms, wp.transformf, (self._count, self._num_links)
-        ))
+        return wp.clone(self._as_structured(self._link_transforms, wp.transformf, (self._count, self._num_links)))
 
     def get_link_velocities(self) -> wp.array:
         """Get velocities of all links.
@@ -222,12 +220,8 @@ class MockArticulationViewWarp:
             Warp array of shape (N, L) with dtype=wp.spatial_vectorf (matching real PhysX).
         """
         if self._link_velocities is None:
-            self._link_velocities = wp.zeros(
-                (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
-            )
-        return wp.clone(self._as_structured(
-            self._link_velocities, wp.spatial_vectorf, (self._count, self._num_links)
-        ))
+            self._link_velocities = wp.zeros((self._count, self._num_links, 6), dtype=wp.float32, device=self._device)
+        return wp.clone(self._as_structured(self._link_velocities, wp.spatial_vectorf, (self._count, self._num_links)))
 
     def get_link_accelerations(self) -> wp.array:
         """Get accelerations of all links.
@@ -239,9 +233,9 @@ class MockArticulationViewWarp:
             self._link_accelerations = wp.zeros(
                 (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
             )
-        return wp.clone(self._as_structured(
-            self._link_accelerations, wp.spatial_vectorf, (self._count, self._num_links)
-        ))
+        return wp.clone(
+            self._as_structured(self._link_accelerations, wp.spatial_vectorf, (self._count, self._num_links))
+        )
 
     def get_link_incoming_joint_force(self) -> wp.array:
         """Get incoming joint forces for all links.
@@ -253,9 +247,9 @@ class MockArticulationViewWarp:
             self._link_incoming_joint_force = wp.zeros(
                 (self._count, self._num_links, 6), dtype=wp.float32, device=self._device
             )
-        return wp.clone(self._as_structured(
-            self._link_incoming_joint_force, wp.spatial_vectorf, (self._count, self._num_links)
-        ))
+        return wp.clone(
+            self._as_structured(self._link_incoming_joint_force, wp.spatial_vectorf, (self._count, self._num_links))
+        )
 
     # -- DOF Getters --
 
@@ -304,9 +298,7 @@ class MockArticulationViewWarp:
             limits[:, :, 0] = float("-inf")  # lower limit
             limits[:, :, 1] = float("inf")  # upper limit
             self._dof_limits = wp.array(limits, dtype=wp.float32, device="cpu")
-        return wp.clone(self._as_structured(
-            self._dof_limits, wp.vec2f, (self._count, self._num_dofs)
-        ))
+        return wp.clone(self._as_structured(self._dof_limits, wp.vec2f, (self._count, self._num_dofs)))
 
     def get_dof_stiffnesses(self) -> wp.array:
         """Get stiffnesses of all DOFs.
@@ -381,9 +373,7 @@ class MockArticulationViewWarp:
             Warp array of shape (N, J, 3) with dtype=wp.float32. Always on CPU.
         """
         if self._dof_friction_properties is None:
-            self._dof_friction_properties = wp.zeros(
-                (self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu"
-            )
+            self._dof_friction_properties = wp.zeros((self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu")
         return wp.clone(self._dof_friction_properties)
 
     # -- Mass Property Getters --
@@ -406,9 +396,7 @@ class MockArticulationViewWarp:
         """
         if self._coms is None:
             self._coms = self._create_identity_transforms_2d(self._count, self._num_links, device="cpu")
-        return wp.clone(self._as_structured(
-            self._coms, wp.transformf, (self._count, self._num_links)
-        ))
+        return wp.clone(self._as_structured(self._coms, wp.transformf, (self._count, self._num_links)))
 
     def get_inertias(self) -> wp.array:
         """Get inertia tensors of all links.
@@ -767,9 +755,7 @@ class MockArticulationViewWarp:
             return
         self._check_cpu_array(friction_properties, "dof_friction_properties")
         if self._dof_friction_properties is None:
-            self._dof_friction_properties = wp.zeros(
-                (self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu"
-            )
+            self._dof_friction_properties = wp.zeros((self._count, self._num_dofs, 3), dtype=wp.float32, device="cpu")
         if indices is not None:
             self._dof_friction_properties.numpy()[indices.numpy()] = friction_properties.numpy()
         else:
@@ -1053,30 +1039,48 @@ class MockArticulationViewWarp:
         root_tf = np.random.randn(N, 7).astype(np.float32)
         root_tf[:, 3:7] /= np.linalg.norm(root_tf[:, 3:7], axis=-1, keepdims=True)
         self._root_transforms = wp.array(root_tf, dtype=wp.float32, device=self._device)
-        self._root_velocities = wp.array(np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._root_velocities = wp.array(
+            np.random.randn(N, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
 
         # Link state - on device
         link_tf = np.random.randn(N, L, 7).astype(np.float32)
         link_tf[:, :, 3:7] /= np.linalg.norm(link_tf[:, :, 3:7], axis=-1, keepdims=True)
         self._link_transforms = wp.array(link_tf, dtype=wp.float32, device=self._device)
-        self._link_velocities = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
-        self._link_accelerations = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
-        self._link_incoming_joint_force = wp.array(np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._link_velocities = wp.array(
+            np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
+        self._link_accelerations = wp.array(
+            np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
+        self._link_incoming_joint_force = wp.array(
+            np.random.randn(N, L, 6).astype(np.float32), dtype=wp.float32, device=self._device
+        )
 
         # DOF state - on device
         self._dof_positions = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
         self._dof_velocities = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
-        self._dof_projected_joint_forces = wp.array(np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device)
+        self._dof_projected_joint_forces = wp.array(
+            np.random.randn(N, J).astype(np.float32), dtype=wp.float32, device=self._device
+        )
 
         # DOF properties - on CPU (PhysX requirement)
         self._dof_limits = wp.array(np.random.randn(N, J, 2).astype(np.float32), dtype=wp.float32, device="cpu")
-        self._dof_stiffnesses = wp.array((np.random.rand(N, J) * 100).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_stiffnesses = wp.array(
+            (np.random.rand(N, J) * 100).astype(np.float32), dtype=wp.float32, device="cpu"
+        )
         self._dof_dampings = wp.array((np.random.rand(N, J) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
         self._dof_max_forces = wp.array((np.random.rand(N, J) * 100).astype(np.float32), dtype=wp.float32, device="cpu")
-        self._dof_max_velocities = wp.array((np.random.rand(N, J) * 10).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_max_velocities = wp.array(
+            (np.random.rand(N, J) * 10).astype(np.float32), dtype=wp.float32, device="cpu"
+        )
         self._dof_armatures = wp.array((np.random.rand(N, J) * 0.1).astype(np.float32), dtype=wp.float32, device="cpu")
-        self._dof_friction_coefficients = wp.array(np.random.rand(N, J).astype(np.float32), dtype=wp.float32, device="cpu")
-        self._dof_friction_properties = wp.array(np.random.rand(N, J, 3).astype(np.float32), dtype=wp.float32, device="cpu")
+        self._dof_friction_coefficients = wp.array(
+            np.random.rand(N, J).astype(np.float32), dtype=wp.float32, device="cpu"
+        )
+        self._dof_friction_properties = wp.array(
+            np.random.rand(N, J, 3).astype(np.float32), dtype=wp.float32, device="cpu"
+        )
 
         # Mass properties - on CPU (PhysX requirement)
         self._masses = wp.array((np.random.rand(N, L) * 10).astype(np.float32), dtype=wp.float32, device="cpu")

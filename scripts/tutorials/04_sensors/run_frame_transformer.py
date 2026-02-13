@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 import math
 
 import torch
+import warp as wp
 
 import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
 
@@ -123,7 +124,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Simulate physics
     while simulation_app.is_running():
         # perform this loop at policy control freq (50 Hz)
-        robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+        robot.set_joint_position_target(wp.to_torch(robot.data.default_joint_pos).clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()

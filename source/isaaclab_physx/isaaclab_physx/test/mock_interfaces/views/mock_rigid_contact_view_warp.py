@@ -117,9 +117,7 @@ class MockRigidContactViewWarp:
             )
         return wp.clone(self._contact_force_matrix)
 
-    def get_contact_data(
-        self, dt: float
-    ) -> tuple[wp.array, wp.array, wp.array, wp.array, wp.array, wp.array]:
+    def get_contact_data(self, dt: float) -> tuple[wp.array, wp.array, wp.array, wp.array, wp.array, wp.array]:
         """Get detailed contact data.
 
         Args:
@@ -155,9 +153,7 @@ class MockRigidContactViewWarp:
         if self._contact_num_found is None:
             self._contact_num_found = wp.zeros(self._total_bodies, dtype=wp.int32, device=self._device)
         if self._contact_patch_id is None:
-            self._contact_patch_id = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.int32, device=self._device
-            )
+            self._contact_patch_id = wp.zeros((self._total_bodies, max_contacts), dtype=wp.int32, device=self._device)
 
         return (
             wp.clone(self._contact_positions),
@@ -196,9 +192,7 @@ class MockRigidContactViewWarp:
                 (self._total_bodies, max_contacts, 3), dtype=wp.float32, device=self._device
             )
         if self._friction_patch_id is None:
-            self._friction_patch_id = wp.zeros(
-                (self._total_bodies, max_contacts), dtype=wp.int32, device=self._device
-            )
+            self._friction_patch_id = wp.zeros((self._total_bodies, max_contacts), dtype=wp.int32, device=self._device)
 
         return (
             wp.clone(self._friction_forces),

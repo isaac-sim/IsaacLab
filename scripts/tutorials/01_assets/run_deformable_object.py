@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -138,7 +139,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         cube_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
-            print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
+            print(f"Root position (in world): {wp.to_torch(cube_object.data.root_pos_w)[:, :3]}")
 
 
 def main():

@@ -9,7 +9,6 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
 import warp as wp
 
 import isaaclab.utils.string as string_utils

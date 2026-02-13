@@ -1573,13 +1573,19 @@ def test_reset(sim, num_articulations, device):
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force)) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force))
+            == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque)) == num_bodies * 3
+            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque))
+            == num_bodies * 3
         )
-        assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == num_bodies * 3
-        assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == num_bodies * 3
+        assert (
+            torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == num_bodies * 3
+        )
+        assert (
+            torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == num_bodies * 3
+        )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1665,7 +1671,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, 1, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32))
+    articulation.root_view.set_coms(
+        wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32)
+    )
 
     # check they are set
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com.cpu())
@@ -1778,7 +1786,9 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
     com = wp.to_torch(articulation.root_view.get_coms())
     new_com = offset
     com[:, 0, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32))
+    articulation.root_view.set_coms(
+        wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32)
+    )
 
     # check they are set
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com)
@@ -1845,7 +1855,8 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     # apply action to the articulation
     joint_pos = torch.ones_like(wp.to_torch(articulation.data.joint_pos)) * 1.5708 / 2.0
     articulation.write_joint_state_to_sim(
-        torch.ones_like(wp.to_torch(articulation.data.joint_pos)), torch.zeros_like(wp.to_torch(articulation.data.joint_vel))
+        torch.ones_like(wp.to_torch(articulation.data.joint_pos)),
+        torch.zeros_like(wp.to_torch(articulation.data.joint_vel)),
     )
     articulation.set_joint_position_target(joint_pos)
     articulation.write_data_to_sim()
@@ -1859,7 +1870,11 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
         articulation.update(sim.cfg.dt)
 
         # check shape
-        assert wp.to_torch(articulation.data.body_incoming_joint_wrench_b).shape == (num_articulations, articulation.num_bodies, 6)
+        assert wp.to_torch(articulation.data.body_incoming_joint_wrench_b).shape == (
+            num_articulations,
+            articulation.num_bodies,
+            6,
+        )
 
     # calculate expected static
     mass = wp.to_torch(articulation.data.body_mass).to("cpu")

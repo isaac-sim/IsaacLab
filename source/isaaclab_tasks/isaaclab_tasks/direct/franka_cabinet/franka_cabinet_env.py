@@ -8,7 +8,6 @@ from __future__ import annotations
 import torch
 import warp as wp
 
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_conjugate
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -194,8 +193,12 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.dt = self.cfg.sim.dt * self.cfg.decimation
 
         # create auxiliary variables for computing applied action, observations and rewards
-        self.robot_dof_lower_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 0].to(device=self.device)
-        self.robot_dof_upper_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 1].to(device=self.device)
+        self.robot_dof_lower_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 0].to(
+            device=self.device
+        )
+        self.robot_dof_upper_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 1].to(
+            device=self.device
+        )
 
         self.robot_dof_speed_scales = torch.ones_like(self.robot_dof_lower_limits)
         self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint1")[0]] = 0.1
@@ -224,7 +227,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         finger_pose[0:3] = (lfinger_pose[0:3] + rfinger_pose[0:3]) / 2.0
         finger_pose[3:7] = lfinger_pose[3:7]
         hand_pose_inv_rot = quat_conjugate(hand_pose[3:7])
-        hand_pose_inv_pos = - quat_apply(hand_pose_inv_rot, hand_pose[0:3])
+        hand_pose_inv_pos = -quat_apply(hand_pose_inv_rot, hand_pose[0:3])
 
         robot_local_pose_pos, robot_local_grasp_pose_rot = combine_frame_transforms(
             hand_pose_inv_pos, hand_pose_inv_rot, finger_pose[0:3], finger_pose[3:7]

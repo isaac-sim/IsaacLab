@@ -282,7 +282,9 @@ class randomize_rigid_body_material(ManagerTermBase):
             materials[env_ids] = material_samples[:]
 
         # apply to simulation
-        self.asset.root_view.set_material_properties(wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32))
+        self.asset.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+        )
 
 
 class randomize_rigid_body_mass(ManagerTermBase):
@@ -585,8 +587,8 @@ class randomize_actuator_gains(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        self.default_joint_stiffness = self.asset.data.joint_stiffness.clone()
-        self.default_joint_damping = self.asset.data.joint_damping.clone()
+        self.default_joint_stiffness = wp.to_torch(self.asset.data.joint_stiffness).clone()
+        self.default_joint_damping = wp.to_torch(self.asset.data.joint_damping).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -700,11 +702,11 @@ class randomize_joint_parameters(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        self.default_joint_friction_coeff = self.asset.data.joint_friction_coeff.clone()
-        self.default_dynamic_joint_friction_coeff = self.asset.data.joint_dynamic_friction_coeff.clone()
-        self.default_viscous_joint_friction_coeff = self.asset.data.joint_viscous_friction_coeff.clone()
-        self.default_joint_armature = self.asset.data.joint_armature.clone()
-        self.default_joint_pos_limits = self.asset.data.joint_pos_limits.clone()
+        self.default_joint_friction_coeff = wp.to_torch(self.asset.data.joint_friction_coeff).clone()
+        self.default_dynamic_joint_friction_coeff = wp.to_torch(self.asset.data.joint_dynamic_friction_coeff).clone()
+        self.default_viscous_joint_friction_coeff = wp.to_torch(self.asset.data.joint_viscous_friction_coeff).clone()
+        self.default_joint_armature = wp.to_torch(self.asset.data.joint_armature).clone()
+        self.default_joint_pos_limits = wp.to_torch(self.asset.data.joint_pos_limits).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -810,7 +812,7 @@ class randomize_joint_parameters(ManagerTermBase):
         # joint armature
         if armature_distribution_params is not None:
             armature = _randomize_prop_by_op(
-                self.asset.data.default_joint_armature.clone(),
+                wp.to_torch(self.asset.data.default_joint_armature).clone(),
                 armature_distribution_params,
                 env_ids,
                 joint_ids,
@@ -934,7 +936,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_stiffness.clone(),
+                wp.to_torch(self.asset.data.fixed_tendon_stiffness).clone(),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -946,7 +948,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # damping
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_damping.clone(),
+                wp.to_torch(self.asset.data.fixed_tendon_damping).clone(),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -958,7 +960,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_limit_stiffness.clone(),
+                wp.to_torch(self.asset.data.fixed_tendon_limit_stiffness).clone(),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -971,7 +973,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self.asset.data.fixed_tendon_pos_limits.clone()
+            limit = wp.to_torch(self.asset.data.fixed_tendon_pos_limits).clone()
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1005,7 +1007,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # rest length
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_rest_length.clone(),
+                wp.to_torch(self.asset.data.fixed_tendon_rest_length).clone(),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1017,7 +1019,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_offset.clone(),
+                wp.to_torch(self.asset.data.fixed_tendon_offset).clone(),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1048,7 +1050,9 @@ def apply_external_force_torque(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # resolve environment ids
     if env_ids is None:
-        env_ids = torch.arange(env.scene.num_envs, device=asset.device)
+        env_ids = torch.arange(env.scene.num_envs, device=asset.device, dtype=torch.int32)
+    else:
+        env_ids = env_ids.to(dtype=torch.int32)
     # resolve number of bodies
     num_bodies = len(asset_cfg.body_ids) if isinstance(asset_cfg.body_ids, list) else asset.num_bodies
 
@@ -1391,7 +1395,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # rigid bodies
     for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
+        default_root_state = wp.to_torch(rigid_object.data.default_root_state)[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
@@ -1399,14 +1403,14 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
+        default_root_state = wp.to_torch(articulation_asset.data.default_root_state)[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         articulation_asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
         articulation_asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
         # obtain default joint positions
-        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
-        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
+        default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
         # reset joint targets if required

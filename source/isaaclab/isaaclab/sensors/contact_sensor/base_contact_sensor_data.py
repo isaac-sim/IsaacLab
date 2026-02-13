@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
+
 class BaseContactSensorData(ABC):
     """Data container for the contact reporting sensor.
 

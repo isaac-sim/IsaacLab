@@ -64,7 +64,6 @@ from isaacsim.core.simulation_manager import SimulationManager
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 import warp as wp
-
 from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
@@ -223,18 +222,12 @@ def main():
 
     # Generator that updates mock data and invalidates timestamp
     def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
-        mock_view.set_mock_transforms(
-            wp.from_torch(torch.randn(total_count, 7, device=cfg.device), dtype=wp.float32)
-        )
-        mock_view.set_mock_velocities(
-            wp.from_torch(torch.randn(total_count, 6, device=cfg.device), dtype=wp.float32)
-        )
+        mock_view.set_mock_transforms(wp.from_torch(torch.randn(total_count, 7, device=cfg.device), dtype=wp.float32))
+        mock_view.set_mock_velocities(wp.from_torch(torch.randn(total_count, 6, device=cfg.device), dtype=wp.float32))
         mock_view.set_mock_accelerations(
             wp.from_torch(torch.randn(total_count, 6, device=cfg.device), dtype=wp.float32)
         )
-        mock_view.set_mock_coms(
-            wp.from_torch(torch.randn(total_count, 7, device=cfg.device), dtype=wp.float32)
-        )
+        mock_view.set_mock_coms(wp.from_torch(torch.randn(total_count, 7, device=cfg.device), dtype=wp.float32))
         data._sim_timestamp += 1.0
         return {}
 

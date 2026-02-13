@@ -86,7 +86,9 @@ class UniformPose2dCommand(CommandTerm):
         self.metrics["error_pos_2d"] = torch.linalg.norm(
             self.pos_command_w[:, :2] - wp.to_torch(self.robot.data.root_pos_w)[:, :2], dim=1
         )
-        self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w)))
+        self.metrics["error_heading"] = torch.abs(
+            wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
+        )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # obtain env origins for the environments
@@ -106,7 +108,9 @@ class UniformPose2dCommand(CommandTerm):
             # compute errors to find the closest direction to the current heading
             # this is done to avoid the discontinuity at the -pi/pi boundary
             curr_to_target = wrap_to_pi(target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
-            curr_to_flipped_target = wrap_to_pi(flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
+            curr_to_flipped_target = wrap_to_pi(
+                flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]
+            ).abs()
 
             # set the heading command to the closest direction
             self.heading_command_w[env_ids] = torch.where(
@@ -193,7 +197,9 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
             # compute errors to find the closest direction to the current heading
             # this is done to avoid the discontinuity at the -pi/pi boundary
             curr_to_target = wrap_to_pi(target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
-            curr_to_flipped_target = wrap_to_pi(flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
+            curr_to_flipped_target = wrap_to_pi(
+                flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]
+            ).abs()
 
             # set the heading command to the closest direction
             self.heading_command_w[env_ids] = torch.where(

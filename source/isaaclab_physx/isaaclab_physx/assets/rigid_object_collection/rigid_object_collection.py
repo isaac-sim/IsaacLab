@@ -6,12 +6,12 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -186,19 +186,31 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_force, device=self.device).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(self._instantaneous_wrench_composer.composed_torque, device=self.device).view(wp.float32),
+                    force_data=self.reshape_data_to_view_2d(
+                        self._instantaneous_wrench_composer.composed_force, device=self.device
+                    ).view(wp.float32),
+                    torque_data=self.reshape_data_to_view_2d(
+                        self._instantaneous_wrench_composer.composed_torque, device=self.device
+                    ).view(wp.float32),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device),
+                    indices=self._env_body_ids_to_view_ids(
+                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
+                    ),
                     is_global=False,
                 )
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_force, device=self.device).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(self._permanent_wrench_composer.composed_torque, device=self.device).view(wp.float32),
+                    force_data=self.reshape_data_to_view_2d(
+                        self._permanent_wrench_composer.composed_force, device=self.device
+                    ).view(wp.float32),
+                    torque_data=self.reshape_data_to_view_2d(
+                        self._permanent_wrench_composer.composed_torque, device=self.device
+                    ).view(wp.float32),
                     position_data=None,
-                    indices=self._env_body_ids_to_view_ids(self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device),
+                    indices=self._env_body_ids_to_view_ids(
+                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
+                    ),
                     is_global=False,
                 )
         self._instantaneous_wrench_composer.reset()
@@ -351,7 +363,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = self._ALL_BODY_INDICES
         self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
 
-
     def write_body_link_pose_to_sim_index(
         self,
         body_poses: torch.Tensor | wp.array,
@@ -381,8 +392,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             outputs=[
                 self.data._body_link_pose_w.data,
-                None, #self.data._body_link_state_w.data,
-                None, #self.data._body_state_w.data,
+                None,  # self.data._body_link_state_w.data,
+                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -450,9 +461,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data._body_com_pose_w.data,
                 self.data._body_link_pose_w.data,
-                None, #self.data._body_com_state_w.data,
-                None, #self.data._body_link_state_w.data,
-                None, #self.data._body_state_w.data,
+                None,  # self.data._body_com_state_w.data,
+                None,  # self.data._body_link_state_w.data,
+                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -519,8 +530,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data._body_com_vel_w.data,
                 self.data._body_com_acc_w.data,
-                None, #self.data._body_state_w.data,
-                None, #self.data._body_com_state_w.data,
+                None,  # self.data._body_state_w.data,
+                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
@@ -593,9 +604,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self.data._body_link_vel_w.data,
                 self.data._body_com_vel_w.data,
                 self.data._body_com_acc_w.data,
-                None, #self.data._body_link_state_w.data,
-                None, #self.data._body_state_w.data,
-                None, #self.data._body_com_state_w.data,
+                None,  # self.data._body_link_state_w.data,
+                None,  # self.data._body_state_w.data,
+                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
@@ -876,7 +887,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
-
     """
     Helper functions.
     """
@@ -886,7 +896,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         The view returns data ordered as: (num_bodies * num_instances,)
             [body0_env0, body0_env1, ..., body1_env0, body1_env1, ...]
-        This function returns the data aranged as:
+        This function returns the data arranged as:
             [[env_0_body_0, env_0_body_1, ...],
              [env_1_body_0, env_1_body_1, ...],
              ...]
@@ -916,7 +926,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             [[body0_env0_data_0, body0_env0_data_1, ...],
              [body0_env1_data_0, body0_env1_data_1, ...],
              ...]
-        This function returns the data aranged as: (num_instances, num_bodies, data_dim)
+        This function returns the data arranged as: (num_instances, num_bodies, data_dim)
             [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
               [env_0_body_1_data_0, env_0_body_1_data_1, ...],
               ...],
@@ -941,20 +951,20 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         return wp.clone(strided_view, device=device)
-      
+
     def reshape_data_to_view_2d(self, data: wp.array, device: str = "cpu") -> wp.array:
         """Reshapes and arranges the data to the be consistent with data from the :attr:`root_view`.
-    
+
             Our internal methods consume and return data aranged as:
                 [[env_0_body_0, env_0_body_1, ...],
                  [env_1_body_0, env_1_body_1, ...],
                  ...]
             The view needs data ordered as: (num_bodies * num_instances,)
                 [body0_env0, body0_env1, ..., body1_env0, body1_env1, ...]
-    
+
         Args:
             data: The data to be formatted for the view. Shape is (num_instances, num_bodies).
-    
+
         Returns:
             The data formatted for the view. Shape is (num_bodies * num_instances,).
         """
@@ -968,10 +978,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Clone to make contiguous (now row-major num_bodies x num_instances), then flatten
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
-    
+
     def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D data to (num_bodies * num_instances, data_dim).
-    
+
         Our internal methods consume and return data aranged as: (num_instances, num_bodies, data_dim)
             [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
               [env_0_body_1_data_0, env_0_body_1_data_1, ...],
@@ -983,11 +993,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             [[body0_env0_data_0, body0_env0_data_1, ...],
              [body0_env1_data_0, body0_env1_data_1, ...],
              ...]
-    
+
         Args:
             data: The data to be formatted for the view. Shape is (num_instances, num_bodies, data_dim).
             data_dim: The trailing dimension size.
-    
+
         Returns:
             The data formatted for the view. Shape is (num_bodies * num_instances, data_dim).
         """
@@ -1108,8 +1118,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def _create_buffers(self):
         # constants
-        self._ALL_ENV_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device, dtype=wp.int32)
-        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32)
+        self._ALL_ENV_INDICES = wp.array(
+            np.arange(self.num_instances, dtype=np.int32), device=self.device, dtype=wp.int32
+        )
+        self._ALL_BODY_INDICES = wp.array(
+            np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32
+        )
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1253,4 +1267,4 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             stacklevel=2,
         )
         self.write_body_link_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_link_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids) 
+        self.write_body_link_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)

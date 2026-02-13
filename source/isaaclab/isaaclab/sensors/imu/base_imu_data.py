@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
+
 class BaseImuData(ABC):
     """Data container for the Imu sensor.
 

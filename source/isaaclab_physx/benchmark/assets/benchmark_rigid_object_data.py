@@ -62,7 +62,6 @@ from isaacsim.core.simulation_manager import SimulationManager
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 import warp as wp
-
 from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
@@ -233,9 +232,7 @@ def main():
         mock_view.set_mock_accelerations(
             wp.from_torch(torch.randn(cfg.num_instances, 6, device=cfg.device), dtype=wp.float32)
         )
-        mock_view.set_mock_coms(
-            wp.from_torch(torch.randn(cfg.num_instances, 7, device=cfg.device), dtype=wp.float32)
-        )
+        mock_view.set_mock_coms(wp.from_torch(torch.randn(cfg.num_instances, 7, device=cfg.device), dtype=wp.float32))
         rigid_object_data._sim_timestamp += 1.0
         return {}
 

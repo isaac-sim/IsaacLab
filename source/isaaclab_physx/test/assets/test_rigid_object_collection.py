@@ -500,10 +500,15 @@ def test_object_state_properties(sim, num_envs, num_cubes, device, with_offset, 
 
     com = wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf)))
     com[..., :3] = offset.to("cpu")
-    cube_object.root_view.set_coms(cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32), wp.from_torch(view_ids, dtype=wp.int32))
+    cube_object.root_view.set_coms(
+        cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32),
+        wp.from_torch(view_ids, dtype=wp.int32),
+    )
 
     # check center of mass has been set
-    torch.testing.assert_close(wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com)
+    torch.testing.assert_close(
+        wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com
+    )
 
     # random z spin velocity
     spin_twist = torch.zeros(6, device=device)
@@ -594,9 +599,14 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
 
     com = wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf)))
     com[..., :3] = offset.to("cpu")
-    cube_object.root_view.set_coms(cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32), wp.from_torch(view_ids, dtype=wp.int32))
+    cube_object.root_view.set_coms(
+        cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32),
+        wp.from_torch(view_ids, dtype=wp.int32),
+    )
     # check center of mass has been set
-    torch.testing.assert_close(wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com)
+    torch.testing.assert_close(
+        wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com
+    )
 
     rand_state = torch.zeros_like(wp.to_torch(cube_object.data.object_link_state_w))
     rand_state[..., :7] = wp.to_torch(cube_object.data.default_object_state)[..., :7]
@@ -652,8 +662,12 @@ def test_reset_object_collection(sim, num_envs, num_cubes, device):
             # Reset should zero external forces and torques
             assert not object_collection._instantaneous_wrench_composer.active
             assert not object_collection._permanent_wrench_composer.active
-            assert torch.count_nonzero(wp.to_torch(object_collection._instantaneous_wrench_composer.composed_force)) == 0
-            assert torch.count_nonzero(wp.to_torch(object_collection._instantaneous_wrench_composer.composed_torque)) == 0
+            assert (
+                torch.count_nonzero(wp.to_torch(object_collection._instantaneous_wrench_composer.composed_force)) == 0
+            )
+            assert (
+                torch.count_nonzero(wp.to_torch(object_collection._instantaneous_wrench_composer.composed_torque)) == 0
+            )
             assert torch.count_nonzero(wp.to_torch(object_collection._permanent_wrench_composer.composed_force)) == 0
             assert torch.count_nonzero(wp.to_torch(object_collection._permanent_wrench_composer.composed_torque)) == 0
 
@@ -675,7 +689,10 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
 
     # Add friction to cube
     indices = torch.tensor(range(num_cubes * num_envs), dtype=torch.int)
-    object_collection.root_view.set_material_properties(object_collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu"), wp.from_torch(indices, dtype=wp.int32))
+    object_collection.root_view.set_material_properties(
+        object_collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu"),
+        wp.from_torch(indices, dtype=wp.int32),
+    )
 
     # Perform simulation
     sim.step()
@@ -685,7 +702,9 @@ def test_set_material_properties(sim, num_envs, num_cubes, device):
     materials_to_check = object_collection.root_view.get_material_properties()
 
     # Check if material properties are set correctly
-    torch.testing.assert_close(wp.to_torch(object_collection.reshape_view_to_data_3d(materials_to_check, 3, device="cpu")), materials)
+    torch.testing.assert_close(
+        wp.to_torch(object_collection.reshape_view_to_data_3d(materials_to_check, 3, device="cpu")), materials
+    )
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
@@ -751,10 +770,15 @@ def test_write_object_state_functions_data_consistency(
 
     com = wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf)))
     com[..., :3] = offset.to("cpu")
-    cube_object.root_view.set_coms(cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32), wp.from_torch(view_ids, dtype=wp.int32))
+    cube_object.root_view.set_coms(
+        cube_object.reshape_data_to_view_2d(wp.from_torch(com.clone(), dtype=wp.transformf)).view(wp.float32),
+        wp.from_torch(view_ids, dtype=wp.int32),
+    )
 
     # check center of mass has been set
-    torch.testing.assert_close(wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com)
+    torch.testing.assert_close(
+        wp.to_torch(cube_object.reshape_view_to_data_2d(cube_object.root_view.get_coms().view(wp.transformf))), com
+    )
 
     rand_state = torch.rand_like(wp.to_torch(cube_object.data.object_link_state_w))
     rand_state[..., :3] += wp.to_torch(cube_object.data.object_link_pos_w)
@@ -801,9 +825,7 @@ def test_write_object_state_functions_data_consistency(
             wp.to_torch(cube_object.data.object_com_state_w)[..., 10:],
             wp.to_torch(cube_object.data.object_link_state_w)[..., 10:],
         )
-        torch.testing.assert_close(
-            expected_object_link_pose, wp.to_torch(cube_object.data.object_state_w)[..., :7]
-        )
+        torch.testing.assert_close(expected_object_link_pose, wp.to_torch(cube_object.data.object_state_w)[..., :7])
         torch.testing.assert_close(
             wp.to_torch(cube_object.data.object_com_state_w)[..., 10:],
             wp.to_torch(cube_object.data.object_state_w)[..., 10:],
@@ -817,9 +839,7 @@ def test_write_object_state_functions_data_consistency(
         )
         expected_object_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1).view(num_envs, -1, 7)
         # test both root_pose and root_com_state_w successfully updated when root_link_state_w updates
-        torch.testing.assert_close(
-            expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7]
-        )
+        torch.testing.assert_close(expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7])
         # skip 7:10 because they differs from link frame, this should be fine because we are only checking
         # if velocity update is triggered, which can be determined by comparing angular velocity
         torch.testing.assert_close(
@@ -845,9 +865,7 @@ def test_write_object_state_functions_data_consistency(
             num_envs, -1, 7
         )
         # test both root_com_state_w and root_link_state_w successfully updated when root_pose updates
-        torch.testing.assert_close(
-            expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7]
-        )
+        torch.testing.assert_close(expected_object_com_pose, wp.to_torch(cube_object.data.object_com_state_w)[..., :7])
         torch.testing.assert_close(
             wp.to_torch(cube_object.data.object_state_w)[..., 7:],
             wp.to_torch(cube_object.data.object_com_state_w)[..., 7:],

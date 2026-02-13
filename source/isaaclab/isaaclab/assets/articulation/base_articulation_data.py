@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
+
 class BaseArticulationData(ABC):
     """Data container for an articulation.
 

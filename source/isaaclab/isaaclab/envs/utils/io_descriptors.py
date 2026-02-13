@@ -12,14 +12,15 @@ from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     import torch
+
     from isaaclab.assets.articulation import Articulation
     from isaaclab.envs import ManagerBasedEnv
-
-import warp as wp
 
 import dataclasses
 import functools
 import inspect
+
+import warp as wp
 
 
 @configclass

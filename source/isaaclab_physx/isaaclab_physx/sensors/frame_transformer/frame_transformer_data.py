@@ -87,7 +87,6 @@ class FrameTransformerData(BaseFrameTransformerData):
         self._target_quat_source = wp.zeros((num_envs, num_target_frames), dtype=wp.quatf, device=device)
 
         # Initialize quaternions to identity (w=1). wp.zeros gives (0,0,0,0) not (0,0,0,1).
-        import torch
 
         wp.to_torch(self._source_quat_w)[:, 3] = 1.0
         wp.to_torch(self._target_quat_w)[:, :, 3] = 1.0
