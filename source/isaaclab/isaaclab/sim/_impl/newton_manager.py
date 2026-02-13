@@ -333,12 +333,15 @@ class NewtonManager:
                     "[NewtonManager] DEBUG articulation %r: root_path[0]=%r, body_names[:8]=%r",
                     art_name, root_paths[0], body_names[:8],
                 )
+            # Newton body_key uses link paths under the articulation root (e.g. /World/envs/env_0/Robot/iiwa7_link_0).
+            # PhysX root_path is often the root joint prim (e.g. .../Robot/root_joint); use its parent as base.
             flat_idx = 0
             for env_idx in range(num_instances):
                 root_path = root_paths[env_idx]
+                base_path = root_path.rsplit("/", 1)[0] if "/" in root_path else root_path
                 for body_local_idx, body_name in enumerate(body_names):
-                    body_path = f"{root_path}/{body_name}"
-                    mapping[flat_idx] = cls._body_path_to_newton_idx_lookup(body_path, root_path, body_name)
+                    body_path = f"{base_path}/{body_name}"
+                    mapping[flat_idx] = cls._body_path_to_newton_idx_lookup(body_path, base_path, body_name)
                     flat_idx += 1
             num_matched = (mapping >= 0).sum().item()
             cls._physx_to_newton_maps[art_name] = mapping

@@ -93,6 +93,7 @@ from isaaclab.envs import (
 )
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.timer import Timer, TimerError
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
@@ -217,6 +218,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+
+    # print average sim / render timing if available
+    try:
+        timers = [
+            ("simulate", "Sim (physics step)"),
+            ("render", "Render (total, obs compute)"),
+            ("newton_warp_kernel_only", "Render (Newton Warp kernel only)"),
+        ]
+        lines = []
+        for name, label in timers:
+            try:
+                s = Timer.get_timer_statistics(name)
+                mean_us = s["mean"] * 1e6
+                std_us = s["std"] * 1e6
+                lines.append(f"  {label}: mean={mean_us:.2f} us  std={std_us:.2f} us  n={s['n']}")
+            except TimerError:
+                lines.append(f"  {label}: (no data)")
+        if lines:
+            print("[Timing summary]")
+            print("\n".join(lines))
+    except Exception:
+        pass
 
     # close the simulator
     env.close()

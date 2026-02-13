@@ -13,6 +13,7 @@ from newton.sensors import SensorTiledCamera
 
 from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.timer import Timer
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .renderer import RendererBase
@@ -197,9 +198,25 @@ class NewtonWarpRenderer(RendererBase):
 
     def __init__(self, cfg: NewtonWarpRendererCfg):
         super().__init__(cfg)
+        self.cfg = cfg
+        self._render_call_count = 0
+        self._last_num_envs = getattr(self, "_num_envs", 1)  # updated each render(); used for save_image tiled grid
+
+        # Create save directory (will be cleaned up on shutdown)
+        import os
+        import shutil
+
+        self._save_dir = "/tmp/newton_renders"
+        if os.path.exists(self._save_dir):
+            shutil.rmtree(self._save_dir)
+        os.makedirs(self._save_dir, exist_ok=True)
 
     def initialize(self):
         """Initialize the renderer."""
+        import sys
+
+        print("[NewtonWarpRenderer] initialize() called — Newton Warp renderer active (debug + timing enabled).", flush=True)
+        sys.stdout.flush()
         self._model = NewtonManager.get_model()
 
         # Create tiled camera sensor with one camera per environment
@@ -249,19 +266,54 @@ class NewtonWarpRenderer(RendererBase):
         self._data_types = ["rgba", "rgb", "depth"]
         self._num_tiles_per_side = math.ceil(math.sqrt(self._num_envs))
 
-        # Raw buffer to hold data from the tiled camera sensor
+        # Raw buffers from the tiled camera sensor; output buffers are views set each frame in _copy_outputs_to_buffers()
         self._raw_output_rgb_buffer = self._tiled_camera_sensor.create_color_image_output()
         self._raw_output_depth_buffer = self._tiled_camera_sensor.create_depth_image_output()
 
-        self._output_data_buffers["rgba"] = wp.zeros(
-            (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=self._raw_output_rgb_buffer.device
+    def _prepare_camera_transforms(
+        self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor
+    ):
+        """Convert torch camera data to Warp camera_transforms (for timing: this is pre-kernel setup)."""
+        if self._camera_rays is None:
+            self.set_camera_rays_from_intrinsics(intrinsic_matrices)
+        num_envs = camera_positions.shape[0]
+        camera_positions_wp = wp.from_torch(camera_positions.contiguous(), dtype=wp.vec3)
+        camera_quats_converted = convert_camera_frame_orientation_convention(
+            camera_orientations, origin="world", target="opengl"
         )
-        # Create RGB view that references the same underlying array as RGBA, but only first 3 channels
-        self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-        self._output_data_buffers["depth"] = wp.zeros(
-            (self._num_envs, self._height, self._width, 1),
-            dtype=wp.float32,
-            device=self._raw_output_depth_buffer.device,
+        camera_orientations_wp = wp.from_torch(camera_quats_converted, dtype=wp.quat)
+        camera_transforms = wp.empty((num_envs, 1), dtype=wp.transformf, device=camera_positions_wp.device)
+        wp.launch(
+            kernel=_create_camera_transforms_kernel,
+            dim=num_envs,
+            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
+            device=camera_positions_wp.device,
+        )
+        return camera_transforms
+
+    def _render_warp_kernel_only(self, camera_transforms: wp.array):
+        """Run only SensorTiledCamera.render() (Warp ray trace). Use this for apples-to-apples timing vs Newton-Warp."""
+        self._tiled_camera_sensor.render(
+            state=NewtonManager.get_state_0(),
+            camera_transforms=camera_transforms,
+            camera_rays=self._camera_rays,
+            color_image=self._raw_output_rgb_buffer,
+            depth_image=self._raw_output_depth_buffer,
+        )
+
+    def _copy_outputs_to_buffers(self, num_envs: int):
+        """Copy raw sensor output into output buffers using views (zero-copy; avoids per-env wp.copy)."""
+        rgb_reshaped = self._raw_output_rgb_buffer.reshape((num_envs, self._height * self._width))
+        rgba_uint8 = wp.array(
+            ptr=rgb_reshaped.ptr,
+            shape=(num_envs, self._height, self._width, 4),
+            dtype=wp.uint8,
+            device=rgb_reshaped.device,
+        )
+        self._output_data_buffers["rgba"] = rgba_uint8
+        self._output_data_buffers["rgb"] = rgba_uint8[:, :, :, :3]
+        self._output_data_buffers["depth"] = self._raw_output_depth_buffer.reshape(
+            (num_envs, self._height, self._width, 1)
         )
 
     def render(
@@ -274,85 +326,126 @@ class NewtonWarpRenderer(RendererBase):
             camera_orientations: Tensor of shape (num_envs, 4) - camera quaternions (x, y, z, w) in world frame
             intrinsic_matrices: Tensor of shape (num_envs, 3, 3) - camera intrinsic matrices
         """
-        if self._camera_rays is None:
-            self.set_camera_rays_from_intrinsics(intrinsic_matrices)
+        camera_transforms = self._prepare_camera_transforms(
+            camera_positions, camera_orientations, intrinsic_matrices
+        )
         num_envs = camera_positions.shape[0]
+        with Timer(name="newton_warp_kernel_only", msg="Newton Warp kernel only took"):
+            self._render_warp_kernel_only(camera_transforms)
+        self._copy_outputs_to_buffers(num_envs)
+        self._last_num_envs = num_envs  # for save_image tiled grid (buffer.numpy() shape may not match)
+        # Debug save every 50 frames (outside timed region)
+        self._render_call_count += 1
+        if self._render_call_count % 50 == 0:
+            import os
 
-        # Convert torch tensors to warp arrays directly on GPU
-        # Positions: shape (num_envs, 3) -> shape (num_envs,) of vec3
-        camera_positions_wp = wp.from_torch(camera_positions.contiguous(), dtype=wp.vec3)
-        camera_quats_converted = convert_camera_frame_orientation_convention(
-            camera_orientations, origin="world", target="opengl"
-        )
+            frame_dir = os.path.join(self._save_dir, f"frame_{self._render_call_count:06d}")
+            os.makedirs(frame_dir, exist_ok=True)
+            tiled_rgb = os.path.join(frame_dir, "all_envs_tiled_rgb.png")
+            self.save_image(tiled_rgb, env_index=None, data_type="rgb")
+            import sys
 
-        camera_orientations_wp = wp.from_torch(camera_quats_converted, dtype=wp.quat)
+            print(f"[NewtonWarpRenderer] Saved tiled RGB → {frame_dir}/", flush=True)
+            try:
+                stats = Timer.get_timer_statistics("newton_warp_kernel_only")
+                print(
+                    f"[NewtonWarpRenderer] Newton Warp kernel timing (so far): mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
+                    flush=True,
+                )
+            except Exception:
+                pass
+            sys.stdout.flush()
 
-        # Create camera transforms array, TODO: num_cameras = 1
-        # Format: wp.array of shape (num_envs, num_cameras), dtype=wp.transformf
-        camera_transforms = wp.empty((num_envs, 1), dtype=wp.transformf, device=camera_positions_wp.device)
+    def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
+        """Save a single environment or a tiled grid of environments to disk.
 
-        # Launch kernel to populate transforms (vectorized operation)
-        wp.launch(
-            kernel=_create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=camera_positions_wp.device,
-        )
+        Args:
+            filename: Path to save the image (should end with .png).
+            env_index: Environment index to save, or None for tiled grid of all envs.
+            data_type: Which data to save - "rgb", "rgba", or "depth". Default: "rgb".
+        """
+        import numpy as np
+        from PIL import Image
 
-        # Render using SensorTiledCamera
-        self._tiled_camera_sensor.render(
-            state=NewtonManager.get_state_0(),  # Use current physics state
-            camera_transforms=camera_transforms,
-            camera_rays=self._camera_rays,
-            color_image=self._raw_output_rgb_buffer,
-            depth_image=self._raw_output_depth_buffer,
-        )
+        if data_type == "rgb" and "rgb" in self._output_data_buffers:
+            buffer = self._output_data_buffers["rgb"]
+            mode = "RGB"
+        elif data_type == "rgba" and "rgba" in self._output_data_buffers:
+            buffer = self._output_data_buffers["rgba"]
+            mode = "RGBA"
+        elif data_type == "depth" and "depth" in self._output_data_buffers:
+            buffer = self._output_data_buffers["depth"]
+            mode = "L"
+        else:
+            raise ValueError(f"Data type '{data_type}' not available in output buffers.")
 
-        # The tiled camera sensor outputs a tiled image grid
-        # For num_envs cameras, it creates a sqrt(num_envs) x sqrt(num_envs) grid
-        # Each tile is (height x width)
-        tiles_per_side = math.ceil(math.sqrt(num_envs))
-        tiled_height = tiles_per_side * self._height
-        tiled_width = tiles_per_side * self._width
-        
-        # Newton's output format: (num_worlds, num_cameras, pixels_per_camera)
-        # where pixels_per_camera = height * width
-        # We need to reshape to (num_cameras, height, width) for each camera
-        
-        actual_num_envs = min(num_envs, self._num_envs)
-        
-        # RGB buffer: (1, num_cameras, pixels) as uint32 packed RGBA
-        # Reshape to (num_cameras, height, width) then convert uint32 to 4x uint8
-        rgb_reshaped = self._raw_output_rgb_buffer.reshape((num_envs, self._height * self._width))
-        
-        # Convert uint32 RGBA to uint8 view: each uint32 becomes 4 uint8 values
-        rgba_uint8 = wp.array(
-            ptr=rgb_reshaped.ptr,
-            shape=(num_envs, self._height, self._width, 4),
-            dtype=wp.uint8,
-            device=rgb_reshaped.device,
-        )
-        
-        # Copy to output buffers (already correct shape)
-        for env_id in range(actual_num_envs):
-            wp.copy(
-                dest=self._output_data_buffers["rgba"][env_id],
-                src=rgba_uint8[env_id]
-            )
-        
-        self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-        
-        # Depth buffer: (1, num_cameras, pixels) as float32
-        # Reshape to (num_cameras, height, width)
-        depth_reshaped = self._raw_output_depth_buffer.reshape((num_envs, self._height, self._width))
-        
-        # Use kernel to copy depth with channel dimension
-        wp.launch(
-            kernel=_copy_depth_with_channel,
-            dim=(actual_num_envs, self._height, self._width),
-            inputs=[depth_reshaped, self._output_data_buffers["depth"]],
-            device=depth_reshaped.device,
-        )
+        buffer_np = buffer.numpy()
+        # Use _last_num_envs from last render() so tiled grid is correct (wp array view .numpy() may report wrong shape[0])
+        num_envs_from_buffer = buffer_np.shape[0] if len(buffer_np.shape) >= 4 else 1
+        num_envs_for_tile = getattr(self, "_last_num_envs", None)
+        if num_envs_for_tile is None:
+            num_envs_for_tile = num_envs_from_buffer
+        # If buffer was flattened by .numpy() but size matches expected envs, reshape to (N, H, W, C)
+        n_expected = int(num_envs_for_tile)
+        channels = 1 if data_type == "depth" else (4 if data_type == "rgba" else 3)
+        expected_size = n_expected * self._height * self._width * channels
+        if buffer_np.size == expected_size and num_envs_from_buffer != n_expected and buffer_np.size > 0:
+            try:
+                buffer_np = buffer_np.reshape((n_expected, self._height, self._width, channels))
+                num_envs_from_buffer = n_expected
+            except (ValueError, AttributeError):
+                pass
+
+        if env_index is None:
+            num_envs = min(int(num_envs_for_tile), num_envs_from_buffer)
+            tiles_per_side = int(np.ceil(np.sqrt(num_envs)))
+            tiled_height = tiles_per_side * self._height
+            tiled_width = tiles_per_side * self._width
+
+            if data_type == "depth":
+                tiled_image = np.zeros((tiled_height, tiled_width), dtype=np.uint8)
+                for idx in range(num_envs):
+                    tile_y = idx // tiles_per_side
+                    tile_x = idx % tiles_per_side
+                    y_start = tile_y * self._height
+                    y_end = y_start + self._height
+                    x_start = tile_x * self._width
+                    x_end = x_start + self._width
+                    depth_data = buffer_np[idx, :, :, 0]
+                    d_min, d_max = depth_data.min(), depth_data.max()
+                    if d_max > d_min:
+                        depth_vis = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+                    else:
+                        depth_vis = np.zeros_like(depth_data, dtype=np.uint8)
+                    tiled_image[y_start:y_end, x_start:x_end] = depth_vis
+            else:
+                channels = 3 if mode == "RGB" else 4
+                tiled_image = np.zeros((tiled_height, tiled_width, channels), dtype=np.uint8)
+                for idx in range(num_envs):
+                    tile_y = idx // tiles_per_side
+                    tile_x = idx % tiles_per_side
+                    y_start = tile_y * self._height
+                    y_end = y_start + self._height
+                    x_start = tile_x * self._width
+                    x_end = x_start + self._width
+                    tiled_image[y_start:y_end, x_start:x_end] = buffer_np[idx]
+
+            img = Image.fromarray(tiled_image, mode=mode)
+            img.save(filename)
+            print(f"[NewtonWarpRenderer] Saved tiled {data_type} image: {filename}", flush=True)
+        else:
+            if data_type == "depth":
+                depth_data = buffer_np[env_index, :, :, 0]
+                d_min, d_max = depth_data.min(), depth_data.max()
+                if d_max > d_min:
+                    img_data = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+                else:
+                    img_data = np.zeros_like(depth_data, dtype=np.uint8)
+            else:
+                img_data = buffer_np[env_index]
+            img = Image.fromarray(img_data, mode=mode)
+            img.save(filename)
+            print(f"[NewtonWarpRenderer] Saved env {env_index} {data_type} image: {filename}", flush=True)
 
     def step(self):
         """Step the renderer."""
