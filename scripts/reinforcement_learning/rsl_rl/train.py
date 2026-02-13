@@ -34,6 +34,13 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument(
+    "--renderer_backend",
+    type=str,
+    default="rtx",
+    choices=("rtx", "warp_renderer"),
+    help="Camera renderer backend: 'rtx' (RTX) or 'warp_renderer' (Newton Warp). Sets env.scene variant unless overridden.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -43,6 +50,13 @@ args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
+
+# Set env.scene from --renderer_backend if user did not already pass env.scene
+if not any(a.startswith("env.scene=") for a in hydra_args):
+    if args_cli.renderer_backend == "warp_renderer":
+        hydra_args = list(hydra_args) + ["env.scene=64x64newton_rgb"]
+    else:
+        hydra_args = list(hydra_args) + ["env.scene=64x64tiled_rgb"]
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
