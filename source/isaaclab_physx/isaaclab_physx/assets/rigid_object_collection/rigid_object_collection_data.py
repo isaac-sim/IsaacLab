@@ -16,9 +16,8 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data i
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import normalize
 
+from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-from ..kernels import *
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_view import RigidObjectCollectionView
@@ -187,9 +186,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._default_body_state is None:
-            self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
+            self._default_body_state = wp.zeros(
+                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
+            )
         wp.launch(
-            concat_body_pose_and_vel_to_state,
+            shared_kernels.concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
             inputs=[
                 self._default_body_pose,
@@ -252,7 +253,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
-                get_body_link_vel_from_body_com_vel,
+                shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_com_vel_w,
@@ -277,7 +278,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             wp.launch(
-                get_body_com_pose_from_body_link_pose,
+                shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -317,7 +318,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         if self._body_state_w.timestamp < self._sim_timestamp:
             wp.launch(
-                concat_body_pose_and_vel_to_state,
+                shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -342,7 +343,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
-                concat_body_pose_and_vel_to_state,
+                shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_link_pose_w,
@@ -367,7 +368,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
-                concat_body_pose_and_vel_to_state,
+                shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
                     self.body_com_pose_w,
@@ -431,7 +432,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Projection of the gravity direction on base frame. Shape is (num_instances, num_bodies, 3)."""
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
-                quat_apply_inverse_2D_kernel,
+                shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.GRAVITY_VEC_W, self.body_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
@@ -450,7 +451,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._heading_w.timestamp < self._sim_timestamp:
             wp.launch(
-                body_heading_w,
+                shared_kernels.body_heading_w,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B, self.body_link_quat_w],
                 outputs=[self._heading_w.data],
@@ -468,7 +469,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                quat_apply_inverse_2D_kernel,
+                shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_lin_vel_w, self.body_link_quat_w],
                 outputs=[self._body_link_lin_vel_b.data],
@@ -486,7 +487,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                quat_apply_inverse_2D_kernel,
+                shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_ang_vel_w, self.body_link_quat_w],
                 outputs=[self._body_link_ang_vel_b.data],
@@ -504,7 +505,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                quat_apply_inverse_2D_kernel,
+                shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_lin_vel_w, self.body_link_quat_w],
                 outputs=[self._body_com_lin_vel_b.data],
@@ -522,7 +523,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
-                quat_apply_inverse_2D_kernel,
+                shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_ang_vel_w, self.body_link_quat_w],
                 outputs=[self._body_com_ang_vel_b.data],
@@ -648,9 +649,15 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_vel_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
         # -- combined state(these are cached as they concatenate)
-        self._body_state_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, vec13f)
-        self._body_link_state_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, vec13f)
-        self._body_com_state_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, vec13f)
+        self._body_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
+        self._body_link_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
+        self._body_com_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
 
         # -- Default state
         self._default_body_pose = wp.zeros(

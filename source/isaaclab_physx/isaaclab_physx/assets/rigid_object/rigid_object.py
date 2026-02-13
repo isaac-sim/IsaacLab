@@ -22,9 +22,9 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
-from ..kernels import *
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
@@ -320,7 +320,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         wp.launch(
-            set_root_link_pose_to_sim,
+            shared_kernels.set_root_link_pose_to_sim,
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -396,7 +396,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         wp.launch(
-            set_root_com_pose_to_sim,
+            shared_kernels.set_root_com_pose_to_sim,
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
@@ -477,7 +477,7 @@ class RigidObject(BaseRigidObject):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         wp.launch(
-            set_root_com_velocity_to_sim,
+            shared_kernels.set_root_com_velocity_to_sim,
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -559,7 +559,7 @@ class RigidObject(BaseRigidObject):
         env_ids = self._resolve_env_ids(env_ids)
         # Access body_com_pose_b and root_link_pose_w properties to ensure they are current.
         wp.launch(
-            set_root_link_velocity_to_sim,
+            shared_kernels.set_root_link_velocity_to_sim,
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -648,7 +648,7 @@ class RigidObject(BaseRigidObject):
         body_ids = self._resolve_body_ids(body_ids)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
@@ -728,7 +728,7 @@ class RigidObject(BaseRigidObject):
         body_ids = self._resolve_body_ids(body_ids)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            write_body_com_pose_to_buffer,
+            shared_kernels.write_body_com_pose_to_buffer,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -807,7 +807,7 @@ class RigidObject(BaseRigidObject):
         body_ids = self._resolve_body_ids(body_ids)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            write_single_body_inertia_to_buffer,
+            shared_kernels.write_single_body_inertia_to_buffer,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
