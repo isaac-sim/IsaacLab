@@ -286,12 +286,41 @@ class NewtonManager:
             logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
 
     @classmethod
+    def _body_path_to_newton_idx_lookup(cls, body_path: str, root_path: str, body_name: str) -> int:
+        """Resolve Newton body index: try exact path, then match body_key by path components."""
+        idx = cls._body_path_to_newton_idx.get(body_path, -1)
+        if idx >= 0:
+            return idx
+        # Newton's body_key may use different path format; match by root + body_name as last component
+        suffix = "/" + body_name
+        for key, newton_idx in cls._body_path_to_newton_idx.items():
+            if key.startswith(root_path) and key.endswith(suffix):
+                return newton_idx
+        # Also try: key ends with body_name (no extra slash) or key path parts end with body_name
+        for key, newton_idx in cls._body_path_to_newton_idx.items():
+            if not key.startswith(root_path):
+                continue
+            parts = key.split("/")
+            if parts and parts[-1] == body_name:
+                return newton_idx
+        return -1
+
+    @classmethod
     def _build_physx_to_newton_mapping(cls):
         """Build mapping arrays for GPU kernel (called once during setup)."""
         if cls._scene is None or not cls._is_initialized:
             return
         import torch
         cls._physx_to_newton_maps = {}
+
+        # One-time debug: log sample Newton body_key paths vs our paths (remove after fixing)
+        _debug_done = getattr(cls, "_build_mapping_debug_done", False)
+        if not _debug_done:
+            newton_keys = list(cls._body_path_to_newton_idx.keys())
+            logger.warning("[NewtonManager] DEBUG sample Newton body_key (first 15): %s", newton_keys[:15])
+            if len(newton_keys) > 20:
+                logger.warning("[NewtonManager] DEBUG Newton body_key (last 5): %s", newton_keys[-5:])
+
         for art_name, articulation in cls._scene.articulations.items():
             num_bodies = articulation.num_bodies
             num_instances = articulation.num_instances
@@ -299,15 +328,26 @@ class NewtonManager:
             mapping = torch.full((total_bodies,), -1, dtype=torch.int32, device=articulation.device)
             root_paths = articulation._root_physx_view.prim_paths
             body_names = articulation.body_names
+            if not _debug_done:
+                logger.warning(
+                    "[NewtonManager] DEBUG articulation %r: root_path[0]=%r, body_names[:8]=%r",
+                    art_name, root_paths[0], body_names[:8],
+                )
             flat_idx = 0
             for env_idx in range(num_instances):
                 root_path = root_paths[env_idx]
                 for body_local_idx, body_name in enumerate(body_names):
                     body_path = f"{root_path}/{body_name}"
-                    mapping[flat_idx] = cls._body_path_to_newton_idx.get(body_path, -1)
+                    mapping[flat_idx] = cls._body_path_to_newton_idx_lookup(body_path, root_path, body_name)
                     flat_idx += 1
+            num_matched = (mapping >= 0).sum().item()
             cls._physx_to_newton_maps[art_name] = mapping
-            logger.info(f"[NewtonManager] Built GPU mapping for articulation '{art_name}': {total_bodies} bodies")
+            logger.info(f"[NewtonManager] Built GPU mapping for articulation '{art_name}': {num_matched}/{total_bodies} bodies matched")
+            if num_matched == 0:
+                logger.warning(
+                    "[NewtonManager] DEBUG no matches for %r; sample our path=%r/%r",
+                    art_name, root_paths[0], body_names[0],
+                )
         if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
             for obj_name, rigid_object in cls._scene.rigid_objects.items():
                 num_instances = rigid_object.num_instances
@@ -317,6 +357,8 @@ class NewtonManager:
                     mapping[env_idx] = cls._body_path_to_newton_idx.get(root_paths[env_idx], -1)
                 cls._physx_to_newton_maps[obj_name] = mapping
                 logger.info(f"[NewtonManager] Built GPU mapping for rigid object '{obj_name}': {num_instances} instances")
+        if not _debug_done:
+            cls._build_mapping_debug_done = True
 
     @classmethod
     def update_state_from_physx_tensors_gpu(cls):
