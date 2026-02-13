@@ -757,61 +757,60 @@ def test_global_force_at_link_origin_no_torque(device: str):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_forces_unchanged_after_asset_pose_change(device: str):
-    """Test that stored forces remain unchanged after the asset's link pose is modified.
+def test_forces_after_asset_pose_change(device: str):
+    """Test that stored forces accumulate correctly as asset pose changes over multiple iterations.
 
     This verifies that the WrenchComposer correctly stores forces in "mixed" representation
-    (global frame orientation, local frame position) and doesn't re-transform them when the asset pose changes.
+    (global frame orientation, local frame position) and properly transforms new forces based
+    on the current pose, while previously stored forces remain unchanged.
     """
     rng = np.random.default_rng(seed=17)
     num_envs, num_bodies = 5, 3
+    num_iterations = 10
 
-    # Step 1: Create mock asset with initial pose and assign to wrench composer
-    initial_link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    initial_link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
-    initial_link_pos_torch = torch.from_numpy(initial_link_pos_np)
-    initial_link_quat_torch = torch.from_numpy(initial_link_quat_np)
+    # Create mock asset with initial pose
+    link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+    link_pos_torch = torch.from_numpy(link_pos_np)
+    link_quat_torch = torch.from_numpy(link_quat_np)
 
     mock_asset = MockRigidObject(
         num_envs, num_bodies, device,
-        link_pos=initial_link_pos_torch,
-        link_quat=initial_link_quat_torch
+        link_pos=link_pos_torch,
+        link_quat=link_quat_torch
     )
     wrench_composer = WrenchComposer(mock_asset)
 
-    # Step 2: Set some global forces
-    forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    forces_global = wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device)
+    # Track expected accumulated force in mixed representation
+    expected_accumulated_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
 
-    wrench_composer.add_forces_and_torques(forces=forces_global, is_global=True)
+    for iteration in range(num_iterations):
+        # Randomly choose whether to apply local or global forces
+        use_global = rng.choice([True, False])
 
-    # Store the composed forces immediately after setting
-    composed_force_before_np = wrench_composer.composed_force.numpy().copy()
+        # Generate random forces
+        forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        forces_wp = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
 
-    # Step 3: Change the link position and orientation of the mock asset
-    new_link_pos_np = rng.uniform(-20.0, 20.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    new_link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
+        # Apply forces
+        wrench_composer.add_forces_and_torques(forces=forces_wp, is_global=use_global)
 
-    # Update the mock asset's data directly
-    mock_asset.data.body_link_pos_w = torch.from_numpy(new_link_pos_np).to(device=device, dtype=torch.float32)
-    mock_asset.data.body_link_quat_w = torch.from_numpy(new_link_quat_np).to(device=device, dtype=torch.float32)
+        # Update expected accumulated force based on current pose
+        if use_global:
+            # Global forces are stored as-is in mixed representation
+            expected_accumulated_force_np += forces_np
+        else:
+            # Local forces are rotated by current link quaternion to mixed representation
+            forces_in_mixed = quat_rotate_np(link_quat_np, forces_np)
+            expected_accumulated_force_np += forces_in_mixed
 
-    # Step 4: Add zero forces to trigger any internal updates in the wrench composer
-    wrench_composer.add_forces_and_torques(forces=wp.zeros_like(forces_global), is_global=True)
+        # Verify composed forces match expected accumulation
+        composed_force_np = wrench_composer.composed_force.numpy()
+        assert np.allclose(composed_force_np, expected_accumulated_force_np, atol=1e-3, rtol=1e-5)
 
-    # Step 5: Get the forces from the wrench composer after the pose update
-    composed_force_after_np = wrench_composer.composed_force.numpy()
+        # Change the link position and orientation for the next iteration
+        link_pos_np = rng.uniform(-20.0, 20.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
 
-    # Step 6: Verify forces remain unchanged (stored in mixed representation, independent of current pose)
-    assert np.allclose(composed_force_after_np, composed_force_before_np, atol=1e-6), (
-        f"Forces should remain unchanged after asset pose change.\n"
-        f"Before:\n{composed_force_before_np}\n"
-        f"After:\n{composed_force_after_np}"
-    )
-
-    # Also verify the forces match what we originally set (global forces should be unchanged in mixed representation)
-    assert np.allclose(composed_force_after_np, forces_global_np, atol=1e-4, rtol=1e-5), (
-        f"Forces should match the originally set global forces.\n"
-        f"Expected:\n{forces_global_np}\n"
-        f"Got:\n{composed_force_after_np}"
-    )
+        mock_asset.data.body_link_pos_w = torch.from_numpy(link_pos_np).to(device=device, dtype=torch.float32)
+        mock_asset.data.body_link_quat_w = torch.from_numpy(link_quat_np).to(device=device, dtype=torch.float32)
