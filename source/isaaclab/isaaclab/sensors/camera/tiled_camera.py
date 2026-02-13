@@ -20,14 +20,14 @@ from pxr import UsdGeom
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
+from ...renderers.newton_warp_renderer import NewtonWarpRenderer
 from ..sensor_base import SensorBase
 from .camera import Camera
 
-from ...renderers.newton_warp_renderer import NewtonWarpRenderer
-
 if TYPE_CHECKING:
-    from .tiled_camera_cfg import TiledCameraCfg
     from isaaclab.scene import InteractiveScene
+
+    from .tiled_camera_cfg import TiledCameraCfg
 
 
 class TiledCamera(Camera):
@@ -192,7 +192,9 @@ class TiledCamera(Camera):
 
         else:
             # Create replicator tiled render product
-            rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
+            rp = rep.create.render_product_tiled(
+                cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
+            )
             self._render_product_paths = [rp.path]
 
             if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):

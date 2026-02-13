@@ -1,8 +1,14 @@
-import contextlib
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import argparse
+import contextlib
 import time
 
 from isaaclab.app import AppLauncher
+
 
 @contextlib.contextmanager
 def measure_time(title: str, iterations: int = 1):
@@ -35,18 +41,21 @@ with measure_time("Imports time"):
     import torch
 
     import isaaclab.sim as isaaclab_sim
-    from isaaclab.sensors import TiledCamera, TiledCameraCfg
     from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
-    from isaaclab_assets import ANYMAL_D_CFG
     from isaaclab.renderers import NewtonWarpRenderer as NewtonWarpRenderer
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sensors import TiledCamera, TiledCameraCfg
+    from isaaclab.utils import configclass
+
+    from isaaclab_assets import ANYMAL_D_CFG
 
 
 @configclass
 class SceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=isaaclab_sim.GroundPlaneCfg())
-    dome_light = AssetBaseCfg(prim_path="/World/Light", spawn=isaaclab_sim.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75)))
+    dome_light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=isaaclab_sim.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
     robot: ArticulationCfg = ANYMAL_D_CFG
     robot.prim_path = "{ENV_REGEX_NS}/Robot"
 
@@ -55,8 +64,8 @@ def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, 
     robot: Articulation = scene["robot"]
     for step in range(num_steps):
         if step % 500 == 0:
-            # reset the scene entities root state we offset the root state by the origin since the states are 
-            # written in simulation world frame if this is not done, then the robots will be spawned at 
+            # reset the scene entities root state we offset the root state by the origin since the states are
+            # written in simulation world frame if this is not done, then the robots will be spawned at
             # the (0, 0, 0) of the simulation world
 
             root_state = robot.data.default_root_state.clone()
@@ -81,7 +90,9 @@ def run_simulator(sim: isaaclab_sim.SimulationContext, scene: InteractiveScene, 
         if save_images:
             if isinstance(scene.sensors["tiled_camera"], TiledCamera):
                 if isinstance(scene.sensors["tiled_camera"].renderer, NewtonWarpRenderer):
-                    scene.sensors["tiled_camera"].renderer.camera_manager.save_images(f"__warp_renderer/%s_rgb.{step:04d}.png")
+                    scene.sensors["tiled_camera"].renderer.camera_manager.save_images(
+                        f"__warp_renderer/%s_rgb.{step:04d}.png"
+                    )
         scene.sensors["tiled_camera"].data
 
 
@@ -100,10 +111,12 @@ def main():
             prim_path="/World/envs/env_.*/Camera",
             offset=TiledCameraCfg.OffsetCfg(pos=(-3.0, 0.0, 1.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
             data_types=["rgb"],
-            spawn=isaaclab_sim.PinholeCameraCfg(focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)),
+            spawn=isaaclab_sim.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+            ),
             width=400,
             height=300,
-            renderer="newton"
+            renderer="newton",
         )
         scene.sensors["tiled_camera"] = TiledCamera(tiled_camera_cfg, scene)
 
