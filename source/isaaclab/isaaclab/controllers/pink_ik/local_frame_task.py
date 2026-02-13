@@ -52,11 +52,11 @@ class LocalFrameTask(FrameTask):
         self.transform_target_to_base = None
 
     def set_target(self, transform_target_to_base: pin.SE3) -> None:
-        """Set task target pose in the world frame.
+        """Set task target pose in the base frame.
 
         Args:
-            transform_target_to_world: Transform from the task target frame to
-                the world frame.
+            transform_target_to_base: Transform from the task target frame to
+                the base link frame.
         """
         self.transform_target_to_base = transform_target_to_base.copy()
 
