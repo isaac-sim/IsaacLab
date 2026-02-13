@@ -1894,21 +1894,6 @@ class Articulation(BaseArticulation):
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
-
-            # Store the configured values from the actuator model into the data buffers.
-            # IMPORTANT: This must happen BEFORE write_joint_*_to_sim calls below, because those
-            # functions read from the same data buffers (e.g. joint_stiffness) and send the entire
-            # buffer to PhysX. If we store after writing, explicit actuator joints that were set to
-            # 0.0 get overwritten back to their configured values, and the next actuator's write
-            # will send the wrong values to PhysX.
-            self._data.joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
-            self._data.joint_damping[:, actuator.joint_indices] = actuator.damping
-            self._data.joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
-            if get_isaac_sim_version().major >= 5:
-                self._data.joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
-                self._data.joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
-
             # set the passed gains and limits into the simulation
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
@@ -1933,6 +1918,16 @@ class Articulation(BaseArticulation):
                 self.write_joint_viscous_friction_coefficient_to_sim(
                     actuator.viscous_friction, joint_ids=actuator.joint_indices
                 )
+
+            # Store the configured values from the actuator model
+            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
+            self._data.joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
+            self._data.joint_damping[:, actuator.joint_indices] = actuator.damping
+            self._data.joint_armature[:, actuator.joint_indices] = actuator.armature
+            self._data.joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
+            if get_isaac_sim_version().major >= 5:
+                self._data.joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
+                self._data.joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
