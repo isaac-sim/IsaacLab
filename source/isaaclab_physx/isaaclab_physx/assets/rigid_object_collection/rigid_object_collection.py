@@ -895,13 +895,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reshape_view_to_data_2d(self, data: wp.array, device: str = "cpu") -> wp.array:
         """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
 
-        The view returns data ordered as: (num_bodies * num_instances,)
-            [body0_env0, body0_env1, ..., body1_env0, body1_env1, ...]
-        This function returns the data arranged as:
+        The view returns data ordered as: ``(num_bodies * num_instances,)``
+        ``[body0_env0, body0_env1, ..., body1_env0, body1_env1, ...]``
+
+        This function returns the data arranged as::
+
             [[env_0_body_0, env_0_body_1, ...],
              [env_1_body_0, env_1_body_1, ...],
              ...]
-        The shape of the returned data is (num_instances, num_bodies).
+
+        The shape of the returned data is ``(num_instances, num_bodies)``.
 
         Args:
             data: The data from the physics view. Shape is (num_instances * num_bodies).
@@ -923,11 +926,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reshape_view_to_data_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D view data to (num_instances, num_bodies, data_dim).
 
-        The view returns data ordered as: (num_bodies * num_instances, data_dim)
+        The view returns data ordered as ``(num_bodies * num_instances, data_dim)``::
+
             [[body0_env0_data_0, body0_env0_data_1, ...],
              [body0_env1_data_0, body0_env1_data_1, ...],
              ...]
-        This function returns the data arranged as: (num_instances, num_bodies, data_dim)
+
+        This function returns the data arranged as ``(num_instances, num_bodies, data_dim)``::
+
             [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
               [env_0_body_1_data_0, env_0_body_1_data_1, ...],
               ...],
@@ -983,14 +989,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D data to (num_bodies * num_instances, data_dim).
 
-        Our internal methods consume and return data arranged as: (num_instances, num_bodies, data_dim)
+        Our internal methods consume and return data arranged as ``(num_instances, num_bodies, data_dim)``::
+
             [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
               [env_0_body_1_data_0, env_0_body_1_data_1, ...],
               ...],
              [[env_1_body_0_data_0, env_1_body_0_data_1, ...],
               [env_1_body_1_data_0, env_1_body_1_data_1, ...],
               ...], ...]
-        The view needs data ordered as: (num_bodies * num_instances, data_dim)
+
+        The view needs data ordered as ``(num_bodies * num_instances, data_dim)``::
+
             [[body0_env0_data_0, body0_env0_data_1, ...],
              [body0_env1_data_0, body0_env1_data_1, ...],
              ...]
