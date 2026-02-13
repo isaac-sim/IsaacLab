@@ -900,9 +900,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         This function returns the data arranged as::
 
-            [[env_0_body_0, env_0_body_1, ...],
-             [env_1_body_0, env_1_body_1, ...],
-             ...]
+            [[env_0_body_0, env_0_body_1, ...], [env_1_body_0, env_1_body_1, ...], ...]
 
         The shape of the returned data is ``(num_instances, num_bodies)``.
 
@@ -928,18 +926,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         The view returns data ordered as ``(num_bodies * num_instances, data_dim)``::
 
-            [[body0_env0_data_0, body0_env0_data_1, ...],
-             [body0_env1_data_0, body0_env1_data_1, ...],
-             ...]
+            [[body0_env0_data_0, body0_env0_data_1, ...], [body0_env1_data_0, body0_env1_data_1, ...], ...]
 
         This function returns the data arranged as ``(num_instances, num_bodies, data_dim)``::
 
-            [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
-              [env_0_body_1_data_0, env_0_body_1_data_1, ...],
-              ...],
-             [[env_1_body_0_data_0, env_1_body_0_data_1, ...],
-              [env_1_body_1_data_0, env_1_body_1_data_1, ...],
-              ...], ...]
+            [
+                [[env_0_body_0_data_0, env_0_body_0_data_1, ...], [env_0_body_1_data_0, env_0_body_1_data_1, ...], ...],
+                [[env_1_body_0_data_0, env_1_body_0_data_1, ...], [env_1_body_1_data_0, env_1_body_1_data_1, ...], ...],
+                ...,
+            ]
 
         Args:
             data: The data from the physics view. Shape is (num_bodies * num_instances, data_dim).
@@ -991,18 +986,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Our internal methods consume and return data arranged as ``(num_instances, num_bodies, data_dim)``::
 
-            [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
-              [env_0_body_1_data_0, env_0_body_1_data_1, ...],
-              ...],
-             [[env_1_body_0_data_0, env_1_body_0_data_1, ...],
-              [env_1_body_1_data_0, env_1_body_1_data_1, ...],
-              ...], ...]
+            [
+                [[env_0_body_0_data_0, env_0_body_0_data_1, ...], [env_0_body_1_data_0, env_0_body_1_data_1, ...], ...],
+                [[env_1_body_0_data_0, env_1_body_0_data_1, ...], [env_1_body_1_data_0, env_1_body_1_data_1, ...], ...],
+                ...,
+            ]
 
         The view needs data ordered as ``(num_bodies * num_instances, data_dim)``::
 
-            [[body0_env0_data_0, body0_env0_data_1, ...],
-             [body0_env1_data_0, body0_env1_data_1, ...],
-             ...]
+            [[body0_env0_data_0, body0_env0_data_1, ...], [body0_env1_data_0, body0_env1_data_1, ...], ...]
 
         Args:
             data: The data to be formatted for the view. Shape is (num_instances, num_bodies, data_dim).
