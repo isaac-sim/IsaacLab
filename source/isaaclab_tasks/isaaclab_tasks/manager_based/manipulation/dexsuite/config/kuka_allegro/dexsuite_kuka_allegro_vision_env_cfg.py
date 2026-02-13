@@ -49,6 +49,22 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         del self.width
         del self.height
 
+    def __repr__(self):
+        """Override __repr__ to handle deleted fields gracefully."""
+        from dataclasses import fields
+        field_reprs = []
+        for field_info in fields(self):
+            field_name = field_info.name
+            # Skip fields that were deleted in __post_init__
+            if field_name in ("camera_type", "width", "height"):
+                continue
+            try:
+                value = getattr(self, field_name)
+            except AttributeError:
+                continue
+            field_reprs.append(f"{field_name}={value!r}")
+        return f"{self.__class__.__name__}({', '.join(field_reprs)})"
+
 
 @configclass
 class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
