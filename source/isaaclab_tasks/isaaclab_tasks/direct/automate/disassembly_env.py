@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 import torch
+import warp as wp
 
 import carb
 
@@ -207,7 +208,9 @@ class DisassemblyEnv(DirectRLEnv):
         self.held_pos = wp.to_torch(self._held_asset.data.root_pos_w) - self.scene.env_origins
         self.held_quat = wp.to_torch(self._held_asset.data.root_quat_w)
 
-        self.fingertip_midpoint_pos = wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        self.fingertip_midpoint_pos = (
+            wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        )
         self.fingertip_midpoint_quat = wp.to_torch(self._robot.data.body_quat_w)[:, self.fingertip_body_idx]
         self.fingertip_midpoint_linvel = wp.to_torch(self._robot.data.body_lin_vel_w)[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = wp.to_torch(self._robot.data.body_ang_vel_w)[:, self.fingertip_body_idx]

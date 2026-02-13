@@ -59,19 +59,11 @@ class DeformableObjectData:
 
         # Initialize the lazy buffers.
         # -- node state in simulation world frame
-        self._nodal_pos_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_vertices), device, wp.vec3f
-        )
-        self._nodal_vel_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_vertices), device, wp.vec3f
-        )
-        self._nodal_state_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_vertices), device, vec6f
-        )
+        self._nodal_pos_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
+        self._nodal_vel_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
+        self._nodal_state_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, vec6f)
         # -- mesh element-wise rotations
-        self._sim_element_quat_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_elements), device, wp.quatf
-        )
+        self._sim_element_quat_w = TimestampedBuffer((self._num_instances, self._max_sim_elements), device, wp.quatf)
         self._collision_element_quat_w = TimestampedBuffer(
             (self._num_instances, self._max_collision_elements), device, wp.quatf
         )
@@ -90,12 +82,8 @@ class DeformableObjectData:
             (self._num_instances, self._max_collision_elements, 3, 3), device, wp.float32
         )
         # -- derived: root pos/vel
-        self._root_pos_w = TimestampedBuffer(
-            (self._num_instances,), device, wp.vec3f
-        )
-        self._root_vel_w = TimestampedBuffer(
-            (self._num_instances,), device, wp.vec3f
-        )
+        self._root_pos_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
+        self._root_vel_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
 
     def update(self, dt: float):
         """Updates the data for the deformable object.
@@ -224,8 +212,10 @@ class DeformableObjectData:
         in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).
         """
         if self._collision_element_deform_gradient_w.timestamp < self._sim_timestamp:
-            self._collision_element_deform_gradient_w.data = self._root_view.get_element_deformation_gradients().reshape(
-                (self._num_instances, self._max_collision_elements, 3, 3)
+            self._collision_element_deform_gradient_w.data = (
+                self._root_view.get_element_deformation_gradients().reshape(
+                    (self._num_instances, self._max_collision_elements, 3, 3)
+                )
             )
             self._collision_element_deform_gradient_w.timestamp = self._sim_timestamp
         return self._collision_element_deform_gradient_w.data

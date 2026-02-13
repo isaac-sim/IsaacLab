@@ -16,7 +16,8 @@ from isaaclab.assets.articulation.base_articulation_data import BaseArticulation
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import normalize
 
-from .kernels import *
+from isaaclab_physx.assets.articulation.kernels import *
+from isaaclab_physx.assets.kernels import *
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:

@@ -19,7 +19,6 @@ import uuid
 import gymnasium as gym
 import pytest
 import torch
-import warp as wp
 
 import carb
 import omni.usd

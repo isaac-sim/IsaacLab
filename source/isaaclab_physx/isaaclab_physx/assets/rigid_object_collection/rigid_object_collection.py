@@ -955,7 +955,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reshape_data_to_view_2d(self, data: wp.array, device: str = "cpu") -> wp.array:
         """Reshapes and arranges the data to the be consistent with data from the :attr:`root_view`.
 
-            Our internal methods consume and return data aranged as:
+            Our internal methods consume and return data arranged as:
                 [[env_0_body_0, env_0_body_1, ...],
                  [env_1_body_0, env_1_body_1, ...],
                  ...]
@@ -982,7 +982,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str = "cpu") -> wp.array:
         """Reshapes and arranges 3D data to (num_bodies * num_instances, data_dim).
 
-        Our internal methods consume and return data aranged as: (num_instances, num_bodies, data_dim)
+        Our internal methods consume and return data arranged as: (num_instances, num_bodies, data_dim)
             [[[env_0_body_0_data_0, env_0_body_0_data_1, ...],
               [env_0_body_1_data_0, env_0_body_1_data_1, ...],
               ...],

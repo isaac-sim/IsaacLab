@@ -5,8 +5,6 @@
 
 import warp as wp
 
-from ..kernels import *
-
 """
 Articulation-specific warp functions.
 """

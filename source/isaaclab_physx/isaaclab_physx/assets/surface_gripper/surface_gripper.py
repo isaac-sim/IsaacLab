@@ -6,11 +6,10 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import warnings
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -179,9 +178,7 @@ class SurfaceGripper(AssetBase):
             device=self._device,
         )
 
-    def set_grippers_command_mask(
-        self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | None = None
-    ) -> None:
+    def set_grippers_command_mask(self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | None = None) -> None:
         """Set the internal gripper command buffer using a boolean mask.
 
         Args:
@@ -343,9 +340,7 @@ class SurfaceGripper(AssetBase):
             with the object if some conditions are met: such as if a large force is applied to the gripped object.
         """
         state_list: list[int] = self._gripper_view.get_surface_gripper_status()
-        self._gripper_state = wp.array(
-            [float(s) - 1.0 for s in state_list], dtype=wp.float32, device=self._device
-        )
+        self._gripper_state = wp.array([float(s) - 1.0 for s in state_list], dtype=wp.float32, device=self._device)
 
     def write_data_to_sim(self) -> None:
         """Write the gripper command to the SurfaceGripperView.
@@ -360,9 +355,7 @@ class SurfaceGripper(AssetBase):
         # Convert to torch at the GripperView boundary (zero-copy on CPU)
         command_torch = wp.to_torch(self._gripper_command)
         # Remove the SurfaceGripper indices that have a commanded value of 2
-        indices = (
-            torch.argwhere(torch.logical_or(command_torch < -0.3, command_torch > 0.3)).to(torch.int32).tolist()
-        )
+        indices = torch.argwhere(torch.logical_or(command_torch < -0.3, command_torch > 0.3)).to(torch.int32).tolist()
         # Write to the SurfaceGripperView if there are any indices to write to
         if len(indices) > 0:
             self._gripper_view.apply_gripper_action(command_torch.tolist(), indices)

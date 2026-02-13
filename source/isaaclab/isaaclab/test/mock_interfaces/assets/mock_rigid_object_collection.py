@@ -21,7 +21,12 @@ except (ImportError, ModuleNotFoundError):
     import importlib.util
     from pathlib import Path
 
-    _file = Path(__file__).resolve().parents[3] / "assets" / "rigid_object_collection" / "base_rigid_object_collection_data.py"
+    _file = (
+        Path(__file__).resolve().parents[3]
+        / "assets"
+        / "rigid_object_collection"
+        / "base_rigid_object_collection_data.py"
+    )
     _spec = importlib.util.spec_from_file_location("_base_rigid_object_collection_data", str(_file))
     _mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
@@ -497,9 +502,7 @@ class MockRigidObjectCollection:
 
         return body_mask, matched_names, matched_indices
 
-    def find_objects(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_objects(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         return self.find_bodies(name_keys, preserve_order)
 
     # -- State writer methods (no-op for mock) --

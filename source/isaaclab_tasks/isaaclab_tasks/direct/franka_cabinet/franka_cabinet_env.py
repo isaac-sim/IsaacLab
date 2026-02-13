@@ -20,7 +20,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv, sample_uniform
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_conjugate, sample_uniform
 
 
 @configclass
@@ -493,8 +493,6 @@ class FrankaCabinetEnv(DirectRLEnv):
         global_franka_pos, global_franka_rot = combine_frame_transforms(
             hand_pos, hand_rot, franka_local_grasp_pos, franka_local_grasp_rot
         )
-        global_drawer_pos, global_drawer_rot = combine_frame_transforms(
-            drawer_pos, drawer_rot, drawer_local_grasp_pos, drawer_local_grasp_rot
         global_drawer_pos, global_drawer_rot = combine_frame_transforms(
             drawer_pos, drawer_rot, drawer_local_grasp_pos, drawer_local_grasp_rot
         )

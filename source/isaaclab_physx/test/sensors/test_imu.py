@@ -17,8 +17,8 @@ import pathlib
 
 import pytest
 import torch
-from isaaclab_physx.physics import PhysxCfg
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils

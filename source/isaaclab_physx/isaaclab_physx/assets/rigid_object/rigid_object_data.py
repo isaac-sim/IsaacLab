@@ -16,9 +16,9 @@ from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectD
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import normalize
 
-from ..kernels import *
-
 from isaaclab_physx.physics import PhysxManager as SimulationManager
+
+from ..kernels import *
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object.rigid_object_view import RigidObjectView

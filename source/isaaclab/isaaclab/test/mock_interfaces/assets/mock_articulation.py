@@ -289,14 +289,18 @@ class MockArticulationData(BaseArticulationData):
     def joint_vel_limits(self) -> wp.array:
         """Joint velocity limits. Shape: (N, num_joints)."""
         if self._joint_vel_limits is None:
-            return wp.full((self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device)
+            return wp.full(
+                (self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device
+            )
         return self._joint_vel_limits
 
     @property
     def joint_effort_limits(self) -> wp.array:
         """Joint effort limits. Shape: (N, num_joints)."""
         if self._joint_effort_limits is None:
-            return wp.full((self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device)
+            return wp.full(
+                (self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device
+            )
         return self._joint_effort_limits
 
     @property

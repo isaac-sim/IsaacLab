@@ -12,8 +12,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import warp as wp
 import torch
+import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -321,7 +321,9 @@ class VisuoTactileSensor(SensorBase):
         elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
         # Get elastomer COM for velocity correction
-        self._elastomer_com_b = wp.to_torch(self._elastomer_body_view.get_coms()).to(self._device).split([3, 4], dim=-1)[0]
+        self._elastomer_com_b = (
+            wp.to_torch(self._elastomer_body_view.get_coms()).to(self._device).split([3, 4], dim=-1)[0]
+        )
 
         if self.cfg.contact_object_prim_path_expr is None:
             return
@@ -338,7 +340,9 @@ class VisuoTactileSensor(SensorBase):
         body_path_pattern = contact_object_rigid_body.GetPath().pathString.replace("env_0", "env_*")
         self._contact_object_body_view = self._physics_sim_view.create_rigid_body_view([body_path_pattern])
         # Get contact object COM for velocity correction
-        self._contact_object_com_b = wp.to_torch(self._contact_object_body_view.get_coms()).to(self._device).split([3, 4], dim=-1)[0]
+        self._contact_object_com_b = (
+            wp.to_torch(self._contact_object_body_view.get_coms()).to(self._device).split([3, 4], dim=-1)[0]
+        )
 
     def _find_contact_object_components(self) -> tuple[Any, Any]:
         """Find and validate contact object SDF mesh and its parent rigid body.
@@ -605,7 +609,9 @@ class VisuoTactileSensor(SensorBase):
             early if tactile points or body views are not available.
         """
         # Step 1: Get elastomer pose and precompute pose components
-        elastomer_pos_w, elastomer_quat_w = wp.to_torch(self._elastomer_body_view.get_transforms()).split([3, 4], dim=-1)
+        elastomer_pos_w, elastomer_quat_w = wp.to_torch(self._elastomer_body_view.get_transforms()).split(
+            [3, 4], dim=-1
+        )
 
         # Transform tactile points to world coordinates, used for visualization
         self._transform_tactile_points_to_world(elastomer_pos_w, elastomer_quat_w)
@@ -616,9 +622,9 @@ class VisuoTactileSensor(SensorBase):
             return
 
         # Step 2: Transform tactile points to contact object local frame for SDF queries
-        contact_object_pos_w, contact_object_quat_w = wp.to_torch(self._contact_object_body_view.get_transforms()).split(
-            [3, 4], dim=-1
-        )
+        contact_object_pos_w, contact_object_quat_w = wp.to_torch(
+            self._contact_object_body_view.get_transforms()
+        ).split([3, 4], dim=-1)
 
         world_tactile_points = self._data.tactile_points_pos_w
         points_contact_object_local, contact_object_quat_inv = self._transform_points_to_contact_object_local(
@@ -626,7 +632,9 @@ class VisuoTactileSensor(SensorBase):
         )
 
         # Step 3: Query SDF for collision detection
-        sdf_values_and_gradients = wp.to_torch(self._contact_object_sdf_view.get_sdf_and_gradients(wp.from_torch(points_contact_object_local)))
+        sdf_values_and_gradients = wp.to_torch(
+            self._contact_object_sdf_view.get_sdf_and_gradients(wp.from_torch(points_contact_object_local))
+        )
         sdf_values = sdf_values_and_gradients[..., -1]  # Last component is SDF value
         sdf_gradients = sdf_values_and_gradients[..., :-1]  # First 3 components are gradients
 

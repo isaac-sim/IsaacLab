@@ -93,7 +93,9 @@ class AssemblyEnv(DirectRLEnv):
         offset = torch.zeros_like(inertias)
         offset[:, :, [0, 4, 8]] += 0.01
         new_inertias = inertias + offset
-        self._robot.root_view.set_inertias(wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32)))
+        self._robot.root_view.set_inertias(
+            wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32))
+        )
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -286,7 +288,9 @@ class AssemblyEnv(DirectRLEnv):
         self.held_pos = wp.to_torch(self._held_asset.data.root_pos_w) - self.scene.env_origins
         self.held_quat = wp.to_torch(self._held_asset.data.root_quat_w)
 
-        self.fingertip_midpoint_pos = wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        self.fingertip_midpoint_pos = (
+            wp.to_torch(self._robot.data.body_pos_w)[:, self.fingertip_body_idx] - self.scene.env_origins
+        )
         self.fingertip_midpoint_quat = wp.to_torch(self._robot.data.body_quat_w)[:, self.fingertip_body_idx]
         self.fingertip_midpoint_linvel = wp.to_torch(self._robot.data.body_lin_vel_w)[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = wp.to_torch(self._robot.data.body_ang_vel_w)[:, self.fingertip_body_idx]

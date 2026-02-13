@@ -369,9 +369,7 @@ class DeformableObject(AssetBase):
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_sim_kinematic_targets(
-            self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids
-        )
+        self.root_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids)
 
     def write_nodal_kinematic_target_to_sim_mask(
         self,
@@ -632,9 +630,7 @@ class DeformableObject(AssetBase):
 
         # kinematic targets — allocate our own buffer and copy from PhysX
         kinematic_raw = self.root_view.get_sim_kinematic_targets()  # (N, V, 4) float32
-        kinematic_view = kinematic_raw.view(wp.vec4f).reshape(
-            (self.num_instances, self.max_sim_vertices_per_body)
-        )
+        kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
         self._data.nodal_kinematic_target = wp.zeros(
             (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
         )

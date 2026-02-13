@@ -28,10 +28,11 @@ from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_physx.assets.articulation.kernels import *
+from isaaclab_physx.assets.kernels import *
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
-from .kernels import *
 
 if TYPE_CHECKING:
     import omni.physics.tensors.impl.api as physx

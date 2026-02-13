@@ -102,7 +102,6 @@ def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndar
     return q
 
 
-
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])

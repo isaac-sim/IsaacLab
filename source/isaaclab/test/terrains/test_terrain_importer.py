@@ -156,6 +156,7 @@ def test_usd(device):
         assert actualSize[0] == pytest.approx(expectedSizeX)
         assert actualSize[1] == pytest.approx(expectedSizeY)
 
+
 @pytest.mark.skip(reason="It seems like IsaacSim is not setting the initial positions correctly for the balls.")
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_ball_drop(device):
