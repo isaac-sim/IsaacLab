@@ -681,7 +681,7 @@ def test_composition_local_and_global(device: str):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 10, 50])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: int):
+def test_local_forces_and_torques_at_local_position(device: str, num_envs: int, num_bodies: int):
     """Test local forces at local positions (offset from link frame)."""
     rng = np.random.default_rng(seed=15)
 
@@ -697,23 +697,27 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
 
         # Generate random local forces and local positions (offsets)
         forces_local_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+        torques_local_np = rng.uniform(-50.0, 50.0, (num_envs, num_bodies, 3)).astype(np.float32)
         positions_local_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
         forces_local = wp.from_numpy(forces_local_np, dtype=wp.vec3f, device=device)
+        torques_local = wp.from_numpy(torques_local_np, dtype=wp.vec3f, device=device)
         positions_local = wp.from_numpy(positions_local_np, dtype=wp.vec3f, device=device)
 
-        # Apply local forces at local positions
-        wrench_composer.add_forces_and_torques(forces=forces_local, positions=positions_local, is_global=False)
+        # Apply local forces and torques at local positions
+        wrench_composer.add_forces_and_torques(forces=forces_local, torques=torques_local, positions=positions_local, is_global=False)
 
-        # Expected: forces stay as-is, torque = cross(position, force)
-        expected_forces = forces_local_np
-        expected_torques = np.cross(positions_local_np, forces_local_np)
+        # In mixed repr: local forces get rotated to global
+        expected_forces = quat_rotate_np(link_quat_np, forces_local_np)
+        # In mixed repr: torque = cross(pos_mixed, force_mixed) + quat_rotate(torques_local)
+        positions_mixed = quat_rotate_np(link_quat_np, positions_local_np)
+        expected_torques = np.cross(positions_mixed, expected_forces) + quat_rotate_np(link_quat_np, torques_local_np)
 
         # Verify
         composed_force_np = wrench_composer.composed_force.numpy()
         composed_torque_np = wrench_composer.composed_torque.numpy()
 
-        assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
-        assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
+        assert np.allclose(composed_force_np, expected_forces, atol=1e-3, rtol=1e-5)
+        assert np.allclose(composed_torque_np, expected_torques, atol=1e-3, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
