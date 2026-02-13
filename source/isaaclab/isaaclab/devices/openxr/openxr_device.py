@@ -35,7 +35,7 @@ XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType, XRPoseValidityFlags
 
-from isaacsim.core.prims import SingleXFormPrim
+import isaaclab.sim as sim_utils
 
 
 class OpenXRDevice(DeviceBase):
@@ -105,16 +105,20 @@ class OpenXRDevice(DeviceBase):
         else:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
-        _ = SingleXFormPrim(
-            self._xr_anchor_headset_path, position=self._xr_cfg.anchor_pos, orientation=self._xr_cfg.anchor_rot
-        )
+        # Only create the anchor prim if it doesn't already exist (supports multiple devices sharing anchor)
+        stage = sim_utils.get_current_stage()
+        if not stage.GetPrimAtPath(self._xr_anchor_headset_path).IsValid():
+            sim_utils.create_prim(
+                self._xr_anchor_headset_path,
+                prim_type="Xform",
+                position=self._xr_cfg.anchor_pos,
+                orientation=self._xr_cfg.anchor_rot,
+            )
 
         if hasattr(carb, "settings"):
-            carb.settings.get_settings().set_float(
-                "/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane
-            )
-            carb.settings.get_settings().set_string("/persistent/xr/profile/ar/anchorMode", "custom anchor")
-            carb.settings.get_settings().set_string("/xrstage/profile/ar/customAnchor", self._xr_anchor_headset_path)
+            carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
+            carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
+            carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
 
         # Button binding support
         self.__button_subscriptions: dict[str, dict] = {}
@@ -326,7 +330,7 @@ class OpenXRDevice(DeviceBase):
 
                 # Directly update the dictionary with new data
                 previous_joint_poses[joint_name] = np.array(
-                    [position[0], position[1], position[2], quatw, quati[0], quati[1], quati[2]], dtype=np.float32
+                    [position[0], position[1], position[2], quati[0], quati[1], quati[2], quatw], dtype=np.float32
                 )
 
         # No need for conversion, just return the updated dictionary
@@ -346,16 +350,16 @@ class OpenXRDevice(DeviceBase):
             quati = quat.GetImaginary()
             quatw = quat.GetReal()
 
-            # Store in w, x, y, z order to match our convention
+            # Store in x, y, z, w order to match our convention
             self._previous_headpose = np.array(
                 [
                     position[0],
                     position[1],
                     position[2],
-                    quatw,
                     quati[0],
                     quati[1],
                     quati[2],
+                    quatw,
                 ]
             )
 
@@ -428,7 +432,7 @@ class OpenXRDevice(DeviceBase):
     def _query_controller(self, input_device) -> np.ndarray:
         """Query motion controller pose and inputs as a 2x7 array.
 
-        Row 0 (POSE): [x, y, z, w, x, y, z]
+        Row 0 (POSE): [x, y, z, qx, qy, qz, qw]
         Row 1 (INPUTS): [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1, padding]
         """
         if input_device is None:
@@ -470,10 +474,10 @@ class OpenXRDevice(DeviceBase):
             position[0],
             position[1],
             position[2],
-            quat.GetReal(),
             quat.GetImaginary()[0],
             quat.GetImaginary()[1],
             quat.GetImaginary()[2],
+            quat.GetReal(),
         ]
 
         input_row = [

@@ -26,6 +26,7 @@ simulation_app = app_launcher.app
 from collections.abc import Sequence
 
 import torch
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import carb
 import omni
@@ -36,8 +37,6 @@ from isaaclab.assets import (
     ArticulationCfg,
     RigidObject,
     RigidObjectCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
@@ -306,7 +305,7 @@ class PickAndPlaceEnv(DirectRLEnv):
         cube_to_target_x_dist = self.cube.data.root_pos_w[:, 0] - self.target_pos[:, 0] - self.scene.env_origins[:, 0]
         cube_to_target_y_dist = self.cube.data.root_pos_w[:, 1] - self.target_pos[:, 1] - self.scene.env_origins[:, 1]
         cube_to_target_z_dist = self.cube.data.root_pos_w[:, 2] - self.target_pos[:, 2] - self.scene.env_origins[:, 2]
-        cube_to_target_distance = torch.norm(
+        cube_to_target_distance = torch.linalg.norm(
             torch.stack((cube_to_target_x_dist, cube_to_target_y_dist, cube_to_target_z_dist), dim=1), dim=1
         )
         self.target_reached = cube_to_target_distance < 0.3

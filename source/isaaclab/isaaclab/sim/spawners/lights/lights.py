@@ -37,7 +37,7 @@ def spawn_light(
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration for the light source.
         translation: The translation of the prim. Defaults to None, in which case this is set to the origin.
-        orientation: The orientation of the prim as (w, x, y, z). Defaults to None, in which case this
+        orientation: The orientation of the prim as (x, y, z, w). Defaults to None, in which case this
             is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 

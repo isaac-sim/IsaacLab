@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+1.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to use the new ``root_view`` property instead of the deprecated
+  ``root_physx_view`` property. This includes the following environments:
+
+  * AutoMate Assembly and Disassembly environments
+  * Factory environments
+  * FORGE environments
+  * Inhand manipulation environments
+  * Quadcopter environments
+  * Shadow Hand environments
+
+
+0.12.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.11.13 (2026-02-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect hardcoded joint index for ``drawer_top_joint`` in
+  :class:`~isaaclab_tasks.direct.franka_cabinet.FrankaCabinetEnv`. The drawer joint
+  index is now dynamically resolved using ``find_joints()`` at start, instead of assuming
+  index 3, which caused incorrect rewards and termination conditions.
+
+
 0.11.12 (2025-12-16)
 ~~~~~~~~~~~~~~~~~~~~
 

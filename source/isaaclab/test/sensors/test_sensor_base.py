@@ -93,7 +93,7 @@ def create_dummy_sensor(request, device):
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # create sensor
@@ -105,11 +105,8 @@ def create_dummy_sensor(request, device):
 
     yield sensor_cfg, sim, dt
 
-    # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
-    # clear the stage
-    sim.clear_all_callbacks()
+    # stop simulation and clean up
+    sim.stop()
     sim.clear_instance()
 
 

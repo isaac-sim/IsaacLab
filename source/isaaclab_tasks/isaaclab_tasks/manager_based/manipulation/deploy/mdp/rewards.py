@@ -447,7 +447,7 @@ class _compute_keypoint_distance:
 
         # Pre-allocate identity quaternion for keypoint transforms
         self.identity_quat_keypoints = (
-            torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
             .repeat(env.num_envs * self.num_keypoints, 1)
             .contiguous()
         )
@@ -508,6 +508,6 @@ class _compute_keypoint_distance:
         keypoints_target = keypoints_target_flat.reshape(num_envs, self.num_keypoints, 3)
 
         # Calculate L2 norm distance
-        keypoint_dist_sep = torch.norm(keypoints_target - keypoints_current, p=2, dim=-1)
+        keypoint_dist_sep = torch.linalg.norm(keypoints_target - keypoints_current, ord=2, dim=-1)
 
         return keypoint_dist_sep

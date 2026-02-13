@@ -99,6 +99,7 @@ Table of Contents
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
+   source/testing/index
 
 
 .. toctree::
@@ -147,6 +148,7 @@ Table of Contents
    :caption: Migration Guides
    :titlesonly:
 
+   source/migration/migrating_to_isaaclab_3-0
    source/migration/migrating_from_isaacgymenvs
    source/migration/migrating_from_omniisaacgymenvs
    source/migration/migrating_from_orbit

@@ -9,8 +9,28 @@ import os
 
 from tensorboard.backend.event_processing import event_accumulator
 
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-from isaacsim.benchmark.services.metrics.measurements import DictMeasurement, ListMeasurement, SingleMeasurement
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, ListMeasurement, SingleMeasurement
+
+
+def get_backend_type(cli_backend: str) -> str:
+    """Map old CLI backend names to new backend types.
+
+    Args:
+        cli_backend: The backend name from CLI arguments.
+
+    Returns:
+        The new backend type string.
+    """
+    mapping = {
+        "OmniPerfKPIFile": "omniperf",
+        "JSONFileMetrics": "json",
+        "OsmoKPIFile": "osmo",
+        "LocalLogMetrics": "json",
+        "omniperf": "omniperf",
+        "json": "json",
+        "osmo": "osmo",
+    }
+    return mapping.get(cli_backend, "omniperf")
 
 
 def parse_tf_logs(log_dir: str):
@@ -42,64 +62,64 @@ def parse_tf_logs(log_dir: str):
 #############################
 
 
-def log_min_max_mean_stats(benchmark: BaseIsaacBenchmark, values: dict):
+def log_min_max_mean_stats(benchmark: BaseIsaacLabBenchmark, values: dict):
     for k, v in values.items():
         measurement = SingleMeasurement(name=f"Min {k}", value=min(v), unit="ms")
-        benchmark.store_custom_measurement("runtime", measurement)
+        benchmark.add_measurement("runtime", measurement=measurement)
         measurement = SingleMeasurement(name=f"Max {k}", value=max(v), unit="ms")
-        benchmark.store_custom_measurement("runtime", measurement)
+        benchmark.add_measurement("runtime", measurement=measurement)
         measurement = SingleMeasurement(name=f"Mean {k}", value=sum(v) / len(v), unit="ms")
-        benchmark.store_custom_measurement("runtime", measurement)
+        benchmark.add_measurement("runtime", measurement=measurement)
 
 
-def log_app_start_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_app_start_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="App Launch Time", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_python_imports_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_python_imports_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="Python Imports Time", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_task_start_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_task_start_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="Task Creation and Start Time", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_scene_creation_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_scene_creation_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="Scene Creation Time", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_simulation_start_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_simulation_start_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="Simulation Start Time", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_total_start_time(benchmark: BaseIsaacBenchmark, value: float):
+def log_total_start_time(benchmark: BaseIsaacLabBenchmark, value: float):
     measurement = SingleMeasurement(name="Total Start Time (Launch to Train)", value=value, unit="ms")
-    benchmark.store_custom_measurement("startup", measurement)
+    benchmark.add_measurement("startup", measurement=measurement)
 
 
-def log_runtime_step_times(benchmark: BaseIsaacBenchmark, value: dict, compute_stats=True):
+def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, compute_stats=True):
     measurement = DictMeasurement(name="Step Frametimes", value=value)
-    benchmark.store_custom_measurement("runtime", measurement)
+    benchmark.add_measurement("runtime", measurement=measurement)
     if compute_stats:
         log_min_max_mean_stats(benchmark, value)
 
 
-def log_rl_policy_rewards(benchmark: BaseIsaacBenchmark, value: list):
+def log_rl_policy_rewards(benchmark: BaseIsaacLabBenchmark, value: list):
     measurement = ListMeasurement(name="Rewards", value=value)
-    benchmark.store_custom_measurement("train", measurement)
+    benchmark.add_measurement("train", measurement=measurement)
     # log max reward
     measurement = SingleMeasurement(name="Max Rewards", value=max(value), unit="float")
-    benchmark.store_custom_measurement("train", measurement)
+    benchmark.add_measurement("train", measurement=measurement)
 
 
-def log_rl_policy_episode_lengths(benchmark: BaseIsaacBenchmark, value: list):
+def log_rl_policy_episode_lengths(benchmark: BaseIsaacLabBenchmark, value: list):
     measurement = ListMeasurement(name="Episode Lengths", value=value)
-    benchmark.store_custom_measurement("train", measurement)
+    benchmark.add_measurement("train", measurement=measurement)
     # log max episode length
     measurement = SingleMeasurement(name="Max Episode Lengths", value=max(value), unit="float")
-    benchmark.store_custom_measurement("train", measurement)
+    benchmark.add_measurement("train", measurement=measurement)

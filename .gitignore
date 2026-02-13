@@ -76,3 +76,5 @@ tests/
 
 # Downloaded assets
 offline_assets/*
+# No benchmarks output
+/benchmarks/

@@ -320,14 +320,14 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Check convergence
-            pos_error_norm = torch.norm(pos_error, dim=-1)
-            rot_error_norm = torch.norm(axis_angle_error, dim=-1)
+            pos_error_norm = torch.linalg.norm(pos_error, dim=-1)
+            rot_error_norm = torch.linalg.norm(axis_angle_error, dim=-1)
 
             if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
                 break
 
             # Solve IK using jacobian
-            jacobians = self.robot_asset.root_physx_view.get_jacobians().clone()
+            jacobians = self.robot_asset.root_view.get_jacobians().clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
 
             delta_dof_pos = fc._get_delta_dof_pos(

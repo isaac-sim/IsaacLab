@@ -365,16 +365,16 @@ def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[
             articulation.data.default_joint_pos_limits[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_damping"] = (
-            articulation.data.default_joint_damping[0].detach().cpu().numpy().tolist()
+            articulation.data.joint_damping[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_stiffness"] = (
-            articulation.data.default_joint_stiffness[0].detach().cpu().numpy().tolist()
+            articulation.data.joint_stiffness[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_friction"] = (
-            articulation.data.default_joint_friction[0].detach().cpu().numpy().tolist()
+            articulation.data.joint_friction_coeff[0].detach().cpu().numpy().tolist()
         )
         articulation_joint_data[articulation_name]["default_joint_armature"] = (
-            articulation.data.default_joint_armature[0].detach().cpu().numpy().tolist()
+            articulation.data.joint_armature[0].detach().cpu().numpy().tolist()
         )
     return articulation_joint_data
 

@@ -116,8 +116,8 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.object.data.root_state_w[:, :3],
             self.object.data.root_state_w[:, 3:7],
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+        self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
 
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
@@ -171,7 +171,7 @@ class ObjectUniformPoseCommand(CommandTerm):
             # -- current object pose
             self.curr_visualizer.visualize(self.object.data.root_pos_w, self.object.data.root_quat_w)
         else:
-            distance = torch.norm(self.pose_command_w[:, :3] - self.object.data.root_pos_w[:, :3], dim=1)
+            distance = torch.linalg.norm(self.pose_command_w[:, :3] - self.object.data.root_pos_w[:, :3], dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position

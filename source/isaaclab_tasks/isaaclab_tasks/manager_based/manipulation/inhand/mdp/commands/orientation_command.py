@@ -60,9 +60,9 @@ class InHandReOrientationCommand(CommandTerm):
         init_pos_offset = torch.tensor(cfg.init_pos_offset, dtype=torch.float, device=self.device)
         self.pos_command_e = self.object.data.default_root_state[:, :3] + init_pos_offset
         self.pos_command_w = self.pos_command_e + self._env.scene.env_origins
-        # -- orientation: (w, x, y, z)
+        # -- orientation: (x, y, z, w)
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
-        self.quat_command_w[:, 0] = 1.0  # set the scalar component to 1.0
+        self.quat_command_w[:, 3] = 1.0  # set the scalar component to 1.0
 
         # -- unit vectors
         self._X_UNIT_VEC = torch.tensor([1.0, 0, 0], device=self.device).repeat((self.num_envs, 1))
@@ -99,7 +99,7 @@ class InHandReOrientationCommand(CommandTerm):
             self.object.data.root_quat_w, self.quat_command_w
         )
         # -- compute the position error
-        self.metrics["position_error"] = torch.norm(self.object.data.root_pos_w - self.pos_command_w, dim=1)
+        self.metrics["position_error"] = torch.linalg.norm(self.object.data.root_pos_w - self.pos_command_w, dim=1)
         # -- compute the number of consecutive successes
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
         self.metrics["consecutive_success"] += successes.float()

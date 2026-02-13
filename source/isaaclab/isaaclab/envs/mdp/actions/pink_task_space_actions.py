@@ -131,7 +131,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     @property
     def orientation_dim(self) -> int:
-        """Dimension for orientation (w, x, y, z)."""
+        """Dimension for orientation (x, y, z, w)."""
         return 4
 
     @property
@@ -326,11 +326,11 @@ class PinkInverseKinematicsAction(ActionTerm):
             # Get gravity compensation forces using cached tensor
             if self._asset.is_fixed_base:
                 gravity = torch.zeros_like(
-                    self._asset.root_physx_view.get_gravity_compensation_forces()[:, self._controlled_joint_ids_tensor]
+                    self._asset.root_view.get_gravity_compensation_forces()[:, self._controlled_joint_ids_tensor]
                 )
             else:
                 # If floating base, then need to skip the first 6 joints (base)
-                gravity = self._asset.root_physx_view.get_gravity_compensation_forces()[
+                gravity = self._asset.root_view.get_gravity_compensation_forces()[
                     :, self._controlled_joint_ids_tensor + self._physx_floating_joint_indices_offset
                 ]
 

@@ -274,8 +274,6 @@ def benchmark_xform_prim_view(  # noqa: C901
     timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     # close simulation
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
     return timing_results, computed_results

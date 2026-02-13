@@ -7,6 +7,10 @@
 Imu Sensor
 """
 
+from .base_imu import BaseImu
+from .base_imu_data import BaseImuData
 from .imu import Imu
 from .imu_cfg import ImuCfg
 from .imu_data import ImuData
+
+__all__ = ["BaseImu", "BaseImuData", "Imu", "ImuCfg", "ImuData"]

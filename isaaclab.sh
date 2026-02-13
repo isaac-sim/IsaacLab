@@ -12,8 +12,8 @@
 # Exits if error occurs
 set -e
 
-# Set tab-spaces
-tabs 4
+# Set tab-spaces (ignore errors in non-interactive terminals)
+tabs 4 2>/dev/null || true
 
 # get source directory
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -43,9 +43,11 @@ install_system_deps() {
     fi
 }
 
-# Returns success (exit code 0 / "true") if the detected Isaac Sim version starts with 4.5,
-# otherwise returns non-zero ("false"). Works with both symlinked binary installs and pip installs.
-is_isaacsim_version_4_5() {
+# Detects Isaac Sim version and returns:
+# - exit code 0 (success) if version starts with 5.X
+# - exit code 1 otherwise
+# Works with both symlinked binary installs and pip installs.
+is_isaacsim_version_5_x() {
     local version=""
     local python_exe
     python_exe=$(extract_python_exe)
@@ -83,8 +85,8 @@ PY
 )
     fi
 
-    # Final decision: return success if version begins with "4.5", 0 if match, 1 otherwise.
-    [[ "$version" == 4.5* ]]
+    # Final decision: return success if version begins with "5.", 0 if match, 1 otherwise.
+    [[ "$version" == 5.* ]]
 }
 
 # check if running in docker
@@ -108,13 +110,12 @@ ensure_cuda_torch() {
 
     # choose pins per arch
     local torch_ver tv_ver cuda_ver
+    torch_ver="2.9.0"
+    tv_ver="0.24.0"
+
     if is_arm; then
-        torch_ver="2.9.0"
-        tv_ver="0.24.0"
         cuda_ver="130"
     else
-        torch_ver="2.7.0"
-        tv_ver="0.22.0"
         cuda_ver="128"
     fi
 
@@ -232,21 +233,21 @@ extract_isaacsim_exe() {
 
 # find pip command based on virtualization
 extract_pip_command() {
-    # detect if we're in a uv environment
-    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+    # detect if we're in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
         pip_command="uv pip install"
     else
         # retrieve the python executable
         python_exe=$(extract_python_exe)
-        pip_command="${python_exe} -m pip install"
+        pip_command="${python_exe} -m pip install --prefer-binary"
     fi
 
     echo ${pip_command}
 }
 
 extract_pip_uninstall_command() {
-    # detect if we're in a uv environment
-    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -q "uv" "${VIRTUAL_ENV}/pyvenv.cfg"; then
+    # detect if we're in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
         pip_uninstall_command="uv pip uninstall"
     else
         # retrieve the python executable
@@ -271,10 +272,11 @@ install_isaaclab_extension() {
 }
 
 # Resolve Torch-bundled libgomp and prepend to LD_PRELOAD, once per shell session
+# Also preload conda's libstdc++ on Ubuntu 22.04 to provide CXXABI_1.3.15 required by conda ICU libraries
 write_torch_gomp_hooks() {
   mkdir -p "${CONDA_PREFIX}/etc/conda/activate.d" "${CONDA_PREFIX}/etc/conda/deactivate.d"
 
-  # activation: resolve Torch's libgomp via this env's Python and prepend to LD_PRELOAD
+  # activation: resolve Torch's libgomp and conda's libstdc++ via this env's Python and prepend to LD_PRELOAD
   cat > "${CONDA_PREFIX}/etc/conda/activate.d/torch_gomp.sh" <<'EOS'
 # Resolve Torch-bundled libgomp and prepend to LD_PRELOAD (quiet + idempotent)
 : "${_IL_PREV_LD_PRELOAD:=${LD_PRELOAD-}}"
@@ -297,6 +299,26 @@ if [ -n "$__gomp" ] && [ -r "$__gomp" ]; then
   esac
 fi
 unset __gomp
+
+# WAR for Ubuntu 22.04: Preload conda's libstdc++ to provide CXXABI_1.3.15
+# required by conda-forge ICU libraries (libicui18n.so.78). The system libstdc++
+# on Ubuntu 22.04 (GCC 11) only provides up to CXXABI_1.3.13, but the conda-forge
+# Python 3.12 ICU libraries require CXXABI_1.3.15 (GCC 14+).
+# Ubuntu 24.04+ has a newer system libstdc++ and doesn't need this workaround.
+__libstdcxx="$CONDA_PREFIX/lib/libstdc++.so.6"
+if [ -r "$__libstdcxx" ]; then
+  # Check if system libstdc++ lacks CXXABI_1.3.15 (Ubuntu 22.04 case)
+  # Resolve symlink and use explicit regex pattern to avoid shell quoting issues
+  __sys_libstdcxx=$(readlink -f /lib/x86_64-linux-gnu/libstdc++.so.6 2>/dev/null || echo "/lib/x86_64-linux-gnu/libstdc++.so.6")
+  if [ -r "$__sys_libstdcxx" ] && ! strings "$__sys_libstdcxx" 2>/dev/null | grep -qE 'CXXABI_1\.3\.15'; then
+    case ":${LD_PRELOAD:-}:" in
+      *":$__libstdcxx:"*) : ;;  # already present
+      *) export LD_PRELOAD="$__libstdcxx${LD_PRELOAD:+:$LD_PRELOAD}";;
+    esac
+  fi
+  unset __sys_libstdcxx
+fi
+unset __libstdcxx
 EOS
 
   # deactivation: restore original LD_PRELOAD
@@ -356,11 +378,11 @@ setup_conda_env() {
 
         # patch Python version if needed, but back up first
         cp "${ISAACLAB_PATH}/environment.yml"{,.bak}
-        if is_isaacsim_version_4_5; then
-            echo "[INFO] Detected Isaac Sim 4.5 → forcing python=3.10"
-            sed -i 's/^  - python=3\.11/  - python=3.10/' "${ISAACLAB_PATH}/environment.yml"
+        if is_isaacsim_version_5_x; then
+            echo "[INFO] Detected Isaac Sim 5.X → using python=3.11"
+            sed -i 's/^  - python=3\.12/  - python=3.11/' "${ISAACLAB_PATH}/environment.yml"
         else
-            echo "[INFO] Isaac Sim >= 5.0 detected, installing python=3.11"
+            echo "[INFO] Isaac Sim 6.0+ detected, installing python=3.12"
         fi
 
         conda env create -y --file ${ISAACLAB_PATH}/environment.yml -n ${env_name}
@@ -453,6 +475,14 @@ setup_uv_env() {
     local env_name="$1"
     local python_path="$2"
 
+    # check if already in a uv environment - use precise pattern matching
+    if [ -n "${VIRTUAL_ENV}" ] && [ -f "${VIRTUAL_ENV}/pyvenv.cfg" ] && grep -qE '^uv\s*=' "${VIRTUAL_ENV}/pyvenv.cfg"; then
+        echo "[INFO] Detected active uv environment at: ${VIRTUAL_ENV}"
+        echo "[INFO] You can directly install Isaac Lab using: ./isaaclab.sh -i"
+        echo "[INFO] If you want to create a new environment instead, deactivate the current one first."
+        return 0
+    fi
+
     # check uv is installed
     if ! command -v uv &>/dev/null; then
         echo "[ERROR] uv could not be found. Please install uv and try again."
@@ -529,7 +559,8 @@ print_help () {
     echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-n] [-c] [-u] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
-    echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies. Default is 'all'."
+    echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies."
+    echo -e "\t                     Can be used in any active conda/uv environment. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
@@ -538,8 +569,16 @@ print_help () {
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-n, --new            Create a new external project or internal task from template."
-    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
-    echo -e "\t-u, --uv [NAME]      Create the uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-c, --conda [NAME]   Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-u, --uv [NAME]      Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\nExamples:"
+    echo -e "\t# Install in an existing uv environment:"
+    echo -e "\t  source /path/to/your/env/bin/activate"
+    echo -e "\t  ./isaaclab.sh -i"
+    echo -e "\n\t# Create and setup a new uv environment:"
+    echo -e "\t  ./isaaclab.sh -u my_env"
+    echo -e "\t  source my_env/bin/activate"
+    echo -e "\t  ./isaaclab.sh -i"
     echo -e "\n" >&2
 }
 
@@ -568,9 +607,23 @@ while [[ $# -gt 0 ]]; do
             pip_command=$(extract_pip_command)
             pip_uninstall_command=$(extract_pip_uninstall_command)
 
+            # show which environment is being used
+            if [ -n "${VIRTUAL_ENV}" ]; then
+                echo "[INFO] Using uv/venv environment: ${VIRTUAL_ENV}"
+            elif [ -n "${CONDA_PREFIX}" ]; then
+                echo "[INFO] Using conda environment: ${CONDA_PREFIX}"
+            else
+                echo "[INFO] Using Isaac Sim Python or system Python"
+            fi
+            echo "[INFO] Python executable: ${python_exe}"
+
             # if on ARM arch, temporarily clear LD_PRELOAD
             # LD_PRELOAD is restored below, after installation
             begin_arm_install_sandbox
+
+            # upgrade pip first to avoid compatibility issues
+            echo "[INFO] Upgrading pip..."
+            ${python_exe} -m pip install --upgrade pip
 
             # install pytorch (version based on arch)
             ensure_cuda_torch
@@ -649,8 +702,22 @@ while [[ $# -gt 0 ]]; do
                 uv_env_name=$2
                 shift # past argument
             fi
+            # determine python version based on Isaac Sim version with fallback
+            if is_isaacsim_version_5_x 2>/dev/null; then
+                python_version="3.11"
+                echo "[INFO] Detected Isaac Sim 5.X → Using Python version: ${python_version}"
+            else
+                python_version="3.12"
+                # Check if we can detect Isaac Sim 6.0+
+                if command -v python &>/dev/null && python -c "import isaacsim" 2>/dev/null; then
+                    echo "[INFO] Detected Isaac Sim 6.0+ → Using Python version: ${python_version}"
+                else
+                    echo "[INFO] Isaac Sim not detected. Defaulting to Python version: ${python_version}"
+                    echo "[INFO] Note: Python 3.12 works with Isaac Sim 6.0+. Use Python 3.11 for Isaac Sim 5.X."
+                fi
+            fi
             # setup the uv environment for Isaac Lab
-            setup_uv_env ${uv_env_name}
+            setup_uv_env ${uv_env_name} ${python_version}
             shift # past argument
             ;;
         -f|--format)

@@ -17,7 +17,6 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
 "isaacsim.core.nodes" = {}
-"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.throttling" = {}
 "isaacsim.core.utils" = {}
 "isaacsim.core.version" = {}
@@ -38,7 +37,7 @@ keywords = ["experience", "app", "usd"]
 
 # Isaac Sim Extra
 "isaacsim.asset.importer.mjcf" = {}
-"isaacsim.asset.importer.urdf" = {version = "2.4.31", exact = true}
+"isaacsim.asset.importer.urdf" = {}
 "omni.physx.bundle" = {}
 "omni.physx.tensors" = {}
 "omni.replicator.core" = {}
@@ -101,6 +100,7 @@ keywords = ["experience", "app", "usd"]
 
 # Load Isaac Lab extensions last
 "isaaclab" = {order = 1000}
+"isaaclab_physx" = {order = 1000}
 "isaaclab_assets" = {order = 1000}
 "isaaclab_tasks" = {order = 1000}
 "isaaclab_mimic" = {order = 1000}
@@ -161,7 +161,7 @@ show_menu_titles = true
 
 [settings.app]
 name = "Isaac-Sim"
-version = "5.1.0"
+version = "6.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -302,6 +302,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

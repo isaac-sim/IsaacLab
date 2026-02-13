@@ -25,20 +25,19 @@ import scipy.spatial.transform as tf
 import torch
 
 import omni.replicator.core as rep
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils import convert_dict_to_backend
-from isaaclab.utils.math import convert_quat
 from isaaclab.utils.timer import Timer
 
 # sample camera poses
 POSITION = (2.5, 2.5, 2.5)
-QUAT_ROS = (-0.17591989, 0.33985114, 0.82047325, -0.42470819)
-QUAT_OPENGL = (0.33985113, 0.17591988, 0.42470818, 0.82047324)
-QUAT_WORLD = (-0.3647052, -0.27984815, -0.1159169, 0.88047623)
+# Quaternions in xyzw format
+QUAT_ROS = (0.33985114, 0.82047325, -0.42470819, -0.17591989)
+QUAT_OPENGL = (0.17591988, 0.42470818, 0.82047324, 0.33985113)
+QUAT_WORLD = (-0.27984815, -0.1159169, 0.88047623, -0.3647052)
 
 # NOTE: setup and teardown are own function to allow calling them in the tests
 
@@ -77,10 +76,8 @@ def teardown(sim: sim_utils.SimulationContext):
     # close all the opened viewport from before.
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -99,7 +96,7 @@ def test_camera_init(setup_sim_camera):
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -185,18 +182,19 @@ def test_camera_init_offset(setup_sim_camera):
     np.testing.assert_allclose(prim_tf_ros[0:3, 3], cam_cfg_offset_ros.offset.pos)
     np.testing.assert_allclose(prim_tf_opengl[0:3, 3], cam_cfg_offset_opengl.offset.pos)
     np.testing.assert_allclose(prim_tf_world[0:3, 3], cam_cfg_offset_world.offset.pos)
+    # scipy's as_quat() returns xyzw format, which matches our config format
     np.testing.assert_allclose(
-        convert_quat(tf.Rotation.from_matrix(prim_tf_ros[:3, :3]).as_quat(), "wxyz"),
+        tf.Rotation.from_matrix(prim_tf_ros[:3, :3]).as_quat(),
         cam_cfg_offset_opengl.offset.rot,
         rtol=1e-5,
     )
     np.testing.assert_allclose(
-        convert_quat(tf.Rotation.from_matrix(prim_tf_opengl[:3, :3]).as_quat(), "wxyz"),
+        tf.Rotation.from_matrix(prim_tf_opengl[:3, :3]).as_quat(),
         cam_cfg_offset_opengl.offset.rot,
         rtol=1e-5,
     )
     np.testing.assert_allclose(
-        convert_quat(tf.Rotation.from_matrix(prim_tf_world[:3, :3]).as_quat(), "wxyz"),
+        tf.Rotation.from_matrix(prim_tf_world[:3, :3]).as_quat(),
         cam_cfg_offset_opengl.offset.rot,
         rtol=1e-5,
     )
@@ -434,7 +432,7 @@ def test_depth_clipping(setup_sim_camera):
     sim, _, dt = setup_sim_camera
     camera_cfg_zero = CameraCfg(
         prim_path="/World/CameraZero",
-        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -542,6 +540,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -576,6 +575,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -589,6 +589,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -606,6 +607,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -639,6 +641,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -652,6 +655,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -669,6 +673,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     camera_cfg.data_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -705,6 +710,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     assert output["rgba"].shape == hw_4c_shape
+    assert output["albedo"].shape == hw_4c_shape
     assert output["depth"].shape == hw_1c_shape
     assert output["distance_to_camera"].shape == hw_1c_shape
     assert output["distance_to_image_plane"].shape == hw_1c_shape
@@ -718,6 +724,7 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -780,6 +787,64 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
     assert output["rgba"].shape == hw_4c_shape
     # access image data and compare dtype
     assert output["rgba"].dtype == torch.uint8
+
+
+def test_camera_resolution_albedo_only(setup_sim_camera):
+    """Test camera resolution is correctly set for albedo only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = ["albedo"]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output["albedo"].shape == hw_4c_shape
+    # access image data and compare dtype
+    assert output["albedo"].dtype == torch.uint8
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    ["simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"],
+)
+def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
+    """Test camera resolution is correctly set for simple shading only."""
+    # Add all types
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg.data_types = [data_type]
+    # Create camera
+    camera = Camera(camera_cfg)
+
+    # Play sim
+    sim.reset()
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+    camera.update(dt)
+
+    # expected sizes
+    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+    # access image data and compare shapes
+    output = camera.data.output
+    assert output[data_type].shape == hw_3c_shape
+    # access image data and compare dtype
+    assert output[data_type].dtype == torch.uint8
 
 
 def test_camera_resolution_depth_only(setup_sim_camera):
@@ -903,6 +968,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
+        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

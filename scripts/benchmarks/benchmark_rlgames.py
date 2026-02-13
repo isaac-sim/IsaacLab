@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 import sys
 import time
 
@@ -28,10 +29,11 @@ parser.add_argument("--max_iterations", type=int, default=10, help="RL Policy tr
 parser.add_argument(
     "--benchmark_backend",
     type=str,
-    default="OmniPerfKPIFile",
-    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
-    help="Benchmarking backend options, defaults OmniPerfKPIFile",
+    default="omniperf",
+    choices=["json", "osmo", "omniperf", "LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
+    help="Benchmarking backend options, defaults omniperf",
 )
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -54,16 +56,9 @@ app_start_time_end = time.perf_counter_ns()
 
 """Rest everything follows."""
 
-# enable benchmarking extension
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
 imports_time_begin = time.perf_counter_ns()
 
 import math
-import os
 import random
 from datetime import datetime
 
@@ -86,9 +81,11 @@ imports_time_end = time.perf_counter_ns()
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    get_backend_type,
     log_app_start_time,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
@@ -108,8 +105,12 @@ torch.backends.cudnn.benchmark = False
 
 
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_rlgames_train",
+    backend_type=get_backend_type(args_cli.benchmark_backend),
+    output_path=args_cli.output_path,
+    use_recorders=True,
+    output_prefix=f"benchmark_rlgames_train_{args_cli.task}",
     workflow_metadata={
         "metadata": [
             {"name": "task", "data": args_cli.task},
@@ -118,7 +119,6 @@ benchmark = BaseIsaacBenchmark(
             {"name": "max_iterations", "data": args_cli.max_iterations},
         ]
     },
-    backend_type=args_cli.benchmark_backend,
 )
 
 
@@ -225,13 +225,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset the agent and env
     runner.reset()
 
-    benchmark.set_phase("sim_runtime")
-
-    # train the agent
-    runner.run({"train": True, "play": False, "sigma": None})
+    # train the agent with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        runner.run({"train": True, "play": False, "sigma": None})
 
     if world_rank == 0:
-        benchmark.store_measurements()
+        # Final update after training completes
+        benchmark.update_manual_recorders()
 
         # parse tensorboard file stats
         tensorboard_log_dir = os.path.join(log_root_path, log_dir, "summaries")
@@ -258,7 +258,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_rl_policy_rewards(benchmark, log_data["rewards/iter"])
         log_rl_policy_episode_lengths(benchmark, log_data["episode_lengths/iter"])
 
-        benchmark.stop()
+        benchmark._finalize_impl()
 
     # close the simulator
     env.close()

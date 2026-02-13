@@ -8,11 +8,13 @@ from __future__ import annotations
 import os
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_assets import HUMANOID_28_CFG
@@ -52,10 +54,7 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 60,
         render_interval=decimation,
-        physx=PhysxCfg(
-            gpu_found_lost_pairs_capacity=2**23,
-            gpu_total_aggregate_pairs_capacity=2**23,
-        ),
+        physics=PhysxCfg(gpu_found_lost_pairs_capacity=2**23, gpu_total_aggregate_pairs_capacity=2**23),
     )
 
     # scene

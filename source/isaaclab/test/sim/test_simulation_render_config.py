@@ -105,11 +105,14 @@ def test_render_cfg_presets():
     rendering_modes = ["performance", "balanced", "quality"]
 
     for rendering_mode in rendering_modes:
+        # Clear any existing simulation context before creating a new one
+        SimulationContext.clear_instance()
+
         # grab isaac lab apps path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        # for Isaac Sim 4.5 compatibility, we use the 4.5 rendering mode app files in a different folder
-        if get_isaac_sim_version().major < 5:
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+        # for Isaac Sim 5 compatibility, we use the 5 rendering mode app files in a different folder
+        if get_isaac_sim_version().major < 6:
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
         # grab preset settings
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
@@ -143,7 +146,13 @@ def test_render_cfg_presets():
 
             setting_val = carb_settings_iface.get(setting_name)
 
-            assert setting_gt == setting_val
+            assert setting_gt == setting_val, (
+                f"Mismatch for '{setting_name}' in mode '{rendering_mode}': "
+                f"expected {setting_gt!r}, got {setting_val!r}"
+            )
+
+    # Clean up after the test
+    SimulationContext.clear_instance()
 
 
 @pytest.mark.skip(reason="Timeline not stopped")

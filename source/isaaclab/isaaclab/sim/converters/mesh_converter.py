@@ -157,7 +157,7 @@ class MeshConverter(AssetConverterBase):
         translate_op.Set(Gf.Vec3d(*cfg.translation))
         # rotation
         orient_op = geom_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
-        orient_op.Set(Gf.Quatd(*cfg.rotation))
+        orient_op.Set(Gf.Quatd(cfg.rotation[3], cfg.rotation[0], cfg.rotation[1], cfg.rotation[2]))
         # scale
         scale_op = geom_xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)
         scale_op.Set(Gf.Vec3d(*cfg.scale))
@@ -232,7 +232,7 @@ class MeshConverter(AssetConverterBase):
         # Merge all meshes into one
         converter_context.merge_all_meshes = True
         # Sets world units to meters, this will also scale asset if it's centimeters model.
-        # This does not work right now :(, so we need to scale the mesh manually
+        # This does not work right now :( so we need to scale the mesh manually
         converter_context.use_meter_as_world_unit = True
         converter_context.baking_scales = True
         # Uses double precision for all transform ops.

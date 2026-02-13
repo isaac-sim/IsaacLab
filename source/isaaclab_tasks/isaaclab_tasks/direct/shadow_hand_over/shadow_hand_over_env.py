@@ -63,7 +63,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = self.right_hand.root_physx_view.get_dof_limits().to(self.device)
+        joint_pos_limits = self.right_hand.root_view.get_dof_limits().to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
@@ -277,7 +277,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
         # compute reward
-        goal_dist = torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+        goal_dist = torch.linalg.norm(self.object_pos - self.goal_pos, ord=2, dim=-1)
         rew_dist = 2 * torch.exp(-self.cfg.dist_reward_scale * goal_dist)
 
         # log reward components

@@ -97,6 +97,6 @@ def generated_drone_commands(
     current_position_w = asset.data.root_pos_w - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
     current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)
-    current_position_b_dir = current_position_b / (torch.norm(current_position_b, dim=-1, keepdim=True) + 1e-8)
-    current_position_b_mag = torch.norm(current_position_b, dim=-1, keepdim=True)
+    current_position_b_dir = current_position_b / (torch.linalg.norm(current_position_b, dim=-1, keepdim=True) + 1e-8)
+    current_position_b_mag = torch.linalg.norm(current_position_b, dim=-1, keepdim=True)
     return torch.cat((current_position_b_dir, current_position_b_mag), dim=-1)

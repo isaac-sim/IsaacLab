@@ -192,9 +192,10 @@ def test_str_with_history(setup_env):
     print()
     print(obs_man_str)
     obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = obs_man_str_split.index(" term_1           ")
+    term_1_str_index = obs_man_str_split.index(" term_1      ")
     term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
-    assert term_1_str_shape == "(20,)"
+    # Handle numpy 2.0 where shape may be represented as (np.int64(20),) instead of (20,)
+    assert term_1_str_shape in ("(20,)", "(np.int64(20),)")
 
 
 def test_config_equivalence(setup_env):

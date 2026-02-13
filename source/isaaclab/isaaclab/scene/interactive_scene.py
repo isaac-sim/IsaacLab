@@ -3,11 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Sequence
 from typing import Any
 
 import torch
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
 import carb
 from isaacsim.core.cloner import GridCloner
@@ -18,14 +21,10 @@ from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
     AssetBaseCfg,
-    DeformableObject,
-    DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
 )
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext

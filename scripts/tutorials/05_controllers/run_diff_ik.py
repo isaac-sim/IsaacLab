@@ -105,11 +105,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
     goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
-    # Define goals for the arm
+    # Define goals for the arm (x,y,z,qx,qy,qz,qw)
     ee_goals = [
-        [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
-        [0.5, -0.4, 0.6, 0.707, 0.707, 0.0, 0.0],
-        [0.5, 0, 0.5, 0.0, 1.0, 0.0, 0.0],
+        [0.5, 0.5, 0.7, 0, 0.707, 0, 0.707],
+        [0.5, -0.4, 0.6, 0.707, 0, 0, 0.707],
+        [0.5, 0, 0.5, 1.0, 0.0, 0.0, 0.0],
     ]
     ee_goals = torch.tensor(ee_goals, device=sim.device)
     # Track the given command
@@ -159,7 +159,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
         else:
             # obtain quantities from simulation
-            jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
+            jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
             ee_pose_w = robot.data.body_pose_w[:, robot_entity_cfg.body_ids[0]]
             root_pose_w = robot.data.root_pose_w
             joint_pos = robot.data.joint_pos[:, robot_entity_cfg.joint_ids]

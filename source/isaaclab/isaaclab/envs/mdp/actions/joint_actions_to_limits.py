@@ -67,7 +67,7 @@ class JointPositionToLimitsAction(ActionTerm):
         )
 
         # Avoid indexing across all joints for efficiency
-        if self._num_joints == self._asset.num_joints:
+        if self._num_joints == self._asset.num_joints and not cfg.preserve_order:
             self._joint_ids = slice(None)
 
         # create tensors for raw and processed actions

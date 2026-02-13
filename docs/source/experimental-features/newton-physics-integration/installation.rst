@@ -36,7 +36,7 @@ Create a new conda environment:
 
 .. code-block:: bash
 
-    conda create -n env_isaaclab python=3.11
+    conda create -n env_isaaclab python=3.12
 
 Activate the environment:
 
@@ -48,7 +48,7 @@ Install the correct version of torch and torchvision:
 
 .. code-block:: bash
 
-    pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
 [Optional] Install Isaac Sim 5.1:
 
