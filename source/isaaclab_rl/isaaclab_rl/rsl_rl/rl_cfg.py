@@ -31,6 +31,9 @@ class RslRlPpoActorCriticCfg:
     noise_std_type: Literal["scalar", "log"] = "scalar"
     """The type of noise standard deviation for the policy. Default is scalar."""
 
+    state_dependent_std: bool = False
+    """Whether to use state-dependent standard deviation for the policy. Default is False."""
+
     actor_obs_normalization: bool = MISSING
     """Whether to normalize the observation for the actor network."""
 
@@ -62,6 +65,52 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
 
     rnn_num_layers: int = MISSING
     """The number of RNN layers."""
+
+
+@configclass
+class RslRlActorCriticCNNCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the PPO actor-critic networks with perceptual layers."""
+
+    @configclass
+    class CNNCfg:
+        output_channels: tuple[int] | list[int] = MISSING
+        """The number of output channels for each convolutional layer for the CNN."""
+
+        kernel_size: int | tuple[int] | list[int] = MISSING
+        """The kernel size for the CNN."""
+
+        stride: int | tuple[int] | list[int] = 1
+        """The stride for the CNN."""
+
+        dilation: int | tuple[int] | list[int] = 1
+        """The dilation for the CNN."""
+
+        padding: Literal["none", "zeros", "reflect", "replicate", "circular"] = "none"
+        """The padding for the CNN."""
+
+        norm: Literal["none", "batch", "layer"] | tuple[str] | list[str] = "none"
+        """The normalization for the CNN."""
+
+        activation: str = MISSING
+        """The activation function for the CNN."""
+
+        max_pool: bool | tuple[bool] | list[bool] = False
+        """Whether to use max pooling for the CNN."""
+
+        global_pool: Literal["none", "max", "avg"] = "none"
+        """The global pooling for the CNN."""
+
+        flatten: bool = True
+        """Whether to flatten the output of the CNN."""
+
+    class_name: str = "ActorCriticCNN"
+    """The policy class name. Default is ActorCriticCNN."""
+
+    actor_cnn_cfg: list[CNNCfg] | CNNCfg | None = MISSING
+    """The CNN configuration for the actor network."""
+
+    critic_cnn_cfg: list[CNNCfg] | CNNCfg | None = MISSING
+    """The CNN configuration for the critic network."""
 
 
 ############################
