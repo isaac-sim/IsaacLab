@@ -64,7 +64,8 @@ class MockContactSensorData(BaseContactSensorData):
         self._net_forces_w: wp.array | None = None
         self._net_forces_w_history: wp.array | None = None
         self._force_matrix_w: wp.array | None = None
-        self._force_matrix_w_history: wp.array | None = None
+        # torch.Tensor due to 5D requirement exceeding warp's 4D limit
+        self._force_matrix_w_history: torch.Tensor | None = None
         self._contact_pos_w: wp.array | None = None
         self._friction_forces_w: wp.array | None = None
         self._last_air_time: wp.array | None = None
@@ -133,14 +134,17 @@ class MockContactSensorData(BaseContactSensorData):
         return self._force_matrix_w
 
     @property
-    def force_matrix_w_history(self) -> wp.array | None:
-        """History of filtered forces. Shape: (N, T, B, M, 3)."""
+    def force_matrix_w_history(self) -> torch.Tensor | None:
+        """History of filtered forces. Shape: (N, T, B, M, 3).
+
+        Note: Returns torch.Tensor instead of wp.array because warp has 4D limit.
+        """
         if self._history_length == 0 or self._num_filter_bodies == 0:
             return None
         if self._force_matrix_w_history is None:
-            return wp.zeros(
-                shape=(self._num_instances, self._history_length, self._num_bodies, self._num_filter_bodies, 3),
-                dtype=wp.float32,
+            return torch.zeros(
+                (self._num_instances, self._history_length, self._num_bodies, self._num_filter_bodies, 3),
+                dtype=torch.float32,
                 device=self.device,
             )
         return self._force_matrix_w_history
@@ -223,7 +227,7 @@ class MockContactSensorData(BaseContactSensorData):
 
     def set_force_matrix_w_history(self, value: torch.Tensor) -> None:
         """Set filtered forces history."""
-        self._force_matrix_w_history = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._force_matrix_w_history = value.to(self.device)
 
     def set_contact_pos_w(self, value: torch.Tensor) -> None:
         """Set contact point positions."""

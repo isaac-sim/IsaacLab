@@ -95,7 +95,7 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         """Default body poses. Shape: (N, num_bodies, 7)."""
         if self._default_body_pose is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
-            pose_np[..., 3] = 1.0  # identity quat w=1
+            pose_np[..., 6] = 1.0  # identity quat w=1 in XYZW format
             return wp.array(pose_np, dtype=wp.float32, device=self.device)
         return self._default_body_pose
 
@@ -121,7 +121,10 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            # Reshape to (N*num_bodies, 7) for viewing, then reshape back
+            pose_np_flat = pose_np.reshape(-1, 7)
+            arr = wp.array(pose_np_flat, dtype=wp.float32, device=self.device).view(wp.transformf)
+            return arr.reshape((self._num_instances, self._num_bodies))
         return self._body_link_pose_w
 
     @property
@@ -138,28 +141,30 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         vel = wp.to_torch(self.body_link_vel_w)
         return wp.from_torch(torch.cat([pose, vel], dim=-1))
 
-    # Sliced properties (zero-copy pointer arithmetic on transformf)
+    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def body_link_pos_w(self) -> wp.array:
-        """Body link positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        """Body link positions. Shape: (N, num_bodies, 3)."""
+        pose_torch = wp.to_torch(self.body_link_pose_w)
+        return wp.from_torch(pose_torch[:, :, :3])
 
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Body link orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        """Body link orientations. Shape: (N, num_bodies, 4)."""
+        pose_torch = wp.to_torch(self.body_link_pose_w)
+        return wp.from_torch(pose_torch[:, :, 3:7])
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
         """Body link linear velocities. Shape: (N, num_bodies, 3)."""
-        return self.body_link_vel_w[..., :3]
+        vel_torch = wp.to_torch(self.body_link_vel_w)
+        return wp.from_torch(vel_torch[..., :3].contiguous())
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
         """Body link angular velocities. Shape: (N, num_bodies, 3)."""
-        return self.body_link_vel_w[..., 3:6]
+        vel_torch = wp.to_torch(self.body_link_vel_w)
+        return wp.from_torch(vel_torch[..., 3:6].contiguous())
 
     # -- Body state properties (CoM frame) --
 
@@ -197,53 +202,60 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._body_com_pose_b is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            # Reshape to (N*num_bodies, 7) for viewing, then reshape back
+            pose_np_flat = pose_np.reshape(-1, 7)
+            arr = wp.array(pose_np_flat, dtype=wp.float32, device=self.device).view(wp.transformf)
+            return arr.reshape((self._num_instances, self._num_bodies))
         return self._body_com_pose_b
 
-    # Sliced properties (zero-copy pointer arithmetic on transformf)
+    # Sliced properties (convert through torch for simplicity in mock)
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Body CoM positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        """Body CoM positions. Shape: (N, num_bodies, 3)."""
+        pose_torch = wp.to_torch(self.body_com_pose_w)
+        return wp.from_torch(pose_torch[:, :, :3])
 
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Body CoM orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        """Body CoM orientations. Shape: (N, num_bodies, 4)."""
+        pose_torch = wp.to_torch(self.body_com_pose_w)
+        return wp.from_torch(pose_torch[:, :, 3:7])
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
         """Body CoM linear velocities. Shape: (N, num_bodies, 3)."""
-        return self.body_com_vel_w[..., :3]
+        vel_torch = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(vel_torch[..., :3].contiguous())
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
         """Body CoM angular velocities. Shape: (N, num_bodies, 3)."""
-        return self.body_com_vel_w[..., 3:6]
+        vel_torch = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(vel_torch[..., 3:6].contiguous())
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
         """Body CoM linear accelerations. Shape: (N, num_bodies, 3)."""
-        return self.body_com_acc_w[..., :3]
+        acc_torch = wp.to_torch(self.body_com_acc_w)
+        return wp.from_torch(acc_torch[..., :3].contiguous())
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
         """Body CoM angular accelerations. Shape: (N, num_bodies, 3)."""
-        return self.body_com_acc_w[..., 3:6]
+        acc_torch = wp.to_torch(self.body_com_acc_w)
+        return wp.from_torch(acc_torch[..., 3:6].contiguous())
 
     @property
     def body_com_pos_b(self) -> wp.array:
-        """Body CoM positions in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        """Body CoM positions in body frame. Shape: (N, num_bodies, 3)."""
+        pose_torch = wp.to_torch(self.body_com_pose_b)
+        return wp.from_torch(pose_torch[:, :, :3])
 
     @property
     def body_com_quat_b(self) -> wp.array:
-        """Body CoM orientations in body frame. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        """Body CoM orientations in body frame. Shape: (N, num_bodies, 4)."""
+        pose_torch = wp.to_torch(self.body_com_pose_b)
+        return wp.from_torch(pose_torch[:, :, 3:7])
 
     # -- Body properties --
 

@@ -64,11 +64,11 @@ class MockImuData(BaseImuData):
 
     @property
     def quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) in world frame. Shape: (N, 4)."""
+        """Orientation (x, y, z, w) in world frame. Shape: (N, 4)."""
         if self._quat_w is None:
-            # Default to identity quaternion (w, x, y, z) = (1, 0, 0, 0)
+            # Default to identity quaternion in XYZW format: (x, y, z, w) = (0, 0, 0, 1)
             quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
-            quat_np[:, 0] = 1.0
+            quat_np[:, 3] = 1.0  # w component at index 3
             return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._quat_w
 
