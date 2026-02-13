@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.54.4 (2026-02-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.utils.wrench_composer.WrenchComposer` to correctly handle composed wrenches when link poses
+  change during simulation. Forces and torques are composed and stored in "mixed" frame representation (global frame
+  orientation, link frame position) and passed to Physx  with `is_global=True`.
+
+
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
