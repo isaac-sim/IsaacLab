@@ -17,7 +17,7 @@ import warp as wp
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, normalize, quat_from_euler_xyz, quat_unique
+from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv

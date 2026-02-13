@@ -30,7 +30,7 @@ class out_of_bound(ManagerTermBase):
     to avoid recomputing them on every call.
     """
 
-    def __init__(self, cfg: TerminationTermCfg, env: "ManagerBasedRLEnv"):
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         """Initialize the termination term.
 
         Args:
@@ -50,7 +50,7 @@ class out_of_bound(ManagerTermBase):
 
     def __call__(
         self,
-        env: "ManagerBasedRLEnv",
+        env: ManagerBasedRLEnv,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         in_bound_range: dict[str, tuple[float, float]] = {},
     ) -> torch.Tensor:
