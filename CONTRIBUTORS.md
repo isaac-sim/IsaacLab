@@ -102,6 +102,7 @@ Guidelines for modifications:
 * Lotus Li
 * Louis Le Lay
 * Lorenz Wellhausen
+* Lorenzo Moretti
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
