@@ -14,12 +14,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils import class_to_dict, string_to_callable
 from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
-
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
