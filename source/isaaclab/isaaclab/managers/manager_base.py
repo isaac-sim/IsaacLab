@@ -158,14 +158,13 @@ class ManagerBase(ABC):
             # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
             # is called
             def safe_callback(obj_ref):
+            def safe_callback(obj_ref):
                 """Safely invoke _resolve_terms_callback on a weakly-referenced object."""
                 try:
-                    obj = obj_ref
-                    obj._resolve_terms_callback(None)
+                    obj_ref._resolve_terms_callback(None)
                 except ReferenceError:
                     # Object has been deleted; ignore.
                     pass
-
             obj_ref = weakref.proxy(self)
             NewtonManager.add_on_start_callback(lambda: safe_callback(obj_ref))
 
