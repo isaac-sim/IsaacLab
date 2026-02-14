@@ -138,13 +138,13 @@ def test_config_drive_type(sim_config):
 
     # check drive values for the robot (read from physx)
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_allclose(drive_stiffness.numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_allclose(drive_damping.numpy(), config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
 
     # check drive values for the robot (read from usd)
     # Note: Disable the app control callback to prevent hanging during sim.stop()
     sim._disable_app_control_on_stop_handle = True
     sim.stop()
     drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_allclose(drive_stiffness.numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_allclose(drive_damping.numpy(), config.joint_drive.gains.damping)
+    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
+    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
