@@ -802,9 +802,7 @@ class randomize_joint_parameters(ManagerTermBase):
                     " than upper joint limits. Please check the distribution parameters for the joint position limits."
                 )
             # set the position limits into the physics simulation
-            self.asset.write_joint_position_limit_to_sim(
-                joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids
-            )
+            self.asset.write_joint_position_limit_to_sim(joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids)
 
 
 class randomize_fixed_tendon_parameters(ManagerTermBase):

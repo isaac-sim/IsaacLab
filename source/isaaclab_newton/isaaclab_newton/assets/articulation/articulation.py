@@ -1058,17 +1058,10 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
-<<<<<<< Updated upstream
-        if isinstance(upper_limits, torch.Tensor):
-            if self._temp_joint_pos is None:
-                self._temp_joint_pos = wp.zeros(
-                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-                )
-=======
+
         if isinstance(limits, torch.Tensor):
->>>>>>> Stashed changes
             upper_limits = make_complete_data_from_torch_dual_index(
-                limits[:,0,:,0],
+                limits[:, 0, :, 0],
                 self.num_instances,
                 self.num_joints,
                 env_ids,
@@ -1077,17 +1070,10 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
-<<<<<<< Updated upstream
-        if isinstance(lower_limits, torch.Tensor):
-            if self._temp_joint_vel is None:
-                self._temp_joint_vel = wp.zeros(
-                    (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
-                )
-=======
+
         if isinstance(limits, torch.Tensor):
->>>>>>> Stashed changes
             lower_limits = make_complete_data_from_torch_dual_index(
-                limits[:,0,:,1],
+                limits[:, 0, :, 1],
                 self.num_instances,
                 self.num_joints,
                 env_ids,
