@@ -30,7 +30,7 @@ class out_of_bound(ManagerTermBase):
     to avoid recomputing them on every call.
     """
 
-    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: TerminationTermCfg, env: "ManagerBasedRLEnv"):
         """Initialize the termination term.
 
         Args:
@@ -50,7 +50,7 @@ class out_of_bound(ManagerTermBase):
 
     def __call__(
         self,
-        env: ManagerBasedRLEnv,
+        env: "ManagerBasedRLEnv",
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         in_bound_range: dict[str, tuple[float, float]] = {},
     ) -> torch.Tensor:
@@ -74,3 +74,27 @@ def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sce
     by very bad, or aggressive action"""
     robot: Articulation = env.scene[asset_cfg.name]
     return (wp.to_torch(robot.data.joint_vel).abs() > (wp.to_torch(robot.data.joint_vel_limits) * 2)).any(dim=1)
+
+
+def object_spinning_too_fast(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    max_ang_speed: float = 100.0,
+) -> torch.Tensor:
+    """Terminate when object angular velocity exceeds threshold.
+
+    This catches numerical instability where objects start spinning exponentially
+    faster, which precedes NaN crashes in the physics solver.
+
+    Args:
+        env: The environment instance.
+        asset_cfg: The object asset configuration.
+        max_ang_speed: Maximum allowed angular speed in rad/s. Default 100 rad/s (~16 rev/s).
+
+    Returns:
+        Boolean tensor indicating which environments have objects spinning too fast.
+    """
+    asset: RigidObject = env.scene[asset_cfg.name]
+    ang_vel = wp.to_torch(asset.data.root_ang_vel_b)  # (num_envs, 3)
+    ang_speed = torch.norm(ang_vel, dim=1)  # (num_envs,)
+    return ang_speed > max_ang_speed

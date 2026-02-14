@@ -15,7 +15,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import CuboidCfg, RigidBodyMaterialCfg, SimulationCfg
+from isaaclab.sim import MeshCuboidCfg, RigidBodyMaterialCfg, SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
@@ -38,17 +38,12 @@ class SceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
-                # sim_utils.UsdFileCfg(
-                #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                #     mass_props=sim_utils.MassPropertiesCfg(density=400),
-                #     scale=(1.2, 1.2, 1.2),
-                # ),
-                CuboidCfg(size=(0.075, 0.075, 0.075), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                # CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                # CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                # CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                # CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                # CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.075, 0.075, 0.075), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+                MeshCuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
                 # SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
                 # SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
                 # CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
@@ -71,7 +66,7 @@ class SceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(
                 collision_enabled=True, mesh_collision_property=sim_utils.BoundingCubePropertiesCfg()
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.75),
         ),
         actuators={},
         articulation_root_prim_path="",
@@ -90,7 +85,7 @@ class SceneCfg(InteractiveSceneCfg):
         ),
         actuators={},
         articulation_root_prim_path="/FixedJoint",  # Newton keys by first body path
-        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.275, 0.0, 0.1175), rot=(0.0, 0.0, 0.0, 1.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane
@@ -402,6 +397,14 @@ class TerminationsCfg:
         },
     )
 
+    object_spinning_too_fast = DoneTerm(
+        func=mdp.object_spinning_too_fast,
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "max_ang_speed": 100.0,
+        },
+    )
+
     abnormal_robot = DoneTerm(func=mdp.abnormal_robot_state)
 
 
@@ -462,10 +465,10 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
                     ls_iterations=15,
                     ls_parallel=True,
                 ),
-                num_substeps=2,
+                num_substeps=1,
                 debug_mode=False,
             ),
-            dt=1 / 120,
+            dt=1 / 200,
             gravity=(0.0, 0.0, -9.81),
         )
         self.sim.render_interval = self.decimation
