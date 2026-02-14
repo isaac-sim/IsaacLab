@@ -52,6 +52,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
     def __repr__(self):
         """Override __repr__ to handle deleted fields gracefully."""
         from dataclasses import fields
+
         field_reprs = []
         for field_info in fields(self):
             field_name = field_info.name
