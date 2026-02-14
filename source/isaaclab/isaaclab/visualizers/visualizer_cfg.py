@@ -39,10 +39,10 @@ class VisualizerCfg:
     camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target/look-at point (x, y, z) in world coordinates."""
 
-    camera_source: Literal["cfg", "usd_path"] = "cfg"
+    camera_source: Literal["cfg", "usd_path"] = "usd_path"
     """Camera source mode: 'cfg' uses camera_position/target, 'usd_path' follows a USD camera prim."""
 
-    camera_usd_path: str = "/World/envs/env_0/robot/..."
+    camera_usd_path: str = "/World/envs/env_0/Camera"  # /World/envs/env_0/robot/..."
     """Absolute USD path to a camera prim when camera_source='usd_path'."""
 
     env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
@@ -91,8 +91,7 @@ class VisualizerCfg:
                     "Install the Newton backend (e.g., newton package/isaaclab_newton) and retry."
                 )
             raise ValueError(
-                f"Visualizer type '{self.visualizer_type}' is not registered. "
-                "Valid types: 'newton', 'rerun', 'kit'."
+                f"Visualizer type '{self.visualizer_type}' is not registered. Valid types: 'newton', 'rerun', 'kit'."
             )
 
         return visualizer_class(self)

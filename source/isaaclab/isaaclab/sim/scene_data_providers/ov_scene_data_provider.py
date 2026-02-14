@@ -685,7 +685,11 @@ class OVSceneDataProvider:
                 if template_path not in shared_paths:
                     shared_paths.append(template_path)
 
-            if child_prims := prim.GetFilteredChildren(UsdGeom.TraverseInstanceProxies()):
+            if hasattr(UsdGeom, "TraverseInstanceProxies"):
+                child_prims = prim.GetFilteredChildren(UsdGeom.TraverseInstanceProxies())
+            else:
+                child_prims = prim.GetChildren()
+            if child_prims:
                 stage_prims.extend(child_prims)
 
         num_envs += 1
