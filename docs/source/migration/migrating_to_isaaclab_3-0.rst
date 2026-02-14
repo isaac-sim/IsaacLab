@@ -571,6 +571,209 @@ quaternions in XYZW format:
 - And all other quaternion utilities
 
 
+Warp Backend for Asset and Sensor Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` instead of
+``torch.Tensor``. This change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
+:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
+:class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
+(:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
+:class:`~isaaclab_physx.sensors.FrameTransformer`).
+
+To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
+access with ``wp.to_torch()``:
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   root_pos = robot.data.root_pos_w             # torch.Tensor
+   joint_pos = robot.data.joint_pos              # torch.Tensor
+   contact_forces = sensor.data.net_forces_w     # torch.Tensor
+
+   # After (Isaac Lab 3.x)
+   root_pos = robot.data.root_pos_w              # wp.array
+   joint_pos = robot.data.joint_pos              # wp.array
+   contact_forces = sensor.data.net_forces_w     # wp.array
+
+   # To use with torch operations, wrap with wp.to_torch()
+   root_pos_torch = wp.to_torch(robot.data.root_pos_w)        # torch.Tensor
+   joint_pos_torch = wp.to_torch(robot.data.joint_pos)        # torch.Tensor
+   contact_torch = wp.to_torch(sensor.data.net_forces_w)      # torch.Tensor
+
+Common patterns that need updating:
+
+.. code-block:: python
+
+   # Cloning data
+   # Before:
+   pos = robot.data.root_pos_w.clone()
+   # After:
+   pos = wp.to_torch(robot.data.root_pos_w).clone()
+
+   # Creating zero tensors with matching shape
+   # Before:
+   zeros = torch.zeros_like(robot.data.root_pos_w)
+   # After:
+   zeros = torch.zeros_like(wp.to_torch(robot.data.root_pos_w))
+
+   # Assertions in tests
+   # Before:
+   torch.testing.assert_close(robot.data.root_pos_w, expected)
+   # After:
+   torch.testing.assert_close(wp.to_torch(robot.data.root_pos_w), expected)
+
+.. list-table:: Affected classes
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Class
+     - Package
+   * - :class:`~isaaclab.assets.Articulation`
+     - ``isaaclab`` / ``isaaclab_physx``
+   * - :class:`~isaaclab.assets.RigidObject`
+     - ``isaaclab`` / ``isaaclab_physx``
+   * - :class:`~isaaclab.assets.RigidObjectCollection`
+     - ``isaaclab`` / ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.assets.DeformableObject`
+     - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.ContactSensor`
+     - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.Imu`
+     - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.FrameTransformer`
+     - ``isaaclab_physx``
+
+.. note::
+
+   An automated migration tool is provided at ``scripts/tools/wrap_warp_to_torch.py``.
+   It scans Python files for ``.data.<property>`` accesses and wraps them with
+   ``wp.to_torch()``. Usage:
+
+   .. code-block:: bash
+
+      # Dry run (preview changes)
+      python scripts/tools/wrap_warp_to_torch.py path/to/your/code --dry-run
+
+      # Apply changes in-place
+      python scripts/tools/wrap_warp_to_torch.py path/to/your/code
+
+   Always review the changes after running the tool, as some accesses (e.g., those
+   already passed to warp-native functions) should not be wrapped.
+
+
+Write Method Index/Mask Split
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All asset write methods have been split into two explicit variants:
+
+- ``write_*_to_sim_index(data, env_ids)`` — accepts partial data for a sparse set of
+  environment indices. The ``data`` tensor has shape ``(len(env_ids), ...)``.
+- ``write_*_to_sim_mask(data, env_mask)`` — accepts full data for all environments with a
+  boolean mask selecting which environments to update. The ``data`` tensor has shape
+  ``(num_envs, ...)``.
+
+The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   robot.write_root_pose_to_sim(pose_data, env_ids)
+
+   # After (Isaac Lab 3.x) — indexed variant (partial data)
+   robot.write_root_pose_to_sim_index(pose_data, env_ids)
+
+   # After (Isaac Lab 3.x) — mask variant (full data, boolean mask)
+   robot.write_root_pose_to_sim_mask(pose_data, env_mask)
+
+.. list-table:: Affected write methods (RigidObject / Articulation)
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Old method
+     - New methods
+   * - ``write_root_pose_to_sim``
+     - ``write_root_pose_to_sim_index`` / ``write_root_pose_to_sim_mask``
+   * - ``write_root_link_pose_to_sim``
+     - ``write_root_link_pose_to_sim_index`` / ``write_root_link_pose_to_sim_mask``
+   * - ``write_root_com_pose_to_sim``
+     - ``write_root_com_pose_to_sim_index`` / ``write_root_com_pose_to_sim_mask``
+   * - ``write_root_velocity_to_sim``
+     - ``write_root_velocity_to_sim_index`` / ``write_root_velocity_to_sim_mask``
+   * - ``write_root_com_velocity_to_sim``
+     - ``write_root_com_velocity_to_sim_index`` / ``write_root_com_velocity_to_sim_mask``
+   * - ``write_root_link_velocity_to_sim``
+     - ``write_root_link_velocity_to_sim_index`` / ``write_root_link_velocity_to_sim_mask``
+
+.. list-table:: Additional Articulation-specific write methods
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Old method
+     - New methods
+   * - ``write_joint_position_to_sim``
+     - ``write_joint_position_to_sim_index`` / ``write_joint_position_to_sim_mask``
+   * - ``write_joint_velocity_to_sim``
+     - ``write_joint_velocity_to_sim_index`` / ``write_joint_velocity_to_sim_mask``
+   * - ``write_joint_stiffness_to_sim``
+     - ``write_joint_stiffness_to_sim_index`` / ``write_joint_stiffness_to_sim_mask``
+   * - ``write_joint_damping_to_sim``
+     - ``write_joint_damping_to_sim_index`` / ``write_joint_damping_to_sim_mask``
+   * - ``write_joint_position_limit_to_sim``
+     - ``write_joint_position_limit_to_sim_index`` / ``write_joint_position_limit_to_sim_mask``
+   * - ``write_joint_velocity_limit_to_sim``
+     - ``write_joint_velocity_limit_to_sim_index`` / ``write_joint_velocity_limit_to_sim_mask``
+   * - ``write_joint_effort_limit_to_sim``
+     - ``write_joint_effort_limit_to_sim_index`` / ``write_joint_effort_limit_to_sim_mask``
+   * - ``write_joint_armature_to_sim``
+     - ``write_joint_armature_to_sim_index`` / ``write_joint_armature_to_sim_mask``
+   * - ``write_joint_friction_coefficient_to_sim``
+     - ``write_joint_friction_coefficient_to_sim_index`` / ``write_joint_friction_coefficient_to_sim_mask``
+
+.. list-table:: RigidObjectCollection write methods
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Old method
+     - New methods
+   * - ``write_body_pose_to_sim``
+     - ``write_body_pose_to_sim_index`` / ``write_body_pose_to_sim_mask``
+   * - ``write_body_link_pose_to_sim``
+     - ``write_body_link_pose_to_sim_index`` / ``write_body_link_pose_to_sim_mask``
+   * - ``write_body_com_pose_to_sim``
+     - ``write_body_com_pose_to_sim_index`` / ``write_body_com_pose_to_sim_mask``
+   * - ``write_body_velocity_to_sim``
+     - ``write_body_velocity_to_sim_index`` / ``write_body_velocity_to_sim_mask``
+   * - ``write_body_com_velocity_to_sim``
+     - ``write_body_com_velocity_to_sim_index`` / ``write_body_com_velocity_to_sim_mask``
+   * - ``write_body_link_velocity_to_sim``
+     - ``write_body_link_velocity_to_sim_index`` / ``write_body_link_velocity_to_sim_mask``
+
+
+TimestampedBufferWarp
+~~~~~~~~~~~~~~~~~~~~~
+
+If you have custom asset or sensor data classes that subclass the Isaac Lab base data classes,
+note that internal buffers have changed from :class:`~isaaclab.utils.buffers.TimestampedBuffer`
+to :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`. The new class takes ``(shape, device,
+wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
+
+.. code-block:: python
+
+   import warp as wp
+   from isaaclab.utils.buffers import TimestampedBufferWarp
+
+   # Before (Isaac Lab 2.x)
+   self._data.root_pos_w = TimestampedBuffer(torch.zeros(num_envs, 3, device=device))
+
+   # After (Isaac Lab 3.x)
+   self._data.root_pos_w = TimestampedBufferWarp(
+       shape=(num_envs,), device=device, wp_dtype=wp.vec3f
+   )
+
+
 Need Help?
 ~~~~~~~~~~
 

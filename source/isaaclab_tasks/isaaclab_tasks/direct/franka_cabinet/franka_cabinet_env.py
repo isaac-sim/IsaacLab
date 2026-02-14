@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 
 from pxr import UsdGeom
 
@@ -19,7 +20,7 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv, sample_uniform
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_conjugate, sample_uniform
 
 
 @configclass
@@ -192,8 +193,12 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.dt = self.cfg.sim.dt * self.cfg.decimation
 
         # create auxiliary variables for computing applied action, observations and rewards
-        self.robot_dof_lower_limits = self._robot.data.soft_joint_pos_limits[0, :, 0].to(device=self.device)
-        self.robot_dof_upper_limits = self._robot.data.soft_joint_pos_limits[0, :, 1].to(device=self.device)
+        self.robot_dof_lower_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 0].to(
+            device=self.device
+        )
+        self.robot_dof_upper_limits = wp.to_torch(self._robot.data.soft_joint_pos_limits)[0, :, 1].to(
+            device=self.device
+        )
 
         self.robot_dof_speed_scales = torch.ones_like(self.robot_dof_lower_limits)
         self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint1")[0]] = 0.1
@@ -220,13 +225,10 @@ class FrankaCabinetEnv(DirectRLEnv):
 
         finger_pose = torch.zeros(7, device=self.device)
         finger_pose[0:3] = (lfinger_pose[0:3] + rfinger_pose[0:3]) / 2.0
-        finger_pose[3:7] = lfinger_pose[3:7]  # quaternion xyzw
-
-        # Compute inverse of hand pose: inv_q, inv_pos
-        hand_pose_inv_rot = quat_inv(hand_pose[3:7])
+        finger_pose[3:7] = lfinger_pose[3:7]
+        hand_pose_inv_rot = quat_conjugate(hand_pose[3:7])
         hand_pose_inv_pos = -quat_apply(hand_pose_inv_rot, hand_pose[0:3])
 
-        # Combine transforms: hand_inv * finger -> local grasp pose
         robot_local_pose_pos, robot_local_grasp_pose_rot = combine_frame_transforms(
             hand_pose_inv_pos, hand_pose_inv_rot, finger_pose[0:3], finger_pose[3:7]
         )
@@ -296,19 +298,19 @@ class FrankaCabinetEnv(DirectRLEnv):
     # post-physics step calls
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        terminated = self._cabinet.data.joint_pos[:, self.drawer_joint_idx] > 0.39
+        terminated = wp.to_torch(self._cabinet.data.joint_pos)[:, self.drawer_joint_idx] > 0.39
         truncated = self.episode_length_buf >= self.max_episode_length - 1
         return terminated, truncated
 
     def _get_rewards(self) -> torch.Tensor:
         # Refresh the intermediate values after the physics steps
         self._compute_intermediate_values()
-        robot_left_finger_pos = self._robot.data.body_pos_w[:, self.left_finger_link_idx]
-        robot_right_finger_pos = self._robot.data.body_pos_w[:, self.right_finger_link_idx]
+        robot_left_finger_pos = wp.to_torch(self._robot.data.body_pos_w)[:, self.left_finger_link_idx]
+        robot_right_finger_pos = wp.to_torch(self._robot.data.body_pos_w)[:, self.right_finger_link_idx]
 
         return self._compute_rewards(
             self.actions,
-            self._cabinet.data.joint_pos,
+            wp.to_torch(self._cabinet.data.joint_pos),
             self.robot_grasp_pos,
             self.drawer_grasp_pos,
             self.robot_grasp_rot,
@@ -325,13 +327,13 @@ class FrankaCabinetEnv(DirectRLEnv):
             self.cfg.open_reward_scale,
             self.cfg.action_penalty_scale,
             self.cfg.finger_reward_scale,
-            self._robot.data.joint_pos,
+            wp.to_torch(self._robot.data.joint_pos),
         )
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         super()._reset_idx(env_ids)
         # robot state
-        joint_pos = self._robot.data.default_joint_pos[env_ids] + sample_uniform(
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids] + sample_uniform(
             -0.125,
             0.125,
             (len(env_ids), self._robot.num_joints),
@@ -352,7 +354,7 @@ class FrankaCabinetEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         dof_pos_scaled = (
             2.0
-            * (self._robot.data.joint_pos - self.robot_dof_lower_limits)
+            * (wp.to_torch(self._robot.data.joint_pos) - self.robot_dof_lower_limits)
             / (self.robot_dof_upper_limits - self.robot_dof_lower_limits)
             - 1.0
         )
@@ -361,10 +363,10 @@ class FrankaCabinetEnv(DirectRLEnv):
         obs = torch.cat(
             (
                 dof_pos_scaled,
-                self._robot.data.joint_vel * self.cfg.dof_velocity_scale,
+                wp.to_torch(self._robot.data.joint_vel) * self.cfg.dof_velocity_scale,
                 to_target,
-                self._cabinet.data.joint_pos[:, self.drawer_joint_idx].unsqueeze(-1),
-                self._cabinet.data.joint_vel[:, self.drawer_joint_idx].unsqueeze(-1),
+                wp.to_torch(self._cabinet.data.joint_pos)[:, self.drawer_joint_idx].unsqueeze(-1),
+                wp.to_torch(self._cabinet.data.joint_vel)[:, self.drawer_joint_idx].unsqueeze(-1),
             ),
             dim=-1,
         )
@@ -374,12 +376,12 @@ class FrankaCabinetEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self, env_ids: torch.Tensor | None = None):
         if env_ids is None:
-            env_ids = self._robot._ALL_INDICES
+            env_ids = wp.to_torch(self._robot._ALL_INDICES)
 
-        hand_pos = self._robot.data.body_pos_w[env_ids, self.hand_link_idx]
-        hand_rot = self._robot.data.body_quat_w[env_ids, self.hand_link_idx]
-        drawer_pos = self._cabinet.data.body_pos_w[env_ids, self.drawer_link_idx]
-        drawer_rot = self._cabinet.data.body_quat_w[env_ids, self.drawer_link_idx]
+        hand_pos = wp.to_torch(self._robot.data.body_pos_w)[env_ids, self.hand_link_idx]
+        hand_rot = wp.to_torch(self._robot.data.body_quat_w)[env_ids, self.hand_link_idx]
+        drawer_pos = wp.to_torch(self._cabinet.data.body_pos_w)[env_ids, self.drawer_link_idx]
+        drawer_rot = wp.to_torch(self._cabinet.data.body_quat_w)[env_ids, self.drawer_link_idx]
         (
             self.robot_grasp_rot[env_ids],
             self.robot_grasp_pos[env_ids],
@@ -488,7 +490,6 @@ class FrankaCabinetEnv(DirectRLEnv):
         drawer_local_grasp_rot,
         drawer_local_grasp_pos,
     ):
-        # combine_frame_transforms returns (pos, quat)
         global_franka_pos, global_franka_rot = combine_frame_transforms(
             hand_pos, hand_rot, franka_local_grasp_pos, franka_local_grasp_rot
         )

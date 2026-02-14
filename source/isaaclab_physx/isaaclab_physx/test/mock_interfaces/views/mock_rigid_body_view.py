@@ -42,6 +42,7 @@ class MockRigidBodyView:
         self._prim_paths = prim_paths or [f"/World/RigidBody_{i}" for i in range(count)]
         self._device = device
         self._backend = "torch"
+        self._noop_setters = False
 
         # Internal state (lazily initialized)
         self._transforms: torch.Tensor | None = None
@@ -159,6 +160,8 @@ class MockRigidBodyView:
             transforms: Tensor of shape (N, 7) or (len(indices), 7).
             indices: Optional indices of bodies to update.
         """
+        if self._noop_setters:
+            return
         transforms = transforms.to(self._device)
         if self._transforms is None:
             self._transforms = torch.zeros(self._count, 7, device=self._device)
@@ -179,6 +182,8 @@ class MockRigidBodyView:
             velocities: Tensor of shape (N, 6) or (len(indices), 6).
             indices: Optional indices of bodies to update.
         """
+        if self._noop_setters:
+            return
         velocities = velocities.to(self._device)
         if self._velocities is None:
             self._velocities = torch.zeros(self._count, 6, device=self._device)
@@ -201,6 +206,8 @@ class MockRigidBodyView:
         Raises:
             RuntimeError: If masses tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(masses, "masses")
         if self._masses is None:
             self._masses = torch.ones(self._count, 1, device="cpu")
@@ -223,6 +230,8 @@ class MockRigidBodyView:
         Raises:
             RuntimeError: If coms tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(coms, "coms")
         if self._coms is None:
             self._coms = torch.zeros(self._count, 7, device="cpu")
@@ -246,6 +255,8 @@ class MockRigidBodyView:
         Raises:
             RuntimeError: If inertias tensor is on GPU.
         """
+        if self._noop_setters:
+            return
         self._check_cpu_tensor(inertias, "inertias")
         if self._inertias is None:
             self._inertias = torch.zeros(self._count, 9, device="cpu")

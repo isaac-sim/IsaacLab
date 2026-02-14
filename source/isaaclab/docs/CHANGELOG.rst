@@ -2,6 +2,42 @@ Changelog
 ---------
 
 
+3.3.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all asset and sensor data properties from ``torch.Tensor`` to ``wp.array`` (NVIDIA Warp).
+  All ``.data.*`` properties on :class:`~isaaclab.assets.Articulation`,
+  :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`, and
+  sensor data classes now return ``wp.array``. Use ``wp.to_torch()`` to convert back to
+  ``torch.Tensor`` when needed.
+
+* Split all asset write methods into ``_index`` and ``_mask`` variants. The old ``env_ids``
+  parameter has been replaced by explicit ``_index`` methods (sparse indexed data) and ``_mask``
+  methods (full data with boolean mask). For example,
+  ``write_root_link_pose_to_sim(data, env_ids)`` is now
+  ``write_root_link_pose_to_sim_index(data, env_ids)`` or
+  ``write_root_link_pose_to_sim_mask(data, env_mask)``.
+
+* Refactored :mod:`isaaclab.utils.wrench_composer` to use warp kernels internally.
+
+* Updated all MDP action, observation, reward, termination, command, and event functions
+  to wrap ``wp.array`` data accesses with ``wp.to_torch()`` for torch compatibility.
+
+* Updated mock interfaces for all assets and sensors to produce ``wp.array``-backed data.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.utils.buffers.TimestampedBufferWarp` for warp-native timestamped
+  data buffers, replacing ``TimestampedBuffer`` in warp-backed asset and sensor classes.
+
+* Added shared warp math kernels in :mod:`isaaclab.utils.warp.kernels` for quaternion
+  operations, coordinate transforms, and velocity computations.
+
+
 3.2.0 (2026-02-06)
 ~~~~~~~~~~~~~~~~~~
 

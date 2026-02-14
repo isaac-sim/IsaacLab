@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import carb
 
@@ -51,7 +52,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_dropped configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -160,16 +161,16 @@ class reset_when_gear_dropped(ManagerTermBase):
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Get end effector position
-        eef_pos_world = self.robot_asset.data.body_link_pos_w[:, self.eef_idx]
+        eef_pos_world = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
 
         # Update gear positions and quaternions in buffers
-        self.all_gear_pos_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_pos_w
-        self.all_gear_pos_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_pos_w
-        self.all_gear_pos_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_pos_w
+        self.all_gear_pos_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w)
+        self.all_gear_pos_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w)
+        self.all_gear_pos_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w)
 
-        self.all_gear_quat_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
+        self.all_gear_quat_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w)
 
         # Select gear data using advanced indexing
         gear_pos_world = self.all_gear_pos_buffer[self.env_indices, self.gear_type_indices]
@@ -221,7 +222,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_orientation_exceeds_threshold"
-                " configuration. It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                " configuration. It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -301,12 +302,12 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         yaw_threshold_rad = torch.deg2rad(torch.tensor(yaw_threshold_deg, device=env.device))
 
         # Get end effector orientation
-        eef_quat_world = self.robot_asset.data.body_link_quat_w[:, self.eef_idx]
+        eef_quat_world = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
 
         # Update gear quaternions in buffer
-        self.all_gear_quat_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
+        self.all_gear_quat_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w)
 
         # Select gear data using advanced indexing
         gear_quat_world = self.all_gear_quat_buffer[self.env_indices, self.gear_type_indices]

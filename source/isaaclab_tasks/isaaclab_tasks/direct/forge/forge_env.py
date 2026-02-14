@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import numpy as np
 import torch
+import warp as wp
 
 from isaaclab.utils.math import (
     axis_angle_from_quat,
@@ -95,7 +96,9 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
 
         # Update and smooth force values.
-        self.force_sensor_world = self._robot.root_view.get_link_incoming_joint_force()[:, self.force_sensor_body_idx]
+        self.force_sensor_world = wp.to_torch(self._robot.root_view.get_link_incoming_joint_force())[
+            :, self.force_sensor_body_idx
+        ]
 
         alpha = self.cfg.ft_smoothing_factor
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth

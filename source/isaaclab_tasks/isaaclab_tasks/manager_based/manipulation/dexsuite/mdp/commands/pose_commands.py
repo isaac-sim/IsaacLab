@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import CommandTerm
@@ -104,17 +105,18 @@ class ObjectUniformPoseCommand(CommandTerm):
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            self.robot.data.root_pos_w,
-            self.robot.data.root_quat_w,
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
         # compute the error
+        object_root_state_w = wp.to_torch(self.object.data.root_state_w)
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            self.object.data.root_state_w[:, :3],
-            self.object.data.root_state_w[:, 3:7],
+            object_root_state_w[:, :3],
+            object_root_state_w[:, 3:7],
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
@@ -122,7 +124,9 @@ class ObjectUniformPoseCommand(CommandTerm):
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
             success_id &= self.metrics["orientation_error"] < 0.5
-        self.success_visualizer.visualize(self.success_vis_asset.data.root_pos_w, marker_indices=success_id.int())
+        self.success_visualizer.visualize(
+            wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
+        )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -171,7 +175,7 @@ class ObjectUniformPoseCommand(CommandTerm):
             # -- current object pose
             self.curr_visualizer.visualize(self.object.data.root_pos_w, self.object.data.root_quat_w)
         else:
-            distance = torch.linalg.norm(self.pose_command_w[:, :3] - self.object.data.root_pos_w[:, :3], dim=1)
+            distance = torch.linalg.norm(self.pose_command_w[:, :3] - wp.to_torch(self.object.data.root_pos_w), dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position

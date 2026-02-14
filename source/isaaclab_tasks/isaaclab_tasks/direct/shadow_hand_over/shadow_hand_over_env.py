@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -63,12 +64,12 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = self.right_hand.root_view.get_dof_limits().to(self.device)
+        joint_pos_limits = wp.to_torch(self.right_hand.root_view.get_dof_limits()).to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
 
         # used to compare object position
-        self.in_hand_pos = self.object.data.default_root_state[:, 0:3].clone()
+        self.in_hand_pos = wp.to_torch(self.object.data.default_root_state)[:, 0:3].clone()
         self.in_hand_pos[:, 2] -= 0.04
         # default goal positions
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
@@ -310,7 +311,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self._reset_target_pose(env_ids)
 
         # reset object
-        object_default_state = self.object.data.default_root_state.clone()[env_ids]
+        object_default_state = wp.to_torch(self.object.data.default_root_state).clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
 
         object_default_state[:, 0:3] = (
@@ -322,20 +323,24 @@ class ShadowHandOverEnv(DirectMARLEnv):
             rot_noise[:, 0], rot_noise[:, 1], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids]
         )
 
-        object_default_state[:, 7:] = torch.zeros_like(self.object.data.default_root_state[env_ids, 7:])
+        object_default_state[:, 7:] = torch.zeros_like(wp.to_torch(self.object.data.default_root_state)[env_ids, 7:])
         self.object.write_root_pose_to_sim(object_default_state[:, :7], env_ids)
         self.object.write_root_velocity_to_sim(object_default_state[:, 7:], env_ids)
 
         # reset right hand
-        delta_max = self.hand_dof_upper_limits[env_ids] - self.right_hand.data.default_joint_pos[env_ids]
-        delta_min = self.hand_dof_lower_limits[env_ids] - self.right_hand.data.default_joint_pos[env_ids]
+        delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.right_hand.data.default_joint_pos)[env_ids]
+        delta_min = self.hand_dof_lower_limits[env_ids] - wp.to_torch(self.right_hand.data.default_joint_pos)[env_ids]
 
         dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = self.right_hand.data.default_joint_pos[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        dof_pos = (
+            wp.to_torch(self.right_hand.data.default_joint_pos)[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        )
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        dof_vel = self.right_hand.data.default_joint_vel[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
+        dof_vel = (
+            wp.to_torch(self.right_hand.data.default_joint_vel)[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
+        )
 
         self.right_hand_prev_targets[env_ids] = dof_pos
         self.right_hand_curr_targets[env_ids] = dof_pos
@@ -345,15 +350,19 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.right_hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
 
         # reset left hand
-        delta_max = self.hand_dof_upper_limits[env_ids] - self.left_hand.data.default_joint_pos[env_ids]
-        delta_min = self.hand_dof_lower_limits[env_ids] - self.left_hand.data.default_joint_pos[env_ids]
+        delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.left_hand.data.default_joint_pos)[env_ids]
+        delta_min = self.hand_dof_lower_limits[env_ids] - wp.to_torch(self.left_hand.data.default_joint_pos)[env_ids]
 
         dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = self.left_hand.data.default_joint_pos[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        dof_pos = (
+            wp.to_torch(self.left_hand.data.default_joint_pos)[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
+        )
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        dof_vel = self.left_hand.data.default_joint_vel[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
+        dof_vel = (
+            wp.to_torch(self.left_hand.data.default_joint_vel)[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
+        )
 
         self.left_hand_prev_targets[env_ids] = dof_pos
         self.left_hand_curr_targets[env_ids] = dof_pos
@@ -378,33 +387,33 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
     def _compute_intermediate_values(self):
         # data for right hand
-        self.right_fingertip_pos = self.right_hand.data.body_pos_w[:, self.finger_bodies]
-        self.right_fingertip_rot = self.right_hand.data.body_quat_w[:, self.finger_bodies]
+        self.right_fingertip_pos = wp.to_torch(self.right_hand.data.body_pos_w)[:, self.finger_bodies]
+        self.right_fingertip_rot = wp.to_torch(self.right_hand.data.body_quat_w)[:, self.finger_bodies]
         self.right_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
             self.num_envs, self.num_fingertips, 3
         )
-        self.right_fingertip_velocities = self.right_hand.data.body_vel_w[:, self.finger_bodies]
+        self.right_fingertip_velocities = wp.to_torch(self.right_hand.data.body_vel_w)[:, self.finger_bodies]
 
-        self.right_hand_dof_pos = self.right_hand.data.joint_pos
-        self.right_hand_dof_vel = self.right_hand.data.joint_vel
+        self.right_hand_dof_pos = wp.to_torch(self.right_hand.data.joint_pos)
+        self.right_hand_dof_vel = wp.to_torch(self.right_hand.data.joint_vel)
 
         # data for left hand
-        self.left_fingertip_pos = self.left_hand.data.body_pos_w[:, self.finger_bodies]
-        self.left_fingertip_rot = self.left_hand.data.body_quat_w[:, self.finger_bodies]
+        self.left_fingertip_pos = wp.to_torch(self.left_hand.data.body_pos_w)[:, self.finger_bodies]
+        self.left_fingertip_rot = wp.to_torch(self.left_hand.data.body_quat_w)[:, self.finger_bodies]
         self.left_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
             self.num_envs, self.num_fingertips, 3
         )
-        self.left_fingertip_velocities = self.left_hand.data.body_vel_w[:, self.finger_bodies]
+        self.left_fingertip_velocities = wp.to_torch(self.left_hand.data.body_vel_w)[:, self.finger_bodies]
 
-        self.left_hand_dof_pos = self.left_hand.data.joint_pos
-        self.left_hand_dof_vel = self.left_hand.data.joint_vel
+        self.left_hand_dof_pos = wp.to_torch(self.left_hand.data.joint_pos)
+        self.left_hand_dof_vel = wp.to_torch(self.left_hand.data.joint_vel)
 
         # data for object
-        self.object_pos = self.object.data.root_pos_w - self.scene.env_origins
-        self.object_rot = self.object.data.root_quat_w
-        self.object_velocities = self.object.data.root_vel_w
-        self.object_linvel = self.object.data.root_lin_vel_w
-        self.object_angvel = self.object.data.root_ang_vel_w
+        self.object_pos = wp.to_torch(self.object.data.root_pos_w) - self.scene.env_origins
+        self.object_rot = wp.to_torch(self.object.data.root_quat_w)
+        self.object_velocities = wp.to_torch(self.object.data.root_vel_w)
+        self.object_linvel = wp.to_torch(self.object.data.root_lin_vel_w)
+        self.object_angvel = wp.to_torch(self.object.data.root_ang_vel_w)
 
 
 @torch.jit.script

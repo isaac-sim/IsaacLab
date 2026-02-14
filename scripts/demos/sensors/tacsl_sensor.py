@@ -30,6 +30,7 @@ import os
 import cv2
 import numpy as np
 import torch
+import warp as wp
 
 from isaaclab.app import AppLauncher
 
@@ -330,7 +331,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # Reset robot and contact object positions
             count = 0
             for entity in entity_list:
-                root_state = scene[entity].data.default_root_state.clone()
+                root_state = wp.to_torch(scene[entity].data.default_root_state).clone()
                 root_state[:, :3] += scene.env_origins
                 scene[entity].write_root_state_to_sim(root_state)
 

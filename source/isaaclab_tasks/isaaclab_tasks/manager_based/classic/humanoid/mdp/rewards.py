@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -54,7 +55,7 @@ class progress_reward(ManagerTermBase):
         asset: Articulation = self._env.scene["robot"]
         # compute projection of current heading to desired heading vector
         target_pos = torch.tensor(self.cfg.params["target_pos"], device=self.device)
-        to_target_pos = target_pos - asset.data.root_pos_w[env_ids, :3]
+        to_target_pos = target_pos - wp.to_torch(asset.data.root_pos_w)[env_ids, :3]
         # reward terms
         self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
         self.prev_potentials[env_ids] = self.potentials[env_ids]
@@ -69,7 +70,7 @@ class progress_reward(ManagerTermBase):
         asset: Articulation = env.scene[asset_cfg.name]
         # compute vector to target
         target_pos = torch.tensor(target_pos, device=env.device)
-        to_target_pos = target_pos - asset.data.root_pos_w[:, :3]
+        to_target_pos = target_pos - wp.to_torch(asset.data.root_pos_w)[:, :3]
         to_target_pos[:, 2] = 0.0
         # update history buffer and compute new potential
         self.prev_potentials[:] = self.potentials[:]
@@ -106,7 +107,9 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
         asset: Articulation = env.scene[asset_cfg.name]
         # compute the penalty over normalized joints
         joint_pos_scaled = math_utils.scale_transform(
-            asset.data.joint_pos, asset.data.soft_joint_pos_limits[..., 0], asset.data.soft_joint_pos_limits[..., 1]
+            wp.to_torch(asset.data.joint_pos),
+            wp.to_torch(asset.data.soft_joint_pos_limits)[..., 0],
+            wp.to_torch(asset.data.soft_joint_pos_limits)[..., 1],
         )
         # scale the violation amount by the gear ratio
         violation_amount = (torch.abs(joint_pos_scaled) - threshold) / (1 - threshold)
@@ -141,4 +144,6 @@ class power_consumption(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # return power = torque * velocity (here actions: joint torques)
-        return torch.sum(torch.abs(env.action_manager.action * asset.data.joint_vel * self.gear_ratio_scaled), dim=-1)
+        return torch.sum(
+            torch.abs(env.action_manager.action * wp.to_torch(asset.data.joint_vel) * self.gear_ratio_scaled), dim=-1
+        )

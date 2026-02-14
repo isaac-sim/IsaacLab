@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -109,12 +110,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset robots
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_state = robot.data.default_root_state.clone()
+                root_state = wp.to_torch(robot.data.default_root_state).clone()
                 root_state[:, :3] += origins[index]
                 robot.write_root_pose_to_sim(root_state[:, :7])
                 robot.write_root_velocity_to_sim(root_state[:, 7:])
                 # joint state
-                joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+                joint_pos, joint_vel = (
+                    wp.to_torch(robot.data.default_joint_pos).clone(),
+                    wp.to_torch(robot.data.default_joint_vel).clone(),
+                )
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset the internal state
                 robot.reset()
@@ -125,7 +129,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # apply default actions to the hands robots
         for robot in entities.values():
             # generate joint positions
-            joint_pos_target = robot.data.soft_joint_pos_limits[..., grasp_mode]
+            joint_pos_target = wp.to_torch(robot.data.soft_joint_pos_limits)[..., grasp_mode]
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim
