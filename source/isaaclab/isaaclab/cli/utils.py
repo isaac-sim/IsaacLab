@@ -245,15 +245,42 @@ def run_docker_helper(args):
     run_python_command(script_path, args)
 
 
-def run_python_command(script_path, args, is_module=False):
-    """Run a python script using the python executable."""
+def run_python_command(
+    script_or_module,
+    args,
+    is_module=False,
+    env=None,
+    check=False,
+):
+    """Run a python script or module using the resolved Python executable.
+
+    Args:
+        script_or_module: Script path or module name to execute.
+        args: Additional arguments.
+        is_module: Whether to execute script_or_module as a module (``python -m``).
+        env: Environment for the subprocess. Uses current environment if ``None``.
+        check: Whether to raise ``CalledProcessError`` on non-zero exit codes.
+
+    Returns:
+        [subprocess.CompletedProcess] Result returned by ``subprocess.run``.
+    """
+
     cmd = [extract_python_exe()]
+
     if is_module:
         cmd.append("-m")
-    cmd.append(str(script_path))
+
+    cmd.append(str(script_or_module))
     cmd.extend(args)
-    env = os.environ.copy()
-    run_command(cmd, env=env, check=False)
+
+    if env is None:
+        env = os.environ.copy()
+
+    return subprocess.run(
+        cmd,
+        env=env,
+        check=check,
+    )
 
 
 def update_vscode_settings():
