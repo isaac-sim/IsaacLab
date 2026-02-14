@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import os
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -13,7 +13,7 @@ import newton
 import torch
 import warp as wp
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as isaaclab_sim
 
@@ -66,7 +66,14 @@ class CameraManager:
         self.render_context = render_context
         for name, sensor in self.scene.sensors.items():
             if camera_data := self.camera_data.get(sensor):
-                camera_fovs = wp.array([20.0] * self.num_cameras, dtype=wp.float32)
+                fov = 20.0
+                if camera_data.prims:
+                    camera_prim = UsdGeom.Camera(camera_data.prims[0])
+                    focal_length = camera_prim.GetFocalLengthAttr().Get()
+                    horizontal_aperture = camera_prim.GetHorizontalApertureAttr().Get()
+                    fov = 2.0 * math.degrees(math.atan(horizontal_aperture / (2.0 * focal_length)))
+
+                camera_fovs = wp.array([fov] * self.num_cameras, dtype=wp.float32)
                 camera_data.camera_rays = render_context.utils.compute_pinhole_camera_rays(
                     camera_data.width, camera_data.height, camera_fovs
                 )
@@ -100,18 +107,6 @@ class CameraManager:
             camera_transforms.append(self.__resolve_camera_transform(prim))
         return wp.array([camera_transforms], dtype=wp.transformf)
 
-    def save_images(self, filename: str):
-        if self.render_context is None:
-            return
-
-        for sensor, camera_data in self.camera_data.items():
-            color_data = self.render_context.utils.flatten_color_image_to_rgba(camera_data.outputs.color_image)
-
-            from PIL import Image
-
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            Image.fromarray(color_data.numpy()).save(filename % camera_data.name)
-
     def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
         position, orientation = isaaclab_sim.resolve_prim_pose(prim)
         return wp.transformf(position, orientation)
@@ -119,11 +114,13 @@ class CameraManager:
 
 class NewtonWarpRenderer:
     def __init__(self, scene: InteractiveScene):
+        assert scene is not None, "NewtonWarpRenderer needs an InteractiveScene to initialize!"
+
         self.scene = scene
 
         builder = newton.ModelBuilder()
         builder.add_usd(isaaclab_sim.get_current_stage(), ignore_paths=[r"/World/envs/.*"])
-        for world_id in range(scene.num_envs):
+        for world_id in range(self.scene.num_envs):
             builder.begin_world()
             for name, articulation in self.scene.articulations.items():
                 path = articulation.cfg.prim_path.replace(".*", str(world_id))
@@ -135,7 +132,7 @@ class NewtonWarpRenderer:
 
         self.physx_to_newton_body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
 
-        self.camera_manager = CameraManager(scene)
+        self.camera_manager = CameraManager(self.scene)
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
         self.camera_manager.create_outputs(self.newton_sensor.render_context)
 
@@ -161,14 +158,16 @@ class NewtonWarpRenderer:
 
     def convert_output(self, sensor: SensorBase, output_name: str, output_data: torch.Tensor):
         if camera_data := self.camera_manager.camera_data.get(sensor):
-            if (
-                output_name == CameraManager.OutputNames.RGBA
-                or output_name == CameraManager.OutputNames.ALBEDO
-                or output_name == CameraManager.OutputNames.DEPTH
-                or output_name == CameraManager.OutputNames.NORMALS
-                or output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION
-            ):
+            if output_name == CameraManager.OutputNames.RGBA:
                 wp.copy(wp.from_torch(output_data), camera_data.outputs.color_image)
+            elif output_name == CameraManager.OutputNames.ALBEDO:
+                wp.copy(wp.from_torch(output_data), camera_data.outputs.albedo_image)
+            elif output_name == CameraManager.OutputNames.DEPTH:
+                wp.copy(wp.from_torch(output_data), camera_data.outputs.depth_image)
+            elif output_name == CameraManager.OutputNames.NORMALS:
+                wp.copy(wp.from_torch(output_data), camera_data.outputs.normals_image)
+            elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
+                wp.copy(wp.from_torch(output_data), camera_data.outputs.instance_segmentation_image)
             else:
                 print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 

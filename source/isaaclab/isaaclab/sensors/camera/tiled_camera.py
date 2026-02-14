@@ -82,7 +82,7 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg, scene: InteractiveScene):
+    def __init__(self, cfg: TiledCameraCfg, scene: InteractiveScene | None = None):
         """Initializes the tiled camera sensor.
 
         Args:
