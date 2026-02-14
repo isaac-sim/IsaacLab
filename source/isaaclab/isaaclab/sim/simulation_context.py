@@ -131,7 +131,7 @@ class SimulationContext:
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
 
-        # Initialize visualizer state (created after scene info is available)
+        # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
@@ -254,42 +254,41 @@ class SimulationContext:
             visualizer_cfgs = [visualizer_cfgs]
         return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
 
-    def initialize_visualizers(self) -> None:
-        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
-        if self._visualizers:
-            return
-        self._visualizers = []
-        physics_dt = getattr(self.cfg.physics, "dt", None)
-        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
-
-        visualizer_cfgs: list = []
+    def _resolve_visualizer_cfgs(self) -> list[Any]:
+        """Resolve final visualizer configs from cfg and optional CLI override."""
+        visualizer_cfgs: list[Any] = []
         if self.cfg.visualizer_cfgs is not None:
             visualizer_cfgs = (
                 self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) else [self.cfg.visualizer_cfgs]
             )
 
         cli_requested = self._get_cli_visualizer_types()
+        if not visualizer_cfgs:
+            return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+
+        if not cli_requested:
+            return visualizer_cfgs
+
+        # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
         cli_requested_set = set(cli_requested)
+        selected_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+        existing_types = {getattr(cfg, "visualizer_type", None) for cfg in selected_cfgs}
+        for viz_type in cli_requested:
+            if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                selected_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
+                existing_types.add(viz_type)
+        return selected_cfgs
 
-        if len(visualizer_cfgs) == 0:
-            requested_visualizers = self.resolve_visualizer_types()
-            if not requested_visualizers:
-                return
-            visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
-        else:
-            if cli_requested_set:
-                # CLI visualizer selection is explicit: keep only requested types.
-                visualizer_cfgs = [
-                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set
-                ]
-                existing_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
-                # Add missing requested visualizers with defaults.
-                for viz_type in cli_requested:
-                    if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                        visualizer_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
-                        existing_types.add(viz_type)
+    def initialize_visualizers(self) -> None:
+        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
+        if self._visualizers:
+            return
 
-        if len(visualizer_cfgs) == 0:
+        physics_dt = getattr(self.cfg.physics, "dt", None)
+        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
+
+        visualizer_cfgs = self._resolve_visualizer_cfgs()
+        if not visualizer_cfgs:
             return
 
         from .scene_data_providers import PhysxSceneDataProvider
@@ -299,6 +298,7 @@ class SimulationContext:
         # - Omni/PhysX -> PhysxSceneDataProvider
         # - Newton/Warp -> NewtonSceneDataProvider
         self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        self._visualizers = []
 
         for cfg in visualizer_cfgs:
             try:
@@ -308,6 +308,12 @@ class SimulationContext:
                 logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
                 logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
+
+        if not self._visualizers and self._scene_data_provider is not None:
+            close_provider = getattr(self._scene_data_provider, "close", None)
+            if callable(close_provider):
+                close_provider()
+            self._scene_data_provider = None
 
     @property
     def visualizers(self) -> list[Visualizer]:
