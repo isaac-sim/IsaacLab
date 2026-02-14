@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage_in_memory
-from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
@@ -226,7 +226,7 @@ class SimulationContext:
                 elif viz_type == "rerun":
                     default_configs.append(RerunVisualizerCfg())
                 elif viz_type == "kit":
-                    default_configs.append(OVVisualizerCfg())
+                    default_configs.append(KitVisualizerCfg())
                 else:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
@@ -292,13 +292,13 @@ class SimulationContext:
         if len(visualizer_cfgs) == 0:
             return
 
-        from .scene_data_providers import OVSceneDataProvider
+        from .scene_data_providers import PhysxSceneDataProvider
 
         # TODO: When Newton/Warp backend scene data provider is implemented and validated,
         # switch provider selection to route by physics backend:
-        # - Omni/PhysX -> OVSceneDataProvider
+        # - Omni/PhysX -> PhysxSceneDataProvider
         # - Newton/Warp -> NewtonSceneDataProvider
-        self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
+        self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
 
         for cfg in visualizer_cfgs:
             try:

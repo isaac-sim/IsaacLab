@@ -11,7 +11,7 @@ from .visualizer_cfg import VisualizerCfg
 
 
 @configclass
-class OVVisualizerCfg(VisualizerCfg):
+class KitVisualizerCfg(VisualizerCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport."""
 
     visualizer_type: str = "kit"

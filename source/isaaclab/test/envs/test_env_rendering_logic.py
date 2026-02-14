@@ -29,7 +29,7 @@ from isaaclab.envs import (
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
-from isaaclab.visualizers import OVVisualizer
+from isaaclab.visualizers import KitVisualizer
 
 
 @configclass
@@ -173,7 +173,7 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         env.sim._app_control_on_stop_handle = None  # type: ignore
 
         # Ensure the default Kit visualizer is active for rendering callbacks.
-        assert isinstance(env.sim.visualizers[0], OVVisualizer)
+        assert isinstance(env.sim.visualizers[0], KitVisualizer)
 
         # add physics callback via physics manager (IsaacEvents is PhysX-specific)
         physics_handle = env.sim.physics_manager.register_callback(

@@ -21,7 +21,7 @@ class VisualizerCfg:
 
     Note:
         This is an abstract base class and should not be instantiated directly.
-        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg.
+        Use specific visualizer configs like NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg.
     """
 
     visualizer_type: str | None = None
@@ -80,7 +80,7 @@ class VisualizerCfg:
         if self.visualizer_type is None:
             raise ValueError(
                 "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or OVVisualizerCfg."
+                "Use a specific visualizer config: NewtonVisualizerCfg, RerunVisualizerCfg, or KitVisualizerCfg."
             )
 
         visualizer_class = get_visualizer_class(self.visualizer_type)

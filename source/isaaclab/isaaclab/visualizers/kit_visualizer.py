@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from pxr import UsdGeom
 
-from .ov_visualizer_cfg import OVVisualizerCfg
+from .kit_visualizer_cfg import KitVisualizerCfg
 from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
@@ -22,12 +22,12 @@ if TYPE_CHECKING:
     from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
-class OVVisualizer(Visualizer):
+class KitVisualizer(Visualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
-    def __init__(self, cfg: OVVisualizerCfg):
+    def __init__(self, cfg: KitVisualizerCfg):
         super().__init__(cfg)
-        self.cfg: OVVisualizerCfg = cfg
+        self.cfg: KitVisualizerCfg = cfg
 
         self._simulation_app = None
         self._viewport_window = None
@@ -41,15 +41,15 @@ class OVVisualizer(Visualizer):
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
-            logger.debug("[OVVisualizer] initialize() called while already initialized.")
+            logger.debug("[KitVisualizer] initialize() called while already initialized.")
             return
 
         if scene_data_provider is None:
-            raise RuntimeError("[OVVisualizer] Requires a scene_data_provider.")
+            raise RuntimeError("[KitVisualizer] Requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
         usd_stage = scene_data_provider.get_usd_stage()
         if usd_stage is None:
-            raise RuntimeError("[OVVisualizer] USD stage not available from scene_data_provider.")
+            raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
         metadata = scene_data_provider.get_metadata()
 
         self._ensure_simulation_app()
@@ -58,12 +58,12 @@ class OVVisualizer(Visualizer):
         self._env_ids = self._compute_visualized_env_ids()
         if self._env_ids:
             logger.warning(
-                "[OVVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
+                "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
             )
             self._apply_env_visibility(usd_stage, metadata)
         cam_pos = self.cfg.camera_position
         cam_target = self.cfg.camera_target
-        logger.info("[OVVisualizer] initialized | camera_pos=%s camera_target=%s", cam_pos, cam_target)
+        logger.info("[KitVisualizer] initialized | camera_pos=%s camera_target=%s", cam_pos, cam_target)
 
         self._is_initialized = True
 
@@ -79,7 +79,7 @@ class OVVisualizer(Visualizer):
             if app is not None and app.is_running():
                 app.update()
         except (ImportError, AttributeError) as exc:
-            logger.debug("[OVVisualizer] App update skipped: %s", exc)
+            logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
     def close(self) -> None:
         if not self._is_initialized:
@@ -121,7 +121,7 @@ class OVVisualizer(Visualizer):
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
         if not self._is_initialized:
-            logger.debug("[OVVisualizer] set_camera_view() ignored because visualizer is not initialized.")
+            logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
@@ -132,7 +132,7 @@ class OVVisualizer(Visualizer):
 
         app = omni.kit.app.get_app()
         if app is None or not app.is_running():
-            raise RuntimeError("[OVVisualizer] Isaac Sim app is not running.")
+            raise RuntimeError("[KitVisualizer] Isaac Sim app is not running.")
 
         try:
             from isaacsim import SimulationApp
@@ -146,7 +146,7 @@ class OVVisualizer(Visualizer):
             if sim_app is not None:
                 self._simulation_app = sim_app
                 if self._simulation_app.config.get("headless", False):
-                    logger.warning("[OVVisualizer] Running in headless mode. Viewport may not display.")
+                    logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
             pass
 
@@ -179,7 +179,7 @@ class OVVisualizer(Visualizer):
             if self.cfg.viewport_name:
                 self._viewport_window = vp_utils.get_viewport_window_by_name(self.cfg.viewport_name)
                 if self._viewport_window is None:
-                    logger.warning(f"[OVVisualizer] Viewport '{self.cfg.viewport_name}' not found. Using active.")
+                    logger.warning(f"[KitVisualizer] Viewport '{self.cfg.viewport_name}' not found. Using active.")
                     self._viewport_window = vp_utils.get_active_viewport_window()
             else:
                 self._viewport_window = vp_utils.get_active_viewport_window()
@@ -190,7 +190,7 @@ class OVVisualizer(Visualizer):
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
                 logger.warning(
-                    "[OVVisualizer] camera_usd_path '%s' not found; using configured camera.",
+                    "[KitVisualizer] camera_usd_path '%s' not found; using configured camera.",
                     self.cfg.camera_usd_path,
                 )
                 self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
@@ -209,7 +209,7 @@ class OVVisualizer(Visualizer):
             await omni.kit.app.get_app().next_update_async()
 
         if not viewport_window:
-            logger.warning(f"[OVVisualizer] Could not find viewport window '{viewport_name}'.")
+            logger.warning(f"[KitVisualizer] Could not find viewport window '{viewport_name}'.")
             return
 
         main_viewport = omni.ui.Workspace.get_window("Viewport")

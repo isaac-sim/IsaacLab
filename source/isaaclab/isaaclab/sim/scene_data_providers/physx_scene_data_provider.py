@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OV (Omniverse) scene data provider for Omni PhysX backend."""
+"""PhysX scene data provider for Omni/PhysX backend."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 
 
-class OVSceneDataProvider:
+class PhysxSceneDataProvider:
     """Scene data provider for Omni PhysX backend.
 
     Supports:
@@ -87,7 +87,7 @@ class OVSceneDataProvider:
         self._metadata = {"physics_backend": "omni"}
         if self._stage is None:
             raise RuntimeError(
-                "[OVSceneDataProvider] USD stage is None and not available from simulation_context. "
+                "[PhysxSceneDataProvider] USD stage is None and not available from simulation_context. "
                 "Ensure the simulation context has a valid stage when using OV/Newton/Rerun visualizers."
             )
         self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
@@ -161,12 +161,12 @@ class OVSceneDataProvider:
             self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
             logger.error(
-                "[OVSceneDataProvider] Newton module not available. "
+                "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun visualizers."
             )
-            logger.debug(f"[OVSceneDataProvider] Newton import error: {exc}")
+            logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
-            logger.error(f"[OVSceneDataProvider] Failed to build Newton model from USD: {exc}")
+            logger.error(f"[PhysxSceneDataProvider] Failed to build Newton model from USD: {exc}")
             self._newton_model = None
             self._newton_state = None
             self._rigid_body_paths = []
@@ -197,20 +197,20 @@ class OVSceneDataProvider:
                     self._filtered_body_indices.append(idx)
             if missing:
                 logger.warning(
-                    "[OVSceneDataProvider] Filtered model contains %d bodies not in full model.",
+                    "[PhysxSceneDataProvider] Filtered model contains %d bodies not in full model.",
                     len(missing),
                 )
         except ModuleNotFoundError as exc:
             logger.error(
-                "[OVSceneDataProvider] Newton module not available. "
+                "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun visualizers."
             )
-            logger.debug(f"[OVSceneDataProvider] Newton import error: {exc}")
+            logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
         except Exception as exc:
-            logger.error(f"[OVSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
+            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
@@ -238,7 +238,7 @@ class OVSceneDataProvider:
             self._rigid_body_view = self._physics_sim_view.create_rigid_body_view(paths_to_use)
             self._cache_view_index_map(self._rigid_body_view, "rigid_body_view")
         except Exception as exc:
-            logger.warning(f"[OVSceneDataProvider] Failed to create RigidBodyView: {exc}")
+            logger.warning(f"[PhysxSceneDataProvider] Failed to create RigidBodyView: {exc}")
             self._rigid_body_view = None
 
     def _setup_articulation_view(self) -> None:
@@ -255,7 +255,7 @@ class OVSceneDataProvider:
             )
             self._cache_view_index_map(self._articulation_view, "articulation_view")
         except Exception as exc:
-            logger.warning(f"[OVSceneDataProvider] Failed to create ArticulationView: {exc}")
+            logger.warning(f"[PhysxSceneDataProvider] Failed to create ArticulationView: {exc}")
             self._articulation_view = None
 
     # ---- Pose/velocity read pipeline ------------------------------------------------------
@@ -274,7 +274,7 @@ class OVSceneDataProvider:
             if hasattr(transforms, "shape") and transforms.shape[-1] == 7:
                 return transforms[..., :3], transforms[..., 3:7]
         except (AttributeError, RuntimeError, TypeError) as exc:
-            logger.debug("[OVSceneDataProvider] get_transforms() unavailable/failed for %s: %s", type(view), exc)
+            logger.debug("[PhysxSceneDataProvider] get_transforms() unavailable/failed for %s: %s", type(view), exc)
         return None, None
 
     def _cache_view_index_map(self, view, key: str) -> None:
@@ -320,7 +320,7 @@ class OVSceneDataProvider:
             if hasattr(result, "shape") and result.shape[-1] == 6:
                 return result[..., :3], result[..., 3:6]
         except (AttributeError, RuntimeError, TypeError) as exc:
-            logger.debug("[OVSceneDataProvider] get_velocities() unavailable/failed for %s: %s", type(view), exc)
+            logger.debug("[PhysxSceneDataProvider] get_velocities() unavailable/failed for %s: %s", type(view), exc)
         return None, None
 
     def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
@@ -470,7 +470,7 @@ class OVSceneDataProvider:
             self._set_body_q_kernel = _set_body_q
             return self._set_body_q_kernel
         except Exception as exc:
-            logger.warning(f"[OVSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
+            logger.warning(f"[PhysxSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
             return None
 
     def _get_set_body_q_subset_kernel(self):
@@ -756,5 +756,5 @@ class OVSceneDataProvider:
         return None
 
     def get_contacts(self) -> dict[str, Any] | None:
-        """Contacts not yet supported for OV backend."""
+        """Contacts not yet supported for PhysX provider."""
         return None
