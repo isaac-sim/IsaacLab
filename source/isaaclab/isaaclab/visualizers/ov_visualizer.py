@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Omniverse-based visualizer using Isaac Sim viewport."""
+"""Kit-based visualizer using Isaac Sim viewport."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 class OVVisualizer(Visualizer):
-    """Omniverse visualizer using Isaac Sim viewport."""
+    """Kit visualizer using Isaac Sim viewport."""
 
     def __init__(self, cfg: OVVisualizerCfg):
         super().__init__(cfg)
@@ -36,6 +36,8 @@ class OVVisualizer(Visualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
+
+    # ---- Lifecycle ------------------------------------------------------------------------
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
@@ -51,7 +53,7 @@ class OVVisualizer(Visualizer):
         metadata = scene_data_provider.get_metadata()
 
         self._ensure_simulation_app()
-        self._setup_viewport(usd_stage, metadata)
+        self._setup_viewport(usd_stage)
 
         self._env_ids = self._compute_visualized_env_ids()
         if self._env_ids:
@@ -89,6 +91,8 @@ class OVVisualizer(Visualizer):
         self._is_initialized = False
         self._is_closed = True
 
+    # ---- Capabilities ---------------------------------------------------------------------
+
     def is_running(self) -> bool:
         if self._simulation_app is not None:
             return self._simulation_app.is_running()
@@ -109,6 +113,10 @@ class OVVisualizer(Visualizer):
     def supports_live_plots(self) -> bool:
         return True
 
+    def requires_forward_before_step(self) -> bool:
+        """OV viewport relies on refreshed kinematic state before render."""
+        return True
+
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
@@ -116,6 +124,8 @@ class OVVisualizer(Visualizer):
             logger.debug("[OVVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
+
+    # ---- Viewport + camera ----------------------------------------------------------------
 
     def _ensure_simulation_app(self) -> None:
         import omni.kit.app
@@ -140,7 +150,7 @@ class OVVisualizer(Visualizer):
         except ImportError:
             pass
 
-    def _setup_viewport(self, usd_stage, metadata: dict) -> None:
+    def _setup_viewport(self, usd_stage) -> None:
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
 
@@ -175,6 +185,8 @@ class OVVisualizer(Visualizer):
                 self._viewport_window = vp_utils.get_active_viewport_window()
 
         self._viewport_api = self._viewport_window.viewport_api
+        # TODO: Unify camera initialization with a renderer-level rendering_cfg/camera_cfg
+        # so visualizers can consume one canonical camera policy.
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
                 logger.warning(
@@ -216,7 +228,7 @@ class OVVisualizer(Visualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
-        # Create camera prim path based on viewport name (sanitize to enure valid USD path) 1
+        # Create camera prim path based on viewport name (sanitize to ensure valid USD path).
         camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
 
         camera_prim = usd_stage.GetPrimAtPath(camera_path)

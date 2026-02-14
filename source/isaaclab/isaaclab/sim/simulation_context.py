@@ -216,7 +216,6 @@ class SimulationContext:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
 
-    # VISUALIZER MANAGEMENT
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types."""
         default_configs = []
@@ -316,7 +315,11 @@ class SimulationContext:
         return self._visualizers
 
     def get_rendering_dt(self) -> float:
-        """Returns the rendering time step."""
+        """Return rendering dt, allowing visualizer-specific override."""
+        for viz in self._visualizers:
+            viz_dt = viz.get_rendering_dt()
+            if viz_dt is not None and viz_dt > 0:
+                return float(viz_dt)
         return self._viz_dt
 
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
@@ -368,7 +371,7 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        if any(type(v).__name__ == "OVVisualizer" for v in self._visualizers):
+        if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
         self._visualizer_step_counter += 1
         if self._scene_data_provider:
@@ -386,28 +389,31 @@ class SimulationContext:
                 if viz.is_rendering_paused():
                     continue
                 if getattr(viz, "is_closed", False):
-                    print(f"[SimulationContext] Visualizer closed: {type(viz).__name__}")
+                    logger.info("Visualizer closed: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
                 if not viz.is_running():
-                    print(f"[SimulationContext] Visualizer not running: {type(viz).__name__}")
+                    logger.info("Visualizer not running: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0, state=None)
                 viz.step(dt, state=None)
             except Exception as exc:
-                logger.error(f"Error stepping visualizer '{type(viz).__name__}': {exc}")
-                print(f"[SimulationContext] Visualizer step error: {type(viz).__name__}: {exc}")
+                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
 
         for viz in visualizers_to_remove:
             try:
                 viz.close()
                 self._visualizers.remove(viz)
-                logger.info(f"Removed visualizer: {type(viz).__name__}")
+                logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
-                logger.error(f"Error closing visualizer: {exc}")
+                logger.error("Error closing visualizer: %s", exc)
+
+    def _should_forward_before_visualizer_update(self) -> bool:
+        """Return True if any visualizer requires pre-step forward kinematics."""
+        return any(viz.requires_forward_before_step() for viz in self._visualizers)
 
     def play(self) -> None:
         """Start or resume the simulation."""

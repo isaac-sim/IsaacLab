@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import deque
 from typing import Any
 
 from pxr import UsdGeom
@@ -30,8 +31,9 @@ class OVSceneDataProvider:
     - TODO: mesh data access
     """
 
-    @staticmethod
-    def _env_id_from_path(path: str) -> int | None:
+    # ---- Environment discovery / metadata -------------------------------------------------
+
+    def _env_id_from_path(self, path: str) -> int | None:
         """Extract env id from path (e.g. /World/envs/env_42/...). Used to map body paths to envs for sync."""
         m = _ENV_ID_RE.search(path)
         return int(m.group(1)) if m else None
@@ -103,8 +105,6 @@ class OVSceneDataProvider:
         self._set_body_q_kernel = None
         # env_id -> list of body indices (in Newton body_key order)
         self._env_id_to_body_indices: dict[int, list[int]] = {}
-        # flat list of body indices per env_id order for subset sync
-        self._body_indices_for_env_ids: list[int] = []
 
         # Initialize Newton pipeline only if needed for visualization
         if self._needs_newton_sync:
@@ -113,8 +113,9 @@ class OVSceneDataProvider:
             self._setup_rigid_body_view()
             self._setup_articulation_view()
 
-    @staticmethod
-    def _wildcard_env_paths(paths: list[str]) -> list[str]:
+    # ---- Newton model + PhysX view setup --------------------------------------------------
+
+    def _wildcard_env_paths(self, paths: list[str]) -> list[str]:
         """Convert /World/envs/env_0 paths to a wildcard pattern when possible."""
         wildcard_paths = [
             path.replace("/World/envs/env_0", "/World/envs/env_*") for path in paths if "/World/envs/env_0" in path
@@ -257,6 +258,8 @@ class OVSceneDataProvider:
             logger.warning(f"[OVSceneDataProvider] Failed to create ArticulationView: {exc}")
             self._articulation_view = None
 
+    # ---- Pose/velocity read pipeline ------------------------------------------------------
+
     def _get_view_world_poses(self, view):
         """Read world poses from a PhysX view.
 
@@ -280,22 +283,17 @@ class OVSceneDataProvider:
         if not prim_paths or not self._rigid_body_paths:
             return
 
-        def split_env(path: str) -> tuple[int | None, str]:
-            """Extract environment ID and relative path from prim path."""
-            match = re.search(r"/World/envs/env_(\d+)(/.*)", path)
-            return (int(match.group(1)), match.group(2)) if match else (None, path)
-
         # Build map: (env_id, relative_path) -> view_index to align view order.
         view_map: dict[tuple[int | None, str], int] = {}
         for view_idx, path in enumerate(prim_paths):
-            env_id, rel = split_env(path)
+            env_id, rel = self._split_env_relative_path(path)
             view_map[(env_id, rel)] = view_idx
 
         # Build reordering: newton_body_index -> view_index so we can scatter
         # PhysX view outputs into Newton body ordering.
         order: list[int | None] = [None] * len(self._rigid_body_paths)
         for body_idx, path in enumerate(self._rigid_body_paths):
-            env_id, rel = split_env(path)
+            env_id, rel = self._split_env_relative_path(path)
             view_idx = view_map.get((env_id, rel))
             if view_idx is None:
                 view_idx = view_map.get((None, rel))  # Try without env_id
@@ -303,6 +301,11 @@ class OVSceneDataProvider:
 
         if all(idx is not None for idx in order):
             self._view_body_index_map[key] = order  # type: ignore[arg-type]
+
+    def _split_env_relative_path(self, path: str) -> tuple[int | None, str]:
+        """Extract (env_id, relative_path) from a prim path."""
+        match = re.search(r"/World/envs/env_(\d+)(/.*)", path)
+        return (int(match.group(1)), match.group(2)) if match else (None, path)
 
     def _get_view_velocities(self, view):
         """Read linear/angular velocities from a PhysX view."""
@@ -495,6 +498,8 @@ class OVSceneDataProvider:
             logger.debug(f"Warp subset kernel: {exc}")
             return None
 
+    # ---- Newton state sync ----------------------------------------------------------------
+
     def update(self, env_ids: list[int] | None = None) -> None:
         """Sync PhysX transforms to Newton state for visualization.
 
@@ -521,6 +526,7 @@ class OVSceneDataProvider:
             orientations_wp = wp.from_torch(orientations_xyzw, dtype=wp.quatf)
 
             if env_ids is None or not env_ids or not self._env_id_to_body_indices:
+                # Fast path: full state sync in one kernel launch.
                 set_body_q = self._get_set_body_q_kernel()
                 if set_body_q is None or positions_wp.shape[0] != self._newton_state.body_q.shape[0]:
                     return
@@ -536,6 +542,7 @@ class OVSceneDataProvider:
                     body_indices.extend(self._env_id_to_body_indices.get(eid, []))
                 if not body_indices:
                     return
+                # Subset path: write only env-selected body indices.
                 subset_kernel = self._get_set_body_q_subset_kernel()
                 if subset_kernel is None:
                     return
@@ -627,8 +634,9 @@ class OVSceneDataProvider:
         except Exception:
             return self._newton_state
 
-    @staticmethod
-    def _create_subset_state(body_q_subset):
+    # ---- Newton subset helpers -------------------------------------------------------------
+
+    def _create_subset_state(self, body_q_subset):
         """Return a minimal state-like object for subset rendering."""
         import warp as wp
 
@@ -642,6 +650,8 @@ class OVSceneDataProvider:
         s.body_q = body_q_subset
         return s
 
+    # ---- Public provider API ---------------------------------------------------------------
+
     def get_usd_stage(self) -> Any:
         """Return the USD stage handle."""
         if self._stage is not None:
@@ -652,7 +662,6 @@ class OVSceneDataProvider:
         """Return per-camera, per-env transforms (positions, orientations)."""
         if self._stage is None:
             return None
-        from pxr import UsdGeom
 
         import isaaclab.sim as isaaclab_sim
 
@@ -661,14 +670,17 @@ class OVSceneDataProvider:
         instances: dict[str, list[tuple[int, str]]] = {}
         num_envs = -1
 
-        stage_prims: list = [self._stage.GetPseudoRoot()]
+        # Breadth-first walk so we discover camera prims across the full stage.
+        stage_prims = deque([self._stage.GetPseudoRoot()])
         while stage_prims:
-            prim = stage_prims.pop(0)
+            prim = stage_prims.popleft()
             prim_path = prim.GetPath().pathString
 
             world_id = 0
             template_path = prim_path
             if match := env_pattern.match(prim_path):
+                # Normalize per-env path to a shared template key (env_%d/...) so
+                # visualizers can query one camera path for all env instances.
                 world_id = int(match.group("id"))
                 template_path = match.group("root") + "%d" + match.group("path")
                 if world_id > num_envs:

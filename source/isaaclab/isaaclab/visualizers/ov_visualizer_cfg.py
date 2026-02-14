@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for Omniverse-based visualizer."""
+"""Configuration for Kit-based visualizer."""
 
 from isaaclab.utils import configclass
 

@@ -47,6 +47,8 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.0",
     "flaky",
     "packaging",
+    # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
+    "typing_extensions>=4.14.0",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
