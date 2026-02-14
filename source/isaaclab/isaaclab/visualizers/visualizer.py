@@ -168,33 +168,14 @@ class Visualizer(ABC):
     def _quat_rotate_vec(
         quat_xyzw: tuple[float, float, float, float], vec: tuple[float, float, float]
     ) -> tuple[float, float, float]:
-        x, y, z, w = quat_xyzw
-        vx, vy, vz = vec
-        tx = 2.0 * (y * vz - z * vy)
-        ty = 2.0 * (z * vx - x * vz)
-        tz = 2.0 * (x * vy - y * vx)
-        cx = y * tz - z * ty
-        cy = z * tx - x * tz
-        cz = x * ty - y * tx
-        return (vx + w * tx + cx, vy + w * ty + cy, vz + w * tz + cz)
+        import torch
 
-    @staticmethod
-    def _infer_spacing_from_env_origins(env_origins: Any | None) -> tuple[float, float, float]:
-        if env_origins is None:
-            return (5.0, 5.0, 0.0)
-        try:
-            origins = [tuple(map(float, o)) for o in env_origins]
-        except Exception:
-            return (5.0, 5.0, 0.0)
-        if not origins:
-            return (5.0, 5.0, 0.0)
-        xs = sorted({o[0] for o in origins})
-        ys = sorted({o[1] for o in origins})
-        dx = min((xs[i + 1] - xs[i] for i in range(len(xs) - 1) if xs[i + 1] > xs[i]), default=5.0)
-        dy = min((ys[i + 1] - ys[i] for i in range(len(ys) - 1) if ys[i + 1] > ys[i]), default=5.0)
-        dx = dx if dx > 0 else 5.0
-        dy = dy if dy > 0 else 5.0
-        return (float(dx), float(dy), 0.0)
+        from isaaclab.utils.math import quat_apply
+
+        quat = torch.tensor(quat_xyzw, dtype=torch.float32).unsqueeze(0)
+        vector = torch.tensor(vec, dtype=torch.float32).unsqueeze(0)
+        rotated = quat_apply(quat, vector)[0]
+        return (float(rotated[0]), float(rotated[1]), float(rotated[2]))
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state. No-op by default."""

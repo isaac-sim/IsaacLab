@@ -48,10 +48,10 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
 
             _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
             return NewtonVisualizer
-        if name == "omniverse":
+        if name == "kit":
             from .ov_visualizer import OVVisualizer
 
-            _VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
+            _VISUALIZER_REGISTRY["kit"] = OVVisualizer
             return OVVisualizer
         if name == "rerun":
             from .rerun_visualizer import RerunVisualizer

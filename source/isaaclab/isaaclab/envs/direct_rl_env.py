@@ -132,7 +132,6 @@ class DirectRLEnv(gym.Env):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 attach_stage_to_usd_context()
-        self.sim.set_scene_info(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

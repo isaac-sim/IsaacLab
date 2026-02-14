@@ -25,21 +25,13 @@ class VisualizerCfg:
     """
 
     visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'omniverse'). Must be overridden by subclasses."""
+    """Type identifier (e.g., 'newton', 'rerun', 'kit'). Must be overridden by subclasses."""
 
     enable_markers: bool = True
     """Enable visualization markers (debug drawing)."""
 
     enable_live_plots: bool = True
-    """Enable live plotting of data.
-
-    When set to True for OVVisualizer:
-    - Automatically checks the checkboxes for all manager visualizers (Actions, Observations, Rewards, etc.)
-    - Keeps the plot frames expanded by default (not collapsed)
-    - Makes the live plots visible immediately in the IsaacLab window (docked to the right of the viewport)
-
-    This provides a better out-of-the-box experience when you want to monitor training metrics.
-    """
+    """Enable live plotting of data."""
 
     camera_position: tuple[float, float, float] = (8.0, 8.0, 3.0)
     """Initial camera position (x, y, z) in world coordinates."""
@@ -56,7 +48,7 @@ class VisualizerCfg:
     env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
     """Env filter mode: 'none', 'env_ids', or 'random_n'."""
 
-    env_filter_random_n: int = 3  # 64
+    env_filter_random_n: int = 64
     """If env_filter_mode='random_n', number of envs to sample."""
 
     env_filter_seed: int = 0
@@ -100,7 +92,7 @@ class VisualizerCfg:
                 )
             raise ValueError(
                 f"Visualizer type '{self.visualizer_type}' is not registered. "
-                "Valid types: 'newton', 'rerun', 'omniverse'."
+                "Valid types: 'newton', 'rerun', 'kit'."
             )
 
         return visualizer_class(self)

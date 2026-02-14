@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -219,6 +218,7 @@ class NewtonVisualizer(Visualizer):
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
+            logger.debug("[NewtonVisualizer] initialize() called while already initialized.")
             return
         if scene_data_provider is None:
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
@@ -264,7 +264,7 @@ class NewtonVisualizer(Visualizer):
         self._viewer.renderer._light_color = self.cfg.light_color
 
         logger.info(
-            "[NewtonVisualizer] Initialized (camera: pos=%s, target=%s)",
+            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s",
             self._viewer.camera.pos,
             self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target,
         )
@@ -294,7 +294,7 @@ class NewtonVisualizer(Visualizer):
         if self._step_counter % update_frequency != 0:
             return
 
-        with contextlib.suppress(Exception):
+        try:
             if not self._viewer.is_paused():
                 self._viewer.begin_frame(self._sim_time)
                 if self._state is not None:
@@ -306,11 +306,13 @@ class NewtonVisualizer(Visualizer):
                     if contacts is not None and hasattr(self._viewer, "log_contacts"):
                         try:
                             self._viewer.log_contacts(contacts, self._state)
-                        except Exception as exc:
+                        except RuntimeError as exc:
                             logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
+        except RuntimeError as exc:
+            logger.debug("[NewtonVisualizer] Viewer update failed: %s", exc)
 
     def close(self) -> None:
         if self._is_closed:
@@ -330,7 +332,7 @@ class NewtonVisualizer(Visualizer):
             if pose is not None:
                 return pose
             logger.warning(
-                "[NewtonVisualizer] Camera prim '%s' not found; using cfg camera.",
+                "[NewtonVisualizer] camera_usd_path '%s' not found; using configured camera.",
                 self.cfg.camera_usd_path,
             )
         return self.cfg.camera_position, self.cfg.camera_target

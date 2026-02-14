@@ -86,7 +86,7 @@ class RerunVisualizer(Visualizer):
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
-            logger.warning("[RerunVisualizer] Already initialized.")
+            logger.debug("[RerunVisualizer] initialize() called while already initialized.")
             return
         if scene_data_provider is None:
             raise RuntimeError("Rerun visualizer requires a scene_data_provider.")
@@ -109,7 +109,7 @@ class RerunVisualizer(Visualizer):
             self._active_record_path = self.cfg.record_to_rrd
             self._create_viewer(record_to_rrd=self.cfg.record_to_rrd, metadata=metadata)
             logger.info(
-                "[RerunVisualizer] Initialized (camera: pos=%s, target=%s)",
+                "[RerunVisualizer] initialized | camera_pos=%s camera_target=%s",
                 self.cfg.camera_position,
                 self.cfg.camera_target,
             )
@@ -143,6 +143,7 @@ class RerunVisualizer(Visualizer):
 
         self._viewer = None
         self._is_initialized = False
+        self._is_closed = True
         self._active_record_path = None
         if self._rerun_server_process is not None:
             with contextlib.suppress(Exception):
@@ -233,7 +234,7 @@ class RerunVisualizer(Visualizer):
             if pose is not None:
                 return pose
             logger.warning(
-                "[RerunVisualizer] Camera prim '%s' not found; using cfg camera.",
+                "[RerunVisualizer] camera_usd_path '%s' not found; using configured camera.",
                 self.cfg.camera_usd_path,
             )
         return self.cfg.camera_position, self.cfg.camera_target

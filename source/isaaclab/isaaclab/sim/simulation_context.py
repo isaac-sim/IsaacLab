@@ -30,7 +30,7 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 logger = logging.getLogger(__name__)
 
 # Visualizer type names (CLI and config). App launcher stores --visualizer a b c as space-separated.
-_VISUALIZER_TYPES = ("newton", "rerun", "omniverse")
+_VISUALIZER_TYPES = ("newton", "rerun", "kit")
 
 
 class SettingsHelper:
@@ -135,8 +135,6 @@ class SimulationContext:
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
-        self._num_envs: int | None = None
-        self._env_origins: Any = None
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
@@ -219,23 +217,6 @@ class SimulationContext:
         return self.physics_manager.get_physics_dt()
 
     # VISUALIZER MANAGEMENT
-    def set_scene_info(self, scene: Any) -> None:
-        """Set scene info (num_envs, env_origins) from an InteractiveScene-like object."""
-        if scene is None:
-            return
-
-        num_envs = getattr(scene, "num_envs", None)
-        if num_envs is not None:
-            self._num_envs = num_envs
-            if self._scene_data_provider is not None:
-                set_num_envs = getattr(self._scene_data_provider, "set_num_envs", None)
-                if callable(set_num_envs):
-                    set_num_envs(num_envs)
-
-        env_origins = getattr(scene, "env_origins", None)
-        if env_origins is not None:
-            self._env_origins = env_origins
-
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types."""
         default_configs = []
@@ -245,7 +226,7 @@ class SimulationContext:
                     default_configs.append(NewtonVisualizerCfg())
                 elif viz_type == "rerun":
                     default_configs.append(RerunVisualizerCfg())
-                elif viz_type == "omniverse":
+                elif viz_type == "kit":
                     default_configs.append(OVVisualizerCfg())
                 else:
                     logger.warning(
@@ -278,10 +259,6 @@ class SimulationContext:
         """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
         if self._visualizers:
             return
-        self._init_visualizers()
-
-    def _init_visualizers(self) -> None:
-        """Initialize visualizers based on config and settings."""
         self._visualizers = []
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -292,48 +269,37 @@ class SimulationContext:
                 self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) else [self.cfg.visualizer_cfgs]
             )
 
+        cli_requested = self._get_cli_visualizer_types()
+        cli_requested_set = set(cli_requested)
+
         if len(visualizer_cfgs) == 0:
             requested_visualizers = self.resolve_visualizer_types()
             if not requested_visualizers:
                 return
             visualizer_cfgs = self._create_default_visualizer_configs(requested_visualizers)
         else:
-            # Merge CLI-requested types into config so --visualizer omniverse rerun newton
-            # is honored even when task only provides rerun/newton (ensures OV provider + stage).
-            cli_requested = self._get_cli_visualizer_types()
-            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
-            for viz_type in cli_requested:
-                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
-                    visualizer_cfgs.append(self._create_default_visualizer_configs([viz_type])[0])
-                    existing_types.add(viz_type)
+            if cli_requested_set:
+                # CLI visualizer selection is explicit: keep only requested types.
+                visualizer_cfgs = [
+                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set
+                ]
+                existing_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
+                # Add missing requested visualizers with defaults.
+                for viz_type in cli_requested:
+                    if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                        visualizer_cfgs.extend(self._create_default_visualizer_configs([viz_type]))
+                        existing_types.add(viz_type)
 
-        viz_types = {getattr(cfg, "visualizer_type", None) for cfg in visualizer_cfgs}
-        # Prefer OV when omniverse is requested so all three (OV + Newton + Rerun) can run
-        # with one provider that has stage and Newton sync; else use Newton stub for newton/rerun only.
-        if "omniverse" in viz_types:
-            from .scene_data_providers import OVSceneDataProvider
+        if len(visualizer_cfgs) == 0:
+            return
 
-            self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
-        elif any(viz in ("newton", "rerun") for viz in viz_types):
-            from .scene_data_providers import NewtonSceneDataProvider
+        from .scene_data_providers import OVSceneDataProvider
 
-            self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs)
-        else:
-            from .scene_data_providers import OVSceneDataProvider
-
-            self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
-
-        if self._num_envs is not None and self._scene_data_provider is not None:
-            set_num_envs = getattr(self._scene_data_provider, "set_num_envs", None)
-            if callable(set_num_envs):
-                set_num_envs(self._num_envs)
-
-        if self._num_envs is None or self._num_envs <= 0:
-            logger.warning(
-                "[SimulationContext] Visualizers initialized before scene info is set; "
-                "num_envs is unavailable. Call set_scene_info(...) before initialize_visualizers "
-                "for correct partial visualization."
-            )
+        # TODO: When Newton/Warp backend scene data provider is implemented and validated,
+        # switch provider selection to route by physics backend:
+        # - Omni/PhysX -> OVSceneDataProvider
+        # - Newton/Warp -> NewtonSceneDataProvider
+        self._scene_data_provider = OVSceneDataProvider(visualizer_cfgs, self.stage, self)
 
         for cfg in visualizer_cfgs:
             try:
@@ -566,6 +532,7 @@ def build_simulation_context(
     Yields:
         The simulation context to use for the simulation.
     """
+    sim: SimulationContext | None = None
     try:
         if create_new_stage:
             stage_utils.create_new_stage()
@@ -592,6 +559,7 @@ def build_simulation_context(
         logger.error(traceback.format_exc())
         raise
     finally:
-        if not sim.get_setting("/isaaclab/has_gui"):
-            sim.stop()
-        sim.clear_instance()
+        if sim is not None:
+            if not sim.get_setting("/isaaclab/has_gui"):
+                sim.stop()
+            sim.clear_instance()

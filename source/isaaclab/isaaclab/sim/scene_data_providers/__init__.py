@@ -5,12 +5,10 @@
 
 """Scene data providers for visualizers and renderers."""
 
-from .newton_scene_data_provider import NewtonSceneDataProvider
 from .ov_scene_data_provider import OVSceneDataProvider
 from .scene_data_provider import SceneDataProvider
 
 __all__ = [
     "SceneDataProvider",
-    "NewtonSceneDataProvider",
     "OVSceneDataProvider",
 ]

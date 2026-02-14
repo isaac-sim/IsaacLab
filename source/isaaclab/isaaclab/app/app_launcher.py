@@ -313,7 +313,7 @@ class AppLauncher:
             type=str,
             nargs="+",
             default=None,
-            help="Visualizer backends to enable (e.g., omniverse, newton, rerun).",
+            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -611,6 +611,19 @@ class AppLauncher:
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
+
+        # If visualizers are explicitly requested and Kit viewport is not among them,
+        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
+        visualizers_arg = launcher_args.get("visualizer")
+        if visualizers_arg:
+            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
+            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
+                if not self._headless:
+                    print(
+                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
+                        "'kit' and livestream is disabled."
+                    )
+                self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 

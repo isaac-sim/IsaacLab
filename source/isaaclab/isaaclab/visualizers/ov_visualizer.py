@@ -39,7 +39,7 @@ class OVVisualizer(Visualizer):
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         if self._is_initialized:
-            logger.warning("[OVVisualizer] Already initialized.")
+            logger.debug("[OVVisualizer] initialize() called while already initialized.")
             return
 
         if scene_data_provider is None:
@@ -61,7 +61,7 @@ class OVVisualizer(Visualizer):
             self._apply_env_visibility(usd_stage, metadata)
         cam_pos = self.cfg.camera_position
         cam_target = self.cfg.camera_target
-        logger.info(f"[OVVisualizer] Initialized (camera: pos={cam_pos}, target={cam_target})")
+        logger.info("[OVVisualizer] initialized | camera_pos=%s camera_target=%s", cam_pos, cam_target)
 
         self._is_initialized = True
 
@@ -76,8 +76,8 @@ class OVVisualizer(Visualizer):
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
                 app.update()
-        except Exception:
-            pass
+        except (ImportError, AttributeError) as exc:
+            logger.debug("[OVVisualizer] App update skipped: %s", exc)
 
     def close(self) -> None:
         if not self._is_initialized:
@@ -87,6 +87,7 @@ class OVVisualizer(Visualizer):
         self._viewport_window = None
         self._viewport_api = None
         self._is_initialized = False
+        self._is_closed = True
 
     def is_running(self) -> bool:
         if self._simulation_app is not None:
@@ -96,7 +97,7 @@ class OVVisualizer(Visualizer):
 
             app = omni.kit.app.get_app()
             return app is not None and app.is_running()
-        except Exception:
+        except (ImportError, AttributeError):
             return False
 
     def is_training_paused(self) -> bool:
@@ -112,7 +113,7 @@ class OVVisualizer(Visualizer):
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
     ) -> None:
         if not self._is_initialized:
-            logger.warning("[OVVisualizer] Cannot set camera view - visualizer not initialized.")
+            logger.debug("[OVVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
@@ -177,7 +178,7 @@ class OVVisualizer(Visualizer):
         if self.cfg.camera_source == "usd_path":
             if not self._set_active_camera_path(self.cfg.camera_usd_path):
                 logger.warning(
-                    "[OVVisualizer] Camera prim '%s' not found; using cfg camera.",
+                    "[OVVisualizer] camera_usd_path '%s' not found; using configured camera.",
                     self.cfg.camera_usd_path,
                 )
                 self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)

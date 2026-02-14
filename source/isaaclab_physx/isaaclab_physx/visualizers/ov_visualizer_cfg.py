@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Configuration for Omniverse-based visualizer."""
+"""Configuration for Kit-based visualizer."""
 
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ if TYPE_CHECKING:
 
 @configclass
 class OVVisualizerCfg(VisualizerCfg):
-    """Configuration for Omniverse visualizer using Isaac Sim viewport.
+    """Configuration for Kit visualizer using Isaac Sim viewport.
 
     Displays USD stage, VisualizationMarkers, and LivePlots.
     Can attach to existing app or launch standalone.
     """
 
-    visualizer_type: str = "omniverse"
-    """Type identifier for Omniverse visualizer."""
+    visualizer_type: str = "kit"
+    """Type identifier for Kit visualizer."""
 
     render_throttle_period: int = 5
     """Throttle period for rendering updates.

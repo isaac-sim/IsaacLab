@@ -37,13 +37,30 @@ class OVSceneDataProvider:
         return int(m.group(1)) if m else None
 
     def get_num_envs(self) -> int:
-        """Return number of envs from scene info (set via set_num_envs)."""
+        """Return env count from stage discovery, cached once available."""
         if self._num_envs is not None and self._num_envs > 0:
             return self._num_envs
-        logger.warning(
-            "[OVSceneDataProvider] num_envs was not set. Call set_num_envs() after scene creation."
-        )
+        discovered_num_envs = self._determine_num_envs_in_scene()
+        if discovered_num_envs > 0:
+            self._num_envs = discovered_num_envs
+            return discovered_num_envs
         return 0
+
+    def _determine_num_envs_in_scene(self) -> int:
+        """Infer env count from /World/envs/env_<id> prims."""
+        if self._stage is None:
+            return 0
+
+        max_env_id = -1
+        env_name_re = re.compile(r"^env_(\d+)$")
+
+        envs_root = self._stage.GetPrimAtPath("/World/envs")
+        if envs_root.IsValid():
+            for child in envs_root.GetChildren():
+                match = env_name_re.match(child.GetName())
+                if match:
+                    max_env_id = max(max_env_id, int(match.group(1)))
+        return max_env_id + 1 if max_env_id >= 0 else 0
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
         from isaacsim.core.simulation_manager import SimulationManager
@@ -57,7 +74,7 @@ class OVSceneDataProvider:
         self._xform_view_failures: set[str] = set()
         self._view_body_index_map: dict[str, list[int]] = {}
 
-        # Scene info: set via set_num_envs after creation (by sim, from env).
+        # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
@@ -95,14 +112,6 @@ class OVSceneDataProvider:
             self._build_env_id_to_body_indices()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
-        else:
-            logger.info("[OVSceneDataProvider] OV visualizer only - skipping Newton model build")
-
-    def set_num_envs(self, num_envs: int) -> None:
-        """Set number of environments. Called after scene creation (by sim, from env)."""
-        self._num_envs = num_envs
-        if self._needs_newton_sync and self._newton_model is not None:
-            self._refresh_newton_model_if_needed()
 
     @staticmethod
     def _wildcard_env_paths(paths: list[str]) -> list[str]:
@@ -113,7 +122,7 @@ class OVSceneDataProvider:
         return list(dict.fromkeys(wildcard_paths)) if wildcard_paths else paths
 
     def _refresh_newton_model_if_needed(self) -> None:
-        """Rebuild Newton model/state and PhysX views if env count changes. Only called from set_num_envs (once after scene creation), not every frame."""
+        """Rebuild Newton model/state and PhysX views if discovered env count changes."""
         num_envs = self.get_num_envs()
         if num_envs <= 0:
             return
@@ -122,6 +131,7 @@ class OVSceneDataProvider:
         needs_rebuild = needs_rebuild or (self._num_envs_at_last_newton_build != num_envs)
         if needs_rebuild:
             self._build_newton_model_from_usd()
+            self._build_env_id_to_body_indices()
             self._setup_rigid_body_view()
             self._setup_articulation_view()
 
@@ -150,12 +160,12 @@ class OVSceneDataProvider:
             self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
             logger.error(
-                "[SceneDataProvider] Newton module not available. "
+                "[OVSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun visualizers."
             )
-            logger.debug(f"[SceneDataProvider] Newton import error: {exc}")
+            logger.debug(f"[OVSceneDataProvider] Newton import error: {exc}")
         except Exception as exc:
-            logger.error(f"[SceneDataProvider] Failed to build Newton model from USD: {exc}")
+            logger.error(f"[OVSceneDataProvider] Failed to build Newton model from USD: {exc}")
             self._newton_model = None
             self._newton_state = None
             self._rigid_body_paths = []
@@ -191,15 +201,15 @@ class OVSceneDataProvider:
                 )
         except ModuleNotFoundError as exc:
             logger.error(
-                "[SceneDataProvider] Newton module not available. "
+                "[OVSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun visualizers."
             )
-            logger.debug(f"[SceneDataProvider] Newton import error: {exc}")
+            logger.debug(f"[OVSceneDataProvider] Newton import error: {exc}")
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
         except Exception as exc:
-            logger.error(f"[SceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
+            logger.error(f"[OVSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
@@ -227,7 +237,7 @@ class OVSceneDataProvider:
             self._rigid_body_view = self._physics_sim_view.create_rigid_body_view(paths_to_use)
             self._cache_view_index_map(self._rigid_body_view, "rigid_body_view")
         except Exception as exc:
-            logger.warning(f"[SceneDataProvider] Failed to create RigidBodyView: {exc}")
+            logger.warning(f"[OVSceneDataProvider] Failed to create RigidBodyView: {exc}")
             self._rigid_body_view = None
 
     def _setup_articulation_view(self) -> None:
@@ -244,44 +254,24 @@ class OVSceneDataProvider:
             )
             self._cache_view_index_map(self._articulation_view, "articulation_view")
         except Exception as exc:
-            logger.warning(f"[SceneDataProvider] Failed to create ArticulationView: {exc}")
+            logger.warning(f"[OVSceneDataProvider] Failed to create ArticulationView: {exc}")
             self._articulation_view = None
 
     def _get_view_world_poses(self, view):
         """Read world poses from a PhysX view.
 
-        Tries multiple method names for compatibility and returns
-        (positions, orientations) or (None, None). The returned tensors
-        are expected to be shaped [..., 3] and [..., 4] (xyzw or wxyz
-        depending on source).
+        Returns (positions, orientations) or (None, None). The returned tensors
+        are expected to be shaped [..., 3] and [..., 4].
         """
         if view is None:
             return None, None
-
-        method_names = ("get_world_poses", "get_world_transforms", "get_transforms", "get_poses")
-
-        for name in method_names:
-            method = getattr(view, name, None)
-            if method is None:
-                continue
-            try:
-                result = method()
-            except Exception:
-                continue
-
-            # Handle tuple return: (positions, orientations)
-            if isinstance(result, tuple) and len(result) == 2:
-                return result
-
-            # Handle packed array: [..., 7] -> split into pos and quat
-            try:
-                if hasattr(result, "shape") and result.shape[-1] == 7:
-                    positions = result[..., :3]
-                    orientations = result[..., 3:7]
-                    return positions, orientations
-            except Exception:
-                continue
-
+        try:
+            # Canonical API for PhysX tensor views.
+            transforms = view.get_transforms()
+            if hasattr(transforms, "shape") and transforms.shape[-1] == 7:
+                return transforms[..., :3], transforms[..., 3:7]
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("[OVSceneDataProvider] get_transforms() unavailable/failed for %s: %s", type(view), exc)
         return None, None
 
     def _cache_view_index_map(self, view, key: str) -> None:
@@ -319,25 +309,15 @@ class OVSceneDataProvider:
         if view is None:
             return None, None
 
-        method = getattr(view, "get_velocities", None)
-        if method is not None:
-            try:
-                result = method()
-                if isinstance(result, tuple) and len(result) == 2:
-                    return result
-                if hasattr(result, "shape") and result.shape[-1] == 6:
-                    return result[..., :3], result[..., 3:6]
-            except Exception:
-                pass
-
-        get_linear = getattr(view, "get_linear_velocities", None)
-        get_angular = getattr(view, "get_angular_velocities", None)
-        if get_linear is not None and get_angular is not None:
-            try:
-                return get_linear(), get_angular()
-            except Exception:
-                return None, None
-
+        try:
+            # Canonical API for PhysX tensor views.
+            result = view.get_velocities()
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            if hasattr(result, "shape") and result.shape[-1] == 6:
+                return result[..., :3], result[..., 3:6]
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("[OVSceneDataProvider] get_velocities() unavailable/failed for %s: %s", type(view), exc)
         return None, None
 
     def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
@@ -487,7 +467,7 @@ class OVSceneDataProvider:
             self._set_body_q_kernel = _set_body_q
             return self._set_body_q_kernel
         except Exception as exc:
-            logger.warning(f"[SceneDataProvider] Warp unavailable for Newton state sync: {exc}")
+            logger.warning(f"[OVSceneDataProvider] Warp unavailable for Newton state sync: {exc}")
             return None
 
     def _get_set_body_q_subset_kernel(self):
@@ -526,6 +506,9 @@ class OVSceneDataProvider:
 
         try:
             import warp as wp
+
+            # Re-check env count in case stage population completed after provider construction.
+            self._refresh_newton_model_if_needed()
 
             result = self._read_poses_from_best_source()
             if result is None:
@@ -647,6 +630,10 @@ class OVSceneDataProvider:
     @staticmethod
     def _create_subset_state(body_q_subset):
         """Return a minimal state-like object for subset rendering."""
+        import warp as wp
+
+        if hasattr(body_q_subset, "device") and not isinstance(body_q_subset, wp.array):
+            body_q_subset = wp.from_torch(body_q_subset, dtype=wp.transformf)
 
         class _SubsetState:
             pass

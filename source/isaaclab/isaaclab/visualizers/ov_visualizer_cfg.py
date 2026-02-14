@@ -12,10 +12,10 @@ from .visualizer_cfg import VisualizerCfg
 
 @configclass
 class OVVisualizerCfg(VisualizerCfg):
-    """Configuration for Omniverse visualizer using Isaac Sim viewport."""
+    """Configuration for Kit visualizer using Isaac Sim viewport."""
 
-    visualizer_type: str = "omniverse"
-    """Type identifier for Omniverse visualizer."""
+    visualizer_type: str = "kit"
+    """Type identifier for Kit visualizer."""
 
     viewport_name: str | None = "Visualizer Viewport"
     """Viewport name to use. If None, uses active viewport."""
