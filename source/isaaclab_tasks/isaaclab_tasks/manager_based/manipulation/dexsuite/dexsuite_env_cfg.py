@@ -428,7 +428,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 2  # 50 Hz
+        self.decimation = 3  # 50 Hz
 
         # *single-goal setup
         self.commands.object_pose.resampling_time_range = (10.0, 10.0)
