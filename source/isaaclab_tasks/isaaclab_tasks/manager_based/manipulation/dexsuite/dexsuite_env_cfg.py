@@ -462,6 +462,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
                     iterations=100,
                     ls_iterations=15,
                     ls_parallel=True,
+                    use_mujoco_contacts=False,
                 ),
                 num_substeps=1,
                 debug_mode=False,
