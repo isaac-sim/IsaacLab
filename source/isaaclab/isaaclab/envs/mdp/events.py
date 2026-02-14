@@ -601,10 +601,10 @@ class randomize_actuator_gains(ManagerTermBase):
                 global_indices = actuator_joint_indices[actuator_indices]
             # Randomize stiffness
             if stiffness_distribution_params is not None:
-                stiffness = actuator.stiffness[env_ids].clone()
+                stiffness = wp.to_torch(actuator.data.actuator_stiffness)[env_ids].clone()
                 stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
                 randomize(stiffness, stiffness_distribution_params)
-                actuator.stiffness[env_ids] = stiffness
+                actuator.data._actuator_stiffness = wp.from_torch(stiffness)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim(
                         stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
@@ -614,7 +614,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 damping = wp.to_torch(self.asset.data.actuator_damping)[env_ids].clone()
                 damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
                 randomize(damping, damping_distribution_params)
-                actuator.damping[env_ids] = damping
+                actuator.data._actuator_damping = wp.from_torch(damping)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
 
@@ -803,7 +803,7 @@ class randomize_joint_parameters(ManagerTermBase):
                 )
             # set the position limits into the physics simulation
             self.asset.write_joint_position_limit_to_sim(
-                joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=False
+                joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids
             )
 
 

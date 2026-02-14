@@ -1041,8 +1041,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_limit_to_sim(
         self,
-        lower_limits: wp.array | float,
-        upper_limits: wp.array | float,
+        limits: wp.array | float,
         joint_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
         joint_mask: wp.array | None = None,
@@ -1059,13 +1058,17 @@ class Articulation(BaseArticulation):
             env_mask: The environment mask. Shape is (num_instances,).
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
+<<<<<<< Updated upstream
         if isinstance(upper_limits, torch.Tensor):
             if self._temp_joint_pos is None:
                 self._temp_joint_pos = wp.zeros(
                     (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
                 )
+=======
+        if isinstance(limits, torch.Tensor):
+>>>>>>> Stashed changes
             upper_limits = make_complete_data_from_torch_dual_index(
-                upper_limits,
+                limits[:,0,:,0],
                 self.num_instances,
                 self.num_joints,
                 env_ids,
@@ -1074,13 +1077,17 @@ class Articulation(BaseArticulation):
                 device=self.device,
                 out=self._temp_joint_pos,
             )
+<<<<<<< Updated upstream
         if isinstance(lower_limits, torch.Tensor):
             if self._temp_joint_vel is None:
                 self._temp_joint_vel = wp.zeros(
                     (self.num_instances, self.num_joints), dtype=wp.float32, device=self.device
                 )
+=======
+        if isinstance(limits, torch.Tensor):
+>>>>>>> Stashed changes
             lower_limits = make_complete_data_from_torch_dual_index(
-                lower_limits,
+                limits[:,0,:,1],
                 self.num_instances,
                 self.num_joints,
                 env_ids,
@@ -2290,6 +2297,11 @@ class Articulation(BaseArticulation):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
+
+            if len(joint_names) == self.num_joints:
+                joint_indices = slice(None)
+            else:
+                joint_indices = torch.tensor(joint_indices, device=self.device)
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(

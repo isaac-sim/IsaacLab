@@ -155,6 +155,16 @@ class ActuatorBase(ABC):
         """Articulation's masked indices that denote which joints are part of the group."""
         return self._joint_mask
 
+    @property
+    def joint_indices(self) -> slice | torch.Tensor:
+        """Articulation's joint indices that are part of the group.
+
+        Note:
+            If :obj:`slice(None)` is returned, then the group contains all the joints in the articulation.
+            We do this to avoid unnecessary indexing of the joints for performance reasons.
+        """
+        return self._joint_indices
+
     """
     Operations.
     """
@@ -230,7 +240,7 @@ class ActuatorBase(ABC):
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                indices_global = [self._joint_indices[i] for i in indices]
+                indices_global = [self._joint_indices[i].cpu() for i in indices]
                 wp.launch(
                     update_array2D_with_array1D_indexed,
                     dim=(self._num_envs, len(indices_global)),

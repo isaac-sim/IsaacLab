@@ -204,6 +204,8 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
+            # initialize term_cfg func before call
+            term_cfg_func_obj = term_cfg.func(term_cfg, self._env)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]
@@ -219,7 +221,7 @@ class EventManager(ManagerBase):
                         self._interval_term_time_left[index][:] = sampled_interval
 
                         # call the event term (with None for env_ids)
-                        term_cfg.func(self._env, None, **term_cfg.params)
+                        term_cfg_func_obj(self._env, None, **term_cfg.params)
                 else:
                     valid_env_ids = (time_left < 1e-6).nonzero().flatten()
                     if len(valid_env_ids) > 0:
@@ -228,7 +230,7 @@ class EventManager(ManagerBase):
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
 
                         # call the event term
-                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
+                        term_cfg_func_obj(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
@@ -243,7 +245,7 @@ class EventManager(ManagerBase):
                     self._reset_term_last_triggered_once[index][env_ids] = True
 
                     # call the event term with the environment indices
-                    term_cfg.func(self._env, env_ids, **term_cfg.params)
+                    term_cfg_func_obj(self._env, env_ids, **term_cfg.params)
                 else:
                     # extract last reset step for this term
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
@@ -269,10 +271,10 @@ class EventManager(ManagerBase):
                         self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
 
                         # call the event term
-                        term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
+                        term_cfg_func_obj(self._env, valid_env_ids, **term_cfg.params)
             else:
                 # call the event term
-                term_cfg.func(self._env, env_ids, **term_cfg.params)
+                term_cfg_func_obj(self._env, env_ids, **term_cfg.params)
 
     """
     Operations - Term settings.
