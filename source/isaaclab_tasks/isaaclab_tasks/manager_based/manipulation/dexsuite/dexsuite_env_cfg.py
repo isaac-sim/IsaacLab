@@ -63,9 +63,7 @@ class SceneCfg(InteractiveSceneCfg):
                 solver_velocity_iteration_count=0,
                 disable_gravity=False,
             ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True, mesh_collision_property=sim_utils.BoundingCubePropertiesCfg()
-            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.75),
         ),
         actuators={},
