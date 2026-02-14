@@ -90,7 +90,7 @@ class SceneCfg(InteractiveSceneCfg):
         ),
         actuators={},
         articulation_root_prim_path="/FixedJoint",  # Newton keys by first body path
-        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.275, 0.0, 0.20), rot=(0.0, 0.0, 0.0, 1.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.275, 0.0, 0.1175), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane
