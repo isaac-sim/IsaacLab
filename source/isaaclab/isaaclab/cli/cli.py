@@ -198,12 +198,30 @@ Examples:
 
     elif args.test is not None:
         python_exe = extract_python_exe()
+
+        # Make sure pytest is installed.
+        try:
+            # Check if pytest is available as a module.
+            run_python_command(
+                "pip",
+                ["show", "pytest"],
+                is_module=True,
+                check=True
+            )
+        except subprocess.CalledProcessError:
+            if is_windows():
+                print_info("pytest not found, please run install first with 'isaaclab.bat -i'...")
+            else:
+                print_info("pytest not found, please run install first with './isaaclab.sh -i'...")
+            return
+
         cmd = [
             python_exe,
             "-m",
             "pytest",
             str(ISAACLAB_ROOT / "tools"),
         ] + args.test
+
         run_command(cmd, check=False)
 
     else:
