@@ -30,7 +30,8 @@ INSTALL_REQUIRES = [
     "junitparser",
     "flatdict==4.0.1",
     # newton
-    "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@7bb099c082d50803fd63bfe57217025d9f5cd2df",
+    "mujoco>=3.5.0",
+    "mujoco-warp>=3.5.0",
     "newton @ git+https://github.com/newton-physics/newton.git@51ce35e8def843377546764033edc33a0b479d65",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
