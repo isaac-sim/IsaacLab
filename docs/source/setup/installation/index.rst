@@ -66,7 +66,7 @@ These are needed to compile certain Python packages and native extensions during
 
 To install them:
 
-1. Download the `Visual Studio Build Tools for C++ <https://visualstudio.microsoft.com/visual-cpp-build-tools/>`.
+1. Download the **Visual Studio Build Tools for C++** <https://visualstudio.microsoft.com/visual-cpp-build-tools/>.
 2. Run the installer and select the **"Visual Studio Build Tools 202x"**.
 3. Complete the installation.
 
