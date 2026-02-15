@@ -19,6 +19,7 @@ class RendererBase(ABC):
         self._height = cfg.height
         self._width = cfg.width
         self._num_envs = cfg.num_envs
+        self._num_cameras = cfg.num_cameras
         # List of data types to use for rendering, e.g. ["rgb", "depth", "semantic_segmentation"]
         self._data_types = []
 

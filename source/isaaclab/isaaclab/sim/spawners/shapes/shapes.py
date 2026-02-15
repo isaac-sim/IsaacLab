@@ -12,6 +12,7 @@ from pxr import Usd
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -252,6 +253,12 @@ def _spawn_geom_from_prim_type(
     * ``{prim_path}/geometry`` - The prim that contains the mesh and optionally the materials if configured.
       If instancing is enabled, this prim will be an instanceable reference to the prototype prim.
 
+    For fixed-base articulations (when ``articulation_props.fix_root_link=True``), we create a wrapper structure:
+
+    * ``{prim_path}`` - The root prim with ArticulationRootAPI (required to be parent of fixed joint).
+    * ``{prim_path}/root`` - The body prim with RigidBodyAPI and fixed joint to world.
+    * ``{prim_path}/root/geometry`` - The geometry prim with the mesh and collision.
+
     Args:
         prim_path: The prim path to spawn the asset at.
         cfg: The config containing the properties to apply.
@@ -310,3 +317,93 @@ def _spawn_geom_from_prim_type(
     # apply rigid body properties
     if cfg.rigid_props is not None:
         schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+    # apply articulation root properties
+    if cfg.articulation_props is not None:
+        # Check if we need fixed-base wrapper structure
+        fix_root = getattr(cfg.articulation_props, "fix_root_link", False)
+        if fix_root:
+            _create_fixed_base_articulation_wrapper(prim_path, cfg.articulation_props)
+        else:
+            schemas.define_articulation_root_properties(prim_path, cfg.articulation_props)
+
+
+def _create_fixed_base_articulation_wrapper(prim_path: str, articulation_props):
+    """Create wrapper structure for fixed-base articulation.
+
+    Newton requires at least 2 bodies to recognize a fixed-base articulation.
+    This function adds a dummy body connected via a fixed joint.
+
+    The spawner already creates:
+        {prim_path}/
+            geometry/           <- RigidBodyAPI + collision
+
+    Structure after:
+        {prim_path}/
+            FixedJoint          <- ArticulationRootAPI (body0=world, body1=geometry)
+            geometry/           <- RigidBodyAPI + collision (already exists)
+            fakebody/           <- RigidBodyAPI (no collision, minimal mass)
+                InternalJoint   <- FixedJoint (body0=geometry, body1=fakebody)
+    """
+    from pxr import Gf, UsdPhysics
+
+    stage = get_current_stage()
+    parent_prim = stage.GetPrimAtPath(prim_path)
+
+    # geometry prim already exists from the spawner
+    geometry_prim_path = prim_path + "/geometry"
+    geometry_prim = stage.GetPrimAtPath(geometry_prim_path)
+
+    # Ensure geometry has RigidBodyAPI (it should already have it)
+    if not geometry_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        UsdPhysics.RigidBodyAPI.Apply(geometry_prim)
+
+    # Remove RigidBodyAPI from parent if it exists (shouldn't be on both)
+    if parent_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+        parent_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+        applied_schemas = parent_prim.GetAppliedSchemas()
+        if "PhysxRigidBodyAPI" in applied_schemas:
+            parent_prim.RemoveAppliedSchema("PhysxRigidBodyAPI")
+
+    # Create fakebody prim with RigidBodyAPI and minimal mass
+    fakebody_prim_path = prim_path + "/fakebody"
+    prim_utils.create_prim(fakebody_prim_path, prim_type="Xform")
+    fakebody_prim = stage.GetPrimAtPath(fakebody_prim_path)
+    UsdPhysics.RigidBodyAPI.Apply(fakebody_prim)
+    mass_api = UsdPhysics.MassAPI.Apply(fakebody_prim)
+    mass_api.GetMassAttr().Set(0.001)  # Minimal mass
+    mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(1e-6, 1e-6, 1e-6))  # Minimal inertia
+
+    # Create main FixedJoint from world to geometry
+    fixed_joint_prim = schemas.create_joint(
+        stage=stage,
+        joint_type="Fixed",
+        from_prim=None,  # world
+        to_prim=geometry_prim,
+        joint_base_path=prim_path,
+    )
+
+    # Apply ArticulationRootAPI to the main FixedJoint
+    if fixed_joint_prim:
+        UsdPhysics.ArticulationRootAPI.Apply(fixed_joint_prim)
+
+        # Set articulation properties
+        from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
+        from isaaclab.utils.string import to_camel_case
+
+        cfg_dict = articulation_props.to_dict()
+        cfg_dict.pop("fix_root_link", None)
+        for attr_name, value in cfg_dict.items():
+            if value is not None:
+                safe_set_attribute_on_usd_prim(
+                    fixed_joint_prim, f"physxArticulation:{to_camel_case(attr_name)}", value, camel_case=False
+                )
+
+    # Create InternalJoint from geometry to fakebody
+    # This joint connects the two bodies, making Newton recognize the fixed-base structure
+    _ = schemas.create_joint(
+        stage=stage,
+        joint_type="Fixed",
+        from_prim=geometry_prim,  # type: ignore[arg-type]
+        to_prim=fakebody_prim,  # type: ignore[arg-type]
+        joint_base_path=fakebody_prim_path,
+    )
