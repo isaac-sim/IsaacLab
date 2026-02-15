@@ -73,7 +73,7 @@ To install them:
 Long Path Support
 ^^^^^^^^^^^^^^^^^
 
-Windows **long path support** must be enabled to avoid issues with file paths exceeding the default length limit. 
+Windows **long path support** must be enabled to avoid issues with file paths exceeding the default length limit.
 Run the following command in an **PowerShell terminal with administrator privileges** to enable it:
 
 .. code-block:: powershell
