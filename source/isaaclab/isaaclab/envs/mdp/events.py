@@ -530,18 +530,13 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         operation = cfg.params["operation"]
         if operation not in ("add", "scale", "abs"):
             raise NotImplementedError(
-                f"Unknown operation: '{operation}' for gravity randomization."
-                " Please use 'add', 'scale', or 'abs'."
+                f"Unknown operation: '{operation}' for gravity randomization. Please use 'add', 'scale', or 'abs'."
             )
 
         # Cache distribution params as tensors
         gravity_distribution_params = cfg.params["gravity_distribution_params"]
-        self._dist_param_0 = torch.tensor(
-            gravity_distribution_params[0], device=env.device, dtype=torch.float32
-        )
-        self._dist_param_1 = torch.tensor(
-            gravity_distribution_params[1], device=env.device, dtype=torch.float32
-        )
+        self._dist_param_0 = torch.tensor(gravity_distribution_params[0], device=env.device, dtype=torch.float32)
+        self._dist_param_1 = torch.tensor(gravity_distribution_params[1], device=env.device, dtype=torch.float32)
 
     def __call__(
         self,

@@ -293,16 +293,12 @@ def newton_replicate(
 
     # load empty stage
     builder = ModelBuilder(up_axis=up_axis)
-    # Set smaller contact margin for manipulation examples (default 10cm is too large)
-    # Must be set before add_usd so shapes inherit the correct margin
-    builder.default_shape_cfg.contact_margin = 0.01
     stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
     # build a prototype for each source
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
-        p.default_shape_cfg.contact_margin = 0.01
         solvers.SolverMuJoCo.register_custom_attributes(p)
         inverse_env_xform = get_inverse_env_xform(stage, src_path)
         p.add_usd(
