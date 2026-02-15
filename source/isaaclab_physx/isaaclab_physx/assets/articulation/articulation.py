@@ -13,13 +13,13 @@ import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 from prettytable import PrettyTable
 
 from pxr import PhysxSchema, UsdPhysics
 
-import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
@@ -28,6 +28,8 @@ from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_physx.assets import kernels as shared_kernels
+from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -191,21 +193,25 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         # use ellipses object to skip initial indices.
-        if env_ids is None:
+        if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
         # reset external wrenches.
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -224,13 +230,13 @@ class Articulation(BaseArticulation):
                 self._instantaneous_wrench_composer.add_forces_and_torques(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES_WP,
-                    env_ids=self._ALL_INDICES_WP,
+                    body_ids=self._ALL_BODY_INDICES,
+                    env_ids=self._ALL_INDICES,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -238,8 +244,8 @@ class Articulation(BaseArticulation):
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force_as_torch.view(-1, 3),
-                    torque_data=self._permanent_wrench_composer.composed_torque_as_torch.view(-1, 3),
+                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -354,252 +360,524 @@ class Articulation(BaseArticulation):
     Operations - State Writers.
     """
 
-    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
-
-    def write_root_com_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root center of mass state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        self.write_root_com_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
-
-    def write_root_link_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root link state over selected environment indices into the simulation.
-
-        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-        """
-        self.write_root_link_pose_to_sim(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
-
-    def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
 
-    def write_root_link_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
+
+    def write_root_link_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-
-        # Note we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self.data.root_link_pose_w[env_ids] = root_pose.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_link_state_w.data is not None:
-            self.data.root_link_state_w[env_ids, :7] = self.data.root_link_pose_w[env_ids]
-        if self.data._root_state_w.data is not None:
-            self.data.root_state_w[env_ids, :7] = self.data.root_link_pose_w[env_ids]
-
-        root_poses_xyzw = self.data.root_link_pose_w.clone()
-
+        env_ids = self._resolve_env_ids(env_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.set_root_link_pose_to_sim,
+            dim=env_ids.shape[0],
+            inputs=[
+                root_pose,
+                env_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._root_link_pose_w.data,
+                None,  # self.data._root_link_state_w.data,
+                None,  # self.data._root_state_w.data,
+            ],
+            device=self.device,
+        )
+        # Update the timestamps
+        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._body_link_pose_w.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
-
         # set into simulation
-        self.root_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
-    def write_root_com_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_link_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+
+    def write_root_com_pose_to_sim_index(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
-
-        # set into internal buffers
-        self.data.root_com_pose_w[local_env_ids] = root_pose.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_com_state_w.data is not None:
-            self.data.root_com_state_w[local_env_ids, :7] = self.data.root_com_pose_w[local_env_ids]
-
-        # get CoM pose in link frame
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        com_quat_b = self.data.body_com_quat_b[local_env_ids, 0, :]
-        # transform input CoM pose to link frame
-        root_link_pos, root_link_quat = math_utils.combine_frame_transforms(
-            root_pose[..., :3],
-            root_pose[..., 3:7],
-            math_utils.quat_apply(math_utils.quat_inv(com_quat_b), -com_pos_b),
-            math_utils.quat_inv(com_quat_b),
+        env_ids = self._resolve_env_ids(env_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would call
+        # write_root_link_pose_to_sim after this.
+        wp.launch(
+            shared_kernels.set_root_com_pose_to_sim,
+            dim=env_ids.shape[0],
+            inputs=[
+                root_pose,
+                self.data.body_com_pose_b,
+                env_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._root_com_pose_w.data,
+                self.data._root_link_pose_w.data,
+                None,  # self.data._root_com_state_w.data,
+                None,  # self.data._root_link_state_w.data,
+                None,  # self.data._root_state_w.data,
+            ],
+            device=self.device,
         )
-        root_link_pose = torch.cat((root_link_pos, root_link_quat), dim=-1)
+        # Update the timestamps
+        self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_pose_w.timestamp = self.data._sim_timestamp
+        self.data._root_com_state_w.timestamp = -1.0
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
+        # Need to invalidate the buffer to trigger the update with the new state.
+        self.data._body_link_pose_w.timestamp = -1.0
+        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._body_state_w.timestamp = -1.0
+        self.data._body_link_state_w.timestamp = -1.0
+        self.data._body_com_state_w.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
-        # write transformed pose in link frame to sim
-        self.write_root_link_pose_to_sim(root_pose=root_link_pose, env_ids=env_ids)
+    def write_root_com_pose_to_sim_mask(
+        self,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass pose over selected environment mask into the simulation.
 
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principle axes of inertia.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+
+    def write_root_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_com_velocity_to_sim(root_velocity=root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
-    def write_root_com_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
+
+    def write_root_com_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-
-        # Note we need to do this here since tensors are not set into simulation until step.
-        # set into internal buffers
-        self.data.root_com_vel_w[env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_com_state_w.data is not None:
-            self.data.root_com_state_w[env_ids, 7:] = self.data.root_com_vel_w[env_ids]
-        if self.data._root_state_w.data is not None:
-            self.data.root_state_w[env_ids, 7:] = self.data.root_com_vel_w[env_ids]
-        # make the acceleration zero to prevent reporting old values
-        self.data.body_acc_w[env_ids] = 0.0
-
+        env_ids = self._resolve_env_ids(env_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.set_root_com_velocity_to_sim,
+            dim=env_ids.shape[0],
+            inputs=[
+                root_velocity,
+                env_ids,
+                self.data._num_bodies,
+                full_data,
+            ],
+            outputs=[
+                self.data._root_com_vel_w.data,
+                self.data._body_com_acc_w.data,
+                None,  # self.data._root_state_w.data,
+                None,  # self.data._root_com_state_w.data,
+            ],
+            device=self.device,
+        )
+        # Update the timestamps
+        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
+        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
+        self.data._root_state_w.timestamp = -1.0
+        self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self.data.root_com_vel_w, indices=physx_env_ids)
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
-    def write_root_link_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
+
+    def write_root_link_velocity_to_sim_index(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
         .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
+                (num_instances, 6).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
-        if env_ids is None:
-            local_env_ids = slice(env_ids)
-        else:
-            local_env_ids = env_ids
-
-        # set into internal buffers
-        self.data.root_link_vel_w[local_env_ids] = root_velocity.clone()
-        # update these buffers only if the user is using them. Otherwise this adds to overhead.
-        if self.data._root_link_state_w.data is not None:
-            self.data.root_link_state_w[local_env_ids, 7:] = self.data.root_link_vel_w[local_env_ids]
-
-        # get CoM pose in link frame
-        quat = self.data.root_link_quat_w[local_env_ids]
-        com_pos_b = self.data.body_com_pos_b[local_env_ids, 0, :]
-        # transform input velocity to center of mass frame
-        root_com_velocity = root_velocity.clone()
-        root_com_velocity[:, :3] += torch.linalg.cross(
-            root_com_velocity[:, 3:], math_utils.quat_apply(quat, com_pos_b), dim=-1
+        env_ids = self._resolve_env_ids(env_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
+        wp.launch(
+            shared_kernels.set_root_link_velocity_to_sim,
+            dim=env_ids.shape[0],
+            inputs=[
+                root_velocity,
+                self.data.body_com_pose_b,
+                self.data.root_link_pose_w,
+                env_ids,
+                self.data._num_bodies,
+                full_data,
+            ],
+            outputs=[
+                self.data._root_link_vel_w.data,
+                self.data._root_com_vel_w.data,
+                self.data._body_com_acc_w.data,
+                None,  # self.data._root_link_state_w.data,
+                None,  # self.data._root_state_w.data,
+                None,  # self.data._root_com_state_w.data,
+            ],
+            device=self.device,
         )
+        # Update the timestamps
+        self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
+        self.data._root_com_vel_w.timestamp = self.data._sim_timestamp
+        self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
+        self.data._root_link_state_w.timestamp = -1.0
+        self.data._root_state_w.timestamp = -1.0
+        self.data._root_com_state_w.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
-        # write transformed velocity in CoM frame to sim
-        self.write_root_com_velocity_to_sim(root_velocity=root_com_velocity, env_ids=env_ids)
+    def write_root_link_velocity_to_sim_mask(
+        self,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set the root link velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
 
     def write_joint_state_to_sim(
         self,
-        position: torch.Tensor,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Write joint positions and velocities to the simulation.
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # set into simulation
+        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
+
+    def write_joint_state_to_sim_mask(
+        self,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        joint_mask: wp.array | None = None,
+    ):
+        """Write joint positions and velocities over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            position: Joint positions. Shape is (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used.
         """
         # set into simulation
-        self.write_joint_position_to_sim(position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim(velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
 
-    def write_joint_position_to_sim(
+    def write_joint_position_to_sim_index(
         self,
         position: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ):
-        """Write joint positions to the simulation.
+        """Write joint positions over selected environment indices into the simulation.
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_pos[env_ids, joint_ids] = position
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_pos.data,
+            ],
+            device=self.device,
+        )
+        # Update the timestamps
+        self.data._joint_pos.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new root pose.
         self.data._body_com_vel_w.timestamp = -1.0
         self.data._body_link_vel_w.timestamp = -1.0
@@ -611,303 +889,715 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_dof_positions(self.data.joint_pos, indices=physx_env_ids)
+        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
-    def write_joint_velocity_to_sim(
+    def write_joint_position_to_sim_mask(
         self,
-        velocity: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        position: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Write joint positions over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_velocity_to_sim_index(
+        self,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ):
         """Write joint velocities to the simulation.
 
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_vel[env_ids, joint_ids] = velocity
-        self.data._previous_joint_vel[env_ids, joint_ids] = velocity
-        self.data.joint_acc[env_ids, joint_ids] = 0.0
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            articulation_kernels.write_joint_vel_data,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                velocity,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_vel.data,
+                self.data._previous_joint_vel,
+                self.data._joint_acc.data,
+            ],
+            device=self.device,
+        )
+        # Update the timestamps
+        self.data._joint_vel.timestamp = self.data._sim_timestamp
+        self.data._joint_acc.timestamp = self.data._sim_timestamp
         # set into simulation
-        self.root_view.set_dof_velocities(self.data.joint_vel, indices=physx_env_ids)
+        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+
+    def write_joint_velocity_to_sim_mask(
+        self,
+        velocity: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Write joint velocities over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     """
     Operations - Simulation Parameters Writers.
     """
 
-    def write_joint_stiffness_to_sim(
+    def write_joint_stiffness_to_sim_index(
         self,
-        stiffness: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        stiffness: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ):
-        """Write joint stiffness into the simulation.
+        """Write joint stiffness over selected environment indices into the simulation.
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the stiffness for. Defaults to None (all joints).
-            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # Note This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_stiffness[env_ids, joint_ids] = stiffness
-        # set into simulation
-        self.root_view.set_dof_stiffnesses(self.data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if isinstance(stiffness, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    stiffness,
+                    env_ids,
+                    joint_ids,
+                ],
+                outputs=[
+                    self.data._joint_stiffness,
+                ],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    stiffness,
+                    env_ids,
+                    joint_ids,
+                    full_data,
+                ],
+                outputs=[
+                    self.data._joint_stiffness,
+                ],
+                device=self.device,
+            )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
 
-    def write_joint_damping_to_sim(
+    def write_joint_stiffness_to_sim_mask(
         self,
-        damping: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        stiffness: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ):
-        """Write joint damping into the simulation.
+        """Write joint stiffness over selected environment mask into the simulation.
+
+        .. note::
+            This method expect full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the damping for. Defaults to None (all joints).
-            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            stiffness: Joint stiffness. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the the right code path is taken inside the kernel.
+        self.write_joint_stiffness_to_sim_index(stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_damping_to_sim_index(
+        self,
+        damping: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint damping over selected environment indices into the simulation.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # Note This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_damping[env_ids, joint_ids] = damping
-        # set into simulation
-        self.root_view.set_dof_dampings(self.data.joint_damping.cpu(), indices=physx_env_ids.cpu())
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if isinstance(damping, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    damping,
+                    env_ids,
+                    joint_ids,
+                ],
+                outputs=[
+                    self.data._joint_damping,
+                ],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    damping,
+                    env_ids,
+                    joint_ids,
+                    full_data,
+                ],
+                outputs=[
+                    self.data._joint_damping,
+                ],
+                device=self.device,
+            )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
 
-    def write_joint_position_limit_to_sim(
+    def write_joint_damping_to_sim_mask(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        damping: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        """Write joint damping over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            damping: Joint damping. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_damping_to_sim_index(damping, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_position_limit_to_sim_index(
+        self,
+        limits: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
         warn_limit_violation: bool = True,
     ):
-        """Write joint position limits into the simulation.
+        """Write joint position limits over selected environment indices into the simulation.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
-            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (num_instances, num_joints, 2).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
         # Note This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_pos_limits[env_ids, joint_ids] = limits
-        # update default joint pos to stay within the new limits
-        if torch.any(
-            (self.data.default_joint_pos[env_ids, joint_ids] < limits[..., 0])
-            | (self.data.default_joint_pos[env_ids, joint_ids] > limits[..., 1])
-        ):
-            self.data.default_joint_pos[env_ids, joint_ids] = torch.clamp(
-                self.data.default_joint_pos[env_ids, joint_ids], limits[..., 0], limits[..., 1]
-            )
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+
+        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
+        if isinstance(limits, float):
+            raise ValueError("Joint position limits must be a tensor or array, not a float.")
+        wp.launch(
+            articulation_kernels.write_joint_limit_data_to_buffer,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                limits,
+                self.cfg.soft_joint_pos_limit_factor,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_pos_limits,
+                self.data._soft_joint_pos_limits,
+                self.data._default_joint_pos,
+                clamped_defaults,
+            ],
+            device=self.device,
+        )
+        # Log a warning if the default joint positions are outside of the new limits.
+        if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
             )
             if warn_limit_violation:
-                # warn level will show in console
                 logger.warning(violation_message)
             else:
-                # info level is only written to log file
                 logger.info(violation_message)
-        # set into simulation
-        self.root_view.set_dof_limits(self.data.joint_pos_limits.cpu(), indices=physx_env_ids.cpu())
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
 
-        # compute the soft limits based on the joint limits
-        # TODO: Optimize this computation for only selected joints
-        # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_mean = (self.data.joint_pos_limits[..., 0] + self.data.joint_pos_limits[..., 1]) / 2
-        joint_pos_range = self.data.joint_pos_limits[..., 1] - self.data.joint_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
-        # add to data
-        self.data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
-        self.data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
-
-    def write_joint_velocity_limit_to_sim(
+    def write_joint_position_limit_to_sim_mask(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        warn_limit_violation: bool = True,
     ):
-        """Write joint max velocity to the simulation.
+        """Write joint position limits over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limits: Joint limits. Shape is (num_instances, num_joints, 2).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+            warn_limit_violation: Whether to use warning or info level logging when default joint positions
+                exceed the new limits. Defaults to True.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_position_limit_to_sim_index(
+            limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True, warn_limit_violation=warn_limit_violation
+        )
+
+    def write_joint_velocity_limit_to_sim_index(
+        self,
+        limits: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint max velocity over selected environment indices into the simulation.
 
         The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
         be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
         faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
 
-        Args:
-            limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the max velocity for. Defaults to None (all joints).
-            env_ids: The environment indices to set the max velocity for. Defaults to None (all environments).
-        """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # move tensor to cpu if needed
-        if isinstance(limits, torch.Tensor):
-            limits = limits.to(self.device)
-        # set into internal buffers
-        self.data.joint_vel_limits[env_ids, joint_ids] = limits
-        # set into simulation
-        self.root_view.set_dof_max_velocities(self.data.joint_vel_limits.cpu(), indices=physx_env_ids.cpu())
+        .. note::
+            This method expects partial data or full data.
 
-    def write_joint_effort_limit_to_sim(
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if isinstance(limits, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                ],
+                outputs=[
+                    self.data._joint_vel_limits,
+                ],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    full_data,
+                ],
+                outputs=[
+                    self.data._joint_vel_limits,
+                ],
+                device=self.device,
+            )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
+
+    def write_joint_velocity_limit_to_sim_mask(
         self,
-        limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint max velocity over selected environment mask into the simulation.
+
+        The velocity limit is used to constrain the joint velocities in the physics engine. The joint will only
+        be able to reach this velocity if the joint's effort limit is sufficiently large. If the joint is moving
+        faster than this velocity, the physics engine will actually try to brake the joint to reach this velocity.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limits: Joint max velocity. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_velocity_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_effort_limit_to_sim_index(
+        self,
+        limits: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ):
-        """Write joint effort limits into the simulation.
+        """Write joint effort limits over selected environment indices into the simulation.
 
         The effort limit is used to constrain the computed joint efforts in the physics engine. If the
         computed effort exceeds this limit, the physics engine will clip the effort to this value.
 
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+            limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # Note This function isn't setting the values for actuator models. (#128)
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # move tensor to cpu if needed
-        if isinstance(limits, torch.Tensor):
-            limits = limits.to(self.device)
-        # set into internal buffers
-        self.data.joint_effort_limits[env_ids, joint_ids] = limits
-        # set into simulation
-        self.root_view.set_dof_max_forces(self.data.joint_effort_limits.cpu(), indices=physx_env_ids.cpu())
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if isinstance(limits, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                ],
+                outputs=[
+                    self.data._joint_effort_limits,
+                ],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    limits,
+                    env_ids,
+                    joint_ids,
+                    full_data,
+                ],
+                outputs=[
+                    self.data._joint_effort_limits,
+                ],
+                device=self.device,
+            )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
 
-    def write_joint_armature_to_sim(
+    def write_joint_effort_limit_to_sim_mask(
         self,
-        armature: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        limits: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ):
-        """Write joint armature into the simulation.
+        """Write joint effort limits over selected environment mask into the simulation.
+
+        The effort limit is used to constrain the computed joint efforts in the physics engine. If the
+        computed effort exceeds this limit, the physics engine will clip the effort to this value.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limits: Joint torque limits. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_effort_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_armature_to_sim_index(
+        self,
+        armature: torch.Tensor | wp.array | float,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint armature over selected environment indices into the simulation.
 
         The armature is directly added to the corresponding joint-space inertia. It helps improve the
         simulation stability by reducing the joint velocities.
 
-        Args:
-            armature: Joint armature. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
-            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
-        """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_armature[env_ids, joint_ids] = armature
-        # set into simulation
-        self.root_view.set_dof_armatures(self.data.joint_armature.cpu(), indices=physx_env_ids.cpu())
+        .. note::
+            This method expects partial data or full data.
 
-    def write_joint_friction_coefficient_to_sim(
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            armature: Joint armature. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if isinstance(armature, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    armature,
+                    env_ids,
+                    joint_ids,
+                ],
+                outputs=[
+                    self.data._joint_armature,
+                ],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[
+                    armature,
+                    env_ids,
+                    joint_ids,
+                    full_data,
+                ],
+                outputs=[
+                    self.data._joint_armature,
+                ],
+                device=self.device,
+            )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
+
+    def write_joint_armature_to_sim_mask(
         self,
-        joint_friction_coeff: torch.Tensor | float,
-        joint_dynamic_friction_coeff: torch.Tensor | float | None = None,
-        joint_viscous_friction_coeff: torch.Tensor | float | None = None,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
+        armature: torch.Tensor | wp.array | float,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ):
-        r"""Write joint friction coefficients into the simulation.
+        """Write joint armature over selected environment mask into the simulation.
+
+        The armature is directly added to the corresponding joint-space inertia. It helps improve the
+        simulation stability by reducing the joint velocities.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            armature: Joint armature. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_armature_to_sim_index(armature, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def write_joint_friction_coefficient_to_sim_index(
+        self,
+        joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        r"""Write joint friction coefficients over selected environment indices into the simulation.
 
         For Isaac Sim versions below 5.0, only the static friction coefficient is set.
         This limits the resisting force or torque up to a maximum proportional to the transmitted
@@ -920,625 +1610,1286 @@ class Articulation(BaseArticulation):
         - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
         - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
 
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
-                Shape is (len(env_ids), len(joint_ids)). Scalars are broadcast to all selections.
+                Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
             joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
                 Same shape as above. If None, the dynamic coefficient is not updated.
             joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
                 Same shape as above. If None, the viscous coefficient is not updated.
-            joint_ids: The joint indices to set the friction coefficients for. Defaults to None (all joints).
-            env_ids: The environment indices to set the friction coefficients for. Defaults to None (all environments).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_friction_coeff[env_ids, joint_ids] = joint_friction_coeff
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Get the friction properties from the simulation.
+        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
+        wp.launch(
+            articulation_kernels.write_joint_friction_data_to_buffer,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                joint_friction_coeff,
+                joint_dynamic_friction_coeff,
+                joint_viscous_friction_coeff,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_friction_coeff,
+                self.data._joint_dynamic_friction_coeff,
+                self.data._joint_viscous_friction_coeff,
+                friction_props,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
-        # if dynamic or viscous friction coeffs are provided, set them too
-        if joint_dynamic_friction_coeff is not None:
-            self.data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
-        if joint_viscous_friction_coeff is not None:
-            self.data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
+    def write_joint_friction_coefficient_to_sim_mask(
+        self,
+        joint_friction_coeff: torch.Tensor | wp.array,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | None = None,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ):
+        r"""Write joint friction coefficients over selected environment mask into the simulation.
 
-        # move the indices to cpu
-        physx_envs_ids_cpu = physx_env_ids.cpu()
+        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted
+        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        # set into simulation
-        if get_isaac_sim_version().major < 5:
-            self.root_view.set_dof_friction_coefficients(
-                self.data.joint_friction_coeff.cpu(), indices=physx_envs_ids_cpu
-            )
+        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
+        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
+
+        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
+        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
+        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
+                Shape is (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
+                Same shape as above. If None, the dynamic coefficient is not updated.
+            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
+                Same shape as above. If None, the viscous coefficient is not updated.
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
         else:
-            friction_props = self.root_view.get_dof_friction_properties()
-            friction_props[physx_envs_ids_cpu, :, 0] = self.data.joint_friction_coeff[physx_envs_ids_cpu, :].cpu()
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff,
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=True,
+        )
 
-            # only set dynamic and viscous friction if provided
-            if joint_dynamic_friction_coeff is not None:
-                friction_props[physx_envs_ids_cpu, :, 1] = self.data.joint_dynamic_friction_coeff[
-                    physx_envs_ids_cpu, :
-                ].cpu()
-
-            # only set viscous friction if provided
-            if joint_viscous_friction_coeff is not None:
-                friction_props[physx_envs_ids_cpu, :, 2] = self.data.joint_viscous_friction_coeff[
-                    physx_envs_ids_cpu, :
-                ].cpu()
-
-            self.root_view.set_dof_friction_properties(friction_props, indices=physx_envs_ids_cpu)
-
-    def write_joint_dynamic_friction_coefficient_to_sim(
+    def write_joint_dynamic_friction_coefficient_to_sim_index(
         self,
-        joint_dynamic_friction_coeff: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write joint dynamic friction coefficient into the simulation.
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Write joint dynamic friction coefficient over selected environment indices into the simulation.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the dynamic friction coefficient for. Defaults to None (all joints).
-            env_ids: The environment indices to set the dynamic friction coefficient for. Defaults to None
-                (all environments).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
-        if get_isaac_sim_version().major < 5:
-            logger.warning("Setting joint dynamic friction coefficients are not supported in Isaac Sim < 5.0")
-            return
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_dynamic_friction_coeff[env_ids, joint_ids] = joint_dynamic_friction_coeff
-        # set into simulation
-        friction_props = self.root_view.get_dof_friction_properties()
-        friction_props[physx_env_ids.cpu(), :, 1] = self.data.joint_dynamic_friction_coeff[physx_env_ids, :].cpu()
-        self.root_view.set_dof_friction_properties(friction_props, indices=physx_env_ids.cpu())
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Get the friction properties from the simulation.
+        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
+        wp.launch(
+            articulation_kernels.write_joint_friction_param_to_buffer,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                joint_dynamic_friction_coeff,
+                env_ids,
+                joint_ids,
+                1,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_dynamic_friction_coeff,
+                friction_props,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
 
-    def write_joint_viscous_friction_coefficient_to_sim(
+    def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
-        joint_viscous_friction_coeff: torch.Tensor | float,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write joint viscous friction coefficient into the simulation.
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint dynamic friction coefficient over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the viscous friction coefficient for. Defaults to None (all joints).
-            env_ids: The environment indices to set the viscous friction coefficient for. Defaults to None
-                (all environments).
+            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(
+            joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
+
+    def write_joint_viscous_friction_coefficient_to_sim_index(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Write joint viscous friction coefficient over selected environment indices into the simulation.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids))
+                or (num_instances, num_joints) if full_data.
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         if get_isaac_sim_version().major < 5:
             logger.warning("Setting joint viscous friction coefficients are not supported in Isaac Sim < 5.0")
             return
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.joint_viscous_friction_coeff[env_ids, joint_ids] = joint_viscous_friction_coeff
-        # set into simulation
-        friction_props = self.root_view.get_dof_friction_properties()
-        friction_props[physx_env_ids.cpu(), :, 2] = self.data.joint_viscous_friction_coeff[physx_env_ids, :].cpu()
-        self.root_view.set_dof_friction_properties(friction_props, indices=physx_env_ids.cpu())
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Get the friction properties from the simulation.
+        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
+        wp.launch(
+            articulation_kernels.write_joint_friction_param_to_buffer,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                joint_viscous_friction_coeff,
+                env_ids,
+                joint_ids,
+                2,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_viscous_friction_coeff,
+                friction_props,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+
+    def write_joint_viscous_friction_coefficient_to_sim_mask(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint viscous friction coefficient over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # resolve masks
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
 
     """
     Operations - Setters.
     """
 
-    def set_masses(
+    def set_masses_index(
         self,
-        masses: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set masses of all bodies in the simulation world frame.
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set masses of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or (num_instances, num_bodies)
+                if full_data.
+            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                masses,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_mass,
+            ],
+            device=self.device,
+        )
+
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
+
+    def set_masses_mask(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set masses of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.body_mass[env_ids, body_ids] = masses
-        # set into simulation
-        self.root_view.set_masses(self.data.body_mass.cpu(), indices=physx_env_ids.cpu())
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = wp.nonzero(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
-    def set_coms(
+    def set_coms_index(
         self,
-        coms: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set center of mass pose of all bodies in the simulation world frame.
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set center of mass pose of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
+                (num_instances, num_bodies, 7) if full_data.
+            body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_body_com_pose_to_buffer,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                coms,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_com_pose_b.data,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        # Convert from wp.transformf to flat (N, M, 7) array for PhysX
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        body_com_flat = (
+            wp.clone(self.data._body_com_pose_b.data, device="cpu")
+            .view(wp.float32)
+            .reshape((self.num_instances, self.num_bodies, 7))
+        )
+        self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
+
+    def set_coms_mask(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set center of mass pose of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
-            body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.body_com_pose_b[env_ids, body_ids] = coms
-        # set into simulation
-        self.root_view.set_coms(self.data.body_com_pose_b.cpu(), indices=physx_env_ids.cpu())
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = wp.nonzero(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
-    def set_inertias(
+    def set_inertias_index(
         self,
-        inertias: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set inertias of all bodies in the simulation world frame.
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set inertias of all bodies using indices.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
+                (num_instances, num_bodies, 9) if full_data.
+            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
+            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        body_ids = self._resolve_body_ids(body_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_body_inertia_to_buffer,
+            dim=(env_ids.shape[0], body_ids.shape[0]),
+            inputs=[
+                inertias,
+                env_ids,
+                body_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._body_inertia,
+            ],
+            device=self.device,
+        )
+        # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
+        cpu_env_ids = wp.clone(env_ids, device="cpu")
+        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+
+    def set_inertias_mask(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set inertias of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
-        # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            env_ids = slice(None)
-            physx_env_ids = self._ALL_INDICES
-        if body_ids is None:
-            body_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if isinstance(physx_env_ids, list):
-            physx_env_ids = torch.tensor(physx_env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and body_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set into internal buffers
-        self.data.body_inertia[env_ids, body_ids] = inertias
-        # set into simulation
-        self.root_view.set_inertias(self.data.body_inertia.cpu(), indices=physx_env_ids.cpu())
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if body_mask is not None:
+            body_ids = wp.nonzero(body_mask)
+        else:
+            body_ids = self._ALL_BODY_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
-    def set_external_force_and_torque(
+    def set_joint_position_target_index(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        is_global: bool = False,
-    ):
-        """Set external force and torque to apply on the asset's bodies in their local frame.
+        target: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set joint position targets into internal buffers using indices.
 
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
-        external wrench at (in the local link frame of the bodies).
-
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-            .. code-block:: python
-
-                # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
-
-        .. caution::
-            If the function is called consecutively with and with different values for ``is_global``, then the
-            all the external wrenches will be applied in the frame specified by the last call.
-
-            .. code-block:: python
-
-                # example of setting external wrench in the global frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
-                # example of setting external wrench in the link frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
-                # Both environments will have the external wrenches applied in the link frame
+        This function does not apply the joint targets to the simulation. It only fills the buffers with
+        the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: Positions to apply external wrench. Shape is (len(env_ids), len(body_ids), 3). Defaults to None.
-            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
-            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the articulations' bodies.
+            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
         """
-        logger.warning(
-            "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
-            " use 'permanent_wrench_composer.set_forces_and_torques' instead."
-        )
-        if forces is None and torques is None:
-            logger.warning("No forces or torques provided. No permanent external wrench will be applied.")
-
         # resolve all indices
-        # -- env_ids
-        if env_ids is None:
-            env_ids = self._ALL_INDICES_WP
-        elif not isinstance(env_ids, torch.Tensor):
-            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
-        else:
-            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        # -- body_ids
-        if body_ids is None:
-            body_ids = self._ALL_BODY_INDICES_WP
-        elif isinstance(body_ids, slice):
-            body_ids = wp.from_torch(
-                torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
-            )
-        elif not isinstance(body_ids, torch.Tensor):
-            body_ids = wp.array(body_ids, dtype=wp.int32, device=self.device)
-        else:
-            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-
-        # Write to wrench composer
-        self._permanent_wrench_composer.set_forces_and_torques(
-            forces=wp.from_torch(forces, dtype=wp.vec3f) if forces is not None else None,
-            torques=wp.from_torch(torques, dtype=wp.vec3f) if torques is not None else None,
-            positions=wp.from_torch(positions, dtype=wp.vec3f) if positions is not None else None,
-            body_ids=body_ids,
-            env_ids=env_ids,
-            is_global=is_global,
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_pos_target,
+            ],
+            device=self.device,
         )
+        # Only updates internal buffers, does not apply the targets to the simulation.
 
-    def set_joint_position_target(
+    def set_joint_position_target_mask(
         self,
-        target: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set joint position targets into internal buffers.
+        target: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint position targets into internal buffers using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            target: Joint position targets. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_joint_position_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def set_joint_velocity_target_index(
+        self,
+        target: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set joint velocity targets into internal buffers using indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set targets
-        self.data.joint_pos_target[env_ids, joint_ids] = target
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_vel_target,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the targets to the simulation.
 
-    def set_joint_velocity_target(
+    def set_joint_velocity_target_mask(
         self,
-        target: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set joint velocity targets into internal buffers.
+        target: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint velocity targets into internal buffers using masks.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            target: Joint velocity targets. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_joint_velocity_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+
+    def set_joint_effort_target_index(
+        self,
+        target: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set joint efforts into internal buffers using indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
+                if full_data.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set targets
-        self.data.joint_vel_target[env_ids, joint_ids] = target
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                target,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_effort_target,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the targets to the simulation.
 
-    def set_joint_effort_target(
+    def set_joint_effort_target_mask(
         self,
-        target: torch.Tensor,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set joint efforts into internal buffers.
+        target: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set joint efforts into internal buffers using masks.
 
-        This function does not apply the joint targets to the simulation. It only fills the buffers with
-        the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
-            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
-            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
+            target: Joint effort targets. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
-        # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if joint_ids is None:
-            joint_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        # broadcast env_ids if needed to allow double indexing
-        if env_ids != slice(None) and joint_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set targets
-        self.data.joint_effort_target[env_ids, joint_ids] = target
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if joint_mask is not None:
+            joint_ids = wp.nonzero(joint_mask)
+        else:
+            joint_ids = self._ALL_JOINT_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_joint_effort_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     """
     Operations - Tendons.
     """
 
-    def set_fixed_tendon_stiffness(
+    def set_fixed_tendon_stiffness_index(
         self,
-        stiffness: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon stiffness into internal buffers.
+        stiffness: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon stiffness into internal buffers using indices.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
         the desired values. To apply the tendon stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim` method.
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set stiffness
-        self.data.fixed_tendon_stiffness[env_ids, fixed_tendon_ids] = stiffness
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                stiffness,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_stiffness,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the stiffness to the simulation.
 
-    def set_fixed_tendon_damping(
+    def set_fixed_tendon_stiffness_mask(
         self,
-        damping: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon damping into internal buffers.
+        stiffness: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon stiffness into internal buffers using masks.
+
+        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_stiffness_index(
+            stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_fixed_tendon_damping_index(
+        self,
+        damping: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon damping into internal buffers using indices.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim_index`
+        function.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set damping
-        self.data.fixed_tendon_damping[env_ids, fixed_tendon_ids] = damping
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                damping,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_damping,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the damping to the simulation.
 
-    def set_fixed_tendon_limit_stiffness(
+    def set_fixed_tendon_damping_mask(
         self,
-        limit_stiffness: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon limit stiffness efforts into internal buffers.
+        damping: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon damping into internal buffers using masks.
+
+        This function does not apply the tendon damping to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon damping, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_damping_index(damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+
+    def set_fixed_tendon_limit_stiffness_index(
+        self,
+        limit_stiffness: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon limit stiffness into internal buffers using indices.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
         the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim` method.
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit_stiffness
-        self.data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                limit_stiffness,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_limit_stiffness,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the limit stiffness to the simulation.
 
-    def set_fixed_tendon_position_limit(
+    def set_fixed_tendon_limit_stiffness_mask(
         self,
-        limit: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon limit efforts into internal buffers.
+        limit_stiffness: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon limit stiffness into internal buffers using masks.
 
-        This function does not apply the tendon limit to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
 
-         Args:
-             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
-             fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
-             env_ids: The environment indices to set the limit for. Defaults to None (all environments).
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_limit_stiffness_index(
+            limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_fixed_tendon_position_limit_index(
+        self,
+        limit: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon position limit into internal buffers using indices.
+
+        This function does not apply the tendon position limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon position limit, call the
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
+            fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit
-        self.data.fixed_tendon_pos_limits[env_ids, fixed_tendon_ids] = limit
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                limit,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_pos_limits,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the position limit to the simulation.
 
-    def set_fixed_tendon_rest_length(
+    def set_fixed_tendon_position_limit_mask(
         self,
-        rest_length: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon rest length efforts into internal buffers.
+        limit: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon position limit into internal buffers using masks.
+
+        This function does not apply the tendon position limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon position limit, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_position_limit_index(
+            limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_fixed_tendon_rest_length_index(
+        self,
+        rest_length: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon rest length into internal buffers using indices.
 
         This function does not apply the tendon rest length to the simulation. It only fills the buffers with
         the desired values. To apply the tendon rest length, call the
-        :meth:`write_fixed_tendon_properties_to_sim` method.
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the rest length for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set rest_length
-        self.data.fixed_tendon_rest_length[env_ids, fixed_tendon_ids] = rest_length
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                rest_length,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_rest_length,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the rest length to the simulation.
 
-    def set_fixed_tendon_offset(
+    def set_fixed_tendon_rest_length_mask(
         self,
-        offset: torch.Tensor,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set fixed tendon offset efforts into internal buffers.
+        rest_length: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon rest length into internal buffers using masks.
+
+        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon rest length, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_rest_length_index(
+            rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_fixed_tendon_offset_index(
+        self,
+        offset: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set fixed tendon offset into internal buffers using indices.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+        the desired values. To apply the tendon offset, call the
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the offset for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set offset
-        self.data.fixed_tendon_offset[env_ids, fixed_tendon_ids] = offset
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
+            inputs=[
+                offset,
+                env_ids,
+                fixed_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._fixed_tendon_offset,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the offset to the simulation.
 
-    def write_fixed_tendon_properties_to_sim(
+    def set_fixed_tendon_offset_mask(
         self,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write fixed tendon properties into the simulation.
+        offset: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set fixed tendon offset into internal buffers using masks.
+
+        This function does not apply the tendon offset to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon offset, call the
+        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            fixed_tendon_ids: The fixed tendon indices to set the limits for. Defaults to None (all fixed tendons).
-            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+            offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if fixed_tendon_mask is not None:
+            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
+        else:
+            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_fixed_tendon_offset_index(offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+
+    def write_fixed_tendon_properties_to_sim_index(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write fixed tendon properties into the simulation using indices.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None
+                (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            physx_env_ids = self._ALL_INDICES
-        if fixed_tendon_ids is None:
-            fixed_tendon_ids = slice(None)
-
-        # set into simulation
+        env_ids = self._resolve_env_ids(env_ids)
+        # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
             self.data.fixed_tendon_stiffness,
             self.data.fixed_tendon_damping,
@@ -1546,160 +2897,419 @@ class Articulation(BaseArticulation):
             self.data.fixed_tendon_pos_limits,
             self.data.fixed_tendon_rest_length,
             self.data.fixed_tendon_offset,
-            indices=physx_env_ids,
+            indices=env_ids,
         )
 
-    def set_spatial_tendon_stiffness(
+    def write_fixed_tendon_properties_to_sim_mask(
         self,
-        stiffness: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set spatial tendon stiffness into internal buffers.
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write fixed tendon properties into the simulation using masks.
+
+        .. tip::
+            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
+
+    def set_spatial_tendon_stiffness_index(
+        self,
+        stiffness: torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set spatial tendon stiffness into internal buffers using indices.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
         the desired values. To apply the tendon stiffness, call the
-        :meth:`write_spatial_tendon_properties_to_sim` method.
+        :meth:`write_spatial_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set stiffness
-        self.data.spatial_tendon_stiffness[env_ids, spatial_tendon_ids] = stiffness
+        env_ids = self._resolve_env_ids(env_ids)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
+            inputs=[
+                stiffness,
+                env_ids,
+                spatial_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._spatial_tendon_stiffness,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the stiffness to the simulation.
 
-    def set_spatial_tendon_damping(
+    def set_spatial_tendon_stiffness_mask(
         self,
-        damping: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set spatial tendon damping into internal buffers.
+        stiffness: torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set spatial tendon stiffness into internal buffers using masks.
+
+        This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if spatial_tendon_mask is not None:
+            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
+        else:
+            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_spatial_tendon_stiffness_index(
+            stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_spatial_tendon_damping_index(
+        self,
+        damping: torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set spatial tendon damping into internal buffers using indices.
 
         This function does not apply the tendon damping to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon damping, call the :meth:`write_spatial_tendon_properties_to_sim`
-        function.
+        the desired values. To apply the tendon damping, call the
+        :meth:`write_spatial_tendon_properties_to_sim_index` method.
 
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
-                (num_instances, num_spatial_tendons).
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set damping
-        self.data.spatial_tendon_damping[env_ids, spatial_tendon_ids] = damping
+        env_ids = self._resolve_env_ids(env_ids)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
+            inputs=[
+                damping,
+                env_ids,
+                spatial_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._spatial_tendon_damping,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the damping to the simulation.
 
-    def set_spatial_tendon_limit_stiffness(
+    def set_spatial_tendon_damping_mask(
         self,
-        limit_stiffness: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set spatial tendon limit stiffness into internal buffers.
+        damping: torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set spatial tendon damping into internal buffers using masks.
+
+        This function does not apply the tendon damping to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon damping, call the
+        :meth:`write_spatial_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if spatial_tendon_mask is not None:
+            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
+        else:
+            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_spatial_tendon_damping_index(
+            damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_spatial_tendon_limit_stiffness_index(
+        self,
+        limit_stiffness: torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set spatial tendon limit stiffness into internal buffers using indices.
 
         This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
         the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_spatial_tendon_properties_to_sim` method.
+        :meth:`write_spatial_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
-            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None,
-                which means all spatial tendons.
-            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
+            spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None
+                (all spatial tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set limit stiffness
-        self.data.spatial_tendon_limit_stiffness[env_ids, spatial_tendon_ids] = limit_stiffness
+        env_ids = self._resolve_env_ids(env_ids)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
+            inputs=[
+                limit_stiffness,
+                env_ids,
+                spatial_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._spatial_tendon_limit_stiffness,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the limit stiffness to the simulation.
 
-    def set_spatial_tendon_offset(
+    def set_spatial_tendon_limit_stiffness_mask(
         self,
-        offset: torch.Tensor,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Set spatial tendon offset efforts into internal buffers.
+        limit_stiffness: torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set spatial tendon limit stiffness into internal buffers using masks.
+
+        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon limit stiffness, call the
+        :meth:`write_spatial_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if spatial_tendon_mask is not None:
+            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
+        else:
+            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_spatial_tendon_limit_stiffness_index(
+            limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def set_spatial_tendon_offset_index(
+        self,
+        offset: torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Set spatial tendon offset into internal buffers using indices.
 
         This function does not apply the tendon offset to the simulation. It only fills the buffers with
         the desired values. To apply the tendon offset, call the
-        :meth:`write_spatial_tendon_properties_to_sim` method.
+        :meth:`write_spatial_tendon_properties_to_sim_index` method.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
+            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or
+                (num_instances, num_spatial_tendons) if full_data.
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
-            env_ids: The environment indices to set the offset for. Defaults to None (all environments).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        if env_ids is None:
-            env_ids = slice(None)
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-        # convert lists to tensors for proper indexing
-        if isinstance(env_ids, list):
-            env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
-        if env_ids != slice(None) and spatial_tendon_ids != slice(None):
-            env_ids = env_ids[:, None]
-        # set offset
-        self.data.spatial_tendon_offset[env_ids, spatial_tendon_ids] = offset
+        env_ids = self._resolve_env_ids(env_ids)
+        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
+        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
+            inputs=[
+                offset,
+                env_ids,
+                spatial_tendon_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data._spatial_tendon_offset,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the offset to the simulation.
 
-    def write_spatial_tendon_properties_to_sim(
+    def set_spatial_tendon_offset_mask(
         self,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        """Write spatial tendon properties into the simulation.
+        offset: torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Set spatial tendon offset into internal buffers using masks.
+
+        This function does not apply the tendon offset to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon offset, call the
+        :meth:`write_spatial_tendon_properties_to_sim_mask` method.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            spatial_tendon_ids: The spatial tendon indices to set the properties for. Defaults to None,
-                which means all spatial tendons.
-            env_ids: The environment indices to set the properties for. Defaults to None,
-                which means all environments.
+            offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        if spatial_tendon_mask is not None:
+            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
+        else:
+            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
+        # Set full data to True to ensure the right code path is taken inside the kernel.
+        self.set_spatial_tendon_offset_index(
+            offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+        )
+
+    def write_spatial_tendon_properties_to_sim_index(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write spatial tendon properties into the simulation using indices.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
-        physx_env_ids = env_ids
-        if env_ids is None:
-            physx_env_ids = self._ALL_INDICES
-        if spatial_tendon_ids is None:
-            spatial_tendon_ids = slice(None)
-
-        # set into simulation
+        if (env_ids is None) or (env_ids == slice(None)):
+            env_ids = self._ALL_INDICES
+        elif isinstance(env_ids, list):
+            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
             self.data.spatial_tendon_stiffness,
             self.data.spatial_tendon_damping,
             self.data.spatial_tendon_limit_stiffness,
             self.data.spatial_tendon_offset,
-            indices=physx_env_ids,
+            indices=env_ids,
         )
+
+    def write_spatial_tendon_properties_to_sim_mask(
+        self,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write spatial tendon properties into the simulation using masks.
+
+        .. tip::
+            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+            env_mask: Environment mask. If None, then all indices are used.
+        """
+        # Resolve masks.
+        if env_mask is not None:
+            env_ids = wp.nonzero(env_mask)
+        else:
+            env_ids = self._ALL_INDICES
+        # Write spatial tendon properties to the simulation.
+        self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
 
     """
     Internal helper.
@@ -1780,10 +3390,13 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _create_buffers(self):
-        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
-        self._ALL_INDICES_WP = wp.from_torch(self._ALL_INDICES.to(torch.int32), dtype=wp.int32)
-        self._ALL_BODY_INDICES_WP = wp.from_torch(self._ALL_BODY_INDICES.to(torch.int32), dtype=wp.int32)
+        self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
+        self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
+        self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
+        self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
+        self._ALL_SPATIAL_TENDON_INDICES = wp.array(
+            np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
+        )
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1795,39 +3408,63 @@ class Articulation(BaseArticulation):
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = torch.zeros_like(self.data.joint_pos_target)
-        self._joint_vel_target_sim = torch.zeros_like(self.data.joint_pos_target)
-        self._joint_effort_target_sim = torch.zeros_like(self.data.joint_pos_target)
+        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
-        joint_pos_mean = (self.data.joint_pos_limits[..., 0] + self.data.joint_pos_limits[..., 1]) / 2
-        joint_pos_range = self.data.joint_pos_limits[..., 1] - self.data.joint_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.soft_joint_pos_limit_factor
-        # add to data
-        self.data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
-        self.data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
+        wp.launch(
+            articulation_kernels.update_soft_joint_pos_limits,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self.data.joint_pos_limits,
+                self.cfg.soft_joint_pos_limit_factor,
+            ],
+            outputs=[
+                self.data.soft_joint_pos_limits,
+            ],
+            device=self.device,
+        )
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
         # -- root state
         # Note we cast to tuple to avoid torch/numpy type mismatch.
-        default_root_state = (
-            tuple(self.cfg.init_state.pos)
-            + tuple(self.cfg.init_state.rot)
-            + tuple(self.cfg.init_state.lin_vel)
-            + tuple(self.cfg.init_state.ang_vel)
-        )
-        default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self.data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+        default_root_pose = tuple(self.cfg.init_state.pos) + tuple(self.cfg.init_state.rot)
+        default_root_vel = tuple(self.cfg.init_state.lin_vel) + tuple(self.cfg.init_state.ang_vel)
+        default_root_pose = np.tile(np.array(default_root_pose, dtype=np.float32), (self.num_instances, 1))
+        default_root_vel = np.tile(np.array(default_root_vel, dtype=np.float32), (self.num_instances, 1))
+        self.data.default_root_pose = wp.array(default_root_pose, dtype=wp.transformf, device=self.device)
+        self.data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
 
         # -- joint state
-        # joint pos
-        indices_list, _, values_list = resolve_matching_names_values(self.cfg.init_state.joint_pos, self.joint_names)
-        self.data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
-        # joint vel
-        indices_list, _, values_list = resolve_matching_names_values(self.cfg.init_state.joint_vel, self.joint_names)
-        self.data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
+        pos_idx_list, _, pos_val_list = resolve_matching_names_values(self.cfg.init_state.joint_pos, self.joint_names)
+        vel_idx_list, _, vel_val_list = resolve_matching_names_values(self.cfg.init_state.joint_vel, self.joint_names)
+        wp.launch(
+            articulation_kernels.update_default_joint_values,
+            dim=(self.num_instances, len(pos_idx_list)),
+            inputs=[
+                wp.array(pos_val_list, dtype=wp.float32, device=self.device),
+                wp.array(pos_idx_list, dtype=wp.int32, device=self.device),
+            ],
+            outputs=[
+                self.data.default_joint_pos,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            articulation_kernels.update_default_joint_values,
+            dim=(self.num_instances, len(vel_idx_list)),
+            inputs=[
+                wp.array(vel_val_list, dtype=wp.float32, device=self.device),
+                wp.array(vel_idx_list, dtype=wp.int32, device=self.device),
+            ],
+            outputs=[
+                self.data.default_joint_vel,
+            ],
+            device=self.device,
+        )
 
     """
     Internal simulation callbacks.
@@ -1868,7 +3505,7 @@ class Articulation(BaseArticulation):
             if len(joint_names) == self.num_joints:
                 joint_ids = slice(None)
             else:
-                joint_ids = torch.tensor(joint_ids, device=self.device)
+                joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(
@@ -1877,14 +3514,14 @@ class Articulation(BaseArticulation):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=self._data.joint_stiffness[:, joint_ids],
-                damping=self._data.joint_damping[:, joint_ids],
-                armature=self._data.joint_armature[:, joint_ids],
-                friction=self._data.joint_friction_coeff[:, joint_ids],
-                dynamic_friction=self._data.joint_dynamic_friction_coeff[:, joint_ids],
-                viscous_friction=self._data.joint_viscous_friction_coeff[:, joint_ids],
-                effort_limit=self._data.joint_effort_limits[:, joint_ids].clone(),
-                velocity_limit=self._data.joint_vel_limits[:, joint_ids],
+                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
+                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
+                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
+                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
+                dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
+                viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
+                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
+                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
             )
             # log information on actuator groups
             model_type = "implicit" if actuator.is_implicit_model else "explicit"
@@ -1898,36 +3535,115 @@ class Articulation(BaseArticulation):
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
-            if get_isaac_sim_version().major >= 5:
-                self.write_joint_dynamic_friction_coefficient_to_sim(
-                    actuator.dynamic_friction, joint_ids=actuator.joint_indices
-                )
-                self.write_joint_viscous_friction_coefficient_to_sim(
-                    actuator.viscous_friction, joint_ids=actuator.joint_indices
-                )
+            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_dynamic_friction_coefficient_to_sim_index(
+                actuator.dynamic_friction, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                actuator.viscous_friction, joint_ids=actuator.joint_indices
+            )
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            self._data.joint_stiffness[:, actuator.joint_indices] = actuator.stiffness
-            self._data.joint_damping[:, actuator.joint_indices] = actuator.damping
-            self._data.joint_armature[:, actuator.joint_indices] = actuator.armature
-            self._data.joint_friction_coeff[:, actuator.joint_indices] = actuator.friction
-            if get_isaac_sim_version().major >= 5:
-                self._data.joint_dynamic_friction_coeff[:, actuator.joint_indices] = actuator.dynamic_friction
-                self._data.joint_viscous_friction_coeff[:, actuator.joint_indices] = actuator.viscous_friction
+            joint_ids = actuator.joint_indices
+            if joint_ids == slice(None):
+                joint_ids = self._ALL_JOINT_INDICES
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.stiffness,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_stiffness,
+                ],
+                device=self.device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.damping,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_damping,
+                ],
+                device=self.device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.armature,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_armature,
+                ],
+                device=self.device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.friction,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_friction_coeff,
+                ],
+                device=self.device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.dynamic_friction,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_dynamic_friction_coeff,
+                ],
+                device=self.device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(self.num_instances, joint_ids.shape[0]),
+                inputs=[
+                    actuator.viscous_friction,
+                    self._ALL_INDICES,
+                    joint_ids,
+                    False,
+                ],
+                outputs=[
+                    self.data._joint_viscous_friction_coeff,
+                ],
+                device=self.device,
+            )
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -1988,33 +3704,60 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=self._data.joint_pos_target[:, actuator.joint_indices],
-                joint_velocities=self._data.joint_vel_target[:, actuator.joint_indices],
-                joint_efforts=self._data.joint_effort_target[:, actuator.joint_indices],
+                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
+                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
+                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=self._data.joint_pos[:, actuator.joint_indices],
-                joint_vel=self._data.joint_vel[:, actuator.joint_indices],
+                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
+                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
-            if control_action.joint_positions is not None:
-                self._joint_pos_target_sim[:, actuator.joint_indices] = control_action.joint_positions
-            if control_action.joint_velocities is not None:
-                self._joint_vel_target_sim[:, actuator.joint_indices] = control_action.joint_velocities
-            if control_action.joint_efforts is not None:
-                self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
-            # update state of the actuator model
-            # -- torques
-            self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
-            self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
-            # -- actuator data
-            self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
-            # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
+            joint_indices = actuator.joint_indices
+            if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
+                joint_indices = self._ALL_JOINT_INDICES
             if hasattr(actuator, "gear_ratio"):
-                self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+                gear_ratio = actuator.gear_ratio
+            else:
+                gear_ratio = None
+            wp.launch(
+                articulation_kernels.update_targets,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=[
+                    control_action.joint_positions,
+                    control_action.joint_velocities,
+                    control_action.joint_efforts,
+                    joint_indices,
+                ],
+                outputs=[
+                    self._joint_pos_target_sim,
+                    self._joint_vel_target_sim,
+                    self._joint_effort_target_sim,
+                ],
+                device=self.device,
+            )
+            # update state of the actuator model
+            wp.launch(
+                articulation_kernels.update_actuator_state_model,
+                dim=(self.num_instances, joint_indices.shape[0]),
+                inputs=[
+                    actuator.computed_effort,
+                    actuator.applied_effort,
+                    gear_ratio,
+                    actuator.velocity_limit,
+                    joint_indices,
+                ],
+                outputs=[
+                    self._data.computed_torque,
+                    self._data.applied_torque,
+                    self._data.gear_ratio,
+                    self._data.soft_joint_vel_limits,
+                ],
+                device=self.device,
+            )
 
     """
     Internal helpers -- Debugging.
@@ -2029,9 +3772,9 @@ class Articulation(BaseArticulation):
             For instance, the actuator models may change the joint max velocity limits.
         """
         # check that the default values are within the limits
-        joint_pos_limits = self.root_view.get_dof_limits()[0].to(self.device)
-        out_of_range = self._data.default_joint_pos[0] < joint_pos_limits[:, 0]
-        out_of_range |= self._data.default_joint_pos[0] > joint_pos_limits[:, 1]
+        joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
+        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
+        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -2040,14 +3783,14 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = joint_pos_limits[idx]
-                joint_pos = self.data.default_joint_pos[0, idx]
+                joint_pos = wp.to_torch(self._data.default_joint_pos)[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = self.root_view.get_dof_max_velocities()[0].to(self.device)
-        out_of_range = torch.abs(self._data.default_joint_vel[0]) > joint_max_vel
+        joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
+        out_of_range = torch.abs(wp.to_torch(self._data.default_joint_vel)[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -2055,7 +3798,7 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = self.data.default_joint_vel[0, idx]
+                joint_vel = wp.to_torch(self._data.default_joint_vel)[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
@@ -2084,30 +3827,31 @@ class Articulation(BaseArticulation):
 
         # read out all joint parameters from simulation
         # -- gains
-        stiffnesses = self.root_view.get_dof_stiffnesses()[0].tolist()
-        dampings = self.root_view.get_dof_dampings()[0].tolist()
+        # Use data properties which have already been cloned and stored during initialization
+        # This avoids issues with indexedarray or empty arrays from root_view
+        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
+        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
         # -- properties
-        armatures = self.root_view.get_dof_armatures()[0].tolist()
-        if get_isaac_sim_version().major < 5:
-            static_frictions = self.root_view.get_dof_friction_coefficients()[0].tolist()
-        else:
-            friction_props = self.root_view.get_dof_friction_properties()
-            static_frictions = friction_props[:, :, 0][0].tolist()
-            dynamic_frictions = friction_props[:, :, 1][0].tolist()
-            viscous_frictions = friction_props[:, :, 2][0].tolist()
+        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        # For friction, use the individual components from data
+        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
+        dynamic_friction_coeff = wp.to_torch(self.data.joint_dynamic_friction_coeff)[0].cpu()
+        viscous_friction_coeff = wp.to_torch(self.data.joint_viscous_friction_coeff)[0].cpu()
+        static_frictions = friction_coeff.tolist()
+        dynamic_frictions = dynamic_friction_coeff.tolist()
+        viscous_frictions = viscous_friction_coeff.tolist()
         # -- limits
-        position_limits = self.root_view.get_dof_limits()[0].tolist()
-        velocity_limits = self.root_view.get_dof_max_velocities()[0].tolist()
-        effort_limits = self.root_view.get_dof_max_forces()[0].tolist()
+        # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
+        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
+        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
+        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
         # build field names based on Isaac Sim version
         field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
-        if get_isaac_sim_version().major < 5:
-            field_names.append("Static Friction")
-        else:
-            field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
+        field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
         field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
         joint_table.field_names = field_names
 
@@ -2116,9 +3860,8 @@ class Articulation(BaseArticulation):
         joint_table.custom_format["Damping"] = format_large_number
         joint_table.custom_format["Armature"] = format_large_number
         joint_table.custom_format["Static Friction"] = format_large_number
-        if get_isaac_sim_version().major >= 5:
-            joint_table.custom_format["Dynamic Friction"] = format_large_number
-            joint_table.custom_format["Viscous Friction"] = format_large_number
+        joint_table.custom_format["Dynamic Friction"] = format_large_number
+        joint_table.custom_format["Viscous Friction"] = format_large_number
         joint_table.custom_format["Position Limits"] = format_limits
         joint_table.custom_format["Velocity Limits"] = format_large_number
         joint_table.custom_format["Effort Limits"] = format_large_number
@@ -2142,13 +3885,16 @@ class Articulation(BaseArticulation):
         # read out all fixed tendon parameters from simulation
         if self.num_fixed_tendons > 0:
             # -- gains
-            ft_stiffnesses = self.root_view.get_fixed_tendon_stiffnesses()[0].tolist()
-            ft_dampings = self.root_view.get_fixed_tendon_dampings()[0].tolist()
+            # Use data properties which have already been cloned and stored during initialization
+            ft_stiffnesses = wp.to_torch(self.data.fixed_tendon_stiffness)[0].cpu().tolist()
+            ft_dampings = wp.to_torch(self.data.fixed_tendon_damping)[0].cpu().tolist()
             # -- limits
-            ft_limit_stiffnesses = self.root_view.get_fixed_tendon_limit_stiffnesses()[0].tolist()
-            ft_limits = self.root_view.get_fixed_tendon_limits()[0].tolist()
-            ft_rest_lengths = self.root_view.get_fixed_tendon_rest_lengths()[0].tolist()
-            ft_offsets = self.root_view.get_fixed_tendon_offsets()[0].tolist()
+            ft_limit_stiffnesses = wp.to_torch(self.data.fixed_tendon_limit_stiffness)[0].cpu().tolist()
+            # fixed_tendon_pos_limits is vec2f array
+            ft_limits_torch = wp.to_torch(self.data.fixed_tendon_pos_limits)[0].cpu()
+            ft_limits = [tuple(limit.tolist()) for limit in ft_limits_torch]
+            ft_rest_lengths = wp.to_torch(self.data.fixed_tendon_rest_length)[0].cpu().tolist()
+            ft_offsets = wp.to_torch(self.data.fixed_tendon_offset)[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -2191,11 +3937,12 @@ class Articulation(BaseArticulation):
 
         if self.num_spatial_tendons > 0:
             # -- gains
-            st_stiffnesses = self.root_view.get_spatial_tendon_stiffnesses()[0].tolist()
-            st_dampings = self.root_view.get_spatial_tendon_dampings()[0].tolist()
+            # Use data properties which have already been cloned and stored during initialization
+            st_stiffnesses = wp.to_torch(self.data.spatial_tendon_stiffness)[0].cpu().tolist()
+            st_dampings = wp.to_torch(self.data.spatial_tendon_damping)[0].cpu().tolist()
             # -- limits
-            st_limit_stiffnesses = self.root_view.get_spatial_tendon_limit_stiffnesses()[0].tolist()
-            st_offsets = self.root_view.get_spatial_tendon_offsets()[0].tolist()
+            st_limit_stiffnesses = wp.to_torch(self.data.spatial_tendon_limit_stiffness)[0].cpu().tolist()
+            st_offsets = wp.to_torch(self.data.spatial_tendon_offset)[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -2223,6 +3970,96 @@ class Articulation(BaseArticulation):
                 f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
             )
 
+    def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
+        """Resolve environment indices to a warp array.
+
+        .. note::
+            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
+            return self._ALL_INDICES
+        if isinstance(env_ids, torch.Tensor):
+            # Convert int64 to int32 if needed, as warp expects int32
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
+        return env_ids
+
+    def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve joint indices to a warp array or tensor.
+
+        .. note::
+            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+
+        Args:
+            joint_ids: Joint indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of joint indices or a tensor of joint indices.
+        """
+        if isinstance(joint_ids, list):
+            return wp.array(joint_ids, dtype=wp.int32, device=self.device)
+        if (joint_ids is None) or (joint_ids == slice(None)):
+            return self._ALL_JOINT_INDICES
+        return joint_ids
+
+    def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve body indices to a warp array or tensor.
+
+        Args:
+            body_ids: Body indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of body indices or a tensor of body indices.
+        """
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self.device)
+        if (body_ids is None) or (body_ids == slice(None)):
+            return self._ALL_BODY_INDICES
+        return body_ids
+
+    def _resolve_fixed_tendon_ids(
+        self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+    ) -> wp.array | torch.Tensor:
+        """Resolve tendon indices to a warp array or tensor.
+
+        Args:
+            tendon_ids: Tendon indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of tendon indices or a tensor of tendon indices.
+        """
+        if isinstance(tendon_ids, list):
+            return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
+        if (tendon_ids is None) or (tendon_ids == slice(None)):
+            return self._ALL_FIXED_TENDON_INDICES
+        return tendon_ids
+
+    def _resolve_spatial_tendon_ids(
+        self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
+    ) -> wp.array | torch.Tensor:
+        """Resolve spatial tendon indices to a warp array or tensor.
+
+        Args:
+            spatial_tendon_ids: Spatial tendon indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of spatial tendon indices or a tensor of spatial tendon indices.
+        """
+        if isinstance(spatial_tendon_ids, list):
+            return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
+        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
+            return self._ALL_SPATIAL_TENDON_INDICES
+        return spatial_tendon_ids
+
     """
     Deprecated methods.
     """
@@ -2236,3 +4073,112 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         return self.root_view
+
+    def write_joint_friction_coefficient_to_sim(
+        self,
+        joint_friction_coeff: torch.Tensor | wp.array | float,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff,
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=full_data,
+        )
+
+    def write_joint_viscous_friction_coefficient_to_sim(
+        self,
+        joint_viscous_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`write_joint_viscous_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_viscous_friction_coefficient_to_sim' will be deprecated in a future release. "
+            "Please use 'write_joint_viscous_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
+
+    def write_joint_dynamic_friction_coefficient_to_sim(
+        self,
+        joint_dynamic_friction_coeff: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`write_joint_dynamic_friction_coefficient_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release. "
+            "Please use 'write_joint_dynamic_friction_coefficient_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(
+            joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
+
+    def write_root_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_com_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+
+    def write_root_link_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)

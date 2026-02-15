@@ -13,72 +13,48 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.assets import BaseRigidObject
+from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 
-class MockAssetData:
-    """Mock data class that provides body link positions and quaternions."""
+def create_mock_asset(
+    num_envs: int,
+    num_bodies: int,
+    device: str,
+    link_pos: torch.Tensor | None = None,
+    link_quat: torch.Tensor | None = None,
+) -> MockRigidObjectCollection:
+    """Create a MockRigidObjectCollection with optional custom link poses.
 
-    def __init__(
-        self,
-        num_envs: int,
-        num_bodies: int,
-        device: str,
-        link_pos: torch.Tensor | None = None,
-        link_quat: torch.Tensor | None = None,
-    ):
-        """Initialize mock asset data.
+    Args:
+        num_envs: Number of environments.
+        num_bodies: Number of bodies.
+        device: Device to use.
+        link_pos: Optional link positions (num_envs, num_bodies, 3). Defaults to zeros.
+        link_quat: Optional link quaternions in (x, y, z, w) format (num_envs, num_bodies, 4).
+                   Defaults to identity quaternion.
 
-        Args:
-            num_envs: Number of environments.
-            num_bodies: Number of bodies.
-            device: Device to use.
-            link_pos: Optional link positions (num_envs, num_bodies, 3). Defaults to zeros.
-            link_quat: Optional link quaternions in (x, y, z, w) format (num_envs, num_bodies, 4).
-                       Defaults to identity quaternion.
-        """
-        if link_pos is not None:
-            self.body_link_pos_w = link_pos.to(device=device, dtype=torch.float32)
-        else:
-            self.body_link_pos_w = torch.zeros((num_envs, num_bodies, 3), dtype=torch.float32, device=device)
-
-        if link_quat is not None:
-            self.body_link_quat_w = link_quat.to(device=device, dtype=torch.float32)
-        else:
-            # Identity quaternion (x, y, z, w) = (0, 0, 0, 1)
-            self.body_link_quat_w = torch.zeros((num_envs, num_bodies, 4), dtype=torch.float32, device=device)
-            self.body_link_quat_w[..., 3] = 1.0
-
-
-class MockRigidObject:
-    """Mock RigidObject that provides the minimal interface required by WrenchComposer.
-
-    This mock enables testing WrenchComposer in isolation without requiring a full simulation setup.
-    It passes isinstance checks by registering as a virtual subclass of BaseRigidObject.
+    Returns:
+        MockRigidObjectCollection with body_link_pose_w set.
     """
+    mock = MockRigidObjectCollection(num_instances=num_envs, num_bodies=num_bodies, device=device)
 
-    def __init__(
-        self,
-        num_envs: int,
-        num_bodies: int,
-        device: str,
-        link_pos: torch.Tensor | None = None,
-        link_quat: torch.Tensor | None = None,
-    ):
-        """Initialize mock rigid object.
+    # Build combined pose (N, B, 7) = pos(3) + quat_xyzw(4) matching wp.transformf layout
+    if link_pos is None:
+        pos = torch.zeros(num_envs, num_bodies, 3, dtype=torch.float32)
+    else:
+        pos = link_pos.float()
 
-        Args:
-            num_envs: Number of environments.
-            num_bodies: Number of bodies.
-            device: Device to use.
-            link_pos: Optional link positions (num_envs, num_bodies, 3).
-            link_quat: Optional link quaternions in (x, y, z, w) format (num_envs, num_bodies, 4).
-        """
-        self.num_instances = num_envs
-        self.num_bodies = num_bodies
-        self.device = device
-        self.data = MockAssetData(num_envs, num_bodies, device, link_pos, link_quat)
+    if link_quat is None:
+        # Identity quaternion in (x, y, z, w) format = (0, 0, 0, 1)
+        quat = torch.zeros(num_envs, num_bodies, 4, dtype=torch.float32)
+        quat[..., 3] = 1.0
+    else:
+        quat = link_quat.float()
+
+    pose = torch.cat([pos, quat], dim=-1)  # (N, B, 7)
+    mock.data.set_body_link_pose_w(pose)
+    return mock
 
 
 # --- Helper functions for quaternion math ---
@@ -126,11 +102,6 @@ def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndar
     return q
 
 
-# Register MockRigidObject as a virtual subclass of BaseRigidObject
-# This allows isinstance(mock, BaseRigidObject) to return True
-BaseRigidObject.register(MockRigidObject)
-
-
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
 @pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
@@ -139,7 +110,7 @@ def test_wrench_composer_add_force(device: str, num_envs: int, num_bodies: int):
     rng = np.random.default_rng(seed=0)
 
     for _ in range(10):
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Initialize hand-calculated composed force
         hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
@@ -176,7 +147,7 @@ def test_wrench_composer_add_torque(device: str, num_envs: int, num_bodies: int)
     rng = np.random.default_rng(seed=1)
 
     for _ in range(10):
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Initialize hand-calculated composed torque
         hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
@@ -214,7 +185,7 @@ def test_add_forces_at_positons(device: str, num_envs: int, num_bodies: int):
 
     for _ in range(10):
         # Initialize wrench composer
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Initialize hand-calculated composed force
         hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
@@ -269,7 +240,7 @@ def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
     rng = np.random.default_rng(seed=3)
 
     for _ in range(10):
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Initialize hand-calculated composed torque
         hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
@@ -314,7 +285,7 @@ def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodi
     rng = np.random.default_rng(seed=4)
 
     for _ in range(10):
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Initialize hand-calculated composed force and torque
         hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
@@ -373,7 +344,7 @@ def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodi
 def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
     rng = np.random.default_rng(seed=5)
     for _ in range(10):
-        mock_asset = MockRigidObject(num_envs, num_bodies, device)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device)
         wrench_composer = WrenchComposer(mock_asset)
         # Get random number of envs and bodies and their indices
         num_envs_np = rng.integers(1, num_envs, endpoint=True)
@@ -425,7 +396,7 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         # Create mock asset with custom quaternions
-        mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
         wrench_composer = WrenchComposer(mock_asset)
 
         # Generate random global forces for all envs and bodies
@@ -458,7 +429,7 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         # Create mock asset with custom quaternions
-        mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
         wrench_composer = WrenchComposer(mock_asset)
 
         # Generate random global torques
@@ -493,7 +464,7 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         # Create mock asset
-        mock_asset = MockRigidObject(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
         wrench_composer = WrenchComposer(mock_asset)
 
         # Generate random global forces and positions
@@ -541,8 +512,8 @@ def test_local_vs_global_identity_quaternion(device: str):
     num_envs, num_bodies = 10, 5
 
     # Create mock with identity pose (default)
-    mock_asset_local = MockRigidObject(num_envs, num_bodies, device)
-    mock_asset_global = MockRigidObject(num_envs, num_bodies, device)
+    mock_asset_local = create_mock_asset(num_envs, num_bodies, device)
+    mock_asset_global = create_mock_asset(num_envs, num_bodies, device)
 
     wrench_composer_local = WrenchComposer(mock_asset_local)
     wrench_composer_global = WrenchComposer(mock_asset_global)
@@ -583,7 +554,7 @@ def test_90_degree_rotation_global_force(device: str):
     link_quat_np = np.array([[[[0, 0, np.sin(angle / 2), np.cos(angle / 2)]]]], dtype=np.float32).reshape(1, 1, 4)
     link_quat_torch = torch.from_numpy(link_quat_np)
 
-    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)
+    mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
     wrench_composer = WrenchComposer(mock_asset)
 
     # Apply force in global +X direction
@@ -612,7 +583,7 @@ def test_composition_mixed_local_and_global(device: str):
     link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
     link_quat_torch = torch.from_numpy(link_quat_np)
 
-    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_quat=link_quat_torch)
+    mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
     wrench_composer = WrenchComposer(mock_asset)
 
     # Generate random local and global forces
@@ -652,7 +623,7 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         link_pos_torch = torch.from_numpy(link_pos_np)
         link_quat_torch = torch.from_numpy(link_quat_np)
 
-        mock_asset = MockRigidObject(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
+        mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
         wrench_composer = WrenchComposer(mock_asset)
 
         # Generate random local forces and local positions (offsets)
@@ -688,7 +659,7 @@ def test_global_force_at_link_origin_no_torque(device: str):
     link_pos_torch = torch.from_numpy(link_pos_np)
     link_quat_torch = torch.from_numpy(link_quat_np)
 
-    mock_asset = MockRigidObject(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
+    mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
     wrench_composer = WrenchComposer(mock_asset)
 
     # Generate random global forces

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -149,7 +150,9 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         image_obs = self._compute_image_observations()
         obs = torch.cat((state_obs, image_obs), dim=-1)
         # asymmetric critic states
-        self.fingertip_force_sensors = self.hand.root_view.get_link_incoming_joint_force()[:, self.finger_bodies]
+        self.fingertip_force_sensors = wp.to_torch(self.hand.root_view.get_link_incoming_joint_force())[
+            :, self.finger_bodies
+        ]
         state = self._compute_states()
 
         observations = {"policy": obs, "critic": state}

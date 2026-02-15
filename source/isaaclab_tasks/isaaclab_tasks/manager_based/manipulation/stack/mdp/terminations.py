@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -39,8 +40,8 @@ def cubes_stacked(
     cube_2: RigidObject = env.scene[cube_2_cfg.name]
     cube_3: RigidObject = env.scene[cube_3_cfg.name]
 
-    pos_diff_c12 = cube_1.data.root_pos_w - cube_2.data.root_pos_w
-    pos_diff_c23 = cube_2.data.root_pos_w - cube_3.data.root_pos_w
+    pos_diff_c12 = wp.to_torch(cube_1.data.root_pos_w) - wp.to_torch(cube_2.data.root_pos_w)
+    pos_diff_c23 = wp.to_torch(cube_2.data.root_pos_w) - wp.to_torch(cube_3.data.root_pos_w)
 
     # Compute cube position difference in x-y plane
     xy_dist_c12 = torch.linalg.norm(pos_diff_c12[:, :2], dim=1)
@@ -60,7 +61,7 @@ def cubes_stacked(
     # Check gripper positions
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = surface_gripper.state.view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1, 1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_open = (suction_cup_status == -1).to(torch.float32)
         stacked = torch.logical_and(suction_cup_is_open, stacked)
 
@@ -71,7 +72,7 @@ def cubes_stacked(
 
             stacked = torch.logical_and(
                 torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[0]],
+                    wp.to_torch(robot.data.joint_pos)[:, gripper_joint_ids[0]],
                     torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
                     atol=atol,
                     rtol=rtol,
@@ -80,7 +81,7 @@ def cubes_stacked(
             )
             stacked = torch.logical_and(
                 torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[1]],
+                    wp.to_torch(robot.data.joint_pos)[:, gripper_joint_ids[1]],
                     torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
                     atol=atol,
                     rtol=rtol,

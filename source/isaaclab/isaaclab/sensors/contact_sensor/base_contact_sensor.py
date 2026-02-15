@@ -9,7 +9,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
+import warp as wp
 
 import isaaclab.utils.string as string_utils
 
@@ -110,7 +110,7 @@ class BaseContactSensor(SensorBase):
         """
         return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
@@ -142,11 +142,11 @@ class BaseContactSensor(SensorBase):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
         # check if the bodies are in contact
-        currently_in_contact = self.data.current_contact_time > 0.0
-        less_than_dt_in_contact = self.data.current_contact_time < (dt + abs_tol)
-        return currently_in_contact * less_than_dt_in_contact
+        currently_in_contact = wp.to_torch(self.data.current_contact_time) > 0.0
+        less_than_dt_in_contact = wp.to_torch(self.data.current_contact_time) < (dt + abs_tol)
+        return wp.from_torch(currently_in_contact * less_than_dt_in_contact)
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
@@ -177,9 +177,9 @@ class BaseContactSensor(SensorBase):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
         # check if the sensor is configured to track contact time
-        currently_detached = self.data.current_air_time > 0.0
-        less_than_dt_detached = self.data.current_air_time < (dt + abs_tol)
-        return currently_detached * less_than_dt_detached
+        currently_detached = wp.to_torch(self.data.current_air_time) > 0.0
+        less_than_dt_detached = wp.to_torch(self.data.current_air_time) < (dt + abs_tol)
+        return wp.from_torch(currently_detached * less_than_dt_detached)
 
     """
     Implementation - Abstract methods to be implemented by backend-specific subclasses.

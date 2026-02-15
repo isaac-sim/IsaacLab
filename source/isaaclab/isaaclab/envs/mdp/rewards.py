@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -78,14 +79,14 @@ def lin_vel_z_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.square(asset.data.root_lin_vel_b[:, 2])
+    return torch.square(wp.to_torch(asset.data.root_lin_vel_b)[:, 2])
 
 
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.root_ang_vel_b[:, :2]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.root_ang_vel_b)[:, :2]), dim=1)
 
 
 def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -95,7 +96,7 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.projected_gravity_b)[:, :2]), dim=1)
 
 
 def base_height_l2(
@@ -120,13 +121,13 @@ def base_height_l2(
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
     # Compute the L2 squared penalty
-    return torch.square(asset.data.root_pos_w[:, 2] - adjusted_target_height)
+    return torch.square(wp.to_torch(asset.data.root_pos_w)[:, 2] - adjusted_target_height)
 
 
 def body_lin_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize the linear acceleration of bodies using L2-kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.linalg.norm(asset.data.body_lin_acc_w[:, asset_cfg.body_ids, :], dim=-1), dim=1)
+    return torch.sum(torch.linalg.norm(wp.to_torch(asset.data.body_lin_acc_w)[:, asset_cfg.body_ids, :], dim=-1), dim=1)
 
 
 """
@@ -143,14 +144,14 @@ def joint_torques_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.applied_torque[:, asset_cfg.joint_ids]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_vel_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize joint velocities on the articulation using an L1-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
+    return torch.sum(torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -162,7 +163,7 @@ def joint_vel_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -174,7 +175,7 @@ def joint_acc_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_acc[:, asset_cfg.joint_ids]), dim=1)
+    return torch.sum(torch.square(wp.to_torch(asset.data.joint_acc)[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -182,7 +183,10 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
-    angle = asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    angle = (
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    )
     return torch.sum(torch.abs(angle), dim=1)
 
 
@@ -195,10 +199,12 @@ def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEn
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     out_of_limits = -(
-        asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 0]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0]
     ).clip(max=0.0)
     out_of_limits += (
-        asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1]
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1]
     ).clip(min=0.0)
     return torch.sum(out_of_limits, dim=1)
 
@@ -217,8 +223,8 @@ def joint_vel_limits(
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     out_of_limits = (
-        torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids])
-        - asset.data.soft_joint_vel_limits[:, asset_cfg.joint_ids] * soft_ratio
+        torch.abs(wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids])
+        - wp.to_torch(asset.data.soft_joint_vel_limits)[:, asset_cfg.joint_ids] * soft_ratio
     )
     # clip to max error = 1 rad/s per joint to avoid huge penalties
     out_of_limits = out_of_limits.clip_(min=0.0, max=1.0)
@@ -244,7 +250,8 @@ def applied_torque_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sc
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
     out_of_limits = torch.abs(
-        asset.data.applied_torque[:, asset_cfg.joint_ids] - asset.data.computed_torque[:, asset_cfg.joint_ids]
+        wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.computed_torque)[:, asset_cfg.joint_ids]
     )
     return torch.sum(out_of_limits, dim=1)
 
@@ -269,7 +276,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: Sce
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # check if contact force is above threshold
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = wp.to_torch(contact_sensor.data.net_forces_w_history)
     is_contact = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
     )
@@ -281,7 +288,8 @@ def desired_contacts(env, sensor_cfg: SceneEntityCfg, threshold: float = 1.0) ->
     """Penalize if none of the desired contacts are present."""
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contacts = (
-        contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > threshold
+        wp.to_torch(contact_sensor.data.net_forces_w_history)[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0]
+        > threshold
     )
     zero_contact = (~contacts).all(dim=1)
     return 1.0 * zero_contact
@@ -291,7 +299,7 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
     """Penalize contact forces as the amount of violations of the net contact force."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = wp.to_torch(contact_sensor.data.net_forces_w_history)
     # compute the violation
     violation = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] - threshold
@@ -313,7 +321,9 @@ def track_lin_vel_xy_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
     lin_vel_error = torch.sum(
-        torch.square(env.command_manager.get_command(command_name)[:, :2] - asset.data.root_lin_vel_b[:, :2]),
+        torch.square(
+            env.command_manager.get_command(command_name)[:, :2] - wp.to_torch(asset.data.root_lin_vel_b)[:, :2]
+        ),
         dim=1,
     )
     return torch.exp(-lin_vel_error / std**2)
@@ -326,5 +336,7 @@ def track_ang_vel_z_exp(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
-    ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2])
+    ang_vel_error = torch.square(
+        env.command_manager.get_command(command_name)[:, 2] - wp.to_torch(asset.data.root_ang_vel_b)[:, 2]
+    )
     return torch.exp(-ang_vel_error / std**2)
