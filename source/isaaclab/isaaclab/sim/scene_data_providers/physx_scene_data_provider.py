@@ -391,19 +391,13 @@ class PhysxSceneDataProvider:
         return count
 
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
-        """Convert XformPrimView quaternions from wxyz to xyzw for flagged indices."""
-        if not xform_mask.any():
-            return orientations
+        """Return quaternions in xyzw convention.
 
-        import torch
-
-        from isaaclab.utils.math import convert_quat
-
-        orientations_xyzw = orientations.clone()
-        xform_indices = torch.where(xform_mask)[0]
-        if len(xform_indices) > 0:
-            orientations_xyzw[xform_indices] = convert_quat(orientations[xform_indices], to="xyzw")
-        return orientations_xyzw
+        PhysX views, XformPrimView, and resolve_prim_pose() in Isaac Lab all use xyzw.
+        Keeping this helper as a no-op preserves a single conversion point if conventions
+        ever diverge again.
+        """
+        return orientations
 
     def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:
         """Merge pose data from articulation, rigid-body, and xform views."""
