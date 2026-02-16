@@ -22,7 +22,7 @@ class RslRlDistillationAlgorithmCfg:
     """Configuration for the distillation algorithm."""
 
     class_name: str = "Distillation"
-    """The algorithm class name. Default is Distillation."""
+    """The algorithm class name. Defaults to Distillation."""
 
     num_learning_epochs: int = MISSING
     """The number of updates performed with each sample."""
@@ -34,13 +34,13 @@ class RslRlDistillationAlgorithmCfg:
     """The number of environment steps the gradient flows back."""
 
     max_grad_norm: None | float = None
-    """The maximum norm the gradient is clipped to."""
+    """The maximum norm the gradient is clipped to. Defaults to None"""
 
     optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
-    """The optimizer to use for the student policy."""
+    """The optimizer to use for the student policy. Defaults to adam."""
 
     loss_type: Literal["mse", "huber"] = "mse"
-    """The loss type to use for the student policy."""
+    """The loss type to use for the student policy. Defaults to mse."""
 
 
 #########################
@@ -53,7 +53,7 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
     """Configuration of the runner for distillation algorithms."""
 
     class_name: str = "DistillationRunner"
-    """The runner class name. Default is DistillationRunner."""
+    """The runner class name. Defaults to DistillationRunner."""
 
     student: RslRlMLPModelCfg = MISSING
     """The student configuration."""
@@ -85,13 +85,13 @@ class RslRlDistillationStudentTeacherCfg:
     """
 
     class_name: str = "StudentTeacher"
-    """The policy class name. Default is StudentTeacher."""
+    """The policy class name. Defaults to StudentTeacher."""
 
     init_noise_std: float = MISSING
     """The initial noise standard deviation for the student policy."""
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
+    """The type of noise standard deviation for the policy. Defaults to scalar."""
 
     student_obs_normalization: bool = MISSING
     """Whether to normalize the observation for the student network."""
@@ -117,7 +117,7 @@ class RslRlDistillationStudentTeacherRecurrentCfg(RslRlDistillationStudentTeache
     """
 
     class_name: str = "StudentTeacherRecurrent"
-    """The policy class name. Default is StudentTeacherRecurrent."""
+    """The policy class name. Defaults to StudentTeacherRecurrent."""
 
     rnn_type: str = MISSING
     """The type of the RNN network. Either "lstm" or "gru"."""
