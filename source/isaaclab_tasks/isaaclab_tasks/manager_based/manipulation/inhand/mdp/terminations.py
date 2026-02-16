@@ -8,6 +8,7 @@
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
@@ -51,7 +52,7 @@ def object_away_from_goal(
     asset = env.scene[object_cfg.name]
 
     # object pos
-    asset_pos_e = asset.data.root_pos_w - env.scene.env_origins
+    asset_pos_e = wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
     goal_pos_e = command_term.command[:, :3]
 
     return torch.linalg.norm(asset_pos_e - goal_pos_e, ord=2, dim=1) > threshold
@@ -79,6 +80,6 @@ def object_away_from_robot(
     object = env.scene[object_cfg.name]
 
     # compute distance
-    dist = torch.linalg.norm(robot.data.root_pos_w - object.data.root_pos_w, dim=1)
+    dist = torch.linalg.norm(wp.to_torch(robot.data.root_pos_w) - wp.to_torch(object.data.root_pos_w), dim=1)
 
     return dist > threshold

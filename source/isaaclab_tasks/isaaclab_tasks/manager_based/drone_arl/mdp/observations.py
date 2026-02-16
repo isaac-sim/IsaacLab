@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import torch.jit
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
@@ -50,7 +51,7 @@ def base_roll_pitch(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # extract euler angles (in world frame)
-    roll, pitch, _ = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+    roll, pitch, _ = math_utils.euler_xyz_from_quat(wp.to_torch(asset.data.root_quat_w))
     # normalize angle to [-pi, pi]
     roll = math_utils.wrap_to_pi(roll)
     pitch = math_utils.wrap_to_pi(pitch)
@@ -94,9 +95,11 @@ def generated_drone_commands(
         - A small epsilon (1e-8) is used to guard against zero-length direction vectors.
     """
     asset: Multirotor = env.scene[asset_cfg.name]
-    current_position_w = asset.data.root_pos_w - env.scene.env_origins
+    current_position_w = wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
     command = env.command_manager.get_command(command_name)
-    current_position_b = math_utils.quat_apply_inverse(asset.data.root_link_quat_w, command[:, :3] - current_position_w)
+    current_position_b = math_utils.quat_apply_inverse(
+        wp.to_torch(asset.data.root_link_quat_w), command[:, :3] - current_position_w
+    )
     current_position_b_dir = current_position_b / (torch.linalg.norm(current_position_b, dim=-1, keepdim=True) + 1e-8)
     current_position_b_mag = torch.linalg.norm(current_position_b, dim=-1, keepdim=True)
     return torch.cat((current_position_b_dir, current_position_b_mag), dim=-1)

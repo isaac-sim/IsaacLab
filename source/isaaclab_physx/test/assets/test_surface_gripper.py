@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
@@ -187,8 +188,8 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
     assert surface_gripper.state.shape == (num_articulations,)
 
     # Check that the command and state are initialized to the correct values
-    assert surface_gripper.command == 0.0  # Idle command after a reset
-    assert surface_gripper.state == -1.0  # Open state after a reset
+    assert wp.to_torch(surface_gripper.command).item() == 0.0  # Idle command after a reset
+    assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
 
     # Simulate physics
     for _ in range(10):

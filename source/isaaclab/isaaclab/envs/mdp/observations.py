@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -45,7 +46,7 @@ def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2].unsqueeze(-1)
+    return wp.to_torch(asset.data.root_pos_w)[:, 2].unsqueeze(-1)
 
 
 @generic_io_descriptor(
@@ -55,7 +56,7 @@ def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_lin_vel_b
+    return wp.to_torch(asset.data.root_lin_vel_b)
 
 
 @generic_io_descriptor(
@@ -65,7 +66,7 @@ def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_ang_vel_b
+    return wp.to_torch(asset.data.root_ang_vel_b)
 
 
 @generic_io_descriptor(
@@ -75,7 +76,7 @@ def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEnt
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.projected_gravity_b
+    return wp.to_torch(asset.data.projected_gravity_b)
 
 
 @generic_io_descriptor(
@@ -85,7 +86,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w - env.scene.env_origins
+    return wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
 
 
 @generic_io_descriptor(
@@ -103,7 +104,7 @@ def root_quat_w(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    quat = asset.data.root_quat_w
+    quat = wp.to_torch(asset.data.root_quat_w)
     # make the quaternion real-part positive if configured
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
@@ -115,7 +116,7 @@ def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_lin_vel_w
+    return wp.to_torch(asset.data.root_lin_vel_w)
 
 
 @generic_io_descriptor(
@@ -125,7 +126,7 @@ def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntity
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_ang_vel_w
+    return wp.to_torch(asset.data.root_ang_vel_w)
 
 
 """
@@ -154,7 +155,7 @@ def body_pose_w(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # access the body poses in world frame
-    pose = asset.data.body_pose_w[:, asset_cfg.body_ids, :7]
+    pose = wp.to_torch(asset.data.body_pose_w)[:, asset_cfg.body_ids, :7]
     if isinstance(asset_cfg.body_ids, (slice, int)):
         pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
@@ -181,8 +182,8 @@ def body_projected_gravity_b(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
-    body_quat = asset.data.body_quat_w[:, asset_cfg.body_ids]
-    gravity_dir = asset.data.GRAVITY_VEC_W.unsqueeze(1)
+    body_quat = wp.to_torch(asset.data.body_quat_w)[:, asset_cfg.body_ids]
+    gravity_dir = wp.to_torch(asset.data.GRAVITY_VEC_W).unsqueeze(1)
     return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
@@ -201,7 +202,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -216,7 +217,10 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    return (
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_pos)[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
@@ -230,9 +234,9 @@ def joint_pos_limit_normalized(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
-        asset.data.joint_pos[:, asset_cfg.joint_ids],
-        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 0],
-        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1],
+        wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids],
+        wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 0],
+        wp.to_torch(asset.data.soft_joint_pos_limits)[:, asset_cfg.joint_ids, 1],
     )
 
 
@@ -246,7 +250,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]
 
 
 @generic_io_descriptor(
@@ -261,7 +265,10 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
+    return (
+        wp.to_torch(asset.data.joint_vel)[:, asset_cfg.joint_ids]
+        - wp.to_torch(asset.data.default_joint_vel)[:, asset_cfg.joint_ids]
+    )
 
 
 @generic_io_descriptor(
@@ -281,7 +288,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.applied_torque[:, asset_cfg.joint_ids]
+    return wp.to_torch(asset.data.applied_torque)[:, asset_cfg.joint_ids]
 
 
 """
@@ -308,7 +315,7 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # obtain the link incoming forces in world frame
-    body_incoming_joint_wrench_b = asset.data.body_incoming_joint_wrench_b[:, asset_cfg.body_ids]
+    body_incoming_joint_wrench_b = wp.to_torch(asset.data.body_incoming_joint_wrench_b)[:, asset_cfg.body_ids]
     return body_incoming_joint_wrench_b.view(env.num_envs, -1)
 
 
@@ -325,7 +332,7 @@ def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     # extract the used quantities (to enable type-hinting)
     asset: Imu = env.scene[asset_cfg.name]
     # return the orientation quaternion
-    return asset.data.quat_w
+    return wp.to_torch(asset.data.quat_w)
 
 
 def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
@@ -340,7 +347,7 @@ def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = Scen
     """
 
     asset: Imu = env.scene[asset_cfg.name]
-    return asset.data.projected_gravity_b
+    return wp.to_torch(asset.data.projected_gravity_b)
 
 
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
@@ -356,7 +363,7 @@ def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     # extract the used quantities (to enable type-hinting)
     asset: Imu = env.scene[asset_cfg.name]
     # return the angular velocity
-    return asset.data.ang_vel_b
+    return wp.to_torch(asset.data.ang_vel_b)
 
 
 def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
@@ -370,7 +377,7 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
         The linear acceleration (m/s^2) in the sensor frame. Shape is (num_envs, 3).
     """
     asset: Imu = env.scene[asset_cfg.name]
-    return asset.data.lin_acc_b
+    return wp.to_torch(asset.data.lin_acc_b)
 
 
 def image(

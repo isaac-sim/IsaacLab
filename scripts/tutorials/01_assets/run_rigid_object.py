@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -118,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
         cone_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
-            print(f"Root position (in world): {cone_object.data.root_pos_w}")
+            print(f"Root position (in world): {wp.to_torch(cone_object.data.root_pos_w)}")
 
 
 def main():

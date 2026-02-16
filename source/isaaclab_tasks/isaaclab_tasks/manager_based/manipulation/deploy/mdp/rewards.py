@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
@@ -72,8 +73,8 @@ class keypoint_command_error(ManagerTermBase):
         des_quat_w = command[:, 3:7]
 
         # Get current pose from frame transformer
-        curr_pos_w = asset.data.target_pos_source[:, 0]
-        curr_quat_w = asset.data.target_quat_source[:, 0]
+        curr_pos_w = wp.to_torch(asset.data.target_pos_source)[:, 0]
+        curr_quat_w = wp.to_torch(asset.data.target_quat_source)[:, 0]
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
@@ -143,8 +144,8 @@ class keypoint_command_error_exp(ManagerTermBase):
         des_quat_w = command[:, 3:7]
 
         # Get current pose from frame transformer
-        curr_pos_w = asset.data.target_pos_source[:, 0]
-        curr_quat_w = asset.data.target_quat_source[:, 0]
+        curr_pos_w = wp.to_torch(asset.data.target_pos_source)[:, 0]
+        curr_quat_w = wp.to_torch(asset.data.target_quat_source)[:, 0]
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
@@ -226,8 +227,8 @@ class keypoint_entity_error(ManagerTermBase):
             Mean keypoint distance tensor of shape (num_envs,)
         """
         # Get current pose of asset_1 (RigidObject)
-        curr_pos_1 = self.asset_1.data.body_pos_w[:, 0]
-        curr_quat_1 = self.asset_1.data.body_quat_w[:, 0]
+        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
+        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
 
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
@@ -243,18 +244,18 @@ class keypoint_entity_error(ManagerTermBase):
         # Stack all gear positions and quaternions
         all_gear_pos = torch.stack(
             [
-                self.gear_assets["gear_small"].data.body_pos_w[:, 0],
-                self.gear_assets["gear_medium"].data.body_pos_w[:, 0],
-                self.gear_assets["gear_large"].data.body_pos_w[:, 0],
+                wp.to_torch(self.gear_assets["gear_small"].data.body_pos_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_medium"].data.body_pos_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_large"].data.body_pos_w)[:, 0],
             ],
             dim=1,
         )
 
         all_gear_quat = torch.stack(
             [
-                self.gear_assets["gear_small"].data.body_quat_w[:, 0],
-                self.gear_assets["gear_medium"].data.body_quat_w[:, 0],
-                self.gear_assets["gear_large"].data.body_quat_w[:, 0],
+                wp.to_torch(self.gear_assets["gear_small"].data.body_quat_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_medium"].data.body_quat_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_large"].data.body_quat_w)[:, 0],
             ],
             dim=1,
         )
@@ -332,8 +333,8 @@ class keypoint_entity_error_exp(ManagerTermBase):
             Exponential keypoint reward tensor of shape (num_envs,)
         """
         # Get current pose of asset_1 (RigidObject)
-        curr_pos_1 = self.asset_1.data.body_pos_w[:, 0]
-        curr_quat_1 = self.asset_1.data.body_quat_w[:, 0]
+        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
+        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
 
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
@@ -349,18 +350,18 @@ class keypoint_entity_error_exp(ManagerTermBase):
         # Stack all gear positions and quaternions
         all_gear_pos = torch.stack(
             [
-                self.gear_assets["gear_small"].data.body_pos_w[:, 0],
-                self.gear_assets["gear_medium"].data.body_pos_w[:, 0],
-                self.gear_assets["gear_large"].data.body_pos_w[:, 0],
+                wp.to_torch(self.gear_assets["gear_small"].data.body_pos_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_medium"].data.body_pos_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_large"].data.body_pos_w)[:, 0],
             ],
             dim=1,
         )
 
         all_gear_quat = torch.stack(
             [
-                self.gear_assets["gear_small"].data.body_quat_w[:, 0],
-                self.gear_assets["gear_medium"].data.body_quat_w[:, 0],
-                self.gear_assets["gear_large"].data.body_quat_w[:, 0],
+                wp.to_torch(self.gear_assets["gear_small"].data.body_quat_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_medium"].data.body_quat_w)[:, 0],
+                wp.to_torch(self.gear_assets["gear_large"].data.body_quat_w)[:, 0],
             ],
             dim=1,
         )

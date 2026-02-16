@@ -309,7 +309,7 @@ class DirectRLEnv(gym.Env):
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
         self._reset_idx(indices)
 
         # update articulation kinematics
@@ -393,7 +393,7 @@ class DirectRLEnv(gym.Env):
         self.reward_buf = self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
