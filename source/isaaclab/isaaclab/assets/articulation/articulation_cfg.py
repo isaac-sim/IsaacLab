@@ -57,5 +57,17 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
+    gravity_compensation: list[str] | None = None
+    """List of body name patterns for gravity compensation.
+
+    Each string is a regular expression pattern matching body names that should have
+    gravity compensation applied (full compensation, i.e., no gravity effect).
+    Defaults to None (no compensation).
+    """
+
+    gravity_compensation_root_link_index: str | None = None
+    """Root link index for gravity compensation. Defaults to None (no compensation).
+    """
+
     actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names."""

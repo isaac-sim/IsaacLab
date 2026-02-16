@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_two_link_robot">
+    <!-- Fixed joint to world (this is the first joint in Pinocchio) -->
+    <joint name="universe" type="fixed">
+        <parent link="world"/>
+        <child link="base_link"/>
+        <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    </joint>
+    <!-- First revolute joint -->
+    <joint name="joint_1" type="revolute">
+        <parent link="base_link"/>
+        <child link="link_1"/>
+        <origin xyz="0.0 0.0 0.05" rpy="0.0 0.0 0.0"/>
+        <axis xyz="0.0 0.0 1.0"/>
+        <limit effort="100.0" velocity="10.0" lower="-3.14" upper="3.14"/>
+    </joint>
+    <!-- Second revolute joint -->
+    <joint name="joint_2" type="revolute">
+        <parent link="link_1"/>
+        <child link="link_2"/>
+        <origin xyz="0.0 0.0 0.4" rpy="0.0 0.0 0.0"/>
+        <axis xyz="0.0 1.0 0.0"/>
+        <limit effort="100.0" velocity="10.0" lower="-3.14" upper="3.14"/>
+    </joint>
+    <link name="world"/>
+    <!-- Base link -->
+    <link name="base_link"/>
+    <!-- First link -->
+    <link name="link_1"/>
+    <!-- Second link -->
+    <link name="link_2"/>
+</robot>

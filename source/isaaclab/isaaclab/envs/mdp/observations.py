@@ -86,7 +86,7 @@ def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg(
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return wp.to_torch(asset.data.root_pos_w) - wp.to_torch(env.scene.env_origins)
+    return wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
 
 
 @generic_io_descriptor(

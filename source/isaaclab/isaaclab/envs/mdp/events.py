@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import re
@@ -1277,24 +1278,27 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     targets to default values, especially when the targets should be handled by action terms and not event terms.
     """
     # rigid bodies
-    for rigid_object in env.scene.rigid_objects.values():
-        # obtain default and deal with the offset for env origins
-        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
-        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
-        # set into the physics simulation
-        rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
-        rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
+    # Note: rigid_objects is not supported in Newton backend
+    with contextlib.suppress(NotImplementedError):
+        for rigid_object in env.scene.rigid_objects.values():
+            # obtain default and deal with the offset for env origins
+            default_root_state = rigid_object.data.default_root_state[env_ids].clone()
+            default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+            # set into the physics simulation
+            rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
-        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(articulation_asset.data.default_root_pose)[env_ids].clone()
+        default_root_vel = wp.to_torch(articulation_asset.data.default_root_vel)[env_ids].clone()
+        default_root_pose[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
-        articulation_asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
-        articulation_asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
+        articulation_asset.write_root_pose_to_sim(default_root_pose, env_ids=env_ids)
+        articulation_asset.write_root_velocity_to_sim(default_root_vel, env_ids=env_ids)
         # obtain default joint positions
-        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
-        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
+        default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
         # reset joint targets if required

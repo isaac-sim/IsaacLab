@@ -1,0 +1,149 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+tolerances:
+  position: 0.003
+  pd_position: 0.003
+  rotation: 0.017
+  check_errors: true
+# Pose format: position [x, y, z] and orientation [qw, qx, qy, qz].
+# Time values are in seconds
+allowed_time_to_settle: 2
+tests:
+  pure_x_translation:
+    allowed_time_per_motion: 0.9
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.14, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.18, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.14, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.14, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.18, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.14, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    requires_waist_bending: false
+    repeat: 2
+
+  pure_y_translation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.15, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.2, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.25, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    right_hand_pose:
+    - position: [0.25, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.2, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.15, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    requires_waist_bending: false
+    repeat: 2
+
+  pure_z_translation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.85]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.9]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.85]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.9]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    requires_waist_bending: false
+    repeat: 2
+
+  diagonal_translation:
+    allowed_time_per_motion: 1.0
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.23, 0.15, 0.85]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.23, 0.15, 0.85]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    requires_waist_bending: false
+    repeat: 2
+
+  pure_roll_rotation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.9239, 0.0, 0.0, 0.3827]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.9239, 0.0, 0.0, 0.3827]
+    requires_waist_bending: false
+    repeat: 2
+
+  pure_pitch_rotation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.6964, 0.1228, -0.1228, 0.6964]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.6964, 0.1228, -0.1228, 0.6964]
+    requires_waist_bending: false
+    repeat: 2
+
+  pure_yaw_rotation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.6964, 0.1228, 0.1228, 0.6964]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.6964, 0.1228, 0.1228, 0.6964]
+    requires_waist_bending: false
+    repeat: 2
+
+  compound_rotation:
+    allowed_time_per_motion: 0.8
+    left_hand_pose:
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [-0.18, 0.1, 0.8]
+      orientation: [0.7848, 0.1179, 0.0292, 0.6072]
+    right_hand_pose:
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7071, 0.0, 0.0, 0.7071]
+    - position: [0.18, 0.1, 0.8]
+      orientation: [0.7848, 0.1179, 0.0292, 0.6072]
+    requires_waist_bending: false
+    repeat: 2
