@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 
@@ -34,9 +36,9 @@ class AssetBaseCfg:
         # root position
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Position of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation (w, x, y, z) of the root in simulation world frame.
-        Defaults to (1.0, 0.0, 0.0, 0.0).
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        """Quaternion rotation (x, y, z, w) of the root in simulation world frame.
+        Defaults to (0.0, 0.0, 0.0, 1.0).
         """
 
     class_type: type[AssetBase] = None

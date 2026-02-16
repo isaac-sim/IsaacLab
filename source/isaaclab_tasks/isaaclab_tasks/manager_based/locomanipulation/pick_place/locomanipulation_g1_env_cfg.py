@@ -58,7 +58,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # Table
     packing_table = AssetBaseCfg(
         prim_path="/World/envs/env_.*/PackingTable",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[1.0, 0.0, 0.0, 0.0]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -67,7 +67,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[1, 0, 0, 0]),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[0, 0, 0, 1]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
@@ -195,7 +195,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
         anchor_pos=(0.0, 0.0, -0.35),
-        anchor_rot=(1.0, 0.0, 0.0, 0.0),
+        anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 
     def __post_init__(self):

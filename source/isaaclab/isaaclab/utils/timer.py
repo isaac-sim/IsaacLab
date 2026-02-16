@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from contextlib import ContextDecorator
 from typing import Any, ClassVar
@@ -60,12 +61,19 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    timing_info: ClassVar[dict[str, float]] = dict()
+    timing_info: ClassVar[dict[str, dict[str, float]]] = dict()
     """Dictionary for storing the elapsed time per timer instances globally.
 
     This dictionary logs the timer information. The keys are the names given to the timer class
     at its initialization. If no :attr:`name` is passed to the constructor, no time
     is recorded in the dictionary.
+
+    In each of the dictionaries, we store the following information:
+    - last: The last elapsed time
+    - m2: The sum of squares of differences from the current mean (Intermediate value in Welford's Algorithm)
+    - mean: The mean of the elapsed time
+    - std: The standard deviation of the elapsed time
+    - n: The number of samples
     """
 
     def __init__(self, msg: str | None = None, name: str | None = None):
@@ -82,6 +90,12 @@ class Timer(ContextDecorator):
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
+
+        # Online welford's algorithm to compute the mean and std of the elapsed time
+        self._mean = 0.0
+        self._m2 = 0.0
+        self._std = 0.0
+        self._n = 0
 
     def __str__(self) -> str:
         """A string representation of the class object.
@@ -130,7 +144,49 @@ class Timer(ContextDecorator):
         self._start_time = None
 
         if self._name:
-            Timer.timing_info[self._name] = self._elapsed_time
+            # Update the welford's algorithm
+            self._update_welford(self._elapsed_time)
+            # Store the information in the global dictionary
+            Timer.timing_info[self._name] = {
+                "last": self._elapsed_time,
+                "m2": self._m2,
+                "mean": self._mean,
+                "std": self._std,
+                "n": self._n,
+            }
+
+    """
+    Internal helpers.
+    """
+
+    def _update_welford(self, value: float):
+        """Update the welford's algorithm with a new value.
+
+        This algorithm computes the mean and standard deviation of the elapsed time in a numerically stable way.
+        It may become numerically unstable if n becomes very large.
+
+        Note: We use the global dictionary to retrieve the current values. We do this to make the timer
+        instances stateful.
+
+        Args:
+            value: The new value to add to the statistics.
+        """
+        try:
+            self._n = Timer.timing_info[self._name]["n"] + 1
+            delta = value - Timer.timing_info[self._name]["mean"]
+            self._mean = Timer.timing_info[self._name]["mean"] + delta / self._n
+            delta2 = value - self._mean
+            self._m2 = Timer.timing_info[self._name]["m2"] + delta * delta2
+        except KeyError:
+            self._n = 1
+            self._mean = value
+            self._m2 = 0.0
+
+        # Update the std (sample standard deviation with Bessel's correction)
+        if self._n > 1:
+            self._std = math.sqrt(self._m2 / (self._n - 1))
+        else:
+            self._std = 0.0
 
     """
     Context managers
@@ -168,4 +224,33 @@ class Timer(ContextDecorator):
         """
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
-        return Timer.timing_info.get(name)
+        # Non-breaking change: return the last elapsed time
+        return Timer.timing_info.get(name)["last"]
+
+    @staticmethod
+    def get_timer_statistics(name: str) -> dict[str, float]:
+        """Retrieves the statistics of the time logged in the global dictionary based on name.
+
+        Returns a dictionary containing the mean, standard deviation, and number of samples as
+        well as the last measurement. Available keys are:
+        - mean: The mean of the elapsed time
+        - std: The standard deviation of the elapsed time
+        - n: The number of samples
+        - last: The last elapsed time
+
+        Args:
+            name: Name of the the entry to be retrieved.
+
+        Raises:
+            TimerError: If name doesn't exist in the log.
+
+        Returns:
+            A dictionary containing the time logged for all timers.
+        """
+
+        if name not in Timer.timing_info:
+            raise TimerError(f"Timer {name} does not exist")
+
+        keys = ["mean", "std", "n", "last"]
+
+        return {k: Timer.timing_info.get(name)[k] for k in keys}

@@ -1017,7 +1017,7 @@ class CuroboPlanner(MotionPlannerBase):
             position = torch.tensor([0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device)
         if quaternion is None:
             quaternion = torch.tensor(
-                [1.0, 0.0, 0.0, 0.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device
+                [0.0, 0.0, 0.0, 1.0], dtype=self.tensor_args.dtype, device=self.tensor_args.device
             )
 
         # Convert to tensors if needed
@@ -1395,7 +1395,7 @@ class CuroboPlanner(MotionPlannerBase):
             return plan
 
         deltas = path[1:] - path[:-1]
-        distances = torch.norm(deltas, dim=-1)
+        distances = torch.linalg.norm(deltas, dim=-1)
 
         waypoints = [path[0]]
         for distance, waypoint in zip(distances, path[1:]):
@@ -1409,7 +1409,7 @@ class CuroboPlanner(MotionPlannerBase):
 
         if len(waypoints) > 1:
             deltas = waypoints[1:] - waypoints[:-1]
-            distances = torch.norm(deltas, dim=-1)
+            distances = torch.linalg.norm(deltas, dim=-1)
             cum_distances = torch.cat([torch.zeros(1, device=distances.device), torch.cumsum(distances, dim=0)])
 
         if len(waypoints) < 2 or cum_distances[-1] < 1e-6:

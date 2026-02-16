@@ -41,7 +41,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=[-2, -3.55, -0.3],
             # rot=[0, 0, 0, 1]),
-            rot=[0.9238795, 0, 0, -0.3826834],
+            rot=[0, 0, -0.3826834, 0.9238795],
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
@@ -56,7 +56,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, -0.1736482, 0.0, 0.9848078), convention="world"),
     )
 
 
@@ -67,7 +67,7 @@ for i in range(NUM_FORKLIFTS):
         f"forklift_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Forklift{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
@@ -82,7 +82,7 @@ for i in range(NUM_BOXES):
         f"box_{i}",
         AssetBaseCfg(
             prim_path=f"/World/envs/env_.*/Box{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),

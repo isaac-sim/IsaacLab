@@ -51,6 +51,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
 # Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ISAACLAB_PATH}
 
+# Fix the line endings for the shell scripts (Windows git may add \r)
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+
 # Ensure isaaclab.sh has execute permissions
 RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 

@@ -5,6 +5,8 @@
 
 """Configuration for Pink IK controller."""
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 
 from pink.tasks import FrameTask

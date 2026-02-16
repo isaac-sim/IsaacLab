@@ -23,7 +23,6 @@ import pytest
 import torch
 
 import omni.replicator.core as rep
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -38,7 +37,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -60,8 +59,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, TiledCameraCfg, f
     yield sim, camera_cfg, dt
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
-    sim._timeline.stop()
-    sim.clear_all_callbacks()
+    sim.stop()
     sim.clear_instance()
 
 
@@ -73,7 +71,7 @@ def test_single_camera_init(setup_camera, device):
     # Create camera
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -121,7 +119,7 @@ def test_depth_clipping_max(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -161,7 +159,7 @@ def test_depth_clipping_none(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -205,7 +203,7 @@ def test_depth_clipping_zero(setup_camera, device):
     # get camera cfgs
     camera_cfg = TiledCameraCfg(
         prim_path="/World/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(-0.125, 0.362, 0.873, -0.302), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
         spawn=sim_utils.PinholeCameraCfg().from_intrinsic_matrix(
             focal_length=38.0,
             intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
@@ -252,7 +250,7 @@ def test_multi_camera_init(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -309,7 +307,7 @@ def test_rgb_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -411,7 +409,7 @@ def test_depth_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -465,7 +463,7 @@ def test_rgba_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -506,6 +504,118 @@ def test_rgba_only_camera(setup_camera, device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
+def test_albedo_only_camera(setup_camera, device):
+    """Test initialization with only albedo."""
+    sim, camera_cfg, dt = setup_camera
+    num_cameras = 9
+    for i in range(num_cameras):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    # Create camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["albedo"]
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    # Play sim
+    sim.reset()
+    # Check if camera is initialized
+    assert camera.is_initialized
+    # Check if camera prim is set correctly and that it is a camera prim
+    assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
+    assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
+    assert list(camera.data.output.keys()) == ["albedo"]
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+
+    # Check buffers that exists and have correct shapes
+    assert camera.data.pos_w.shape == (num_cameras, 3)
+    assert camera.data.quat_w_ros.shape == (num_cameras, 4)
+    assert camera.data.quat_w_world.shape == (num_cameras, 4)
+    assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
+    assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
+    assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        camera.update(dt)
+        # check image data
+        for _, im_data in camera.data.output.items():
+            assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
+            for i in range(4):
+                assert (im_data[i] / 255.0).mean() > 0.0
+    assert camera.data.output["albedo"].dtype == torch.uint8
+    del camera
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    ["simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"],
+)
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_simple_shading_only_camera(setup_camera, device, data_type):
+    """Test initialization with only simple shading."""
+    sim, camera_cfg, dt = setup_camera
+    num_cameras = 9
+    for i in range(num_cameras):
+        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+
+    # Create camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = [data_type]
+    camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
+    camera = TiledCamera(camera_cfg)
+    # Check simulation parameter is set correctly
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    # Play sim
+    sim.reset()
+    # Check if camera is initialized
+    assert camera.is_initialized
+    # Check if camera prim is set correctly and that it is a camera prim
+    assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
+    assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
+    assert list(camera.data.output.keys()) == [data_type]
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(5):
+        sim.step()
+
+    # Check buffers that exists and have correct shapes
+    assert camera.data.pos_w.shape == (num_cameras, 3)
+    assert camera.data.quat_w_ros.shape == (num_cameras, 4)
+    assert camera.data.quat_w_world.shape == (num_cameras, 4)
+    assert camera.data.quat_w_opengl.shape == (num_cameras, 4)
+    assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
+    assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
+
+    # Simulate physics
+    for _ in range(10):
+        # perform rendering
+        sim.step()
+        # update camera
+        camera.update(dt)
+        # check image data
+        for _, im_data in camera.data.output.items():
+            assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
+            for i in range(4):
+                assert (im_data[i] / 255.0).mean() > 0.0
+    assert camera.data.output[data_type].dtype == torch.uint8
+    del camera
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_distance_to_camera_only_camera(setup_camera, device):
     """Test initialization with only distance_to_camera."""
     sim, camera_cfg, dt = setup_camera
@@ -519,7 +629,7 @@ def test_distance_to_camera_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -573,7 +683,7 @@ def test_distance_to_image_plane_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -627,7 +737,7 @@ def test_normals_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -663,7 +773,7 @@ def test_normals_only_camera(setup_camera, device):
             for i in range(4):
                 assert im_data[i].mean() > 0.0
             # check normal norm is approximately 1
-            norms = torch.norm(im_data, dim=-1)
+            norms = torch.linalg.norm(im_data, dim=-1)
             assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
     assert camera.data.output["normals"].dtype == torch.float
     del camera
@@ -684,7 +794,7 @@ def test_motion_vectors_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -738,7 +848,7 @@ def test_semantic_segmentation_colorize_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -793,7 +903,7 @@ def test_instance_segmentation_fast_colorize_only_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -848,7 +958,7 @@ def test_instance_id_segmentation_fast_colorize_only_camera(setup_camera, device
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -904,7 +1014,7 @@ def test_semantic_segmentation_non_colorize_only_camera(setup_camera, device):
     camera_cfg.colorize_semantic_segmentation = False
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -961,7 +1071,7 @@ def test_instance_segmentation_fast_non_colorize_only_camera(setup_camera, devic
     camera_cfg.colorize_instance_segmentation = False
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1016,7 +1126,7 @@ def test_instance_id_segmentation_fast_non_colorize_only_camera(setup_camera, de
     camera_cfg.colorize_instance_id_segmentation = False
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1064,6 +1174,7 @@ def test_all_annotators_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1084,7 +1195,7 @@ def test_all_annotators_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1120,6 +1231,7 @@ def test_all_annotators_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1141,6 +1253,7 @@ def test_all_annotators_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1164,6 +1277,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1186,7 +1300,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1222,6 +1336,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1243,6 +1358,7 @@ def test_all_annotators_low_resolution_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1266,6 +1382,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1286,7 +1403,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1322,6 +1439,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1343,6 +1461,7 @@ def test_all_annotators_non_perfect_square_number_camera(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1366,6 +1485,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -1391,7 +1511,7 @@ def test_all_annotators_instanceable(setup_camera, device):
             "Xform",
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
             translation=(0.0, i, 5.0),
-            orientation=(1.0, 0.0, 0.0, 0.0),
+            orientation=(0.0, 0.0, 0.0, 1.0),
             scale=(5.0, 5.0, 5.0),
         )
         prim = stage.GetPrimAtPath(f"/World/Cube_{i}")
@@ -1406,7 +1526,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     camera_cfg.offset.pos = (0.0, 0.0, 5.5)
     camera = TiledCamera(camera_cfg)
     # Check simulation parameter is set correctly
-    assert sim.has_rtx_sensors()
+    assert sim.get_setting("/isaaclab/render/rtx_sensors")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -1442,6 +1562,7 @@ def test_all_annotators_instanceable(setup_camera, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
                 "rgba",
+                "albedo",
                 "semantic_segmentation",
                 "instance_segmentation_fast",
                 "instance_id_segmentation_fast",
@@ -1470,6 +1591,7 @@ def test_all_annotators_instanceable(setup_camera, device):
     info = camera.data.info
     assert output["rgb"].dtype == torch.uint8
     assert output["rgba"].dtype == torch.uint8
+    assert output["albedo"].dtype == torch.uint8
     assert output["depth"].dtype == torch.float
     assert output["distance_to_camera"].dtype == torch.float
     assert output["distance_to_image_plane"].dtype == torch.float
@@ -1758,6 +1880,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
+        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

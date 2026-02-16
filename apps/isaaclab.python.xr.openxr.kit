@@ -15,7 +15,7 @@ keywords = ["experience", "app", "usd"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "5.1.0"
+app.version = "6.0.0"
 
 ### async rendering settings
 # omni.replicator.asyncRendering needs to be false for external camera rendering
@@ -41,7 +41,7 @@ xr.skipInputDeviceUSDWrites = true
 
 # Kit extensions
 "omni.kit.xr.system.openxr" = {}
-"omni.kit.xr.profile.ar" = {}
+"omni.kit.xr.bundle.generic" = {}
 
 [settings.isaaclab]
 # This is used to check that this experience file is loaded when using cameras
@@ -54,7 +54,6 @@ app.profilerBackend = "nvtx"
 
 # xr settings
 xr.ui.enabled = false
-xr.depth.aov = "GBufferDepth"
 defaults.xr.profile.ar.anchorMode = "custom anchor"
 rtx.rendermode = "RaytracedLighting"
 persistent.xr.profile.ar.renderQuality = "performance"
@@ -88,6 +87,6 @@ folders = [
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

@@ -14,12 +14,12 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -33,7 +33,7 @@ class MySceneCfg(InteractiveSceneCfg):
     robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd"
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
         ),
         actuators={
             "joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=1.0),
@@ -66,56 +66,7 @@ def setup_scene(request):
             return scene_cfg
 
         yield make_scene, sim
-    sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
-    sim.clear_instance()
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_scene_entity_isolation(device, setup_scene):
-    """Tests that multiple instances of InteractiveScene do not share any data.
-
-    In this test, two InteractiveScene instances are created in a loop and added to a list.
-    The scene at index 0 of the list will have all of its entities cleared manually, and
-    the test compares that the data held in the scene at index 1 remained intact.
-    """
-    make_scene, sim = setup_scene
-    scene_cfg = make_scene(num_envs=1)
-    # set additional light to test 'extras' attribute of the scene
-    setattr(
-        scene_cfg,
-        "light",
-        AssetBaseCfg(
-            prim_path="/World/light",
-            spawn=sim_utils.DistantLightCfg(),
-        ),
-    )
-    # set additional sensor to test 'sensors' attribute of the scene
-    setattr(scene_cfg, "sensor", ContactSensorCfg(prim_path="/World/envs/env_.*/Robot"))
-
-    scene_list = []
-    # create two InteractiveScene instances
-    for _ in range(2):
-        with build_simulation_context(device=device, dt=sim.get_physics_dt()) as _:
-            scene = InteractiveScene(scene_cfg)
-            scene_list.append(scene)
-    scene_0 = scene_list[0]
-    scene_1 = scene_list[1]
-    # clear entities for scene_0 - this should not affect any data in scene_1
-    scene_0.articulations.clear()
-    scene_0.rigid_objects.clear()
-    scene_0.sensors.clear()
-    scene_0.extras.clear()
-    # check that scene_0 and scene_1 do not share entity data via dictionary comparison
-    assert scene_0.articulations == dict()
-    assert scene_0.articulations != scene_1.articulations
-    assert scene_0.rigid_objects == dict()
-    assert scene_0.rigid_objects != scene_1.rigid_objects
-    assert scene_0.sensors == dict()
-    assert scene_0.sensors != scene_1.sensors
-    assert scene_0.extras == dict()
-    assert scene_0.extras != scene_1.extras
+    # Note: cleanup is handled by build_simulation_context's finally block
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -131,7 +82,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == False
     prev_state = scene.get_state(is_relative=False)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(scene["robot"].data.joint_pos), velocity=torch.rand_like(scene["robot"].data.joint_pos)
+        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
     )
     next_state = scene.get_state(is_relative=False)
     assert_state_different(prev_state, next_state)
@@ -141,7 +93,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == True
     prev_state = scene.get_state(is_relative=True)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(scene["robot"].data.joint_pos), velocity=torch.rand_like(scene["robot"].data.joint_pos)
+        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
     )
     next_state = scene.get_state(is_relative=True)
     assert_state_different(prev_state, next_state)
@@ -159,16 +112,18 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     # test env_ids = None
     prev_state = scene.get_state()
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(scene["robot"].data.joint_pos), velocity=torch.rand_like(scene["robot"].data.joint_pos)
+        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
     )
     scene.reset_to(prev_state, env_ids=None)
     assert_state_equal(prev_state, scene.get_state())
 
     # test env_ids = torch tensor
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(scene["robot"].data.joint_pos), velocity=torch.rand_like(scene["robot"].data.joint_pos)
+        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
     )
-    scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device))
+    scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
 
 

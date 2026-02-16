@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -188,10 +189,11 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # apply random actions to the robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
-            joint_pos_target = joint_pos_target.clamp_(
-                robot.data.soft_joint_pos_limits[..., 0], robot.data.soft_joint_pos_limits[..., 1]
+            joint_pos_target = (
+                wp.to_torch(robot.data.default_joint_pos) + torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 0.1
             )
+            soft_limits = wp.to_torch(robot.data.soft_joint_pos_limits)
+            joint_pos_target = joint_pos_target.clamp_(soft_limits[..., 0], soft_limits[..., 1])
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim

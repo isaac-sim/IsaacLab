@@ -86,6 +86,9 @@ ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 # Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ISAACLAB_PATH}
 
+# Fix the line endings for the shell scripts (Windows git may add \r)
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+
 # Ensure isaaclab.sh has execute permissions
 RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 
@@ -125,6 +128,14 @@ RUN touch /bin/nvidia-smi && \
 # This forces isaaclab.sh --install to install torch fresh to site-packages,
 # rather than skipping because it detects the pre-bundled version.
 RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
+
+# HACK: Reinstall pip properly after removing prebundled packages
+# The removal of torch* corrupts pip's vendor packages (_structures.py is deleted).
+# We must completely remove pip first, then do a clean install.
+RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
+    wget -q https://bootstrap.pypa.io/get-pip.py && \
+    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
+    rm get-pip.py
 
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages

@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+1.1.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to wrap warp data property accesses with ``wp.to_torch()``
+  for compatibility with the new warp backend. This includes direct RL environments
+  and all manager-based MDP functions (actions, observations, rewards, terminations,
+  commands, events, and curriculums).
+
+
+1.0.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to use the new ``root_view`` property instead of the deprecated
+  ``root_physx_view`` property. This includes the following environments:
+
+  * AutoMate Assembly and Disassembly environments
+  * Factory environments
+  * FORGE environments
+  * Inhand manipulation environments
+  * Quadcopter environments
+  * Shadow Hand environments
+
+
+0.12.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
 0.11.13 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~~
 

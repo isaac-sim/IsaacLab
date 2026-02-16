@@ -10,6 +10,8 @@ as well as certain object properties, to better suit the smaller robot.
 
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -63,7 +65,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.7, 0, 0.3),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            rot=(0.0, 0.0, 1.0, 0.0),
             joint_pos={
                 "door_left_joint": 0.0,
                 "door_right_joint": 0.0,
@@ -100,7 +102,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
                 name="drawer_handle_bottom",
                 offset=OffsetCfg(
                     pos=(0.222, 0.0, 0.005),
-                    rot=(0.5, 0.5, -0.5, -0.5),  # align with end-effector frame
+                    rot=(0.5, -0.5, -0.5, 0.5),  # align with end-effector frame
                 ),
             ),
         ],
@@ -278,5 +280,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.friction_correlation_distance = 0.00625
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            friction_correlation_distance=0.00625,
+        )

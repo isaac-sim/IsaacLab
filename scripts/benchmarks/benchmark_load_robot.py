@@ -28,6 +28,14 @@ parser.add_argument(
     default="h1",
     help="Choose which robot to load: anymal_d, h1, or g1.",
 )
+parser.add_argument(
+    "--benchmark_backend",
+    type=str,
+    default="omniperf",
+    choices=["json", "osmo", "omniperf"],
+    help="Benchmarking backend options, defaults omniperf",
+)
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -43,19 +51,19 @@ simulation_app = app_launcher.app
 # End the timer for app start
 app_start_time_end = time.perf_counter_ns()
 
-print(f"[INFO]: App start time: {(app_start_time_end - app_start_time_begin) / 1e6:.2f} ms")
-
 """Rest everything follows."""
 
 # Start the timer for imports
 imports_time_begin = time.perf_counter_ns()
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils import configclass
 
 ##
@@ -67,7 +75,20 @@ from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isor
 # Stop the timer for imports
 imports_time_end = time.perf_counter_ns()
 
-print(f"[INFO]: Imports time: {(imports_time_end - imports_time_begin) / 1e6:.2f} ms")
+# Create the benchmark
+benchmark = BaseIsaacLabBenchmark(
+    benchmark_name="benchmark_load_robot",
+    backend_type=args_cli.benchmark_backend,
+    output_path=args_cli.output_path,
+    use_recorders=True,
+    output_prefix="benchmark_load_robot",
+    workflow_metadata={
+        "metadata": [
+            {"name": "robot", "data": args_cli.robot},
+            {"name": "num_envs", "data": args_cli.num_envs},
+        ]
+    },
+)
 
 
 @configclass
@@ -113,19 +134,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
+            root_state = wp.to_torch(robot.data.default_root_state).clone()
             root_state[:, :3] += scene.env_origins
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
             # set joint positions with some noise
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                wp.to_torch(robot.data.default_joint_pos).clone(),
+                wp.to_torch(robot.data.default_joint_vel).clone(),
+            )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
         # Apply random action
         # -- generate random joint efforts
-        efforts = torch.randn_like(robot.data.joint_pos) * 5.0
+        efforts = torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 5.0
         # -- apply action to the robot
         robot.set_joint_effort_target(efforts)
         # -- write data to sim
@@ -137,7 +161,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Stop the timer for reset
     step_time_end = time.perf_counter_ns()
-    print(f"[INFO]: Per step time: {(step_time_end - step_time_begin) / num_steps / 1e6:.2f} ms")
+    per_step_time_ms = (step_time_end - step_time_begin) / num_steps / 1e6
+
+    # Log per step time to benchmark
+    benchmark.add_measurement(
+        "runtime", measurement=SingleMeasurement(name="Per Step Time", value=per_step_time_ms, unit="ms")
+    )
 
 
 def main():
@@ -155,7 +184,12 @@ def main():
     scene = InteractiveScene(scene_cfg)
     # Stop the timer for creating the scene
     setup_time_end = time.perf_counter_ns()
-    print(f"[INFO]: Scene creation time: {(setup_time_end - setup_time_begin) / 1e6:.2f} ms")
+
+    # Log scene creation time
+    scene_creation_time_ms = (setup_time_end - setup_time_begin) / 1e6
+    benchmark.add_measurement(
+        "startup", measurement=SingleMeasurement(name="Scene Creation Time", value=scene_creation_time_ms, unit="ms")
+    )
 
     # Start the timer for reset
     reset_time_begin = time.perf_counter_ns()
@@ -163,10 +197,29 @@ def main():
     sim.reset()
     # Stop the timer for reset
     reset_time_end = time.perf_counter_ns()
-    print(f"[INFO]: Sim start time: {(reset_time_end - reset_time_begin) / 1e6:.2f} ms")
+
+    # Log simulation start time
+    sim_start_time_ms = (reset_time_end - reset_time_begin) / 1e6
+    benchmark.add_measurement(
+        "startup", measurement=SingleMeasurement(name="Simulation Start Time", value=sim_start_time_ms, unit="ms")
+    )
+
+    # Log app start and imports time
+    app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
+    imports_time_ms = (imports_time_end - imports_time_begin) / 1e6
+    benchmark.add_measurement(
+        "startup", measurement=SingleMeasurement(name="App Launch Time", value=app_start_time_ms, unit="ms")
+    )
+    benchmark.add_measurement(
+        "startup", measurement=SingleMeasurement(name="Imports Time", value=imports_time_ms, unit="ms")
+    )
 
     # Run the simulator
     run_simulator(sim, scene)
+
+    # Finalize benchmark
+    benchmark.update_manual_recorders()
+    benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@
 import os
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -192,11 +194,12 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.render_interval = self.decimation
 
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
-        self.sim.physx.friction_correlation_distance = 0.00625
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=16 * 1024,
+            friction_correlation_distance=0.00625,
+        )
 
         # set viewer to see the whole scene
         self.viewer.eye = [1.5, -1.0, 1.5]
@@ -223,7 +226,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         # add table
         self.scene.table = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Table",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.7], rot=[0.707, 0, 0, 0.707]),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.7], rot=[0.0, 0.0, 0.707, 0.707]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
                 scale=(1.8, 1.0, 0.30),

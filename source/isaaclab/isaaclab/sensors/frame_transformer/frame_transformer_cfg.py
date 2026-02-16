@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 
 from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
@@ -18,8 +20,8 @@ class OffsetCfg:
 
     pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
-    rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
 
 @configclass
@@ -71,6 +73,6 @@ class FrameTransformerCfg(SensorBaseCfg):
     visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
     """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """

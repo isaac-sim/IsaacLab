@@ -304,17 +304,20 @@ def test_openxr_constructors(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = OpenXRDevice(config)
@@ -424,7 +427,7 @@ def test_haply_constructors(mock_environment, mocker):
     haply.running = True
     haply.cached_data = {
         "position": torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32).numpy(),
-        "quaternion": torch.tensor([0.0, 0.0, 0.0, 1.0], dtype=torch.float32).numpy(),
+        "quaternion": torch.tensor([0.0, 0.0, 1.0, 0.0], dtype=torch.float32).numpy(),
         "buttons": {"a": False, "b": False, "c": False},
         "inverse3_connected": True,
         "versegrip_connected": True,
@@ -509,7 +512,7 @@ def test_create_teleop_device_basic(mock_environment, mocker):
 def test_create_teleop_device_with_callbacks(mock_environment, mocker):
     """Test creating device with callbacks."""
     # Create device configuration
-    xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(1.0, 0.0, 0.0, 0.0), near_plane=0.15)
+    xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(0.0, 0.0, 0.0, 1.0), near_plane=0.15)
     openxr_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg)
 
     # Create devices configuration dictionary
@@ -527,17 +530,20 @@ def test_create_teleop_device_with_callbacks(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg, callbacks)
@@ -569,17 +575,20 @@ def test_create_teleop_device_with_retargeters(mock_environment, mocker):
         {
             "carb": mock_environment["carb"],
             "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
         },
     )
     mocker.patch.object(device_mod, "carb", mock_environment["carb"])
     mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
 
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
+    # Mock sim_utils functions used by OpenXRDevice
+    mock_stage = mocker.MagicMock()
+    mock_prim = mocker.MagicMock()
+    mock_prim.IsValid.return_value = False  # Prim doesn't exist, so create_prim will be called
+    mock_stage.GetPrimAtPath.return_value = mock_prim
+    mocker.patch.object(device_mod, "sim_utils", mocker.MagicMock())
+    device_mod.sim_utils.get_current_stage.return_value = mock_stage
+    device_mod.sim_utils.create_prim.return_value = None
 
     # Create the device using the factory
     device = create_teleop_device("test_xr", devices_cfg)

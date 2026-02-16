@@ -6,6 +6,8 @@
 
 import os
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -133,7 +135,7 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
         self.episode_length_s = 30.0
 
         # Enable CCD to avoid tunneling
-        self.sim.physx.enable_ccd = True
+        self.sim.physics = PhysxCfg(enable_ccd=True)
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -188,7 +190,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         self.scene.left_wrist_cam = CameraCfg(
@@ -200,7 +202,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         # Set ego view camera
@@ -213,7 +215,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(-0.5, 0.5, -0.5, 0.5), convention="ros"),
         )
 
         # Set front view camera
@@ -226,7 +228,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.6), rot=(-0.3799, 0.5963, 0.5963, -0.3799), convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.6), rot=(0.5963, 0.5963, -0.3799, -0.3799), convention="ros"),
         )
 
         marker_right_camera_cfg = FRAME_MARKER_CFG.copy()
@@ -243,7 +245,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
                     name="right_camera",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.0],
-                        rot=(0.5, -0.5, 0.5, -0.5),
+                        rot=(-0.5, 0.5, -0.5, 0.5),
                     ),
                 ),
             ],
@@ -263,7 +265,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
                     name="left_camera",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.0],
-                        rot=(0.5, -0.5, 0.5, -0.5),
+                        rot=(-0.5, 0.5, -0.5, 0.5),
                     ),
                 ),
             ],

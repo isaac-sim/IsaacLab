@@ -35,8 +35,8 @@ To begin, we first define our virtual environment.
 
       .. code-block:: bash
 
-         # create a virtual environment named env_isaaclab with python3.11 and pip
-         conda create -n env_isaaclab python=3.11
+         # create a virtual environment named env_isaaclab with python3.12
+         conda create -n env_isaaclab python=3.12
          # activate the virtual environment
          conda activate env_isaaclab
 
@@ -50,8 +50,8 @@ To begin, we first define our virtual environment.
 
             .. code-block:: bash
 
-               # create a virtual environment named env_isaaclab with python3.11 and pip
-               uv venv --python 3.11 --seed env_isaaclab
+               # create a virtual environment named env_isaaclab with python3.12
+               uv venv --python 3.12 env_isaaclab
                # activate the virtual environment
                source env_isaaclab/bin/activate
 
@@ -60,17 +60,17 @@ To begin, we first define our virtual environment.
 
             .. code-block:: batch
 
-               # create a virtual environment named env_isaaclab with python3.11
-               uv venv --python 3.11 env_isaaclab
+               # create a virtual environment named env_isaaclab with python3.12
+               uv venv --python 3.12 env_isaaclab
                # activate the virtual environment
                env_isaaclab\Scripts\activate
 
 
-Next, install a CUDA-enabled PyTorch 2.7.0 build.
+Next, install a CUDA-enabled PyTorch build.
 
    .. code-block:: bash
 
-      pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+      pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -96,7 +96,7 @@ and now we can install the Isaac Sim packages.
 
 .. code-block:: none
 
-    pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+    pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 

@@ -15,7 +15,7 @@ keywords = ["experience", "app", "isaaclab", "python", "headless"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "5.1.0"
+app.version = "6.0.0"
 
 ##################################
 # Omniverse related dependencies #
@@ -206,6 +206,7 @@ enabled=true # Enable this for DLSS
 
 # Load Isaac Lab extensions last
 "isaaclab" = {order = 1000}
+"isaaclab_physx" = {order = 1000}
 "isaaclab_assets" = {order = 1000}
 "isaaclab_tasks" = {order = 1000}
 "isaaclab_mimic" = {order = 1000}
@@ -215,6 +216,6 @@ enabled=true # Enable this for DLSS
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

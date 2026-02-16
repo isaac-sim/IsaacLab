@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.assets import RigidObjectCfg, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
+
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.devices import DevicesCfg
 from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
@@ -199,7 +201,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
@@ -209,7 +211,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
         self.scene.cube_2 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_2",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                 scale=(1.0, 1.0, 1.0),
@@ -219,7 +221,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
         self.scene.cube_3 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Cube_3",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
                 scale=(1.0, 1.0, 1.0),

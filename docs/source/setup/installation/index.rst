@@ -3,13 +3,13 @@
 Local Installation
 ==================
 
-.. image:: https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 5.1.0
+   :alt: IsaacSim 6.0.0
 
-.. image:: https://img.shields.io/badge/python-3.11-blue.svg
+.. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
-   :alt: Python 3.11
+   :alt: Python 3.12
 
 .. image:: https://img.shields.io/badge/platform-linux--64-orange.svg
    :target: https://releases.ubuntu.com/22.04/
@@ -26,8 +26,8 @@ recommended installation methods for both Isaac Sim and Isaac Lab.
 
 .. caution::
 
-   We have dropped support for Isaac Sim versions 4.2.0 and below. We recommend using the latest
-   Isaac Sim 5.1.0 release to benefit from the latest features and improvements.
+   We have dropped support for Isaac Sim versions 4.5.0 and below. We recommend using the latest
+   Isaac Sim 6.0.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.isaacsim.omniverse.nvidia.com/latest/overview/release_notes.html#>`__.
@@ -51,8 +51,8 @@ The basic requirements are:
 it essential to use the same Python version when installing Isaac Lab.
 The required Python version is as follows:
 
+- For Isaac Sim 6.X, the required Python version is 3.12.
 - For Isaac Sim 5.X, the required Python version is 3.11.
-- For Isaac Sim 4.X, the required Python version is 3.10.
 
 
 Driver Requirements
@@ -70,6 +70,8 @@ may work but have not been validated against all Omniverse tests.
   driver from the `Unix Driver Archive <https://www.nvidia.com/en-us/drivers/unix/>`_
   using the ``.run`` installer.
 
+.. _dgx-spark-limitations:
+
 DGX Spark: details and limitations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -80,7 +82,7 @@ Other notable limitations with respect to Isaac Lab include...
 #. `SkillGen <https://isaac-sim.github.io/IsaacLab/main/source/overview/imitation-learning/skillgen.html>`_ is not supported out of the box. This
    is because cuRobo builds native CUDA/C++ extensions that requires specific tooling and library versions which are not validated for use with DGX spark.
 
-#. Extended reality teleoperation tools such as `OpenXR <https://isaac-sim.github.io/IsaacLab/v2.3.2/source/api/lab/isaaclab.devices.html#openxr>`_ is not supported. This is due
+#. Extended reality teleoperation tools such as :class:`OpenXR <isaaclab.devices.OpenXRDevice>` is not supported. This is due
    to encoding performance limitations that have not yet been fully investigated.
 
 #. SKRL training with `JAX <https://docs.jax.dev/en/latest/notebooks/thinking_in_jax.html>`_ has not been explicitly validated or tested in Isaac Lab on the DGX Spark.

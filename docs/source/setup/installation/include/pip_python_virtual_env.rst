@@ -20,13 +20,13 @@ You can choose different package managers to create a virtual environment.
 
    The Python version of the virtual environment must match the Python version of Isaac Sim.
 
+   - For Isaac Sim 6.X, the required Python version is 3.12.
    - For Isaac Sim 5.X, the required Python version is 3.11.
-   - For Isaac Sim 4.X, the required Python version is 3.10.
 
    Using a different Python version will result in errors when running Isaac Lab.
 
-The following instructions are for Isaac Sim 5.X, which requires Python 3.11.
-If you wish to install Isaac Sim 4.5, please use modify the instructions accordingly to use Python 3.10.
+The following instructions are for Isaac Sim 6.X, which requires Python 3.12.
+If you wish to install Isaac Sim 5.X, please use modify the instructions accordingly to use Python 3.11.
 
 -  Create a virtual environment using one of the package managers:
 
@@ -42,7 +42,7 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
          .. code-block:: bash
 
-            conda create -n env_isaaclab python=3.11
+            conda create -n env_isaaclab python=3.12
             conda activate env_isaaclab
 
       .. tab-item::  venv Environment
@@ -58,8 +58,8 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
                .. code-block:: bash
 
-                  # create a virtual environment named env_isaaclab with python3.11
-                  python3.11 -m venv env_isaaclab
+                  # create a virtual environment named env_isaaclab with python3.12
+                  python3.12 -m venv env_isaaclab
                   # activate the virtual environment
                   source env_isaaclab/bin/activate
 
@@ -68,8 +68,8 @@ If you wish to install Isaac Sim 4.5, please use modify the instructions accordi
 
                .. code-block:: batch
 
-                  :: create a virtual environment named env_isaaclab with python3.11
-                  python3.11 -m venv env_isaaclab
+                  :: create a virtual environment named env_isaaclab with python3.12
+                  python3.12 -m venv env_isaaclab
                   :: activate the virtual environment
                   env_isaaclab\Scripts\activate
 

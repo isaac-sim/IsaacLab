@@ -12,6 +12,8 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 :attr:`AppLauncher.app` property.
 """
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import logging
@@ -137,6 +139,8 @@ class AppLauncher:
         self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
+        # Set visualizer settings (if requested)
+        self._set_visualizer_settings(launcher_args)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -303,6 +307,13 @@ class AppLauncher:
             action=ExplicitAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+        )
+        arg_group.add_argument(
+            "--visualizer",
+            type=str,
+            nargs="+",
+            default=None,
+            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -548,16 +559,17 @@ class AppLauncher:
             if self._livestream == 1:
                 # WebRTC public network
                 self._livestream_args += [
-                    f"--/app/livestream/publicEndpointAddress={public_ip_env}",
-                    "--/app/livestream/port=49100",
+                    f"--/exts/omni.kit.livestream.app/primaryStream/publicIp={public_ip_env}",
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
                     "--enable",
-                    "omni.services.livestream.nvcf",
+                    "omni.kit.livestream.app",
                 ]
             elif self._livestream == 2:
                 # WebRTC private network
                 self._livestream_args += [
                     "--enable",
-                    "omni.services.livestream.nvcf",
+                    "omni.kit.livestream.app",
                 ]
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
@@ -599,6 +611,19 @@ class AppLauncher:
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
+
+        # If visualizers are explicitly requested and Kit viewport is not among them,
+        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
+        visualizers_arg = launcher_args.get("visualizer")
+        if visualizers_arg:
+            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
+            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
+                if not self._headless:
+                    print(
+                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
+                        "'kit' and livestream is disabled."
+                    )
+                self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
@@ -715,8 +740,8 @@ class AppLauncher:
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
-        if self.is_isaac_sim_version_4_5():
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_4_5")
+        if self.is_isaac_sim_version_5():
+            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
         if self._sim_experience_file == "":
             # check if the headless flag is set
@@ -771,10 +796,6 @@ class AppLauncher:
         if recording_enabled:
             if self._headless:
                 raise ValueError("Animation recording is not supported in headless mode.")
-            if self.is_isaac_sim_version_4_5():
-                raise RuntimeError(
-                    "Animation recording is not supported in Isaac Sim 4.5. Please update to Isaac Sim 5.0."
-                )
             sys.argv += ["--enable", "omni.physx.pvd"]
 
     def _resolve_kit_args(self, launcher_args: dict):
@@ -935,6 +956,17 @@ class AppLauncher:
         carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
         carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
+    def _set_visualizer_settings(self, launcher_args: dict) -> None:
+        """Store visualizer selection in carb settings."""
+        visualizers = launcher_args.get("visualizer")
+        if not visualizers:
+            return
+        with contextlib.suppress(Exception):
+            import carb
+
+            visualizer_str = " ".join(visualizers)
+            carb.settings.get_settings().set_string("/isaaclab/visualizer", visualizer_str)
+
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
         # close the app
@@ -942,15 +974,15 @@ class AppLauncher:
         # raise the error for keyboard interrupt
         raise KeyboardInterrupt
 
-    def is_isaac_sim_version_4_5(self) -> bool:
-        if not hasattr(self, "_is_sim_ver_4_5"):
+    def is_isaac_sim_version_5(self) -> bool:
+        if not hasattr(self, "_is_sim_ver_5"):
             # 1) Try to read the VERSION file (for manual / binary installs)
             version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
             if os.path.isfile(version_path):
                 with open(version_path) as f:
                     ver = f.readline().strip()
-                    if ver.startswith("4.5"):
-                        self._is_sim_ver_4_5 = True
+                    if ver.startswith("5"):
+                        self._is_sim_ver_5 = True
                         return True
 
             # 2) Fall back to metadata (for pip installs)
@@ -958,13 +990,13 @@ class AppLauncher:
 
             try:
                 ver = pkg_version("isaacsim")
-                if ver.startswith("4.5"):
-                    self._is_sim_ver_4_5 = True
+                if ver.startswith("5"):
+                    self._is_sim_ver_5 = True
                 else:
-                    self._is_sim_ver_4_5 = False
+                    self._is_sim_ver_5 = False
             except Exception:
-                self._is_sim_ver_4_5 = False
-        return self._is_sim_ver_4_5
+                self._is_sim_ver_5 = False
+        return self._is_sim_ver_5
 
     def _hide_play_button(self, flag):
         """Hide/Unhide the play button in the toolbar.

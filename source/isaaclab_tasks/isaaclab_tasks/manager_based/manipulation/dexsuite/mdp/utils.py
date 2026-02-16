@@ -243,7 +243,7 @@ def farthest_point_sampling(
     farthest = torch.randint(0, N, (1,), device=device)
     for j in range(n_samples):
         sampled_idx[j] = farthest
-        dist = torch.norm(points - points[farthest], dim=1)
+        dist = torch.linalg.norm(points - points[farthest], dim=1)
         distances = torch.minimum(distances, dist)
         farthest = torch.argmax(distances)
     return sampled_idx

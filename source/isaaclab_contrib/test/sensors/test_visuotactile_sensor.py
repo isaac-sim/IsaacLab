@@ -147,7 +147,7 @@ def setup(sensor_type: str = "cube"):
         actuators={},
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            rot=(math.sqrt(2) / 2, -math.sqrt(2) / 2, 0.0, 0.0),  # 90° rotation
+            rot=(-math.sqrt(2) / 2, 0.0, 0.0, math.sqrt(2) / 2),  # 90° rotation
             joint_pos={},
             joint_vel={},
         ),
@@ -172,7 +172,7 @@ def setup(sensor_type: str = "cube"):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.0 + 0.06776, 0.52),
-            rot=(1.0, 0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
         ),
     )
 
@@ -189,10 +189,8 @@ def teardown(sim):
     # close all the opened viewport from before.
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 

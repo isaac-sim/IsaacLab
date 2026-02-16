@@ -31,7 +31,7 @@ Installing dependencies
 
       pip install isaaclab[isaacsim,all]==2.3.2 --extra-index-url https://pypi.nvidia.com
 
--  Install a CUDA-enabled PyTorch 2.7.0 build for CUDA 12.8 that matches your system architecture:
+-  Install a CUDA-enabled PyTorch 2.9.0 build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform
@@ -41,14 +41,14 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
@@ -79,7 +79,7 @@ Installing dependencies
             removing the preload warnings during runtime.
 
 -  If you want to use ``rl_games`` for training and inferencing, install
-   its Python 3.11 enabled fork:
+   its Python 3.11+ enabled fork:
 
    .. code-block:: none
 
