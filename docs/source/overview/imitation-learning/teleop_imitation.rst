@@ -57,7 +57,7 @@ For tasks that benefit from the use of an extended reality (XR) device with hand
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking --device cpu
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking
 
 .. note::
 
@@ -110,9 +110,9 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
    mkdir -p datasets
    # step b: collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
    # Available options: spacemouse, keyboard, handtracking
-   ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --device cpu --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
+   ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --visualizer kit --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
    # step a: replay the collected dataset
-   ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --device cpu --dataset_file ./datasets/dataset.hdf5
+   ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --visualizer kit --dataset_file ./datasets/dataset.hdf5
 
 
 .. note::
@@ -176,8 +176,11 @@ In order to use Isaac Lab Mimic with the recorded dataset, first annotate the su
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-         --device cpu --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 --auto \
-         --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
+         --visualizer kit \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
+         --auto \
+         --input_file ./datasets/dataset.hdf5 \
+         --output_file ./datasets/annotated_dataset.hdf5
 
    .. tab-item:: Visuomotor policy
       :sync: visuomotor
@@ -185,8 +188,12 @@ In order to use Isaac Lab Mimic with the recorded dataset, first annotate the su
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-         --device cpu --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 --auto \
-         --input_file ./datasets/dataset.hdf5 --output_file ./datasets/annotated_dataset.hdf5
+         --visualizer kit \
+         --enable_cameras \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
+         --auto \
+         --input_file ./datasets/dataset.hdf5 \
+         --output_file ./datasets/annotated_dataset.hdf5
 
 
 Then, use Isaac Lab Mimic to generate some additional demonstrations:
@@ -200,8 +207,11 @@ Then, use Isaac Lab Mimic to generate some additional demonstrations:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --num_envs 10 --generation_num_trials 10 \
-         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5
+         --visualizer kit \
+         --num_envs 10 \
+         --generation_num_trials 10 \
+         --input_file ./datasets/annotated_dataset.hdf5 \
+         --output_file ./datasets/generated_dataset_small.hdf5
 
    .. tab-item:: Visuomotor policy
       :sync: visuomotor
@@ -209,8 +219,20 @@ Then, use Isaac Lab Mimic to generate some additional demonstrations:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --enable_cameras --num_envs 10 --generation_num_trials 10 \
-         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset_small.hdf5
+         --visualizer kit \
+         --enable_cameras \
+         --num_envs 10 \
+         --generation_num_trials 10 \
+         --input_file ./datasets/annotated_dataset.hdf5 \
+         --output_file ./datasets/generated_dataset_small.hdf5
+
+.. figure:: /_static/mimic/franka_datagen.png
+   :width: 100%
+   :align: center
+   :alt: Franka robot performing the pick and place task
+   :figclass: align-center
+
+   Parallel data generation for the Franka robot stacking task.
 
 .. note::
 
@@ -227,8 +249,12 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --headless --num_envs 10 --generation_num_trials 1000 \
-         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
+         --visualizer kit \
+         --headless \
+         --num_envs 10 \
+         --generation_num_trials 1000 \
+         --input_file ./datasets/annotated_dataset.hdf5 \
+         --output_file ./datasets/generated_dataset.hdf5
 
    .. tab-item:: Visuomotor policy
       :sync: visuomotor
@@ -236,8 +262,13 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
-         --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
+         --visualizer kit \
+         --enable_cameras \
+         --headless \
+         --num_envs 10 \
+         --generation_num_trials 1000 \
+         --input_file ./datasets/annotated_dataset.hdf5 \
+         --output_file ./datasets/generated_dataset.hdf5
 
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
