@@ -283,7 +283,7 @@ class TestMetricsBackendFactory:
     def test_summary_backend_finalize_writes_json(self, temp_output_dir):
         """Test that SummaryMetrics finalize writes JSON output (and does not raise)."""
         backend = backends.MetricsBackend.get_instance("summary")
-        from isaaclab.test.benchmark.measurements import TestPhase, StringMetadata
+        from isaaclab.test.benchmark.measurements import StringMetadata, TestPhase
 
         phase = TestPhase(phase_name="runtime")
         phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
