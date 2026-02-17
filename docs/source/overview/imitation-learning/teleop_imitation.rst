@@ -890,7 +890,6 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --device cpu \
       --headless \
       --enable_pinocchio \
-      
       --generation_num_trials 1000 \
       --num_envs 5 \
       --input_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 \
@@ -905,7 +904,8 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a visuomotor BC agent 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 --algo bc \
+   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+   --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_gr1_nut_pouring.hdf5
 
@@ -930,11 +930,11 @@ Visualize the results of the trained policy by running the following command, us
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-   --device cpu \
-   --enable_pinocchio \
-   --enable_cameras \
-   --rendering_mode balanced \
    --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+   --visualizer kit \
+   --device cpu \
+   --enable_cameras \
+   --enable_pinocchio \
    --num_rollouts 50 \
    --horizon 350 \
    --norm_factor_min <NORM_FACTOR_MIN> \
