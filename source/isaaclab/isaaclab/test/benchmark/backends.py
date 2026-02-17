@@ -161,21 +161,35 @@ class SummaryMetrics(MetricsBackendInterface):
     """Print a human-readable summary and write JSON metrics."""
 
     def __init__(self) -> None:
+        """Initialize internal phase storage and JSON backend."""
         self._phases: list[TestPhase] = []
         self._json_backend = JSONFileMetrics()
         self._report_width = 86
 
     def add_metrics(self, test_phase: TestPhase) -> None:
+        """Add metrics from a test phase; store for summary and forward to JSON backend.
+
+        Args:
+            test_phase: Test phase containing measurements and metadata.
+        """
         self._phases.append(copy.deepcopy(test_phase))
         self._json_backend.add_metrics(test_phase)
 
     def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
+        """Write JSON output and print human-readable summary to console.
+
+        Args:
+            output_path: Path to write output file(s).
+            output_filename: Base filename for the JSON file.
+            **kwargs: Additional options passed to the JSON backend.
+        """
         self._json_backend.finalize(output_path, output_filename, **kwargs)
         if self._phases:
             self._print_summary()
         self._phases.clear()
 
     def _print_summary(self) -> None:
+        """Format and print the boxed summary report to stdout."""
         phases = self._merge_phases()
         benchmark_info = phases.get("benchmark_info")
         runtime_phase = phases.get("runtime")
@@ -272,6 +286,11 @@ class SummaryMetrics(MetricsBackendInterface):
             self._print_box_separator()
 
     def _merge_phases(self) -> dict[str, TestPhase]:
+        """Merge all stored phases by name, combining measurements and metadata.
+
+        Returns:
+            Dictionary mapping phase name to a single merged TestPhase.
+        """
         merged: dict[str, TestPhase] = {}
         for phase in self._phases:
             name = phase.phase_name
@@ -283,6 +302,14 @@ class SummaryMetrics(MetricsBackendInterface):
         return merged
 
     def _metadata_map(self, phase: TestPhase | None) -> dict[str, Any]:
+        """Build a name -> data map from a phase's metadata list.
+
+        Args:
+            phase: Test phase, or None.
+
+        Returns:
+            Dictionary of metadata names to their data values.
+        """
         if not phase:
             return {}
         metadata: dict[str, Any] = {}
@@ -292,6 +319,14 @@ class SummaryMetrics(MetricsBackendInterface):
         return metadata
 
     def _get_gpu_summary(self, hardware_meta: dict[str, Any]) -> tuple[str | None, float | None]:
+        """Extract GPU name and total memory (GB) from hardware metadata.
+
+        Args:
+            hardware_meta: Metadata dict from the hardware_info phase.
+
+        Returns:
+            (gpu_name, total_memory_gb) or (None, None) if not available.
+        """
         gpu_devices = hardware_meta.get("gpu_devices")
         current_device = hardware_meta.get("gpu_current_device", 0)
         if isinstance(gpu_devices, dict):
@@ -302,6 +337,13 @@ class SummaryMetrics(MetricsBackendInterface):
         return None, None
 
     def _print_optional_measurement(self, phase: TestPhase, name: str, unit_fallback: str | None = None) -> None:
+        """Print a single measurement line if present in the phase.
+
+        Args:
+            phase: Test phase to look up the measurement.
+            name: Measurement name.
+            unit_fallback: Unit string to use when measurement has no unit.
+        """
         measurement = self._get_single_measurement(phase, name)
         if measurement is None:
             return
@@ -310,12 +352,29 @@ class SummaryMetrics(MetricsBackendInterface):
         self._print_box_line(f"{name}: {self._format_scalar(measurement.value)}{suffix}")
 
     def _get_single_measurement(self, phase: TestPhase, name: str) -> SingleMeasurement | None:
+        """Return the first SingleMeasurement in the phase with the given name.
+
+        Args:
+            phase: Test phase to search.
+            name: Measurement name.
+
+        Returns:
+            The matching SingleMeasurement, or None.
+        """
         for measurement in phase.measurements:
             if isinstance(measurement, SingleMeasurement) and measurement.name == name:
                 return measurement
         return None
 
     def _summarize_runtime_metrics(self, measurements: list) -> list[str]:
+        """Build min/mean/max summary rows from SingleMeasurement runtime metrics.
+
+        Args:
+            measurements: List of measurements (typically from the runtime phase).
+
+        Returns:
+            List of formatted lines, grouped by category (Collection, Learning, etc.).
+        """
         series: dict[str, dict[str, float]] = {}
         units: dict[str, str | None] = {}
         for measurement in measurements:
@@ -372,9 +431,11 @@ class SummaryMetrics(MetricsBackendInterface):
         return rows
 
     def _print_box_separator(self) -> None:
+        """Print a horizontal rule line for the summary box."""
         print("|" + "-" * (self._report_width - 2) + "|")
 
     def _print_box_line(self, text: str) -> None:
+        """Print a line of text inside the box, wrapping if needed."""
         inner_width = self._report_width - 4
         if not text:
             print(f"| {' ' * inner_width} |")
@@ -383,6 +444,7 @@ class SummaryMetrics(MetricsBackendInterface):
             print(f"| {line.ljust(inner_width)} |")
 
     def _print_box_kv(self, key: str, value: Any) -> None:
+        """Print a key-value line; skip if value is None."""
         if value is None:
             return
         if isinstance(value, float):
@@ -390,6 +452,7 @@ class SummaryMetrics(MetricsBackendInterface):
         self._print_box_line(f"{key}: {value}")
 
     def _format_scalar(self, value: float | int) -> str:
+        """Format a numeric value for display (two decimal places for floats)."""
         if isinstance(value, float):
             return f"{value:.2f}"
         return str(value)
