@@ -220,6 +220,19 @@ Added
 * Added shared warp math kernels in :mod:`isaaclab.utils.warp.kernels` for quaternion
   operations, coordinate transforms, and velocity computations.
 
+* Added :class:`~isaaclab.test.benchmark.backends.SummaryMetrics` backend for benchmarks:
+  prints a human-readable boxed summary to the console while still writing full JSON output.
+  Use ``--benchmark_backend summary`` in benchmark scripts. Frametime recorders are
+  enabled automatically when the summary backend is selected, with a fallback for
+  bundled Isaac Sim packaging variants.
+
+Fixed
+^^^^^
+
+* Fixed runtime stats in benchmark scripts so FPS metrics (e.g. Collection FPS, Total FPS)
+  are labeled with unit "FPS" instead of "ms". Unit is now inferred from the metric
+  name in ``log_min_max_mean_stats`` (benchmark utils).
+
 
 3.2.0 (2026-02-06)
 ~~~~~~~~~~~~~~~~~~
