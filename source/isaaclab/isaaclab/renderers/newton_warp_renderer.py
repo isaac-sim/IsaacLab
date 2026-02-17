@@ -46,8 +46,8 @@ class CameraManager:
         width: int = 100
         height: int = 100
 
-    def __init__(self, scene: InteractiveScene):
-        self.render_context: newton.sensors.SensorTiledCamera.RenderContext | None = None
+    def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, scene: InteractiveScene):
+        self.render_context = render_context
         self.scene = scene
         self.num_cameras = 1
         self.camera_data: dict[SensorBase, CameraManager.CameraData] = {}
@@ -59,33 +59,39 @@ class CameraManager:
             camera_data.height = getattr(sensor.cfg, "height", camera_data.height)
             self.camera_data[sensor] = camera_data
 
-    def create_outputs(self, render_context: newton.sensors.SensorTiledCamera.RenderContext):
-        self.render_context = render_context
+    def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for name, sensor in self.scene.sensors.items():
             if camera_data := self.camera_data.get(sensor):
-                if data_types := getattr(sensor.cfg, "data_types"):
-                    if CameraManager.OutputNames.RGBA in data_types or CameraManager.OutputNames.RGB in data_types:
-                        camera_data.outputs.color_image = render_context.create_color_image_output(
-                            camera_data.width, camera_data.height, self.num_cameras
+                for output_name, tensor_data in output_data.items():
+                    if output_name == CameraManager.OutputNames.RGBA:
+                        camera_data.outputs.color_image = self.__from_torch(camera_data, tensor_data, dtype=wp.uint32)
+                    elif output_name == CameraManager.OutputNames.ALBEDO:
+                        camera_data.outputs.albedo_image = self.__from_torch(camera_data, tensor_data, dtype=wp.uint32)
+                    elif output_name == CameraManager.OutputNames.DEPTH:
+                        camera_data.outputs.depth_image = self.__from_torch(camera_data, tensor_data, dtype=wp.float32)
+                    elif output_name == CameraManager.OutputNames.NORMALS:
+                        camera_data.outputs.normals_image = self.__from_torch(camera_data, tensor_data, dtype=wp.vec3f)
+                    elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
+                        camera_data.outputs.instance_segmentation_image = self.__from_torch(
+                            camera_data, tensor_data, dtype=wp.uint32
                         )
-                    if CameraManager.OutputNames.ALBEDO in data_types:
-                        camera_data.outputs.albedo_image = render_context.create_albedo_image_output(
-                            camera_data.width, camera_data.height, self.num_cameras
-                        )
-                    if CameraManager.OutputNames.DEPTH in data_types:
-                        camera_data.outputs.depth_image = render_context.create_depth_image_output(
-                            camera_data.width, camera_data.height, self.num_cameras
-                        )
-                    if CameraManager.OutputNames.NORMALS in data_types:
-                        camera_data.outputs.normals_image = render_context.create_normal_image_output(
-                            camera_data.width, camera_data.height, self.num_cameras
-                        )
-                    if CameraManager.OutputNames.INSTANCE_SEGMENTATION in data_types:
-                        camera_data.outputs.instance_segmentation_image = (
-                            render_context.create_shape_index_image_output(
-                                camera_data.width, camera_data.height, self.num_cameras
-                            )
-                        )
+                    elif output_name == CameraManager.OutputNames.RGB:
+                        pass
+                    else:
+                        print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+
+    def get_output(self, camera_data: CameraData, output_name: str) -> wp.array:
+        if output_name == CameraManager.OutputNames.RGBA:
+            return camera_data.outputs.color_image
+        elif output_name == CameraManager.OutputNames.ALBEDO:
+            return camera_data.outputs.albedo_image
+        elif output_name == CameraManager.OutputNames.DEPTH:
+            return camera_data.outputs.depth_image
+        elif output_name == CameraManager.OutputNames.NORMALS:
+            return camera_data.outputs.normals_image
+        elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
+            return camera_data.outputs.instance_segmentation_image
+        return None
 
     def update(
         self, camera_data: CameraData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -108,6 +114,24 @@ class CameraManager:
             camera_data.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(
                 camera_data.width, camera_data.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
+
+    def __from_torch(self, camera_data: CameraData, tensor: torch.Tensor, dtype) -> wp.array:
+        torch_array = wp.from_torch(tensor)
+        if tensor.is_contiguous():
+            return wp.array(
+                ptr=torch_array.ptr,
+                dtype=dtype,
+                shape=(self.render_context.num_worlds, self.num_cameras, camera_data.height, camera_data.width),
+                device=torch_array.device,
+                copy=False,
+            )
+
+        print("NewtonWarpRenderer - torch output array is non-contiguous")
+        return wp.zeros(
+            (self.render_context.num_worlds, self.num_cameras, camera_data.height, camera_data.width),
+            dtype=dtype,
+            device=torch_array.device,
+        )
 
     @wp.kernel
     def __update_transforms(
@@ -139,9 +163,11 @@ class NewtonWarpRenderer:
 
         self.physx_to_newton_body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
 
-        self.camera_manager = CameraManager(self.scene)
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
-        self.camera_manager.create_outputs(self.newton_sensor.render_context)
+        self.camera_manager = CameraManager(self.newton_sensor.render_context, self.scene)
+
+    def set_outputs(self, output_data: dict[str, torch.Tensor]):
+        self.camera_manager.set_outputs(output_data)
 
     def update_transforms(self):
         self.__update_mapping()
@@ -171,18 +197,10 @@ class NewtonWarpRenderer:
 
     def convert_output(self, sensor: SensorBase, output_name: str, output_data: torch.Tensor):
         if camera_data := self.camera_manager.camera_data.get(sensor):
-            if output_name == CameraManager.OutputNames.RGBA:
-                wp.copy(wp.from_torch(output_data), camera_data.outputs.color_image)
-            elif output_name == CameraManager.OutputNames.ALBEDO:
-                wp.copy(wp.from_torch(output_data), camera_data.outputs.albedo_image)
-            elif output_name == CameraManager.OutputNames.DEPTH:
-                wp.copy(wp.from_torch(output_data), camera_data.outputs.depth_image)
-            elif output_name == CameraManager.OutputNames.NORMALS:
-                wp.copy(wp.from_torch(output_data), camera_data.outputs.normals_image)
-            elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
-                wp.copy(wp.from_torch(output_data), camera_data.outputs.instance_segmentation_image)
-            else:
-                print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+            image_data = self.camera_manager.get_output(camera_data, output_name)
+            if image_data is not None:
+                if image_data.ptr != output_data.data_ptr():
+                    wp.copy(wp.from_torch(output_data), image_data)
 
     def __render(self, camera_data: CameraManager.CameraData):
         self.newton_sensor.render(

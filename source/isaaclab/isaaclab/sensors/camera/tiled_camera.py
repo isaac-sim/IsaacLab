@@ -459,6 +459,8 @@ class TiledCamera(Camera):
 
         self._data.output = data_dict
         self._data.info = dict()
+        if self.renderer is not None:
+            self.renderer.set_outputs(self._data.output)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""
