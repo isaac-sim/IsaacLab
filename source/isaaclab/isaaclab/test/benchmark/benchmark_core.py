@@ -120,6 +120,16 @@ class BaseIsaacLabBenchmark:
                     enable_extension("isaacsim.benchmark.services")
 
                     try:
+                        # Try bundled/kit path first (Isaac Sim packaging that uses a single recorder module).
+                        from isaacsim.benchmark.services.datarecorders.interface import InputContext
+                        from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
+
+                        context = InputContext(phase="frametime")
+                        self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
+                            context=context, gpu_frametime=False
+                        )
+                    except ImportError:
+                        # Fallback to individual datarecorder modules when not bundled.
                         from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
                         from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
                         from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
@@ -129,15 +139,6 @@ class BaseIsaacLabBenchmark:
                         self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
                         self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
                         self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
-                    except ImportError:
-                        # Fallback for Isaac Sim packaging that bundles frametime recorders in a single module.
-                        from isaacsim.benchmark.services.datarecorders.interface import InputContext
-                        from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
-
-                        context = InputContext(phase="frametime")
-                        self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
-                            context=context, gpu_frametime=False
-                        )
                 except ImportError as e:
                     logger.warning(
                         f"Could not import kit recorders: {e}. Kit related measurements will not be available."
