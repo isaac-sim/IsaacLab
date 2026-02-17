@@ -44,7 +44,7 @@ def reset_object_poses_nut_pour(
     sorting_bowl = env.scene[sorting_bowl_cfg.name]
     sorting_scale = env.scene[sorting_scale_cfg.name]
 
-    # get default root state (Warp arrays must be converted to torch before indexing)
+    # get default root state
     sorting_beaker_root_states = wp.to_torch(sorting_beaker.data.default_root_state)[env_ids].clone()
     factory_nut_root_states = wp.to_torch(factory_nut.data.default_root_state)[env_ids].clone()
     sorting_bowl_root_states = wp.to_torch(sorting_bowl.data.default_root_state)[env_ids].clone()

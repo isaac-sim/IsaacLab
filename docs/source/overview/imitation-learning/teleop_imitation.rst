@@ -448,7 +448,7 @@ Collect five demonstrations by running the following command:
    --teleop_device handtracking \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
-   
+
 
 .. note::
    We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``.
