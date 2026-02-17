@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -13,9 +12,8 @@ import newton
 import torch
 import warp as wp
 
-from pxr import Usd, UsdGeom
-
 import isaaclab.sim as isaaclab_sim
+import isaaclab.utils.math
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
@@ -42,8 +40,8 @@ class CameraManager:
     @dataclass
     class CameraData:
         camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
+        camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         outputs: CameraManager.CameraOutputs = field(default_factory=lambda: CameraManager.CameraOutputs())
-        prims: list[Usd.Prim] = field(default_factory=lambda: [])
         name: str | None = None
         width: int = 100
         height: int = 100
@@ -57,7 +55,6 @@ class CameraManager:
         for name, sensor in self.scene.sensors.items():
             camera_data = CameraManager.CameraData()
             camera_data.name = name
-            camera_data.prims = isaaclab_sim.find_matching_prims(sensor.cfg.prim_path)
             camera_data.width = getattr(sensor.cfg, "width", camera_data.width)
             camera_data.height = getattr(sensor.cfg, "height", camera_data.height)
             self.camera_data[sensor] = camera_data
@@ -66,17 +63,6 @@ class CameraManager:
         self.render_context = render_context
         for name, sensor in self.scene.sensors.items():
             if camera_data := self.camera_data.get(sensor):
-                fov = 20.0
-                if camera_data.prims:
-                    camera_prim = UsdGeom.Camera(camera_data.prims[0])
-                    focal_length = camera_prim.GetFocalLengthAttr().Get()
-                    horizontal_aperture = camera_prim.GetHorizontalApertureAttr().Get()
-                    fov = 2.0 * math.degrees(math.atan(horizontal_aperture / (2.0 * focal_length)))
-
-                camera_fovs = wp.array([fov] * self.num_cameras, dtype=wp.float32)
-                camera_data.camera_rays = render_context.utils.compute_pinhole_camera_rays(
-                    camera_data.width, camera_data.height, camera_fovs
-                )
                 if data_types := getattr(sensor.cfg, "data_types"):
                     if CameraManager.OutputNames.RGBA in data_types or CameraManager.OutputNames.RGB in data_types:
                         camera_data.outputs.color_image = render_context.create_color_image_output(
@@ -101,15 +87,36 @@ class CameraManager:
                             )
                         )
 
-    def get_camera_transforms(self, camera_data: CameraData) -> wp.array(dtype=wp.transformf):
-        camera_transforms = []
-        for prim in camera_data.prims:
-            camera_transforms.append(self.__resolve_camera_transform(prim))
-        return wp.array([camera_transforms], dtype=wp.transformf)
+    def update(
+        self, camera_data: CameraData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+    ):
+        converted_orientations = isaaclab.utils.math.convert_camera_frame_orientation_convention(
+            orientations, origin="world", target="opengl"
+        )
 
-    def __resolve_camera_transform(self, prim: Usd.Prim) -> wp.transformf:
-        position, orientation = isaaclab_sim.resolve_prim_pose(prim)
-        return wp.transformf(position, orientation)
+        camera_data.camera_transforms = wp.empty((1, self.scene.num_envs), dtype=wp.transformf)
+        wp.launch(
+            CameraManager.__update_transforms,
+            self.scene.num_envs,
+            [positions, converted_orientations, camera_data.camera_transforms],
+        )
+
+        if self.render_context is not None:
+            first_focal_length = intrinsics[:, 1, 1][0:1]
+            fov_radians_all = 2.0 * torch.atan(camera_data.height / (2.0 * first_focal_length))
+
+            camera_data.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(
+                camera_data.width, camera_data.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
+            )
+
+    @wp.kernel
+    def __update_transforms(
+        positions: wp.array(dtype=wp.vec3f),
+        orientations: wp.array(dtype=wp.quatf),
+        output: wp.array(dtype=wp.transformf, ndim=2),
+    ):
+        tid = wp.tid()
+        output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
 
 class NewtonWarpRenderer:
@@ -136,7 +143,7 @@ class NewtonWarpRenderer:
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
         self.camera_manager.create_outputs(self.newton_sensor.render_context)
 
-    def update(self):
+    def update_transforms(self):
         self.__update_mapping()
         for name, articulation in self.scene.articulations.items():
             if mapping := self.physx_to_newton_body_mapping.get(name):
@@ -147,6 +154,12 @@ class NewtonWarpRenderer:
                     mapping.shape,
                     [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q],
                 )
+
+    def update_camera(
+        self, sensor: SensorBase, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+    ):
+        if camera_data := self.camera_manager.camera_data.get(sensor):
+            self.camera_manager.update(camera_data, positions, orientations, intrinsics)
 
     def render(self, sensor: SensorBase):
         if camera_data := self.camera_manager.camera_data.get(sensor):
@@ -174,7 +187,7 @@ class NewtonWarpRenderer:
     def __render(self, camera_data: CameraManager.CameraData):
         self.newton_sensor.render(
             self.newton_state,
-            self.camera_manager.get_camera_transforms(camera_data),
+            camera_data.camera_transforms,
             camera_data.camera_rays,
             color_image=camera_data.outputs.color_image,
             albedo_image=camera_data.outputs.albedo_image,

@@ -259,6 +259,11 @@ class TiledCamera(Camera):
         # Create internal buffers
         self._create_buffers()
 
+    def _update_poses(self, env_ids: Sequence[int]):
+        super()._update_poses(env_ids)
+        if self.renderer is not None:
+            self.renderer.update_camera(self, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
+
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
@@ -268,7 +273,7 @@ class TiledCamera(Camera):
             self._update_poses(env_ids)
 
         if self.renderer is not None:
-            self.renderer.update()
+            self.renderer.update_transforms()
             self.renderer.render(self)
 
             for output_name, output_data in self._data.output.items():
@@ -378,13 +383,13 @@ class TiledCamera(Camera):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # create the data object
+        # -- intrinsic matrix
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._update_intrinsic_matrices(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
         # -- output data
         data_dict = dict()
