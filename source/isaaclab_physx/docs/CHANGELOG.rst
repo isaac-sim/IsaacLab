@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.3.1 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a bug in the :meth:`~isaaclab_physx.assets.Articulation.write_data_to_sim` method where the joint properties were not being set correctly.
+
 
 0.4.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
