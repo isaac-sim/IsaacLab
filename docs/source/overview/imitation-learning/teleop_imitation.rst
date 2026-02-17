@@ -305,7 +305,8 @@ Using the Mimic generated data we can now train a state-based BC agent for ``Isa
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --algo bc \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
 
    .. tab-item:: Visuomotor policy
@@ -314,7 +315,8 @@ Using the Mimic generated data we can now train a state-based BC agent for ``Isa
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --algo bc \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
+         --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
 
 .. note::
@@ -343,7 +345,9 @@ By inferencing using the generated model, we can visualize the results of the po
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --device cpu --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --num_rollouts 50 \
+         --visualizer kit \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
    .. tab-item:: Visuomotor policy
@@ -352,7 +356,10 @@ By inferencing using the generated model, we can visualize the results of the po
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --device cpu --enable_cameras --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 --num_rollouts 50 \
+         --visualizer kit \
+         --enable_cameras \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
+         --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
 .. tip::
@@ -364,7 +371,7 @@ By inferencing using the generated model, we can visualize the results of the po
 
    **Expected Success Rates and Timings for Franka Cube Stack Task**
 
-   * Data generation success rate: ~50% (for both state + visuomotor)
+   * Data generation success rate: ~40% (for both state + visuomotor)
    * Data generation time: ~30 mins for state, ~4 hours for visuomotor (varies based on num envs the user runs)
    * BC RNN training time: 1000 epochs + ~30 mins (for state), 600 epochs + ~6 hours (for visuomotor)
    * BC RNN policy success rate: ~40-60% (for both state + visuomotor)
