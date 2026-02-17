@@ -25,7 +25,7 @@ def _build_franka_se3_rel_gripper_pipeline(hand_side="right"):
     All outputs are flattened into a single 7D action tensor via TensorReorderer.
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
@@ -37,8 +37,8 @@ def _build_franka_se3_rel_gripper_pipeline(hand_side="right"):
 
     controllers = ControllersSource(name="controllers")
     hands = HandsSource(name="hands")
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
-    transformed_hands = hands.transformed(transform_input.output(PassthroughInput.VALUE))
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
+    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
 
     hand_key = HandsSource.LEFT if hand_side == "left" else HandsSource.RIGHT
 

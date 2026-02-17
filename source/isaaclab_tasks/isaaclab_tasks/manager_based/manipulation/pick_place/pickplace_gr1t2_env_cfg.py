@@ -42,7 +42,7 @@ def _build_gr1t2_pickplace_pipeline():
     tensor via TensorReorderer.
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         DexHandRetargeter,
         DexHandRetargeterConfig,
@@ -57,12 +57,12 @@ def _build_gr1t2_pickplace_pipeline():
     hands = HandsSource(name="hands")
 
     # External input: world-to-anchor 4x4 transform matrix provided by IsaacTeleopDevice
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
 
     # Apply the coordinate-frame transform to controller poses so that
     # downstream retargeters receive data in the simulation world frame.
-    _transformed_controllers = controllers.transformed(transform_input.output(PassthroughInput.VALUE))
-    transformed_hands = hands.transformed(transform_input.output(PassthroughInput.VALUE))
+    _transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
+    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
 
     # -------------------------------------------------------------------------
     # SE3 Absolute Pose Retargeters (left and right wrists)
@@ -73,8 +73,9 @@ def _build_gr1t2_pickplace_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=True,
         use_wrist_position=True,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.0, 0.0, 1.0),
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
     )
     left_se3 = Se3AbsRetargeter(left_se3_cfg, name="left_ee_pose")
     connected_left_se3 = left_se3.connect(
@@ -91,8 +92,9 @@ def _build_gr1t2_pickplace_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=True,
         use_wrist_position=True,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.0, 1.0, 0.0),
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=180.0,
     )
     right_se3 = Se3AbsRetargeter(right_se3_cfg, name="right_ee_pose")
     connected_right_se3 = right_se3.connect(
@@ -247,7 +249,7 @@ def _build_gr1t2_pickplace_pipeline():
     )
 
     pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
-    return pipeline  # , [left_dex, right_dex]
+    return pipeline, [left_dex, right_dex]
 
 
 ##

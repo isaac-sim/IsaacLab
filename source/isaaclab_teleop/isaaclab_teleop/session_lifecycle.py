@@ -39,7 +39,7 @@ class TeleopSessionLifecycle:
     """
 
     WORLD_T_ANCHOR_INPUT_NAME = "world_T_anchor"
-    """Well-known name for the PassthroughInput node that receives the
+    """Well-known name for the ValueInput node that receives the
     world-to-XR-anchor 4x4 transform matrix."""
 
     def __init__(self, cfg: IsaacTeleopCfg):
@@ -237,7 +237,7 @@ class TeleopSessionLifecycle:
         Args:
             anchor_world_matrix_fn: Optional callable returning the (4, 4)
                 world-to-anchor transform.  Used to build external inputs
-                for ``PassthroughInput`` leaf nodes in the pipeline.
+                for ``ValueInput`` leaf nodes in the pipeline.
 
         Returns:
             A flattened action :class:`torch.Tensor` ready for the Isaac Lab
@@ -256,7 +256,7 @@ class TeleopSessionLifecycle:
                 return None
 
         # Build external inputs (e.g. world-to-anchor transform) if the
-        # pipeline contains PassthroughInput leaf nodes.
+        # pipeline contains ValueInput leaf nodes.
         external_inputs = self._build_external_inputs(anchor_world_matrix_fn)
 
         # Execute one step of the teleop session.
@@ -324,7 +324,7 @@ class TeleopSessionLifecycle:
         if self._session is None or not self._session.has_external_inputs():
             return None
 
-        from isaacteleop.retargeting_engine.interface import PassthroughInput, TensorGroup
+        from isaacteleop.retargeting_engine.interface import TensorGroup, ValueInput
         from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
 
         ext_specs = self._session.get_external_input_specs()
@@ -338,7 +338,7 @@ class TeleopSessionLifecycle:
                     anchor_matrix = np.eye(4, dtype=np.float32)
                 xform_tg = TensorGroup(TransformMatrix())
                 xform_tg[0] = anchor_matrix
-                external_inputs[leaf_name] = {PassthroughInput.VALUE: xform_tg}
+                external_inputs[leaf_name] = {ValueInput.VALUE: xform_tg}
             else:
                 logger.warning(
                     f"Unrecognized external leaf node '{leaf_name}' in pipeline; "

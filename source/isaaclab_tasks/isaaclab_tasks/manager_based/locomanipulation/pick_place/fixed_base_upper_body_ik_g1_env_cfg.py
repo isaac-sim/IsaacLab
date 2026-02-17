@@ -43,7 +43,7 @@ def _build_g1_upper_body_pipeline():
         28D action tensor: [left_wrist(7), right_wrist(7), hand_joints(14)].
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         Se3AbsRetargeter,
         Se3RetargeterConfig,
@@ -57,11 +57,11 @@ def _build_g1_upper_body_pipeline():
     controllers = ControllersSource(name="controllers")
 
     # External input: world-to-anchor 4x4 transform matrix provided by IsaacTeleopDevice
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
 
     # Apply the coordinate-frame transform to controller poses so that
     # downstream retargeters receive data in the simulation world frame.
-    transformed_controllers = controllers.transformed(transform_input.output(PassthroughInput.VALUE))
+    transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
 
     # -------------------------------------------------------------------------
     # SE3 Absolute Pose Retargeters (left and right wrists)
@@ -75,8 +75,9 @@ def _build_g1_upper_body_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
         use_wrist_position=False,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.7071068, 0.0, 0.7071068),
+        target_offset_roll=45.0,
+        target_offset_pitch=180.0,
+        target_offset_yaw=-90.0,
     )
     left_se3 = Se3AbsRetargeter(left_se3_cfg, name="left_ee_pose")
     connected_left_se3 = left_se3.connect(
@@ -90,8 +91,9 @@ def _build_g1_upper_body_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
         use_wrist_position=False,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(-0.7071068, 0.0, 0.7071068, 0.0),
+        target_offset_roll=-135.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=90.0,
     )
     right_se3 = Se3AbsRetargeter(right_se3_cfg, name="right_ee_pose")
     connected_right_se3 = right_se3.connect(
@@ -219,7 +221,8 @@ def _build_g1_upper_body_pipeline():
         }
     )
 
-    return OutputCombiner({"action": connected_reorderer.output("output")})
+    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    return pipeline, [left_se3, right_se3]
 
 
 ##
@@ -387,8 +390,11 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
         # IsaacTeleop-based teleoperation pipeline
+        # Build the pipeline and extract SE3 retargeters for UI parameter tuning
+        pipeline, se3_retargeters = _build_g1_upper_body_pipeline()
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_upper_body_pipeline,
+            pipeline_builder=lambda: pipeline,
+            # retargeters_to_tune=lambda: se3_retargeters,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )

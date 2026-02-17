@@ -48,7 +48,7 @@ def _build_g1_locomanipulation_pipeline():
         32D action tensor: [left_wrist(7), right_wrist(7), hand_joints(14), locomotion(4)].
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         LocomotionRootCmdRetargeter,
         LocomotionRootCmdRetargeterConfig,
@@ -64,11 +64,11 @@ def _build_g1_locomanipulation_pipeline():
     controllers = ControllersSource(name="controllers")
 
     # External input: world-to-anchor 4x4 transform matrix provided by IsaacTeleopDevice
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
 
     # Apply the coordinate-frame transform to controller poses so that
     # downstream retargeters receive data in the simulation world frame.
-    transformed_controllers = controllers.transformed(transform_input.output(PassthroughInput.VALUE))
+    transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
 
     # -------------------------------------------------------------------------
     # SE3 Absolute Pose Retargeters (left and right wrists)
@@ -82,8 +82,9 @@ def _build_g1_locomanipulation_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
         use_wrist_position=False,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.7071068, 0.0, 0.7071068),
+        target_offset_roll=45.0,
+        target_offset_pitch=180.0,
+        target_offset_yaw=-90.0,
     )
     left_se3 = Se3AbsRetargeter(left_se3_cfg, name="left_ee_pose")
     connected_left_se3 = left_se3.connect(
@@ -97,8 +98,9 @@ def _build_g1_locomanipulation_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
         use_wrist_position=False,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(-0.7071068, 0.0, 0.7071068, 0.0),
+        target_offset_roll=-135.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=90.0,
     )
     right_se3 = Se3AbsRetargeter(right_se3_cfg, name="right_ee_pose")
     connected_right_se3 = right_se3.connect(
@@ -150,8 +152,9 @@ def _build_g1_locomanipulation_pipeline():
     # -------------------------------------------------------------------------
     locomotion_cfg = LocomotionRootCmdRetargeterConfig(
         initial_hip_height=0.72,
-        movement_scale=1.0,
-        rotation_scale=0.5,
+        movement_scale=0.5,
+        rotation_scale=0.35,
+        dt=1.0 / 100.0,  # Must match rendering dt: sim.dt (1/200) * render_interval (2)
     )
     locomotion = LocomotionRootCmdRetargeter(locomotion_cfg, name="locomotion")
     connected_locomotion = locomotion.connect(
@@ -404,7 +407,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
     # Position of the XR anchor in the world frame
     xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.35),
+        anchor_pos=(0.0, 0.0, -0.95),
         anchor_rot=(0.0, 0.0, 0.0, 1.0),
     )
 

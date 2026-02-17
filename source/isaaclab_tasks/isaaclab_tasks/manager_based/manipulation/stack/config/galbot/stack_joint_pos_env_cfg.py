@@ -39,7 +39,7 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
     All outputs are flattened into a single 8D action tensor via TensorReorderer.
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
@@ -51,8 +51,8 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
 
     controllers = ControllersSource(name="controllers")
     hands = HandsSource(name="hands")
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
-    transformed_hands = hands.transformed(transform_input.output(PassthroughInput.VALUE))
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
+    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
 
     hand_key = HandsSource.LEFT if hand_side == "left" else HandsSource.RIGHT
 
@@ -62,8 +62,9 @@ def _build_se3_abs_gripper_pipeline(hand_side="left"):
         zero_out_xy_rotation=True,
         use_wrist_rotation=False,
         use_wrist_position=True,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.0, 0.0, 0.0, 1.0),
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
     )
     se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
     connected_se3 = se3.connect({hand_key: transformed_hands.output(hand_key)})

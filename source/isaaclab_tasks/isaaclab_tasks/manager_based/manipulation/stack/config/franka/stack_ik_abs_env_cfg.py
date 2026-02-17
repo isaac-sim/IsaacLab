@@ -29,7 +29,7 @@ def _build_franka_stack_pipeline():
         8D action tensor: [pos_x, pos_y, pos_z, quat_w, quat_x, quat_y, quat_z, gripper].
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, PassthroughInput
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
     from isaacteleop.retargeting_engine.retargeters import (
         GripperRetargeter,
         GripperRetargeterConfig,
@@ -44,11 +44,11 @@ def _build_franka_stack_pipeline():
     hands = HandsSource(name="hands")
 
     # External input: world-to-anchor 4x4 transform matrix provided by IsaacTeleopDevice
-    transform_input = PassthroughInput("world_T_anchor", TransformMatrix())
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
 
     # Apply the coordinate-frame transform to controller poses so that
     # downstream retargeters receive data in the simulation world frame.
-    transformed_controllers = controllers.transformed(transform_input.output(PassthroughInput.VALUE))
+    transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
 
     # SE3 Absolute Pose Retargeter (right hand)
     se3_cfg = Se3RetargeterConfig(
@@ -56,8 +56,9 @@ def _build_franka_stack_pipeline():
         zero_out_xy_rotation=False,
         use_wrist_rotation=False,
         use_wrist_position=False,
-        target_offset_pos=(0.0, 0.0, 0.0),
-        target_offset_rot=(0.7071068, 0.0, 0.0, 0.7071068),
+        target_offset_roll=90.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
     )
     se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
     connected_se3 = se3.connect(
