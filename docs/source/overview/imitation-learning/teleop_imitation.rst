@@ -57,7 +57,7 @@ For tasks that benefit from the use of an extended reality (XR) device with hand
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --teleop_device handtracking
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Franka-IK-Abs-v0 --visualizer kit --teleop_device handtracking
 
 .. note::
 
@@ -176,8 +176,8 @@ In order to use Isaac Lab Mimic with the recorded dataset, first annotate the su
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-         --visualizer kit \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
+         --visualizer kit \
          --auto \
          --input_file ./datasets/dataset.hdf5 \
          --output_file ./datasets/annotated_dataset.hdf5
@@ -188,9 +188,9 @@ In order to use Isaac Lab Mimic with the recorded dataset, first annotate the su
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
          --visualizer kit \
          --enable_cameras \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
          --auto \
          --input_file ./datasets/dataset.hdf5 \
          --output_file ./datasets/annotated_dataset.hdf5
@@ -345,8 +345,8 @@ By inferencing using the generated model, we can visualize the results of the po
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --visualizer kit \
          --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --visualizer kit \
          --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
@@ -356,9 +356,9 @@ By inferencing using the generated model, we can visualize the results of the po
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
          --visualizer kit \
          --enable_cameras \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
          --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
 
@@ -441,11 +441,14 @@ Collect five demonstrations by running the following command:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --visualizer kit \
+   --device cpu \
+   --enable_pinocchio \
    --teleop_device handtracking \
-   --dataset_file ./datasets/dataset_gr1.hdf5 \
-   --num_demos 5 --enable_pinocchio
+   --num_demos 5 \
+   --dataset_file ./datasets/dataset_gr1.hdf5
+   
 
 .. note::
    We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``.
@@ -461,9 +464,11 @@ You can replay the collected demonstrations by running the following command:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/replay_demos.py \
-   --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
-   --dataset_file ./datasets/dataset_gr1.hdf5 --enable_pinocchio
+   --visualizer kit \
+   --device cpu \
+   --enable_pinocchio \
+   --dataset_file ./datasets/dataset_gr1.hdf5
 
 .. note::
    Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
@@ -489,8 +494,9 @@ Annotate the demonstrations by running the following command:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-   --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
+   --visualizer kit \
+   --device cpu \
    --input_file ./datasets/dataset_gr1.hdf5 \
    --output_file ./datasets/dataset_annotated_gr1.hdf5 --enable_pinocchio
 
@@ -524,8 +530,14 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
-   --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
+   --visualizer kit \
+   --device cpu \
+   --headless \
+   --num_envs 20 \
+   --enable_pinocchio \
+   --generation_num_trials 1000 \
+   --input_file ./datasets/dataset_annotated_gr1.hdf5 \
+   --output_file ./datasets/generated_dataset_gr1.hdf5
 
 Train a policy
 ^^^^^^^^^^^^^^
@@ -535,7 +547,9 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a policy for the gener
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 --algo bc \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --enable_pinocchio \
+   --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_gr1.hdf5
 
@@ -554,9 +568,10 @@ Visualize the results of the trained policy by running the following command, us
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
+   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --visualizer kit \
    --device cpu \
    --enable_pinocchio \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --num_rollouts 50 \
    --horizon 400 \
    --norm_factor_min <NORM_FACTOR_MIN> \
