@@ -139,6 +139,8 @@ class AppLauncher:
         self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
+        # Set visualizer settings (if requested)
+        self._set_visualizer_settings(launcher_args)
 
         # Hide play button callback if the timeline is stopped
         import omni.timeline
@@ -305,6 +307,13 @@ class AppLauncher:
             action=ExplicitAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+        )
+        arg_group.add_argument(
+            "--visualizer",
+            type=str,
+            nargs="+",
+            default=None,
+            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -602,6 +611,19 @@ class AppLauncher:
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
+
+        # If visualizers are explicitly requested and Kit viewport is not among them,
+        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
+        visualizers_arg = launcher_args.get("visualizer")
+        if visualizers_arg:
+            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
+            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
+                if not self._headless:
+                    print(
+                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
+                        "'kit' and livestream is disabled."
+                    )
+                self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
@@ -933,6 +955,17 @@ class AppLauncher:
         carb_settings.set_bool("/isaaclab/anim_recording/enabled", recording_enabled)
         carb_settings.set_float("/isaaclab/anim_recording/start_time", start_time)
         carb_settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
+
+    def _set_visualizer_settings(self, launcher_args: dict) -> None:
+        """Store visualizer selection in carb settings."""
+        visualizers = launcher_args.get("visualizer")
+        if not visualizers:
+            return
+        with contextlib.suppress(Exception):
+            import carb
+
+            visualizer_str = " ".join(visualizers)
+            carb.settings.get_settings().set_string("/isaaclab/visualizer", visualizer_str)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""

@@ -163,7 +163,7 @@ class MockArticulationData(BaseArticulationData):
         if self._default_root_pose is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._default_root_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_root_pose
 
     @property
@@ -355,7 +355,7 @@ class MockArticulationData(BaseArticulationData):
         if self._root_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._root_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._root_link_pose_w
 
     @property
@@ -381,7 +381,7 @@ class MockArticulationData(BaseArticulationData):
 
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation in world frame. Shape: (N,), dtype=wp.quatf."""
+        """Root link orientation in world frame (x, y, z, w). Shape: (N,), dtype=wp.quatf."""
         t = self.root_link_pose_w
         return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
 
@@ -456,7 +456,7 @@ class MockArticulationData(BaseArticulationData):
         if self._body_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._body_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_link_pose_w
 
     @property
@@ -489,12 +489,14 @@ class MockArticulationData(BaseArticulationData):
     @property
     def body_link_lin_vel_w(self) -> wp.array:
         """Body link linear velocities in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_link_vel_w[..., :3]
+        vel_torch = wp.to_torch(self.body_link_vel_w)
+        return wp.from_torch(vel_torch[..., :3].contiguous())
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
         """Body link angular velocities in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_link_vel_w[..., 3:6]
+        vel_torch = wp.to_torch(self.body_link_vel_w)
+        return wp.from_torch(vel_torch[..., 3:6].contiguous())
 
     # -- Body state properties (CoM frame) --
 
@@ -539,7 +541,7 @@ class MockArticulationData(BaseArticulationData):
         if self._body_com_pose_b is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._body_com_pose_b = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._body_com_pose_b
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
@@ -558,22 +560,26 @@ class MockArticulationData(BaseArticulationData):
     @property
     def body_com_lin_vel_w(self) -> wp.array:
         """Body CoM linear velocities in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_com_vel_w[..., :3]
+        vel_torch = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(vel_torch[..., :3].contiguous())
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
         """Body CoM angular velocities in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_com_vel_w[..., 3:6]
+        vel_torch = wp.to_torch(self.body_com_vel_w)
+        return wp.from_torch(vel_torch[..., 3:6].contiguous())
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
         """Body CoM linear accelerations in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_com_acc_w[..., :3]
+        acc_torch = wp.to_torch(self.body_com_acc_w)
+        return wp.from_torch(acc_torch[..., :3].contiguous())
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
         """Body CoM angular accelerations in world frame. Shape: (N, num_bodies, 3)."""
-        return self.body_com_acc_w[..., 3:6]
+        acc_torch = wp.to_torch(self.body_com_acc_w)
+        return wp.from_torch(acc_torch[..., 3:6].contiguous())
 
     @property
     def body_com_pos_b(self) -> wp.array:
@@ -648,6 +654,16 @@ class MockArticulationData(BaseArticulationData):
     def root_com_ang_vel_b(self) -> wp.array:
         """Root CoM angular velocity in body frame. Shape: (N, 3)."""
         return wp.clone(self.root_com_ang_vel_w, self.device)
+
+    @property
+    def com_pos_b(self) -> wp.array:
+        """Convenience alias for root_com_pos_w. Shape: (N, 3)."""
+        return wp.clone(self.root_com_pos_w, self.device)
+
+    @property
+    def com_quat_b(self) -> wp.array:
+        """Convenience alias for root_com_quat_w. Shape: (N, 4)."""
+        return wp.clone(self.root_com_quat_w, self.device)
 
     # -- Fixed tendon properties --
 

@@ -117,11 +117,11 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_friction(self, asset, value):
         """Update material properties for a given asset."""
-        materials = asset.root_view.get_material_properties()
+        materials = wp.to_torch(asset.root_view.get_material_properties())
         materials[..., 0] = value  # Static friction.
         materials[..., 1] = value  # Dynamic friction.
         env_ids = torch.arange(self.scene.num_envs, device="cpu")
-        asset.root_view.set_material_properties(materials, env_ids)
+        asset.root_view.set_material_properties(wp.from_torch(materials), wp.from_torch(env_ids))
 
     def _init_tensors(self):
         """Initialize tensors once."""

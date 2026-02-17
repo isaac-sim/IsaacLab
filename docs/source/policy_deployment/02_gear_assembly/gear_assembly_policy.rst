@@ -601,5 +601,5 @@ Further Resources
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
 - Sim-to-Real Policy Transfer for Whole Body Controllers: :ref:`sim2real` - Shows how to train and deploy a whole body controller for legged robots using Isaac Lab with the Newton backend
 - `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
-- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/tutorial_gear_assembly.html>`_
+- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/sim_to_real/tutorial_gear_assembly.html>`_
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`
