@@ -94,9 +94,8 @@ class XrAnchorManager:
             carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
             carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
 
-        # Optional anchor synchronizer for dynamic anchoring
         self._anchor_sync: XrAnchorSynchronizer | None = None
-        if self._xr_core is not None and self._xr_cfg.anchor_prim_path is not None:
+        if self._xr_core is not None:
             try:
                 self._anchor_sync = XrAnchorSynchronizer(
                     xr_core=self._xr_core,
@@ -146,24 +145,24 @@ class XrAnchorManager:
         single operation.
 
         Strategy:
-            * **Dynamic anchoring** (``anchor_prim_path`` is set) -- reads the
-              cached transform from :class:`XrAnchorSynchronizer`.
-            * **Static anchoring** -- computes from ``anchor_pos`` /
-              ``anchor_rot`` config values.
+            * When the :class:`XrAnchorSynchronizer` is available (typical
+              runtime), reads the cached transform that was written to the XR
+              core via ``set_world_transform_matrix`` during the most recent
+              ``pre_sync_update``.  This works for both dynamic anchoring
+              (``anchor_prim_path`` set) and static anchoring.
+            * Falls back to raw ``anchor_pos`` / ``anchor_rot`` config values
+              only when the XR core is unavailable (e.g. unit tests).
 
         Returns:
             A (4, 4) float32 numpy array.
         """
-        # For dynamic anchoring, read the transform that was already computed
-        # by sync_headset_to_anchor() (runs on pre_sync_update each frame).
         if self._anchor_sync is not None:
             xform = self._anchor_sync.get_world_transform()
             if xform is not None:
                 pos, quat_xyzw = xform
                 return self._build_matrix(pos, quat_xyzw)
 
-        # Static anchoring (or dynamic sync hasn't run yet): compute directly
-        # from config values.
+        # Fallback when XR core is unavailable (e.g. unit tests).
         return self._build_matrix(self._xr_cfg.anchor_pos, self._xr_cfg.anchor_rot)
 
     def _build_matrix(self, pos, quat_xyzw) -> np.ndarray:

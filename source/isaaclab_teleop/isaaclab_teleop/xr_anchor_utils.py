@@ -14,7 +14,6 @@ from typing import Any
 
 import numpy as np
 
-# import logger
 logger = logging.getLogger(__name__)
 
 from isaaclab.sim import SimulationContext
@@ -96,93 +95,107 @@ class XrAnchorSynchronizer:
         return None
 
     def sync_headset_to_anchor(self):
-        """Sync XR anchor pose in USD from reference prim (in Fabric/usdrt)."""
+        """Sync XR anchor pose in USD for both dynamic and static anchoring.
+
+        For **dynamic** anchoring (``anchor_prim_path`` is set), the reference
+        prim's world position is read from Fabric and ``anchor_pos`` is added
+        as an offset.  For **static** anchoring (no prim path), ``anchor_pos``
+        is used directly as the world position.
+
+        In both cases the function calls ``set_world_transform_matrix`` on the
+        XR core so that the rendering anchor and the pipeline's
+        ``world_T_anchor`` matrix are guaranteed to agree, and caches the
+        world transform for :meth:`get_world_transform`.
+        """
         try:
-            if self._xr_cfg.anchor_prim_path is None:
-                return
+            if self._xr_cfg.anchor_prim_path is not None:
+                stage_id = get_current_stage_id()
+                rt_stage = usdrt.Usd.Stage.Attach(stage_id)
+                if rt_stage is None:
+                    return
 
-            stage_id = get_current_stage_id()
-            rt_stage = usdrt.Usd.Stage.Attach(stage_id)
-            if rt_stage is None:
-                return
+                rt_prim = rt_stage.GetPrimAtPath(self._xr_cfg.anchor_prim_path)
+                if rt_prim is None:
+                    return
 
-            rt_prim = rt_stage.GetPrimAtPath(self._xr_cfg.anchor_prim_path)
-            if rt_prim is None:
-                return
+                rt_xformable = Rt.Xformable(rt_prim)
+                if rt_xformable is None:
+                    return
 
-            rt_xformable = Rt.Xformable(rt_prim)
-            if rt_xformable is None:
-                return
+                world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
+                if world_matrix_attr is None:
+                    return
 
-            world_matrix_attr = rt_xformable.GetFabricHierarchyWorldMatrixAttr()
-            if world_matrix_attr is None:
-                return
+                rt_matrix = world_matrix_attr.Get()
+                rt_pos = rt_matrix.ExtractTranslation()
 
-            rt_matrix = world_matrix_attr.Get()
-            rt_pos = rt_matrix.ExtractTranslation()
+                if self.__anchor_prim_initial_quat is None:
+                    self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
 
-            if self.__anchor_prim_initial_quat is None:
-                self.__anchor_prim_initial_quat = rt_matrix.ExtractRotationQuat()
+                if getattr(self._xr_cfg, "fixed_anchor_height", False):
+                    if self.__anchor_prim_initial_height is None:
+                        self.__anchor_prim_initial_height = rt_pos[2]
+                    rt_pos[2] = self.__anchor_prim_initial_height
 
-            if getattr(self._xr_cfg, "fixed_anchor_height", False):
-                if self.__anchor_prim_initial_height is None:
-                    self.__anchor_prim_initial_height = rt_pos[2]
-                rt_pos[2] = self.__anchor_prim_initial_height
-
-            pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
+                pxr_anchor_pos = pxrGf.Vec3d(*rt_pos) + pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
+            else:
+                rt_matrix = None
+                pxr_anchor_pos = pxrGf.Vec3d(*self._xr_cfg.anchor_pos)
 
             x, y, z, w = self._xr_cfg.anchor_rot
             pxr_cfg_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
 
             pxr_anchor_quat = pxr_cfg_quat
 
-            if self._xr_cfg.anchor_rotation_mode in (
-                XrAnchorRotationMode.FOLLOW_PRIM,
-                XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED,
-            ):
-                rt_prim_quat = rt_matrix.ExtractRotationQuat()
-                rt_delta_quat = rt_prim_quat * self.__anchor_prim_initial_quat.GetInverse()
-                pxr_delta_quat = pxrGf.Quatd(rt_delta_quat.GetReal(), pxrGf.Vec3d(*rt_delta_quat.GetImaginary()))
-
-                # yaw-only about Z (right-handed, Z-up)
-                wq = pxr_delta_quat.GetReal()
-                ix, iy, iz = pxr_delta_quat.GetImaginary()
-                yaw = math.atan2(2.0 * (wq * iz + ix * iy), 1.0 - 2.0 * (iy * iy + iz * iz))
-                cy = math.cos(yaw * 0.5)
-                sy = math.sin(yaw * 0.5)
-                pxr_delta_yaw_only_quat = pxrGf.Quatd(cy, pxrGf.Vec3d(0.0, 0.0, sy))
-                pxr_anchor_quat = pxr_delta_yaw_only_quat * pxr_cfg_quat
-
-                if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
-                    if self.__smoothed_anchor_quat is None:
-                        self.__smoothed_anchor_quat = pxr_anchor_quat
-                    else:
-                        dt = SimulationContext.instance().get_rendering_dt()
-                        alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))
-                        alpha = min(1.0, max(0.05, alpha))
-                        self.__smoothed_anchor_quat = pxrGf.Slerp(alpha, self.__smoothed_anchor_quat, pxr_anchor_quat)
-                        pxr_anchor_quat = self.__smoothed_anchor_quat
-
-            elif self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.CUSTOM:
-                if self._xr_cfg.anchor_rotation_custom_func is not None:
+            if rt_matrix is not None:
+                if self._xr_cfg.anchor_rotation_mode in (
+                    XrAnchorRotationMode.FOLLOW_PRIM,
+                    XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED,
+                ):
                     rt_prim_quat = rt_matrix.ExtractRotationQuat()
-                    anchor_prim_pose = np.array(
-                        [
-                            rt_pos[0],
-                            rt_pos[1],
-                            rt_pos[2],
-                            rt_prim_quat.GetImaginary()[0],
-                            rt_prim_quat.GetImaginary()[1],
-                            rt_prim_quat.GetImaginary()[2],
-                            rt_prim_quat.GetReal(),
-                        ],
-                        dtype=np.float64,
-                    )
-                    # Previous headpose must be provided by caller; fall back to zeros.
-                    prev_head = getattr(self, "_previous_headpose", np.zeros(7, dtype=np.float64))
-                    np_array_quat = self._xr_cfg.anchor_rotation_custom_func(prev_head, anchor_prim_pose)
-                    x, y, z, w = np_array_quat
-                    pxr_anchor_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
+                    rt_delta_quat = rt_prim_quat * self.__anchor_prim_initial_quat.GetInverse()
+                    pxr_delta_quat = pxrGf.Quatd(rt_delta_quat.GetReal(), pxrGf.Vec3d(*rt_delta_quat.GetImaginary()))
+
+                    # yaw-only about Z (right-handed, Z-up)
+                    wq = pxr_delta_quat.GetReal()
+                    ix, iy, iz = pxr_delta_quat.GetImaginary()
+                    yaw = math.atan2(2.0 * (wq * iz + ix * iy), 1.0 - 2.0 * (iy * iy + iz * iz))
+                    cy = math.cos(yaw * 0.5)
+                    sy = math.sin(yaw * 0.5)
+                    pxr_delta_yaw_only_quat = pxrGf.Quatd(cy, pxrGf.Vec3d(0.0, 0.0, sy))
+                    pxr_anchor_quat = pxr_delta_yaw_only_quat * pxr_cfg_quat
+
+                    if self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED:
+                        if self.__smoothed_anchor_quat is None:
+                            self.__smoothed_anchor_quat = pxr_anchor_quat
+                        else:
+                            dt = SimulationContext.instance().get_rendering_dt()
+                            alpha = 1.0 - math.exp(-dt / max(self._xr_cfg.anchor_rotation_smoothing_time, 1e-6))
+                            alpha = min(1.0, max(0.05, alpha))
+                            self.__smoothed_anchor_quat = pxrGf.Slerp(
+                                alpha, self.__smoothed_anchor_quat, pxr_anchor_quat
+                            )
+                            pxr_anchor_quat = self.__smoothed_anchor_quat
+
+                elif self._xr_cfg.anchor_rotation_mode == XrAnchorRotationMode.CUSTOM:
+                    if self._xr_cfg.anchor_rotation_custom_func is not None:
+                        rt_prim_quat = rt_matrix.ExtractRotationQuat()
+                        anchor_prim_pose = np.array(
+                            [
+                                rt_pos[0],
+                                rt_pos[1],
+                                rt_pos[2],
+                                rt_prim_quat.GetImaginary()[0],
+                                rt_prim_quat.GetImaginary()[1],
+                                rt_prim_quat.GetImaginary()[2],
+                                rt_prim_quat.GetReal(),
+                            ],
+                            dtype=np.float64,
+                        )
+                        prev_head = getattr(self, "_previous_headpose", np.zeros(7, dtype=np.float64))
+                        np_array_quat = self._xr_cfg.anchor_rotation_custom_func(prev_head, anchor_prim_pose)
+                        x, y, z, w = np_array_quat
+                        pxr_anchor_quat = pxrGf.Quatd(w, pxrGf.Vec3d(x, y, z))
 
             pxr_mat = pxrGf.Matrix4d()
             pxr_mat.SetTranslateOnly(pxr_anchor_pos)
@@ -198,9 +211,6 @@ class XrAnchorSynchronizer:
 
             pxr_mat.SetRotateOnly(pxr_final_quat)
 
-            # Cache the authoritative world transform so that get_world_transform()
-            # can return it directly instead of reading the prim hierarchy (which
-            # can diverge when the anchor is a child of a physics-driven prim).
             self.__cached_world_pos = np.array(
                 [pxr_anchor_pos[0], pxr_anchor_pos[1], pxr_anchor_pos[2]], dtype=np.float64
             )
