@@ -850,11 +850,14 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
    .. code:: bash
 
       ./isaaclab.sh -p scripts/tools/record_demos.py \
-      --device cpu \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+      --visualizer kit \
+      --enable_cameras \
+      --device cpu \
+      --enable_pinocchio \
       --teleop_device handtracking \
-      --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
-      --num_demos 5 --enable_pinocchio
+      --num_demos 5 \
+      --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5
 
    Since this is a visuomotor environment, the ``--enable_cameras`` flag must be added to the annotation and data generation commands.
 
@@ -863,12 +866,13 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
    .. code:: bash
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-      --device cpu \
-      --enable_cameras \
-      --rendering_mode balanced \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      --visualizer kit \
+      --enable_cameras \
+      --device cpu \
+      --enable_pinocchio \
       --input_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
-      --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 --enable_pinocchio
+      --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5
 
    .. warning::
       There are multiple right eef annotations for this task. Annotations for subtasks for the same eef cannot have the same action index.
@@ -880,12 +884,13 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
    .. code:: bash
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      --visualizer kit \
+      --enable_cameras \
       --device cpu \
       --headless \
       --enable_pinocchio \
-      --enable_cameras \
-      --rendering_mode balanced \
-      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      
       --generation_num_trials 1000 \
       --num_envs 5 \
       --input_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 \
