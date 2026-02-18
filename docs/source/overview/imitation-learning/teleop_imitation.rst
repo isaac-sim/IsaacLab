@@ -268,6 +268,7 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         --visualizer kit \
          --enable_cameras \
          --headless \
          --num_envs 10 \
@@ -889,6 +890,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
+      --visualizer kit \
       --enable_cameras \
       --device cpu \
       --headless \
