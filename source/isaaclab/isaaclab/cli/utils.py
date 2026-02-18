@@ -81,12 +81,30 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True):
     command_str = " ".join(str(part) for part in cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
 
     # Print some debug info.
-    print_debug(f'run_command(): DIR: "{cwd}"')
+    print_debug(f'run_command(): CWD: "{cwd}"')
     print_debug(f'run_command(): CMD: "{command_str}"')
-    if env is not None:
-        print_debug(f"run_command(): ENV: {env}")
+
+    if env is None:
+        print_debug("run_command(): ENV: <os.environ>")
     else:
-        print_debug("run_command(): ENV: <inherited>")
+        current_env = os.environ
+        env_added = {key: value for key, value in env.items() if key not in current_env}
+        env_changed = {
+            key: {"from": current_env[key], "to": value}
+            for key, value in env.items()
+            if key in current_env and current_env[key] != value
+        }
+        env_removed = [key for key in current_env if key not in env]
+
+        if not env_added and not env_changed and not env_removed:
+            print_debug("run_command(): ENV: <os.environ>")
+        else:
+            if env_added:
+                print_debug(f"run_command(): ENV added: {env_added}")
+            if env_changed:
+                print_debug(f"run_command(): ENV changed: {env_changed}")
+            if env_removed:
+                print_debug(f"run_command(): ENV removed: {env_removed}")
 
     try:
         subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check)
