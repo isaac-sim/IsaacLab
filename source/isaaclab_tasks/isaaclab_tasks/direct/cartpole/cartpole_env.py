@@ -42,7 +42,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
         cone="pyramidal",
         impratio=1,
         ls_parallel=True,
-        integrator="implicit",
+        integrator="implicitfast",
     )
 
     newton_cfg = NewtonCfg(

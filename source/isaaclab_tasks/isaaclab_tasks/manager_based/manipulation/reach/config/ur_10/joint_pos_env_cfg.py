@@ -35,7 +35,7 @@ class UR10ReachEnvCfg(ReachEnvCfg):
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
-                integrator="implicit",
+                integrator="implicitfast",
                 save_to_mjcf="UR10ReachEnv.xml",
             ),
             num_substeps=1,

@@ -22,7 +22,7 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
-                integrator="implicit",
+                integrator="implicitfast",
             ),
             num_substeps=1,
             debug_mode=False,

@@ -27,6 +27,7 @@ from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
 @configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=20,
@@ -35,12 +36,12 @@ class FrankaReachEnvCfg(ReachEnvCfg):
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
-                integrator="implicit",
+                integrator="implicitfast",
                 save_to_mjcf="FrankaReachEnv.xml",
             ),
             num_substeps=1,
             debug_mode=True,
-        )
+        ),
     )
 
     def __post_init__(self):

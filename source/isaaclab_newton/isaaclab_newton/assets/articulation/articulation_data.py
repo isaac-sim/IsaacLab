@@ -2178,6 +2178,7 @@ class ArticulationData(BaseArticulationData):
         indexed. Newton willing this is the case all the time, but we should pay attention to this if things look off.
         """
         # Short-hand for the number of instances, number of links, and number of joints.
+        n_view = self._root_view.count
         n_dof = self._root_view.joint_dof_count
 
         # -- root properties
@@ -2242,20 +2243,20 @@ class ArticulationData(BaseArticulationData):
                 "joint_target_vel", NewtonManager.get_control()
             )[:, 0]
         else:
-            # No joints (e.g., free-floating rigid body) - set bindings to None
-            self._sim_bind_joint_pos_limits_lower = None
-            self._sim_bind_joint_pos_limits_upper = None
-            self._sim_bind_joint_stiffness_sim = None
-            self._sim_bind_joint_damping_sim = None
-            self._sim_bind_joint_armature = None
-            self._sim_bind_joint_friction_coeff = None
-            self._sim_bind_joint_vel_limits_sim = None
-            self._sim_bind_joint_effort_limits_sim = None
-            self._sim_bind_joint_pos = None
-            self._sim_bind_joint_vel = None
-            self._sim_bind_joint_effort = None
-            self._sim_bind_joint_position_target = None
-            self._sim_bind_joint_velocity_target = None
+            # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
+            self._sim_bind_joint_pos_limits_lower = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_pos_limits_upper = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_stiffness_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_damping_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_armature = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_friction_coeff = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_vel_limits_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_effort_limits_sim = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_pos = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_vel = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_effort = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_position_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._sim_bind_joint_velocity_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""

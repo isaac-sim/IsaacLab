@@ -117,6 +117,12 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    reset_base = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={"pose_range": {}, "velocity_range": {}},
+    )
+
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
         mode="reset",

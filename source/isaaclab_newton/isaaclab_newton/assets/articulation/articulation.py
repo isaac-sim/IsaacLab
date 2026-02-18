@@ -2161,18 +2161,17 @@ class Articulation(BaseArticulation):
 
     def _create_buffers(self, *args, **kwargs):
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        if self.num_joints > 0:
-            wp.launch(
-                update_soft_joint_pos_limits,
-                dim=(self.num_instances, self.num_joints),
-                device=self.device,
-                inputs=[
-                    self._data.joint_pos_limits_lower,
-                    self._data.joint_pos_limits_upper,
-                    self._data.soft_joint_pos_limits,
-                    self.cfg.soft_joint_pos_limit_factor,
-                ],
-            )
+        wp.launch(
+            update_soft_joint_pos_limits,
+            dim=(self.num_instances, self.num_joints),
+            device=self.device,
+            inputs=[
+                self._data.joint_pos_limits_lower,
+                self._data.joint_pos_limits_upper,
+                self._data.soft_joint_pos_limits,
+                self.cfg.soft_joint_pos_limit_factor,
+            ],
+        )
 
         # Assign joint and body names to the data
         self._data.joint_names = self.joint_names
@@ -2276,7 +2275,8 @@ class Articulation(BaseArticulation):
         self._has_implicit_actuators = False
 
         # Hack to ensure the limits are not too large.
-        if self.num_joints > 0:
+        # Only set joint limits if there are joints (fixed-base articulations with 0 DOF skip this)
+        if self._root_view.joint_dof_count > 0:
             self._root_view.get_attribute("joint_limit_ke", NewtonManager.get_model()).fill_(2500.0)
             self._root_view.get_attribute("joint_limit_kd", NewtonManager.get_model()).fill_(100.0)
 
@@ -2397,9 +2397,10 @@ class Articulation(BaseArticulation):
             created. Otherwise, some settings that are altered during processing may not be validated.
             For instance, the actuator models may change the joint max velocity limits.
         """
-        # Nothing to validate for 0-DOF articulations (e.g., fixed-base objects)
-        if self.num_joints == 0:
+        # Skip validation if there are no joints (e.g., fixed-base articulation with 0 DOF)
+        if self._root_view.joint_dof_count == 0:
             return
+
         # check that the default values are within the limits
         joint_pos_limits = torch.stack(
             (

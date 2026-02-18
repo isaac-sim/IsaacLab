@@ -481,13 +481,7 @@ def randomize_rigid_body_collider_offsets(
     raise NotImplementedError("Not implemented")
 
 
-def randomize_physics_scene_gravity(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    gravity_distribution_params: tuple[list[float], list[float]],
-    operation: Literal["add", "scale", "abs"],
-    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-):
+class randomize_physics_scene_gravity(ManagerTermBase):
     """Randomize gravity by adding, scaling, or setting random values.
 
     This function allows randomizing gravity of the physics scene. The function samples random values from the
@@ -498,13 +492,109 @@ def randomize_physics_scene_gravity(
     distribution for the x, y, and z components of the gravity vector. The function samples random values for each
     component independently.
 
-    .. attention::
-        This function applied the same gravity for all the environments.
+    This function supports **per-environment gravity randomization** using Newton's per-world gravity array.
+    Each environment (world) can have a different gravity vector.
+
+    .. note::
+        Gravity is set per-world using Newton's per-world gravity array support.
+        The randomization is applied only to the specified ``env_ids``.
 
     .. tip::
-        This function uses CPU tensors to assign gravity.
+        This function uses GPU tensors for efficient per-environment gravity updates.
     """
-    raise NotImplementedError("Not implemented")
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term and cache expensive objects.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        super().__init__(cfg, env)
+
+        # Validate and cache distribution function
+        distribution = cfg.params.get("distribution", "uniform")
+        if distribution == "uniform":
+            self._dist_fn = math_utils.sample_uniform
+        elif distribution == "log_uniform":
+            self._dist_fn = math_utils.sample_log_uniform
+        elif distribution == "gaussian":
+            self._dist_fn = math_utils.sample_gaussian
+        else:
+            raise NotImplementedError(
+                f"Unknown distribution: '{distribution}' for gravity randomization."
+                " Please use 'uniform', 'log_uniform', or 'gaussian'."
+            )
+
+        # Validate operation
+        operation = cfg.params["operation"]
+        if operation not in ("add", "scale", "abs"):
+            raise NotImplementedError(
+                f"Unknown operation: '{operation}' for gravity randomization. Please use 'add', 'scale', or 'abs'."
+            )
+
+        # Cache distribution params as tensors
+        gravity_distribution_params = cfg.params["gravity_distribution_params"]
+        self._dist_param_0 = torch.tensor(gravity_distribution_params[0], device=env.device, dtype=torch.float32)
+        self._dist_param_1 = torch.tensor(gravity_distribution_params[1], device=env.device, dtype=torch.float32)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        gravity_distribution_params: tuple[list[float], list[float]],
+        operation: Literal["add", "scale", "abs"],
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        """Randomize gravity for the specified environments.
+
+        Args:
+            env: The environment instance.
+            env_ids: The environment IDs to randomize. If None, all environments are randomized.
+            gravity_distribution_params: Distribution parameters (cached, param ignored at runtime).
+            operation: The operation to apply ('add', 'scale', or 'abs').
+            distribution: The distribution type (cached, param ignored at runtime).
+        """
+        model = NewtonManager.get_model()
+        if model is None or model.gravity is None:
+            raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
+
+        # Get torch view of model.gravity - modifications are in-place
+        gravity = wp.to_torch(model.gravity)
+
+        # Resolve env_ids
+        if env_ids is None:
+            env_ids = env.scene._ALL_INDICES
+
+        if len(env_ids) == 0:
+            return
+
+        num_to_randomize = len(env_ids)
+
+        # Sample random values using cached distribution function and params
+        self._dist_param_0[0] = gravity_distribution_params[0][0]
+        self._dist_param_1[0] = gravity_distribution_params[1][0]
+        self._dist_param_0[1] = gravity_distribution_params[0][1]
+        self._dist_param_1[1] = gravity_distribution_params[1][1]
+        self._dist_param_0[2] = gravity_distribution_params[0][2]
+        self._dist_param_1[2] = gravity_distribution_params[1][2]
+        random_values = self._dist_fn(
+            self._dist_param_0.unsqueeze(0).expand(num_to_randomize, -1),
+            self._dist_param_1.unsqueeze(0).expand(num_to_randomize, -1),
+            (num_to_randomize, 3),
+            device=env.device,
+        )
+
+        # Apply operation directly to model.gravity (in-place via torch view)
+        if operation == "abs":
+            gravity[env_ids] = random_values
+        elif operation == "add":
+            gravity[env_ids] += random_values
+        elif operation == "scale":
+            gravity[env_ids] *= random_values
+
+        # Notify solver that model properties changed (required for gravity to take effect)
+        NewtonManager.add_model_change(SolverNotifyFlags.MODEL_PROPERTIES)
 
 
 class randomize_actuator_gains(ManagerTermBase):

@@ -23,12 +23,16 @@ class ContactSensorCfg(SensorBaseCfg):
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 
-    force_threshold: float = 1.0
+    force_threshold: float = 0.0
     """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
 
     This value is only used for tracking the mode duration (the time in contact or in air),
     if :attr:`track_air_time` is True.
     """
+
+    history_length: int = 0
+    """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
+    the current data is stored (no history)."""
 
     shape_path: list[str] | None = None
     """A list of expressions to filter contacts shapes with. Defaults to None. If both :attr:`body_names_expr` and

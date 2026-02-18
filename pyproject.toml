@@ -51,6 +51,7 @@ known_third_party = [
     "warp",
     "carb",
     "Semantics",
+    "newton",
 ]
 # Imports from this repository
 known_first_party = "isaaclab"

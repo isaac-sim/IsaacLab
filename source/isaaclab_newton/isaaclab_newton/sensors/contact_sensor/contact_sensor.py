@@ -119,7 +119,7 @@ class ContactSensor(BaseContactSensor):
     @property
     def contact_view(self) -> NewtonContactSensor:
         """View for the contact forces captured (Newton)."""
-        return NewtonManager._newton_contact_sensor
+        return NewtonManager._newton_contact_sensors[self._sensor_key]
 
     """
     Operations
@@ -133,7 +133,6 @@ class ContactSensor(BaseContactSensor):
             env_ids = slice(None)
         # reset accumulative data buffers
         self._data.net_forces_w[env_ids] = 0.0
-        self._data.net_forces_w_history[env_ids] = 0.0
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids] = 0.0
         # reset force matrix
@@ -146,7 +145,9 @@ class ContactSensor(BaseContactSensor):
             self._data.current_contact_time[env_ids] = 0.0
             self._data.last_contact_time[env_ids] = 0.0
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self, name_keys: str | Sequence[str], preserve_order: bool = False
+    ) -> tuple[wp.array, list[str], list[int]]:
         """Find bodies in the articulation based on the name keys.
 
         Args:
@@ -154,7 +155,7 @@ class ContactSensor(BaseContactSensor):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            A tuple containing the body mask (wp.array), names (list[str]), and indices (list[int]).
         """
         indices, names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
         mask = wp.array([name in names for name in self.body_names], dtype=wp.bool, device=self._device)
@@ -258,6 +259,14 @@ class ContactSensor(BaseContactSensor):
             contact_partners_shape_regex = "(" + "|".join(self.cfg.filter_shape_paths_expr) + ")"
         else:
             contact_partners_shape_regex = None
+
+        # Store the sensor key for later lookup
+        self._sensor_key = (
+            body_names_regex,
+            shape_names_regex,
+            contact_partners_body_regex,
+            contact_partners_shape_regex,
+        )
 
         NewtonManager.add_contact_sensor(
             body_names_expr=body_names_regex,
