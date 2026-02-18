@@ -37,99 +37,6 @@ def _create_camera_transforms_kernel(
 
 
 @wp.kernel
-def _convert_raw_rgb_tiled(
-    raw_buffer: wp.array(dtype=wp.uint32, ndim=3),
-    output_buffer: wp.array(dtype=wp.uint8, ndim=3),
-    image_width: int,
-    image_height: int,
-    num_tiles_x: int,
-):
-    """Convert raw tiled RGB buffer (uint32 packed) to tiled RGBA (uint8). For debugging purposes.
-
-    The raw buffer has shape (num_worlds num_cameras, width * height) where each uint32 encodes RGBA as 4 bytes.
-    This kernel converts it to the tiled format (tiled_height, tiled_width, 4) of uint8.
-
-    Args:
-        raw_buffer: Input raw buffer from SensorTiledCamera, shape (num_worlds, num_cameras, width * height) of uint32
-        output_buffer: Output buffer in tiled format (tiled_height, tiled_width, 4) of uint8
-        image_width: Width of each camera image
-        image_height: Height of each camera image
-        num_tiles_x: Number of tiles in x-direction (horizontal)
-    """
-    y, x = wp.tid()
-
-    # Determine which tile and which pixel within the tile
-    # x is width (horizontal), y is height (vertical)
-    tile_x = x // image_width
-    tile_y = y // image_height
-    pixel_x = x % image_width
-    pixel_y = y % image_height
-
-    # Compute camera ID from tile position
-    camera_id = tile_y * num_tiles_x + tile_x
-
-    # Compute the pixel index within this camera's buffer
-    # The buffer is flattened as (width * height), so row-major indexing
-    pixel_idx = pixel_y * image_width + pixel_x
-
-    # Read the packed uint32 value from raw_buffer[camera_id, 0, pixel_idx]
-    packed_color = raw_buffer[camera_id, 0, pixel_idx]
-
-    # Compute output x coordinate
-    output_x = tile_x * image_width + pixel_x
-
-    # Unpack the uint32 into 4 uint8 values (RGBA channels)
-    # Assuming little-endian byte order: ABGR format in memory
-    output_buffer[y, output_x, 0] = wp.uint8((packed_color >> wp.uint32(0)) & wp.uint32(0xFF))  # R
-    output_buffer[y, output_x, 1] = wp.uint8((packed_color >> wp.uint32(8)) & wp.uint32(0xFF))  # G
-    output_buffer[y, output_x, 2] = wp.uint8((packed_color >> wp.uint32(16)) & wp.uint32(0xFF))  # B
-    output_buffer[y, output_x, 3] = wp.uint8((packed_color >> wp.uint32(24)) & wp.uint32(0xFF))  # A
-
-
-@wp.kernel
-def _convert_raw_depth_tiled(
-    raw_buffer: wp.array(dtype=wp.float32, ndim=3),
-    output_buffer: wp.array(dtype=wp.float32, ndim=3),
-    image_width: int,
-    image_height: int,
-    num_tiles_x: int,
-):
-    """Convert raw tiled depth buffer to tiled depth format. For debugging purposes.
-
-    The raw buffer has shape (num_worlds, num_cameras, width * height) of float32 depth values.
-    This kernel converts it to the tiled format (tiled_height, tiled_width, 1) of float32.
-
-    Args:
-        raw_buffer: Input raw buffer from SensorTiledCamera, shape (num_worlds, num_cameras, width * height) of float32
-        output_buffer: Output buffer in tiled format (tiled_height, tiled_width, 1) of float32
-        image_width: Width of each camera image
-        image_height: Height of each camera image
-        num_tiles_x: Number of tiles in x-direction (horizontal)
-    """
-    y, x = wp.tid()
-
-    # Determine which tile and which pixel within the tile
-    # x is width (horizontal), y is height (vertical)
-    tile_x = x // image_width
-    tile_y = y // image_height
-    pixel_x = x % image_width
-    pixel_y = y % image_height
-
-    # Compute camera ID from tile position
-    camera_id = tile_y * num_tiles_x + tile_x
-
-    # Compute the pixel index within this camera's buffer
-    # The buffer is flattened as (width * height), so row-major indexing
-    pixel_idx = pixel_y * image_width + pixel_x
-
-    # Compute output x coordinate
-    output_x = tile_x * image_width + pixel_x
-
-    # Copy the depth value from raw_buffer[camera_id, 0, pixel_idx]
-    output_buffer[y, output_x, 0] = raw_buffer[camera_id, 0, pixel_idx]
-
-
-@wp.kernel
 def _detile_rgba_kernel(
     tiled_image: wp.array(dtype=wp.uint8, ndim=3),  # shape: (tiled_H, tiled_W, 4)
     output: wp.array(dtype=wp.uint8, ndim=4),  # shape: (num_envs, H, W, 4)
@@ -377,7 +284,10 @@ class NewtonWarpRenderer(RendererBase):
     def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
         """Save a single environment or a tiled grid of environments to disk.
 
-        Called from update() only after the Timer block (outside the timed render region).
+        Args:
+            filename: Path to save the image (should end with .png).
+            env_index: Environment index to save, or None for tiled grid of all envs.
+            data_type: Which data to save - "rgb", "rgba", or "depth". Default: "rgb".
         """
         import numpy as np
         from PIL import Image

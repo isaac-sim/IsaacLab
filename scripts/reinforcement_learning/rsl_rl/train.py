@@ -237,9 +237,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     try:
         timers = [
             ("simulate", "Sim (physics step)"),
-            ("render", "Render (total, obs compute)"),
-            ("newton_warp_render_full", "Render (Newton Warp full, same scope as renderer)"),
-            ("newton_warp_kernel_only", "Render (Newton Warp kernel only)"),
+            ("render", "Render (total, observation_manager.compute)"),
+            ("newton_warp_sync_plus_render", "Render (Warp: PhysX→Newton sync + prep + kernel + copy)"),
+            ("newton_warp_render_full", "Render (Warp prep + kernel + buffer copy)"),
+            ("newton_warp_kernel_only", "Render (Warp kernel only)"),
         ]
         lines = []
         for name, label in timers:

@@ -17,6 +17,8 @@ from pxr import UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import Renderer
 from isaaclab.sim.views import XformPrimView
+from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera
@@ -296,13 +298,93 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        self.renderer.update_transforms()
-        self.renderer.render(self.render_data)
+        # Use Newton Warp renderer if configured
+        if self._renderer is not None:
+            # Sync PhysX -> Newton on GPU so robots/cube move in the image, then render
+            from isaaclab.sim._impl.newton_manager import NewtonManager
 
-        for output_name, output_data in self._data.output.items():
-            if output_name == "rgb":
-                continue
-            self.renderer.write_output(self.render_data, output_name, output_data)
+            with Timer(name="newton_warp_sync_plus_render", msg="Newton Warp (sync + render) took"):
+                NewtonManager.update_state_from_physx_tensors_gpu()
+                self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
+
+            output = self._renderer.get_output()
+            for data_type in self.cfg.data_types:
+                key = "depth" if data_type in ("depth", "distance_to_image_plane") else data_type
+                if key in output:
+                    self._data.output[data_type] = wp.to_torch(output[key])
+            return
+
+        # Extract the flattened image buffer (RTX rendering path)
+        for data_type, annotator in self._annotators.items():
+            # check whether returned data is a dict (used for segmentation)
+            output = annotator.get_data()
+            if isinstance(output, dict):
+                tiled_data_buffer = output["data"]
+                self._data.info[data_type] = output["info"]
+            else:
+                tiled_data_buffer = output
+
+            # convert data buffer to warp array
+            if isinstance(tiled_data_buffer, np.ndarray):
+                # Let warp infer the dtype from numpy array instead of hardcoding uint8
+                # Different annotators return different dtypes: RGB(uint8), depth(float32), segmentation(uint32)
+                tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device)
+            else:
+                tiled_data_buffer = tiled_data_buffer.to(device=self.device)
+
+            # process data for different segmentation types
+            # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
+            #   so we need to convert them to uint8 4 channel images for colorized types
+            if (
+                (data_type == "semantic_segmentation" and self.cfg.colorize_semantic_segmentation)
+                or (data_type == "instance_segmentation_fast" and self.cfg.colorize_instance_segmentation)
+                or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
+            ):
+                tiled_data_buffer = wp.array(
+                    ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=self.device
+                )
+
+            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
+            if data_type == "motion_vectors":
+                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
+
+            # For normals, we only require the first three channels of the tiled buffer
+            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
+            if data_type == "normals":
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+
+            wp.launch(
+                kernel=reshape_tiled_image,
+                dim=(self._view.count, self.cfg.height, self.cfg.width),
+                inputs=[
+                    tiled_data_buffer.flatten(),
+                    wp.from_torch(self._data.output[data_type]),  # zero-copy alias
+                    *list(self._data.output[data_type].shape[1:]),  # height, width, num_channels
+                    self._tiling_grid_shape()[0],  # num_tiles_x
+                ],
+                device=self.device,
+            )
+
+            # alias rgb as first 3 channels of rgba
+            if data_type == "rgba" and "rgb" in self.cfg.data_types:
+                self._data.output["rgb"] = self._data.output["rgba"][..., :3]
+
+            # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
+            #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
+            #       larger than the clipping range in the output. We apply an additional clipping to ensure values
+            #       are within the clipping range for all the annotators.
+            if data_type == "distance_to_camera":
+                self._data.output[data_type][self._data.output[data_type] > self.cfg.spawn.clipping_range[1]] = (
+                    torch.inf
+                )
+            # apply defined clipping behavior
+            if (
+                data_type == "distance_to_camera" or data_type == "distance_to_image_plane" or data_type == "depth"
+            ) and self.cfg.depth_clipping_behavior != "none":
+                self._data.output[data_type][torch.isinf(self._data.output[data_type])] = (
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
+                )
 
     """
     Private Helpers
