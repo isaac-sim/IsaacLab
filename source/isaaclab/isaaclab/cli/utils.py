@@ -72,6 +72,37 @@ def print_debug(message, stream=sys.stdout):
     print(f"{label} {message}", file=stream)
 
 
+def _print_debug_env(prefix, env):
+    """
+    Print the environment for debugging purpose.
+    Only prints the vars that are added, changed or removed vs the os.environ.
+    """
+
+    if env is None:
+        print_debug(f"{prefix}: ENV: <os.environ>")
+        return
+
+    current_env = os.environ
+    env_added = {key: value for key, value in env.items() if key not in current_env}
+    env_changed = {
+        key: {"from": current_env[key], "to": value}
+        for key, value in env.items()
+        if key in current_env and current_env[key] != value
+    }
+    env_removed = [key for key in current_env if key not in env]
+
+    if not env_added and not env_changed and not env_removed:
+        print_debug(f"{prefix}: ENV: <os.environ>")
+        return
+
+    if env_added:
+        print_debug(f"{prefix}: ENV added: {env_added}")
+    if env_changed:
+        print_debug(f"{prefix}: ENV changed: {env_changed}")
+    if env_removed:
+        print_debug(f"{prefix}: ENV removed: {env_removed}")
+
+
 def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, stderr=None):
     """Run a command in a subprocess."""
 
@@ -83,28 +114,7 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, s
     # Print some debug info.
     print_debug(f'run_command(): CWD: "{cwd}"')
     print_debug(f'run_command(): CMD: "{command_str}"')
-
-    if env is None:
-        print_debug("run_command(): ENV: <os.environ>")
-    else:
-        current_env = os.environ
-        env_added = {key: value for key, value in env.items() if key not in current_env}
-        env_changed = {
-            key: {"from": current_env[key], "to": value}
-            for key, value in env.items()
-            if key in current_env and current_env[key] != value
-        }
-        env_removed = [key for key in current_env if key not in env]
-
-        if not env_added and not env_changed and not env_removed:
-            print_debug("run_command(): ENV: <os.environ>")
-        else:
-            if env_added:
-                print_debug(f"run_command(): ENV added: {env_added}")
-            if env_changed:
-                print_debug(f"run_command(): ENV changed: {env_changed}")
-            if env_removed:
-                print_debug(f"run_command(): ENV removed: {env_removed}")
+    _print_debug_env("run_command()", env)
 
     try:
         return subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check, stdout=stdout, stderr=stderr)
@@ -352,17 +362,15 @@ def run_python_command(
     cmd.append(str(script_or_module))
     cmd.extend(args)
 
+    env_for_debug = env
     if env is None:
         env = os.environ.copy()
 
     command_str = " ".join(str(part) for part in cmd)
 
-    print_debug(f'run_python_command(): DIR: "{os.getcwd()}"')
+    print_debug(f'run_python_command(): CWD: "{os.getcwd()}"')
     print_debug(f'run_python_command(): CMD: "{command_str}"')
-    if env is None:
-        print_debug("run_python_command(): ENV: <inherited>")
-    else:
-        print_debug(f"run_python_command(): ENV: {env}")
+    _print_debug_env("run_python_command()", env_for_debug)
 
     return subprocess.run(
         cmd,
