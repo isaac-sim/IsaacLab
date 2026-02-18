@@ -243,8 +243,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
-        # -- compute observations
+        # -- compute observations (includes camera/tiled camera rendering)
         # note: done after reset to get the correct observations for reset envs
+        if self.common_step_counter <= 3 or self.common_step_counter % 50 == 0:
+            print(f"[PERF][manager_based_rl_env] Computing observations (camera/tiled camera render) step #{self.common_step_counter}...", flush=True)
         with Timer(name="render", msg="Rendering step took"):
             self.obs_buf = self.observation_manager.compute(update_history=True)
 

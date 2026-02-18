@@ -219,11 +219,14 @@ class NewtonWarpRenderer(RendererBase):
         sys.stdout.flush()
         self._model = NewtonManager.get_model()
 
-        # Create tiled camera sensor with one camera per environment
-        # Newton will create a tiled grid: sqrt(num_envs) x sqrt(num_envs)
+        # Create tiled camera sensor. With one Newton model (one world) and num_cameras=num_envs,
+        # each tile is one camera view of the same full scene, so each tile shows all envs.
+        # To get one env per tile (like Newton-Warp reference), the pipeline would need
+        # num_worlds=num_envs and num_cameras=1 (one camera per world); that requires the
+        # Newton model to expose per-env worlds (e.g. replicated scenes).
         self._tiled_camera_sensor = SensorTiledCamera(
             model=self._model,
-            num_cameras=self._num_envs,  # One camera per environment
+            num_cameras=self._num_envs,
             width=self._width,
             height=self._height,
             options=SensorTiledCamera.Options(colors_per_shape=True),
@@ -326,32 +329,47 @@ class NewtonWarpRenderer(RendererBase):
             camera_orientations: Tensor of shape (num_envs, 4) - camera quaternions (x, y, z, w) in world frame
             intrinsic_matrices: Tensor of shape (num_envs, 3, 3) - camera intrinsic matrices
         """
-        camera_transforms = self._prepare_camera_transforms(
-            camera_positions, camera_orientations, intrinsic_matrices
-        )
         num_envs = camera_positions.shape[0]
-        with Timer(name="newton_warp_kernel_only", msg="Newton Warp kernel only took"):
-            self._render_warp_kernel_only(camera_transforms)
-        self._copy_outputs_to_buffers(num_envs)
+
+        # Full render timer (apples-to-apples with Newton+Warp: prep + kernel + buffer copy)
+        with Timer(name="newton_warp_render_full", msg="Newton Warp full render took"):
+            with Timer(name="newton_warp_prep", msg="Newton Warp prep took"):
+                camera_transforms = self._prepare_camera_transforms(
+                    camera_positions, camera_orientations, intrinsic_matrices
+                )
+            with Timer(name="newton_warp_kernel_only", msg="Newton Warp kernel only took"):
+                self._render_warp_kernel_only(camera_transforms)
+            with Timer(name="newton_warp_copy_buffers", msg="Newton Warp copy buffers took"):
+                self._copy_outputs_to_buffers(num_envs)
+
         self._last_num_envs = num_envs  # for save_image tiled grid (buffer.numpy() shape may not match)
         # Debug save every 50 frames (outside timed region)
         self._render_call_count += 1
         if self._render_call_count % 50 == 0:
             import os
+            import sys
 
             frame_dir = os.path.join(self._save_dir, f"frame_{self._render_call_count:06d}")
             os.makedirs(frame_dir, exist_ok=True)
             tiled_rgb = os.path.join(frame_dir, "all_envs_tiled_rgb.png")
             self.save_image(tiled_rgb, env_index=None, data_type="rgb")
-            import sys
-
             print(f"[NewtonWarpRenderer] Saved tiled RGB → {frame_dir}/", flush=True)
             try:
-                stats = Timer.get_timer_statistics("newton_warp_kernel_only")
-                print(
-                    f"[NewtonWarpRenderer] Newton Warp kernel timing (so far): mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
-                    flush=True,
-                )
+                for timer_name in ("newton_warp_render_full", "newton_warp_prep", "newton_warp_kernel_only", "newton_warp_copy_buffers"):
+                    stats = Timer.get_timer_statistics(timer_name)
+                    print(
+                        f"[NewtonWarpRenderer] {timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
+                        flush=True,
+                    )
+                for timer_name in ("newton_state_sync_usdrt", "newton_state_sync_tensors"):
+                    try:
+                        stats = Timer.get_timer_statistics(timer_name)
+                        print(
+                            f"[NewtonWarpRenderer] {timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
+                            flush=True,
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 pass
             sys.stdout.flush()
@@ -359,10 +377,7 @@ class NewtonWarpRenderer(RendererBase):
     def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
         """Save a single environment or a tiled grid of environments to disk.
 
-        Args:
-            filename: Path to save the image (should end with .png).
-            env_index: Environment index to save, or None for tiled grid of all envs.
-            data_type: Which data to save - "rgb", "rgba", or "depth". Default: "rgb".
+        Called from update() only after the Timer block (outside the timed render region).
         """
         import numpy as np
         from PIL import Image
@@ -380,12 +395,10 @@ class NewtonWarpRenderer(RendererBase):
             raise ValueError(f"Data type '{data_type}' not available in output buffers.")
 
         buffer_np = buffer.numpy()
-        # Use _last_num_envs from last render() so tiled grid is correct (wp array view .numpy() may report wrong shape[0])
         num_envs_from_buffer = buffer_np.shape[0] if len(buffer_np.shape) >= 4 else 1
         num_envs_for_tile = getattr(self, "_last_num_envs", None)
         if num_envs_for_tile is None:
             num_envs_for_tile = num_envs_from_buffer
-        # If buffer was flattened by .numpy() but size matches expected envs, reshape to (N, H, W, C)
         n_expected = int(num_envs_for_tile)
         channels = 1 if data_type == "depth" else (4 if data_type == "rgba" else 3)
         expected_size = n_expected * self._height * self._width * channels

@@ -15,6 +15,8 @@ import logging
 
 import warp as wp
 
+from isaaclab.utils.timer import Timer
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,15 +28,17 @@ def _copy_physx_poses_to_newton_kernel(
     newton_body_q: wp.array(dtype=wp.transformf),
 ):
     """GPU kernel to copy PhysX poses to Newton body_q array.
-    PhysX quaternions are (w, x, y, z); Warp transformf uses vec3 + quat (x, y, z, w).
+
+    Isaac Lab / PhysX articulation body_quat_w and rigid_object root_quat_w use (x, y, z, w).
+    Warp wp.quatf also uses (x, y, z, w), so we pass through without reordering.
     """
     i = wp.tid()
     newton_idx = newton_body_indices[i]
     if newton_idx < 0:
         return
     pos = physx_positions[i]
-    quat = physx_quaternions[i]  # (w, x, y, z) from PhysX
-    q = wp.quatf(quat[1], quat[2], quat[3], quat[0])  # (x, y, z, w) for Warp
+    quat = physx_quaternions[i]  # (x, y, z, w) from Isaac Lab / PhysX
+    q = wp.quatf(quat[0], quat[1], quat[2], quat[3])  # (x, y, z, w) for Warp
     newton_body_q[newton_idx] = wp.transformf(pos, q)
 
 
@@ -227,63 +231,64 @@ class NewtonManager:
             logger.debug(f"[NewtonManager] Could not attach to fabric stage: {e}")
             return
 
-        # Newton's body_q stores 7-DOF poses: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
-        # Get the state array as numpy for efficient updates
-        body_q_np = cls._state_0.body_q.numpy()
-        
-        # Track how many bodies we successfully updated
-        updated_count = 0
-        
-        # Update each rigid body transform from USDRT
-        for body_idx, body_prim_path in enumerate(cls._model.body_key):
-            try:
-                # Get prim from fabric stage
-                prim = fabric_stage.GetPrimAtPath(body_prim_path)
-                if not prim or not prim.IsValid():
+        with Timer(name="newton_state_sync_usdrt", msg="Newton state sync (USDRT) took"):
+            # Newton's body_q stores 7-DOF poses: [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+            # Get the state array as numpy for efficient updates
+            body_q_np = cls._state_0.body_q.numpy()
+
+            # Track how many bodies we successfully updated
+            updated_count = 0
+
+            # Update each rigid body transform from USDRT
+            for body_idx, body_prim_path in enumerate(cls._model.body_key):
+                try:
+                    # Get prim from fabric stage
+                    prim = fabric_stage.GetPrimAtPath(body_prim_path)
+                    if not prim or not prim.IsValid():
+                        continue
+
+                    # Get world transform from USDRT
+                    xformable = usdrt.Rt.Xformable(prim)
+                    if not xformable.HasWorldXform():
+                        continue
+
+                    # Get 4x4 world transform matrix (row-major: [m00, m01, m02, m03, m10, ...])
+                    world_xform = xformable.GetWorldXform()
+
+                    # Extract translation from last column [m03, m13, m23]
+                    pos_x = world_xform[3]
+                    pos_y = world_xform[7]
+                    pos_z = world_xform[11]
+
+                    # Extract rotation matrix (top-left 3x3)
+                    rot_matrix = [
+                        [world_xform[0], world_xform[1], world_xform[2]],    # row 0
+                        [world_xform[4], world_xform[5], world_xform[6]],    # row 1
+                        [world_xform[8], world_xform[9], world_xform[10]]    # row 2
+                    ]
+
+                    # Convert rotation matrix to quaternion (xyzw format for Newton)
+                    quat = cls._matrix_to_quaternion(rot_matrix)
+
+                    # Update Newton state: body_q[body_idx] = [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
+                    body_q_np[body_idx, 0] = pos_x
+                    body_q_np[body_idx, 1] = pos_y
+                    body_q_np[body_idx, 2] = pos_z
+                    body_q_np[body_idx, 3] = quat[1]  # x
+                    body_q_np[body_idx, 4] = quat[2]  # y
+                    body_q_np[body_idx, 5] = quat[3]  # z
+                    body_q_np[body_idx, 6] = quat[0]  # w
+
+                    updated_count += 1
+
+                except Exception as e:
+                    logger.debug(f"[NewtonManager] Failed to update transform for {body_prim_path}: {e}")
                     continue
 
-                # Get world transform from USDRT
-                xformable = usdrt.Rt.Xformable(prim)
-                if not xformable.HasWorldXform():
-                    continue
-
-                # Get 4x4 world transform matrix (row-major: [m00, m01, m02, m03, m10, ...])
-                world_xform = xformable.GetWorldXform()
-                
-                # Extract translation from last column [m03, m13, m23]
-                pos_x = world_xform[3]
-                pos_y = world_xform[7]
-                pos_z = world_xform[11]
-                
-                # Extract rotation matrix (top-left 3x3)
-                rot_matrix = [
-                    [world_xform[0], world_xform[1], world_xform[2]],    # row 0
-                    [world_xform[4], world_xform[5], world_xform[6]],    # row 1
-                    [world_xform[8], world_xform[9], world_xform[10]]    # row 2
-                ]
-                
-                # Convert rotation matrix to quaternion (xyzw format for Newton)
-                quat = cls._matrix_to_quaternion(rot_matrix)
-                
-                # Update Newton state: body_q[body_idx] = [pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w]
-                body_q_np[body_idx, 0] = pos_x
-                body_q_np[body_idx, 1] = pos_y
-                body_q_np[body_idx, 2] = pos_z
-                body_q_np[body_idx, 3] = quat[1]  # x
-                body_q_np[body_idx, 4] = quat[2]  # y
-                body_q_np[body_idx, 5] = quat[3]  # z
-                body_q_np[body_idx, 6] = quat[0]  # w
-                
-                updated_count += 1
-                
-            except Exception as e:
-                logger.debug(f"[NewtonManager] Failed to update transform for {body_prim_path}: {e}")
-                continue
-
-        # Copy updated transforms back to Warp array
-        if updated_count > 0:
-            cls._state_0.body_q.assign(body_q_np)
-            logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
+            # Copy updated transforms back to Warp array
+            if updated_count > 0:
+                cls._state_0.body_q.assign(body_q_np)
+                logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
 
     @classmethod
     def _body_path_to_newton_idx_lookup(cls, body_path: str, root_path: str, body_name: str) -> int:
@@ -375,40 +380,41 @@ class NewtonManager:
             cls.update_state_from_usdrt()
             return
         import torch
-        for art_name, articulation in cls._scene.articulations.items():
-            if art_name not in cls._physx_to_newton_maps:
-                continue
-            body_pos_w = articulation.data.body_pos_w
-            body_quat_w = articulation.data.body_quat_w
-            flat_pos = body_pos_w.reshape(-1, 3)
-            flat_quat = body_quat_w.reshape(-1, 4)
-            physx_positions_wp = wp.from_torch(flat_pos, dtype=wp.vec3)
-            physx_quaternions_wp = wp.from_torch(flat_quat, dtype=wp.vec4)
-            mapping_wp = wp.from_torch(cls._physx_to_newton_maps[art_name], dtype=wp.int32)
-            num_bodies = flat_pos.shape[0]
-            wp.launch(
-                kernel=_copy_physx_poses_to_newton_kernel,
-                dim=num_bodies,
-                inputs=[physx_positions_wp, physx_quaternions_wp, mapping_wp, cls._state_0.body_q],
-                device=cls._device,
-            )
-        if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
-            for obj_name, rigid_object in cls._scene.rigid_objects.items():
-                if obj_name not in cls._physx_to_newton_maps:
+        with Timer(name="newton_state_sync_tensors", msg="Newton state sync (PhysX tensors GPU) took"):
+            for art_name, articulation in cls._scene.articulations.items():
+                if art_name not in cls._physx_to_newton_maps:
                     continue
-                root_pos_w = rigid_object.data.root_pos_w
-                root_quat_w = rigid_object.data.root_quat_w
-                physx_positions_wp = wp.from_torch(root_pos_w, dtype=wp.vec3)
-                physx_quaternions_wp = wp.from_torch(root_quat_w, dtype=wp.vec4)
-                mapping_wp = wp.from_torch(cls._physx_to_newton_maps[obj_name], dtype=wp.int32)
-                num_instances = root_pos_w.shape[0]
+                body_pos_w = articulation.data.body_pos_w
+                body_quat_w = articulation.data.body_quat_w
+                flat_pos = body_pos_w.reshape(-1, 3)
+                flat_quat = body_quat_w.reshape(-1, 4)
+                physx_positions_wp = wp.from_torch(flat_pos, dtype=wp.vec3)
+                physx_quaternions_wp = wp.from_torch(flat_quat, dtype=wp.vec4)
+                mapping_wp = wp.from_torch(cls._physx_to_newton_maps[art_name], dtype=wp.int32)
+                num_bodies = flat_pos.shape[0]
                 wp.launch(
                     kernel=_copy_physx_poses_to_newton_kernel,
-                    dim=num_instances,
+                    dim=num_bodies,
                     inputs=[physx_positions_wp, physx_quaternions_wp, mapping_wp, cls._state_0.body_q],
                     device=cls._device,
                 )
-        wp.synchronize()
+            if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
+                for obj_name, rigid_object in cls._scene.rigid_objects.items():
+                    if obj_name not in cls._physx_to_newton_maps:
+                        continue
+                    root_pos_w = rigid_object.data.root_pos_w
+                    root_quat_w = rigid_object.data.root_quat_w
+                    physx_positions_wp = wp.from_torch(root_pos_w, dtype=wp.vec3)
+                    physx_quaternions_wp = wp.from_torch(root_quat_w, dtype=wp.vec4)
+                    mapping_wp = wp.from_torch(cls._physx_to_newton_maps[obj_name], dtype=wp.int32)
+                    num_instances = root_pos_w.shape[0]
+                    wp.launch(
+                        kernel=_copy_physx_poses_to_newton_kernel,
+                        dim=num_instances,
+                        inputs=[physx_positions_wp, physx_quaternions_wp, mapping_wp, cls._state_0.body_q],
+                        device=cls._device,
+                    )
+            wp.synchronize()
         logger.debug("[NewtonManager] Updated body transforms from PhysX tensors (GPU kernel)")
 
     @classmethod

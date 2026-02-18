@@ -238,6 +238,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         timers = [
             ("simulate", "Sim (physics step)"),
             ("render", "Render (total, obs compute)"),
+            ("newton_warp_render_full", "Render (Newton Warp full, same scope as renderer)"),
             ("newton_warp_kernel_only", "Render (Newton Warp kernel only)"),
         ]
         lines = []
@@ -252,8 +253,30 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if lines:
             print("[Timing summary]")
             print("\n".join(lines))
+            _timing_lines = lines  # keep for writing to artifacts
+        else:
+            _timing_lines = None
     except Exception:
-        pass
+        _timing_lines = None
+
+    # save run artifacts (logs, newton_renders, rsl_rl logs, timing summary) to run_artifacts/
+    try:
+        _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        _save_script = os.path.join(_repo_root, "scripts", "save_run_artifacts.sh")
+        _dest = os.path.join(_repo_root, "run_artifacts", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        os.makedirs(_dest, exist_ok=True)
+        if _timing_lines is not None:
+            _timing_file = os.path.join(_dest, "timing_summary.txt")
+            with open(_timing_file, "w") as f:
+                f.write("Training time: " + str(round(time.time() - start_time, 2)) + " seconds\n")
+                f.write("[Timing summary]\n")
+                f.write("\n".join(_timing_lines) + "\n")
+        if os.path.isfile(_save_script):
+            import subprocess
+            subprocess.run(["bash", _save_script, _dest], cwd=_repo_root, timeout=120, check=False)
+            print(f"[INFO] Run artifacts saved to {_dest}", flush=True)
+    except Exception as e:
+        print(f"[WARN] Could not save run artifacts: {e}", flush=True)
 
     # close the simulator
     env.close()

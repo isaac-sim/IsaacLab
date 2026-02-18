@@ -52,48 +52,6 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
 @configclass
 class KukaAllegroObservationCfg(dexsuite.ObservationsCfg):
-    """Kuka Allegro participant scene for Dexsuite Lifting/Reorientation"""
-
-    def __post_init__(self: dexsuite.ObservationsCfg):
-        super().__post_init__()
-        self.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
-            clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
-        )
-        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-
-
-@configclass
-class KukaAllegroObservationCfg(dexsuite.ObservationsCfg):
-    """Kuka Allegro observations for Dexsuite Lifting/Reorientation"""
-
-    def __post_init__(self: dexsuite.ObservationsCfg):
-        super().__post_init__()
-        self.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
-            clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
-        )
-        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-
-
-@configclass
-class KukaAllegroObservationCfg(dexsuite.ObservationsCfg):
-    """Kuka Allegro observations for Dexsuite Lifting/Reorientation"""
-
-    def __post_init__(self: dexsuite.ObservationsCfg):
-        super().__post_init__()
-        self.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [f"{link}_object_s" for link in FINGERTIP_LIST]},
-            clip=(-20.0, 20.0),  # contact force in finger tips is under 20N normally
-        )
-        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = ["palm_link", ".*_tip"]
-
-
-@configclass
-class KukaAllegroObservationCfg(dexsuite.ObservationsCfg):
     """Kuka Allegro observations for Dexsuite Lifting/Reorientation"""
 
     def __post_init__(self: dexsuite.ObservationsCfg):
