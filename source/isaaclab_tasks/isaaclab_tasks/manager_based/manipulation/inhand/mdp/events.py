@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
@@ -77,11 +78,11 @@ class reset_joints_within_limits_range(ManagerTermBase):
 
         # extract the used quantities (to enable type-hinting)
         self._asset: Articulation = env.scene[asset_cfg.name]
-        default_joint_pos = self._asset.data.default_joint_pos[0]
-        default_joint_vel = self._asset.data.default_joint_vel[0]
+        default_joint_pos = wp.to_torch(self._asset.data.default_joint_pos)[0]
+        default_joint_vel = wp.to_torch(self._asset.data.default_joint_vel)[0]
 
         # create buffers to store the joint position range
-        self._pos_ranges = self._asset.data.soft_joint_pos_limits[0].clone()
+        self._pos_ranges = wp.to_torch(self._asset.data.soft_joint_pos_limits)[0].clone()
         # parse joint position ranges
         pos_joint_ids = []
         for joint_name, joint_range in cfg.params["position_range"].items():
@@ -113,9 +114,8 @@ class reset_joints_within_limits_range(ManagerTermBase):
         self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
 
         # create buffers to store the joint velocity range
-        self._vel_ranges = torch.stack(
-            [-self._asset.data.soft_joint_vel_limits[0], self._asset.data.soft_joint_vel_limits[0]], dim=1
-        )
+        soft_joint_vel_limits_torch = wp.to_torch(self._asset.data.soft_joint_vel_limits)[0]
+        self._vel_ranges = torch.stack([-soft_joint_vel_limits_torch, soft_joint_vel_limits_torch], dim=1)
         # parse joint velocity ranges
         vel_joint_ids = []
         for joint_name, joint_range in cfg.params["velocity_range"].items():
@@ -157,8 +157,8 @@ class reset_joints_within_limits_range(ManagerTermBase):
         operation: Literal["abs", "scale"] = "abs",
     ):
         # get default joint state
-        joint_pos = self._asset.data.default_joint_pos[env_ids].clone()
-        joint_vel = self._asset.data.default_joint_vel[env_ids].clone()
+        joint_pos = wp.to_torch(self._asset.data.default_joint_pos)[env_ids].clone()
+        joint_vel = wp.to_torch(self._asset.data.default_joint_vel)[env_ids].clone()
 
         # sample random joint positions for each joint
         if len(self._pos_joint_ids) > 0:
@@ -167,7 +167,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
             )
             # clip the joint positions to the joint limits
-            joint_pos_limits = self._asset.data.soft_joint_pos_limits[0, self._pos_joint_ids]
+            joint_pos_limits = wp.to_torch(self._asset.data.soft_joint_pos_limits)[0, self._pos_joint_ids]
             joint_pos = joint_pos.clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
 
         # sample random joint velocities for each joint
@@ -177,7 +177,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
             )
             # clip the joint velocities to the joint limits
-            joint_vel_limits = self._asset.data.soft_joint_vel_limits[0, self._vel_joint_ids]
+            joint_vel_limits = wp.to_torch(self._asset.data.soft_joint_vel_limits)[0, self._vel_joint_ids]
             joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
 
         # set into the physics simulation

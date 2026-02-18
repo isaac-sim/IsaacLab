@@ -8,6 +8,7 @@ from __future__ import annotations
 import gymnasium as gym
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -26,8 +27,9 @@ class HumanoidAmpEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         # action offset and scale
-        dof_lower_limits = self.robot.data.soft_joint_pos_limits[0, :, 0]
-        dof_upper_limits = self.robot.data.soft_joint_pos_limits[0, :, 1]
+        soft_joint_pos_limits = wp.to_torch(self.robot.data.soft_joint_pos_limits)
+        dof_lower_limits = soft_joint_pos_limits[0, :, 0]
+        dof_upper_limits = soft_joint_pos_limits[0, :, 1]
         self.action_offset = 0.5 * (dof_upper_limits + dof_lower_limits)
         self.action_scale = dof_upper_limits - dof_lower_limits
 
@@ -84,13 +86,13 @@ class HumanoidAmpEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         # build task observation
         obs = compute_obs(
-            self.robot.data.joint_pos,
-            self.robot.data.joint_vel,
-            self.robot.data.body_pos_w[:, self.ref_body_index],
-            self.robot.data.body_quat_w[:, self.ref_body_index],
-            self.robot.data.body_lin_vel_w[:, self.ref_body_index],
-            self.robot.data.body_ang_vel_w[:, self.ref_body_index],
-            self.robot.data.body_pos_w[:, self.key_body_indexes],
+            wp.to_torch(self.robot.data.joint_pos),
+            wp.to_torch(self.robot.data.joint_vel),
+            wp.to_torch(self.robot.data.body_pos_w)[:, self.ref_body_index],
+            wp.to_torch(self.robot.data.body_quat_w)[:, self.ref_body_index],
+            wp.to_torch(self.robot.data.body_lin_vel_w)[:, self.ref_body_index],
+            wp.to_torch(self.robot.data.body_ang_vel_w)[:, self.ref_body_index],
+            wp.to_torch(self.robot.data.body_pos_w)[:, self.key_body_indexes],
         )
 
         # update AMP observation history
@@ -108,14 +110,19 @@ class HumanoidAmpEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         if self.cfg.early_termination:
-            died = self.robot.data.body_pos_w[:, self.ref_body_index, 2] < self.cfg.termination_height
+            died = wp.to_torch(self.robot.data.body_pos_w)[:, self.ref_body_index, 2] < self.cfg.termination_height
         else:
             died = torch.zeros_like(time_out)
         return died, time_out
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self.robot._ALL_INDICES
+            # Convert warp array to torch tensor if needed
+            env_ids = (
+                wp.to_torch(self.robot._ALL_INDICES)
+                if isinstance(self.robot._ALL_INDICES, wp.array)
+                else self.robot._ALL_INDICES
+            )
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
@@ -158,7 +165,7 @@ class HumanoidAmpEnv(DirectRLEnv):
 
         # get root transforms (the humanoid torso)
         motion_torso_index = self._motion_loader.get_body_index(["torso"])[0]
-        root_state = self.robot.data.default_root_state[env_ids].clone()
+        root_state = wp.to_torch(self.robot.data.default_root_state)[env_ids].clone()
         root_state[:, 0:3] = body_positions[:, motion_torso_index] + self.scene.env_origins[env_ids]
         root_state[:, 2] += 0.15  # lift the humanoid slightly to avoid collisions with the ground
         root_state[:, 3:7] = body_rotations[:, motion_torso_index]

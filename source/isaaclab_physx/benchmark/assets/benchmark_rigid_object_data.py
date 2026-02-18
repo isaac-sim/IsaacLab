@@ -61,8 +61,9 @@ from isaacsim.core.simulation_manager import SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
+import warp as wp
 from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
 from isaaclab.test.benchmark import MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
 
@@ -190,9 +191,9 @@ def get_benchmarkable_properties(rigid_object_data: RigidObjectData) -> list[str
     return sorted(all_properties)
 
 
-def setup_mock_environment(config: MethodBenchmarkRunnerConfig) -> MockRigidBodyView:
+def setup_mock_environment(config: MethodBenchmarkRunnerConfig) -> MockRigidBodyViewWarp:
     """Set up the mock environment for benchmarking."""
-    mock_view = MockRigidBodyView(
+    mock_view = MockRigidBodyViewWarp(
         count=config.num_instances,
         device=config.device,
     )
@@ -222,10 +223,16 @@ def main():
 
     # Generator that updates mock data and invalidates timestamp
     def gen_mock_data(cfg: MethodBenchmarkRunnerConfig) -> dict:
-        mock_view.set_mock_transforms(torch.randn(cfg.num_instances, 7, device=cfg.device))
-        mock_view.set_mock_velocities(torch.randn(cfg.num_instances, 6, device=cfg.device))
-        mock_view.set_mock_accelerations(torch.randn(cfg.num_instances, 6, device=cfg.device))
-        mock_view.set_mock_coms(torch.randn(cfg.num_instances, 7, device=cfg.device))
+        mock_view.set_mock_transforms(
+            wp.from_torch(torch.randn(cfg.num_instances, 7, device=cfg.device), dtype=wp.float32)
+        )
+        mock_view.set_mock_velocities(
+            wp.from_torch(torch.randn(cfg.num_instances, 6, device=cfg.device), dtype=wp.float32)
+        )
+        mock_view.set_mock_accelerations(
+            wp.from_torch(torch.randn(cfg.num_instances, 6, device=cfg.device), dtype=wp.float32)
+        )
+        mock_view.set_mock_coms(wp.from_torch(torch.randn(cfg.num_instances, 7, device=cfg.device), dtype=wp.float32))
         rigid_object_data._sim_timestamp += 1.0
         return {}
 

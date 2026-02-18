@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -110,12 +111,21 @@ class BaseRigidObjectCollection(AssetBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, object_ids: slice | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Resets all internal buffers of selected environments and objects.
+
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used.
         """
         raise NotImplementedError()
 
@@ -145,7 +155,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str], list[int]]:
+    ) -> tuple[torch.Tensor, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -156,7 +166,7 @@ class BaseRigidObjectCollection(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body mask, names and indices.
+            A tuple of lists containing the body indices and names.
         """
         raise NotImplementedError()
 
@@ -165,73 +175,22 @@ class BaseRigidObjectCollection(AssetBase):
     """
 
     @abstractmethod
-    def write_body_state_to_sim(
+    def write_body_pose_to_sim_index(
         self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
-        body_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Set the bodies state over selected environment indices into the simulation.
-
-        The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame. Shape is
-        ``(len(env_ids), len(body_ids), 13)``.
-
-        Args:
-            body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-            body_ids: Body indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_body_com_state_to_sim(
-        self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
-        body_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Set the body center of mass state over selected environment and body indices into the simulation.
-
-        The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-            body_ids: Body indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_body_link_state_to_sim(
-        self,
-        body_states: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
-        body_ids: slice | torch.Tensor | None = None,
-    ) -> None:
-        """Set the body link state over selected environment and body indices into the simulation.
-
-        The body state comprises of the cartesian position, quaternion orientation in (x, y, z, w), and linear
-        and angular velocity. All the quantities are in the simulation frame.
-
-        Args:
-            body_states: Body states in simulation frame. Shape is (len(env_ids), len(body_ids), 13).
-            env_ids: Environment indices. If None, then all indices are used.
-            body_ids: Body indices. If None, then all indices are used.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_body_pose_to_sim(
-        self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body poses over selected environment and body indices into the simulation.
 
         The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
@@ -241,15 +200,47 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_body_link_pose_to_sim(
+    def write_body_pose_to_sim_mask(
         self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body poses over selected environment and body indices into the simulation.
+
+        The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_link_pose_to_sim_index(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
         The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_poses: Body link poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
@@ -259,16 +250,48 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_body_com_pose_to_sim(
+    def write_body_link_pose_to_sim_mask(
         self,
-        body_poses: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body link pose over selected environment and body indices into the simulation.
+
+        The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_com_pose_to_sim_index(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principle axes of inertia.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_poses: Body center of mass poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
@@ -278,16 +301,51 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_body_velocity_to_sim(
+    def write_body_com_pose_to_sim_mask(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_poses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body center of mass pose over selected environment and body indices into the simulation.
+
+        The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principle axes of inertia.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_velocity_to_sim_index(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_velocities: Body velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
@@ -297,16 +355,53 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_body_com_velocity_to_sim(
+    def write_body_velocity_to_sim_mask(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_velocities: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body velocity over selected environment and body indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_velocities: Body velocities in simulation frame. Shape is (num_instances, num_bodies, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_com_velocity_to_sim_index(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_velocities: Body center of mass velocities in simulation frame. Shape is
@@ -317,16 +412,54 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_body_link_velocity_to_sim(
+    def write_body_com_velocity_to_sim_mask(
         self,
-        body_velocities: torch.Tensor,
-        env_ids: Sequence[int] | None = None,
+        body_velocities: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body center of mass velocity over selected environment and body indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_velocities: Body center of mass velocities in simulation frame. Shape is
+                (num_instances, num_bodies, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_link_velocity_to_sim_index(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        ..note:: This sets the velocity of the body's frame rather than the body's center of mass.
+
+        .. note::
+            This sets the velocity of the body's frame rather than the body's center of mass.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             body_velocities: Body link velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
@@ -335,37 +468,102 @@ class BaseRigidObjectCollection(AssetBase):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def write_body_link_velocity_to_sim_mask(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set the body link velocity over selected environment and body indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's frame rather than the body's center of mass.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
     """
     Operations - Setters.
     """
 
     @abstractmethod
-    def set_masses(
+    def set_masses_index(
         self,
-        masses: torch.Tensor,
+        masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
 
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
         Args:
-            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
             env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def set_coms(
+    def set_masses_mask(
         self,
-        coms: torch.Tensor,
+        masses: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set masses of all bodies.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_coms_index(
+        self,
+        coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
 
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3).
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass positions for. Defaults to None
                 (all environments).
@@ -373,73 +571,71 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_inertias(
+    def set_coms_mask(
         self,
-        inertias: torch.Tensor,
+        coms: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
+    ) -> None:
+        """Set center of mass positions of all bodies.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_inertias_index(
+        self,
+        inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
 
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
         Args:
-            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 3, 3).
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def set_external_force_and_torque(
+    def set_inertias_mask(
         self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        positions: torch.Tensor | None = None,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-        is_global: bool = False,
+        inertias: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        body_mask: wp.array | None = None,
     ) -> None:
-        """Set external force and torque to apply on the rigid object collection's bodies in their local frame.
-
-        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
-        time (for instance, during the policy control). This function allows us to store the external force and torque
-        into buffers which are then applied to the simulation at every step. Optionally, set the position to apply the
-        external wrench at (in the local link frame of the bodies).
-
-        .. caution::
-            If the function is called with empty forces and torques, then this function disables the application
-            of external wrench to the simulation.
-
-            .. code-block:: python
-
-                # example of disabling external wrench
-                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
-
-        .. caution::
-            If the function is called consecutively with and with different values for ``is_global``, then the
-            all the external wrenches will be applied in the frame specified by the last call.
-
-            .. code-block:: python
-
-                # example of setting external wrench in the global frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[0], is_global=True)
-                # example of setting external wrench in the link frame
-                asset.set_external_force_and_torque(forces=torch.ones(1, 1, 3), env_ids=[1], is_global=False)
-                # Both environments will have the external wrenches applied in the link frame
+        """Set inertias of all bodies.
 
         .. note::
-            This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
-            right before the simulation step.
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-            positions: External wrench positions in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
-                Defaults to None.
-            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
-            is_global: Whether to apply the external wrench in the global frame. Defaults to False. If set to False,
-                the external wrench is applied in the link frame of the bodies.
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
+            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are used.
         """
         raise NotImplementedError()
 
@@ -493,16 +689,208 @@ class BaseRigidObjectCollection(AssetBase):
         )
         return self.body_names
 
+    @abstractmethod
+    def write_body_state_to_sim(
+        self,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_com_state_to_sim(
+        self,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index` and
+        :meth:`write_body_com_velocity_to_sim_index`."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_body_link_state_to_sim(
+        self,
+        body_states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index`."""
+        raise NotImplementedError()
+
+    def write_body_pose_to_sim(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_link_pose_to_sim(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_link_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_link_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_link_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_com_pose_to_sim(
+        self,
+        body_poses: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_com_pose_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_com_pose_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_com_pose_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_com_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_velocity_to_sim(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_com_velocity_to_sim(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_com_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_com_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_com_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+
+    def write_body_link_velocity_to_sim(
+        self,
+        body_velocities: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        body_ids: slice | torch.Tensor | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`write_body_link_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_body_link_velocity_to_sim' will be deprecated in a future release. Please"
+            " use 'write_body_link_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.write_body_link_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+
+    def set_masses(
+        self,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_masses_index`."""
+        warnings.warn(
+            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
+
+    def set_coms(
+        self,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_coms_index`."""
+        warnings.warn(
+            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
+
+    def set_inertias(
+        self,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Deprecated, same as :meth:`set_inertias_index`."""
+        warnings.warn(
+            "The function 'set_inertias' will be deprecated in a future release. Please"
+            " use 'set_inertias_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
+
+    def set_external_force_and_torque(
+        self,
+        forces: torch.Tensor | wp.array,
+        torques: torch.Tensor | wp.array,
+        positions: torch.Tensor | wp.array | None = None,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        is_global: bool = False,
+    ) -> None:
+        """Deprecated, same as :meth:`permanent_wrench_composer.set_forces_and_torques`."""
+        warnings.warn(
+            "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
+            " use 'permanent_wrench_composer.set_forces_and_torques' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            positions=positions,
+            body_ids=body_ids,
+            env_ids=env_ids,
+            is_global=is_global,
+        )
+
     def write_object_state_to_sim(
         self,
         object_state: torch.Tensor,
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_state_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_state_to_sim` instead.",
+            " `write_body_pose_to_sim_index` and `write_body_link_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -514,10 +902,11 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_state_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` and
+        :meth:`write_body_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_com_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_state_to_sim` instead.",
+            " `write_body_com_pose_to_sim_index` and `write_body_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -529,10 +918,11 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_link_state_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` and
+        :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_link_state_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_state_to_sim` instead.",
+            " `write_body_pose_to_sim_index` and `write_body_link_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -544,14 +934,14 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_pose_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_pose_to_sim` instead.",
+            " `write_body_pose_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_pose_to_sim(
         self,
@@ -559,14 +949,14 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_link_pose_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_link_pose_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_link_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_pose_to_sim` instead.",
+            " `write_body_link_pose_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_link_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_pose_to_sim(
         self,
@@ -574,14 +964,14 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_com_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_pose_to_sim` instead.",
+            " `write_body_com_pose_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_pose_to_sim(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_velocity_to_sim(
         self,
@@ -589,14 +979,14 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim` instead.",
+            " `write_body_com_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_velocity_to_sim(
         self,
@@ -604,14 +994,14 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_com_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim` instead.",
+            " `write_body_com_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_velocity_to_sim(
         self,
@@ -619,18 +1009,18 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
-        """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim` instead."""
+        """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim_index` instead."""
         warnings.warn(
             "The `write_object_link_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_velocity_to_sim` instead.",
+            " `write_body_link_velocity_to_sim_index` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_velocity_to_sim(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_link_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def find_objects(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str], list[int]]:
+    ) -> tuple[torch.Tensor, list[str]]:
         """Deprecated method. Please use :meth:`find_bodies` instead."""
         warnings.warn(
             "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead.",

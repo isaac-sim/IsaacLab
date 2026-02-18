@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import torch
+import warp as wp
 
 from isaaclab.sensors.frame_transformer import BaseFrameTransformerData
 
@@ -19,48 +19,49 @@ class FrameTransformerData(BaseFrameTransformerData):
         return self._target_frame_names
 
     @property
-    def target_pose_source(self) -> torch.Tensor:
-        """Pose of target frame(s) relative to source frame. Shape is (N, M, 7). Quaternion in wxyz order."""
-        return torch.cat([self._target_pos_source, self._target_quat_source], dim=-1)
+    def target_pose_source(self) -> None:
+        """Not available for warp backend (cannot concatenate vec3f and quatf). Use target_pos_source /
+        target_quat_source."""
+        return None
 
     @property
-    def target_pos_source(self) -> torch.Tensor:
-        """Position of target frame(s) relative to source frame. Shape is (N, M, 3)."""
+    def target_pos_source(self) -> wp.array:
+        """Position of target frame(s) relative to source frame. Shape is (N, M) vec3f."""
         return self._target_pos_source
 
     @property
-    def target_quat_source(self) -> torch.Tensor:
-        """Orientation of target frame(s) relative to source frame (x, y, z, w). Shape is (N, M, 4)."""
+    def target_quat_source(self) -> wp.array:
+        """Orientation of target frame(s) relative to source frame (x, y, z, w). Shape is (N, M) quatf."""
         return self._target_quat_source
 
     @property
-    def target_pose_w(self) -> torch.Tensor:
-        """Pose of target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in xyzw order."""
-        return torch.cat([self._target_pos_w, self._target_quat_w], dim=-1)
+    def target_pose_w(self) -> None:
+        """Not available for warp backend (cannot concatenate vec3f and quatf). Use target_pos_w / target_quat_w."""
+        return None
 
     @property
-    def target_pos_w(self) -> torch.Tensor:
-        """Position of target frame(s) after offset in world frame. Shape is (N, M, 3)."""
+    def target_pos_w(self) -> wp.array:
+        """Position of target frame(s) after offset in world frame. Shape is (N, M) vec3f."""
         return self._target_pos_w
 
     @property
-    def target_quat_w(self) -> torch.Tensor:
-        """Orientation of target frame(s) after offset in world frame (x, y, z, w). Shape is (N, M, 4)."""
+    def target_quat_w(self) -> wp.array:
+        """Orientation of target frame(s) after offset in world frame (x, y, z, w). Shape is (N, M) quatf."""
         return self._target_quat_w
 
     @property
-    def source_pose_w(self) -> torch.Tensor:
-        """Pose of source frame after offset in world frame. Shape is (N, 7). Quaternion in xyzw order."""
-        return torch.cat([self._source_pos_w, self._source_quat_w], dim=-1)
+    def source_pose_w(self) -> None:
+        """Not available for warp backend (cannot concatenate vec3f and quatf). Use source_pos_w / source_quat_w."""
+        return None
 
     @property
-    def source_pos_w(self) -> torch.Tensor:
-        """Position of source frame after offset in world frame. Shape is (N, 3)."""
+    def source_pos_w(self) -> wp.array:
+        """Position of source frame after offset in world frame. Shape is (N,) vec3f."""
         return self._source_pos_w
 
     @property
-    def source_quat_w(self) -> torch.Tensor:
-        """Orientation of source frame after offset in world frame (x, y, z, w). Shape is (N, 4)."""
+    def source_quat_w(self) -> wp.array:
+        """Orientation of source frame after offset in world frame (x, y, z, w). Shape is (N,) quatf."""
         return self._source_quat_w
 
     def create_buffers(
@@ -79,9 +80,15 @@ class FrameTransformerData(BaseFrameTransformerData):
             device: Device for tensor storage.
         """
         self._target_frame_names = target_frame_names
-        self._source_pos_w = torch.zeros(num_envs, 3, device=device)
-        self._source_quat_w = torch.zeros(num_envs, 4, device=device)
-        self._target_pos_w = torch.zeros(num_envs, num_target_frames, 3, device=device)
-        self._target_quat_w = torch.zeros(num_envs, num_target_frames, 4, device=device)
-        self._target_pos_source = torch.zeros(num_envs, num_target_frames, 3, device=device)
-        self._target_quat_source = torch.zeros(num_envs, num_target_frames, 4, device=device)
+        self._source_pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+        self._source_quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
+        self._target_pos_w = wp.zeros((num_envs, num_target_frames), dtype=wp.vec3f, device=device)
+        self._target_quat_w = wp.zeros((num_envs, num_target_frames), dtype=wp.quatf, device=device)
+        self._target_pos_source = wp.zeros((num_envs, num_target_frames), dtype=wp.vec3f, device=device)
+        self._target_quat_source = wp.zeros((num_envs, num_target_frames), dtype=wp.quatf, device=device)
+
+        # Initialize quaternions to identity (w=1). wp.zeros gives (0,0,0,0) not (0,0,0,1).
+
+        wp.to_torch(self._source_quat_w)[:, 3] = 1.0
+        wp.to_torch(self._target_quat_w)[:, :, 3] = 1.0
+        wp.to_torch(self._target_quat_source)[:, :, 3] = 1.0

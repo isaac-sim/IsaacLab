@@ -43,6 +43,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 from rsl_rl.runners import OnPolicyRunner
 
 import carb
@@ -196,8 +197,10 @@ class H1RoughDemo:
         """Updates the per-frame transform of the third-person view camera to follow
         the selected robot's torso transform."""
 
-        base_pos = self.env.unwrapped.scene["robot"].data.root_pos_w[self._selected_id, :]  # - env.scene.env_origins
-        base_quat = self.env.unwrapped.scene["robot"].data.root_quat_w[self._selected_id, :]
+        base_pos = wp.to_torch(self.env.unwrapped.scene["robot"].data.root_pos_w)[
+            self._selected_id, :
+        ]  # - env.scene.env_origins
+        base_quat = wp.to_torch(self.env.unwrapped.scene["robot"].data.root_quat_w)[self._selected_id, :]
 
         camera_pos = quat_apply(base_quat, self._camera_local_transform) + base_pos
 

@@ -29,6 +29,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
@@ -297,7 +298,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 def get_link_pose(env, link_name):
     """Get the position and orientation of a link."""
     link_index = env.scene["robot"].data.body_names.index(link_name)
-    link_states = env.scene._articulations["robot"]._data.body_link_state_w
+    link_states = wp.to_torch(env.scene._articulations["robot"].data.body_link_state_w)
     link_pose = link_states[:, link_index, :7]
     return link_pose[:, :3], link_pose[:, 3:7]
 
@@ -350,7 +351,7 @@ def compute_errors(
     isaaclab_controlled_joint_ids = action_term._isaaclab_controlled_joint_ids
 
     # Get current and target positions for controlled joints only
-    curr_joints = articulation.data.joint_pos[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
+    curr_joints = wp.to_torch(articulation.data.joint_pos)[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
     target_joints = action_term.processed_actions[:, : len(isaaclab_controlled_joint_ids)].cpu().numpy()[0]
 
     # Reorder joints for Pink IK (using controlled joint ordering)

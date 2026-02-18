@@ -10,11 +10,13 @@ import weakref
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
-from isaaclab.utils.buffers import TimestampedBuffer
-from isaaclab.utils.math import combine_frame_transforms, normalize, quat_apply, quat_apply_inverse
+from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.math import normalize
 
+from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -76,9 +78,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, self.num_bodies, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(
-            self.num_instances, self.num_bodies, 1
+        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f)
+        self.FORWARD_VEC_B = wp.from_torch(
+            torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_bodies, 1),
+            dtype=wp.vec3f,
         )
 
         self._create_buffers()
@@ -125,7 +128,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     """
 
     @property
-    def default_body_pose(self) -> torch.Tensor:
+    def default_body_pose(self) -> wp.array:
         """Default body pose ``[pos, quat]`` in local environment frame.
 
         The position and quaternion are of the rigid body's actor frame. Shape is (num_instances, num_bodies, 7).
@@ -133,7 +136,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         return self._default_body_pose
 
     @default_body_pose.setter
-    def default_body_pose(self, value: torch.Tensor) -> None:
+    def default_body_pose(self, value: wp.array) -> None:
         """Set the default body pose.
 
         Args:
@@ -144,10 +147,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._is_primed:
             raise ValueError("The rigid object collection data is already primed.")
-        self._default_body_pose = value
+        self._default_body_pose.assign(value)
 
     @property
-    def default_body_vel(self) -> torch.Tensor:
+    def default_body_vel(self) -> wp.array:
         """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is
 
         The linear and angular velocities are of the rigid body's center of mass frame. Shape is
@@ -156,7 +159,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         return self._default_body_vel
 
     @default_body_vel.setter
-    def default_body_vel(self, value: torch.Tensor) -> None:
+    def default_body_vel(self, value: wp.array) -> None:
         """Set the default body velocity.
 
         Args:
@@ -167,10 +170,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._is_primed:
             raise ValueError("The rigid object collection data is already primed.")
-        self._default_body_vel = value
+        self._default_body_vel.assign(value)
 
     @property
-    def default_body_state(self) -> torch.Tensor:
+    def default_body_state(self) -> wp.array:
         """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
 
         The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
@@ -182,7 +185,23 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             DeprecationWarning,
             stacklevel=2,
         )
-        return torch.cat([self.default_body_pose, self.default_body_vel], dim=-1)
+        if self._default_body_state is None:
+            self._default_body_state = wp.zeros(
+                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
+            )
+        wp.launch(
+            shared_kernels.concat_body_pose_and_vel_to_state,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[
+                self._default_body_pose,
+                self._default_body_vel,
+            ],
+            outputs=[
+                self._default_body_state,
+            ],
+            device=self.device,
+        )
+        return self._default_body_state
 
     @default_body_state.setter
     def default_body_state(self, value: torch.Tensor) -> None:
@@ -202,23 +221,23 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         if self._is_primed:
             raise ValueError("The rigid object collection data is already primed.")
-        self._default_body_pose = value[:, :, :7]
-        self._default_body_vel = value[:, :, 7:]
+        self._default_body_pose.assign(wp.from_torch(value[:, :, :7]).view(wp.transformf))
+        self._default_body_vel.assign(wp.from_torch(value[:, :, 7:]).view(wp.spatial_vectorf))
 
     """
     Body state properties.
     """
 
     @property
-    def body_link_pose_w(self) -> torch.Tensor:
+    def body_link_pose_w(self) -> wp.array:
         """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            pose = self._reshape_view_to_data(self._root_view.get_transforms().clone())
+            # read data from simulation and reshape
+            pose = self._reshape_view_to_data_2d(self._root_view.get_transforms().view(wp.transformf))
             # set the buffer data and timestamp
             self._body_link_pose_w.data = pose
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -226,45 +245,56 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         return self._body_link_pose_w.data
 
     @property
-    def body_link_vel_w(self) -> torch.Tensor:
+    def body_link_vel_w(self) -> wp.array:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, num_bodies, 6).
 
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
-            # read data from simulation
-            velocity = self.body_com_vel_w.clone()
-            # adjust linear velocity to link from center of mass
-            velocity[..., :3] += torch.linalg.cross(
-                velocity[..., 3:], quat_apply(self.body_link_quat_w, -self.body_com_pos_b), dim=-1
+            wp.launch(
+                shared_kernels.get_body_link_vel_from_body_com_vel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_com_vel_w,
+                    self.body_link_pose_w,
+                    self.body_com_pose_b,
+                ],
+                outputs=[
+                    self._body_link_vel_w.data,
+                ],
+                device=self.device,
             )
-            # set the buffer data and timestamp
-            self._body_link_vel_w.data = velocity
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
         return self._body_link_vel_w.data
 
     @property
-    def body_com_pose_w(self) -> torch.Tensor:
+    def body_com_pose_w(self) -> wp.array:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
-            # adjust pose to center of mass
-            pos, quat = combine_frame_transforms(
-                self.body_link_pos_w, self.body_link_quat_w, self.body_com_pos_b, self.body_com_quat_b
+            wp.launch(
+                shared_kernels.get_body_com_pose_from_body_link_pose,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_pose_b,
+                ],
+                outputs=[
+                    self._body_com_pose_w.data,
+                ],
+                device=self.device,
             )
-            # set the buffer data and timestamp
-            self._body_com_pose_w.data = torch.cat((pos, quat), dim=-1)
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
         return self._body_com_pose_w.data
 
     @property
-    def body_com_vel_w(self) -> torch.Tensor:
+    def body_com_vel_w(self) -> wp.array:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies, 6).
 
@@ -272,68 +302,105 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            self._body_com_vel_w.data = self._reshape_view_to_data(self._root_view.get_velocities())
+            vel = self._reshape_view_to_data_2d(self._root_view.get_velocities().view(wp.spatial_vectorf))
+            self._body_com_vel_w.data = vel
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
 
     @property
-    def body_state_w(self) -> torch.Tensor:
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and orientation are of the rigid bodies' actor frame. Meanwhile, the linear and angular
-        velocities are of the rigid bodies' center of mass frame.
-        """
+    def body_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_state_w.timestamp < self._sim_timestamp:
-            self._body_state_w.data = torch.cat((self.body_link_pose_w, self.body_com_vel_w), dim=-1)
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_state_w.data,
+                ],
+                device=self.device,
+            )
             self._body_state_w.timestamp = self._sim_timestamp
 
         return self._body_state_w.data
 
     @property
-    def body_link_state_w(self) -> torch.Tensor:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        The orientation is provided in (x, y, z, w) format.
-        """
+    def body_link_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_link_state_w.timestamp < self._sim_timestamp:
-            self._body_link_state_w.data = torch.cat((self.body_link_pose_w, self.body_link_vel_w), dim=-1)
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_link_vel_w,
+                ],
+                outputs=[
+                    self._body_link_state_w.data,
+                ],
+                device=self.device,
+            )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
         return self._body_link_state_w.data
 
     @property
-    def body_com_state_w(self) -> torch.Tensor:
-        """State of all bodies ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia. The orientation is provided in (x, y, z, w) format.
-        """
+    def body_com_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._body_com_state_w.timestamp < self._sim_timestamp:
-            self._body_com_state_w.data = torch.cat((self.body_com_pose_w, self.body_com_vel_w), dim=-1)
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_com_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_com_state_w.data,
+                ],
+                device=self.device,
+            )
             self._body_com_state_w.timestamp = self._sim_timestamp
 
         return self._body_com_state_w.data
 
     @property
-    def body_com_acc_w(self) -> torch.Tensor:
+    def body_com_acc_w(self) -> wp.array:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
         Shape is (num_instances, num_bodies, 6).
 
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            self._body_com_acc_w.data = self._reshape_view_to_data(self._root_view.get_accelerations())
+            acc = self._reshape_view_to_data_2d(self._root_view.get_accelerations().view(wp.spatial_vectorf))
+            self._body_com_acc_w.data = acc
             self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w.data
 
     @property
-    def body_com_pose_b(self) -> torch.Tensor:
+    def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
         Shape is (num_instances, num_bodies, 7).
 
@@ -342,217 +409,371 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # obtain the coms
-            poses = self._root_view.get_coms().to(self.device)
+            poses = self._reshape_view_to_data_2d(self._root_view.get_coms().view(wp.transformf))
             # read data from simulation
-            self._body_com_pose_b.data = self._reshape_view_to_data(poses)
+            self._body_com_pose_b.data.assign(poses)
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         return self._body_com_pose_b.data
 
     @property
-    def body_mass(self) -> torch.Tensor:
+    def body_mass(self) -> wp.array:
         """Mass of all bodies in the simulation world frame. Shape is (num_instances, num_bodies)."""
-        return self._reshape_view_to_data(self._body_mass.to(self.device))
+        return self._body_mass
 
     @property
-    def body_inertia(self) -> torch.Tensor:
+    def body_inertia(self) -> wp.array:
         """Inertia of all bodies in the simulation world frame. Shape is (num_instances, num_bodies, 9)."""
-        return self._reshape_view_to_data(self._body_inertia.to(self.device))
+        return self._body_inertia
 
     """
     Derived Properties.
     """
 
     @property
-    def projected_gravity_b(self) -> torch.Tensor:
+    def projected_gravity_b(self) -> wp.array:
         """Projection of the gravity direction on base frame. Shape is (num_instances, num_bodies, 3)."""
-        return quat_apply_inverse(self.body_link_quat_w, self.GRAVITY_VEC_W)
+        if self._projected_gravity_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.quat_apply_inverse_2D_kernel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.GRAVITY_VEC_W, self.body_link_quat_w],
+                outputs=[self._projected_gravity_b.data],
+                device=self.device,
+            )
+            self._projected_gravity_b.timestamp = self._sim_timestamp
+        return self._projected_gravity_b.data
 
     @property
-    def heading_w(self) -> torch.Tensor:
+    def heading_w(self) -> wp.array:
         """Yaw heading of the base frame (in radians). Shape is (num_instances, num_bodies).
 
         .. note::
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = quat_apply(self.body_link_quat_w, self.FORWARD_VEC_B)
-        return torch.atan2(forward_w[..., 1], forward_w[..., 0])
+        if self._heading_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.body_heading_w,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.FORWARD_VEC_B, self.body_link_quat_w],
+                outputs=[self._heading_w.data],
+                device=self.device,
+            )
+            self._heading_w.timestamp = self._sim_timestamp
+        return self._heading_w.data
 
     @property
-    def body_link_lin_vel_b(self) -> torch.Tensor:
+    def body_link_lin_vel_b(self) -> wp.array:
         """Root link linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return quat_apply_inverse(self.body_link_quat_w, self.body_link_lin_vel_w)
+        if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.quat_apply_inverse_2D_kernel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.body_link_lin_vel_w, self.body_link_quat_w],
+                outputs=[self._body_link_lin_vel_b.data],
+                device=self.device,
+            )
+            self._body_link_lin_vel_b.timestamp = self._sim_timestamp
+        return self._body_link_lin_vel_b.data
 
     @property
-    def body_link_ang_vel_b(self) -> torch.Tensor:
+    def body_link_ang_vel_b(self) -> wp.array:
         """Root link angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
-        return quat_apply_inverse(self.body_link_quat_w, self.body_link_ang_vel_w)
+        if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.quat_apply_inverse_2D_kernel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.body_link_ang_vel_w, self.body_link_quat_w],
+                outputs=[self._body_link_ang_vel_b.data],
+                device=self.device,
+            )
+            self._body_link_ang_vel_b.timestamp = self._sim_timestamp
+        return self._body_link_ang_vel_b.data
 
     @property
-    def body_com_lin_vel_b(self) -> torch.Tensor:
+    def body_com_lin_vel_b(self) -> wp.array:
         """Root center of mass linear velocity in base frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return quat_apply_inverse(self.body_link_quat_w, self.body_com_lin_vel_w)
+        if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.quat_apply_inverse_2D_kernel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.body_com_lin_vel_w, self.body_link_quat_w],
+                outputs=[self._body_com_lin_vel_b.data],
+                device=self.device,
+            )
+            self._body_com_lin_vel_b.timestamp = self._sim_timestamp
+        return self._body_com_lin_vel_b.data
 
     @property
-    def body_com_ang_vel_b(self) -> torch.Tensor:
+    def body_com_ang_vel_b(self) -> wp.array:
         """Root center of mass angular velocity in base world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
-        return quat_apply_inverse(self.body_link_quat_w, self.body_com_ang_vel_w)
+        if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.quat_apply_inverse_2D_kernel,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self.body_com_ang_vel_w, self.body_link_quat_w],
+                outputs=[self._body_com_ang_vel_b.data],
+                device=self.device,
+            )
+            self._body_com_ang_vel_b.timestamp = self._sim_timestamp
+        return self._body_com_ang_vel_b.data
 
     """
     Sliced properties.
     """
 
     @property
-    def body_link_pos_w(self) -> torch.Tensor:
+    def body_link_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
-        return self.body_link_pose_w[..., :3]
+        return self._get_pos_from_transform(self.body_link_pose_w)
 
     @property
-    def body_link_quat_w(self) -> torch.Tensor:
+    def body_link_quat_w(self) -> wp.array:
         """Orientation (x, y, z, w) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
         """
-        return self.body_link_pose_w[..., 3:7]
+        return self._get_quat_from_transform(self.body_link_pose_w)
 
     @property
-    def body_link_lin_vel_w(self) -> torch.Tensor:
+    def body_link_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
         """
-        return self.body_link_vel_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
-    def body_link_ang_vel_w(self) -> torch.Tensor:
+    def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
         """
-        return self.body_link_vel_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
-    def body_com_pos_w(self) -> torch.Tensor:
+    def body_com_pos_w(self) -> wp.array:
         """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the position of the rigid bodies' actor frame.
         """
-        return self.body_com_pose_w[..., :3]
+        return self._get_pos_from_transform(self.body_com_pose_w)
 
     @property
-    def body_com_quat_w(self) -> torch.Tensor:
+    def body_com_quat_w(self) -> wp.array:
         """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies, 4). This quantity is the orientation of the rigid bodies' actor frame.
         """
-        return self.body_com_pose_w[..., 3:7]
+        return self._get_quat_from_transform(self.body_com_pose_w)
 
     @property
-    def body_com_lin_vel_w(self) -> torch.Tensor:
+    def body_com_lin_vel_w(self) -> wp.array:
         """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
-        return self.body_com_vel_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
-    def body_com_ang_vel_w(self) -> torch.Tensor:
+    def body_com_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
-        return self.body_com_vel_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
-    def body_com_lin_acc_w(self) -> torch.Tensor:
+    def body_com_lin_acc_w(self) -> wp.array:
         """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
-        return self.body_com_acc_w[..., :3]
+        return self._get_lin_vel_from_spatial_vector(self.body_com_acc_w)
 
     @property
-    def body_com_ang_acc_w(self) -> torch.Tensor:
+    def body_com_ang_acc_w(self) -> wp.array:
         """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
 
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
-        return self.body_com_acc_w[..., 3:6]
+        return self._get_ang_vel_from_spatial_vector(self.body_com_acc_w)
 
     @property
-    def body_com_pos_b(self) -> torch.Tensor:
+    def body_com_pos_b(self) -> wp.array:
         """Center of mass position of all of the bodies in their respective link frames.
         Shape is (num_instances, num_bodies, 3).
 
         This quantity is the center of mass location relative to its body'slink frame.
         """
-        return self.body_com_pose_b[..., :3]
+        return self._get_pos_from_transform(self.body_com_pose_b)
 
     @property
-    def body_com_quat_b(self) -> torch.Tensor:
+    def body_com_quat_b(self) -> wp.array:
         """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their
         respective link frames. Shape is (num_instances, num_bodies, 4).
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        return self.body_com_pose_b[..., 3:7]
+        return self._get_quat_from_transform(self.body_com_pose_b)
 
     def _create_buffers(self) -> None:
         super()._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._body_link_pose_w = TimestampedBuffer()
-        self._body_link_vel_w = TimestampedBuffer()
+        self._body_link_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
+        self._body_link_vel_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
+        )
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer()
+        self._body_com_pose_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
         # -- com frame w.r.t. world frame
-        self._body_com_pose_w = TimestampedBuffer()
-        self._body_com_vel_w = TimestampedBuffer()
-        self._body_com_acc_w = TimestampedBuffer()
+        self._body_com_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
+        self._body_com_vel_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_acc_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
         # -- combined state(these are cached as they concatenate)
-        self._body_state_w = TimestampedBuffer()
-        self._body_link_state_w = TimestampedBuffer()
-        self._body_com_state_w = TimestampedBuffer()
+        self._body_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
+        self._body_link_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
+        self._body_com_state_w = TimestampedBuffer(
+            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+        )
 
         # -- Default state
-        self._default_body_pose = torch.zeros(self.num_instances, self.num_bodies, 7, device=self.device)
-        self._default_body_vel = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
+        self._default_body_pose = wp.zeros(
+            (self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device
+        )
+        self._default_body_vel = wp.zeros(
+            (self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._default_body_state = None
 
-        # -- Body properties
-        self._body_mass = self._root_view.get_masses().to(self.device).clone()
-        self._body_inertia = self._root_view.get_inertias().to(self.device).clone()
+        # -- Derived properties
+        self._projected_gravity_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._heading_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.float32)
+        self._body_link_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._body_link_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._body_com_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._body_com_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+
+        # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])
+        # Masses: view returns (B*I, 1) in view order. _reshape_view_to_data gives (I, B) in instance order.
+        self._body_mass = self._reshape_view_to_data_2d(self._root_view.get_masses()).reshape(
+            (self.num_instances, self.num_bodies, 1)
+        )
+        # Inertias: view returns (B*I, 9) in view order. Need (I, B, 9) in instance order.
+        # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.
+        self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)
 
     """
     Helpers.
     """
 
-    def _reshape_view_to_data(self, data: torch.Tensor) -> torch.Tensor:
+    def _reshape_view_to_data_2d(self, data: wp.array) -> wp.array:
         """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
 
         Args:
             data: The data from the physics view. Shape is (num_instances * num_bodies, data_size).
 
         Returns:
-            The reshaped data. Shape is (num_bodies, num_instances, data_size).
+            The reshaped data. Shape is (num_instances, num_bodies, data_size).
         """
-        return torch.einsum("ijk -> jik", data.reshape(self.num_bodies, self.num_instances, -1))
+        # The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)
+        # i.e. shape (num_bodies, num_instances) when reshaped.
+        # We need (num_instances, num_bodies) so we create a strided view with transposed strides.
+        element_size = wp.types.type_size_in_bytes(data.dtype)
+        strided_view = wp.array(
+            ptr=data.ptr,
+            shape=(self.num_instances, self.num_bodies),
+            dtype=data.dtype,
+            strides=(element_size, self.num_instances * element_size),
+            device=self.device,
+        )
+        # Clone to make contiguous
+        return wp.clone(strided_view)
+
+    def _reshape_view_to_data_3d(self, data: wp.array, data_dim: int) -> wp.array:
+        """Reshapes and arranges 2D view data to (num_instances, num_bodies, data_dim).
+
+        Args:
+            data: The data from the physics view. Shape is (num_instances * num_bodies, data_dim).
+            data_dim: The trailing dimension size.
+
+        Returns:
+            The reshaped data. Shape is (num_instances, num_bodies, data_dim).
+        """
+        # The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)
+        # We need (num_instances, num_bodies, data_dim), so stride through the flat float32 data.
+        element_size = wp.types.type_size_in_bytes(wp.float32)
+        row_size = element_size * data_dim
+        strided_view = wp.array(
+            ptr=data.ptr,
+            shape=(self.num_instances, self.num_bodies, data_dim),
+            dtype=wp.float32,
+            strides=(row_size, self.num_instances * row_size, element_size),
+            device=self.device,
+        )
+        return wp.clone(strided_view)
+
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a position array from a transform array."""
+        return wp.array(
+            ptr=transform.ptr,
+            shape=transform.shape,
+            dtype=wp.vec3f,
+            strides=transform.strides,
+            device=self.device,
+        )
+
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a quaternion array from a transform array."""
+        return wp.array(
+            ptr=transform.ptr + 3 * 4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self.device,
+        )
+
+    def _get_lin_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Generates a linear velocity array from a spatial vector array."""
+        return wp.array(
+            ptr=spatial_vector.ptr,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )
+
+    def _get_ang_vel_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Generates an angular velocity array from a spatial vector array."""
+        return wp.array(
+            ptr=spatial_vector.ptr + 3 * 4,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )

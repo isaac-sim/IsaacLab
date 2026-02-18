@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Visualizer Registry.
 
 This module uses a registry pattern to decouple visualizer instantiation
@@ -13,39 +12,55 @@ from specific types. Configs can create visualizers via the
 
 from __future__ import annotations
 
-# Import base classes first
+from typing import TYPE_CHECKING, Any
+
+from .kit_visualizer_cfg import KitVisualizerCfg
+from .newton_visualizer_cfg import NewtonVisualizerCfg
+from .rerun_visualizer_cfg import RerunVisualizerCfg
 from .visualizer import Visualizer
 from .visualizer_cfg import VisualizerCfg
 
-# Global registry for visualizer types (lazy-loaded)
-_VISUALIZER_REGISTRY: dict[str, type[Visualizer]] = {}
+if TYPE_CHECKING:
+    from .kit_visualizer import KitVisualizer
+    from .newton_visualizer import NewtonVisualizer
+    from .rerun_visualizer import RerunVisualizer
 
-
-def get_visualizer_class(name: str) -> type[Visualizer] | None:
-    """Get a visualizer class by name (lazy-loaded).
-
-    Args:
-        name: Visualizer type name (e.g., 'omniverse').
-
-    Returns:
-        Visualizer class if found, None otherwise.
-    """
-    # Check if already loaded
-    if name in _VISUALIZER_REGISTRY:
-        return _VISUALIZER_REGISTRY[name]
-
-    # Lazy-load visualizer classes from backend packages
-    if name == "omniverse":
-        from isaaclab_physx.visualizers import OVVisualizer
-
-        _VISUALIZER_REGISTRY["omniverse"] = OVVisualizer
-        return OVVisualizer
-
-    return None
-
+_VISUALIZER_REGISTRY: dict[str, Any] = {}
 
 __all__ = [
     "Visualizer",
     "VisualizerCfg",
+    "NewtonVisualizerCfg",
+    "KitVisualizerCfg",
+    "RerunVisualizerCfg",
     "get_visualizer_class",
 ]
+
+
+def get_visualizer_class(name: str) -> type[Visualizer] | None:
+    """Get a visualizer class by name (lazy-loaded)."""
+    if name in _VISUALIZER_REGISTRY:
+        return _VISUALIZER_REGISTRY[name]
+
+    try:
+        if name == "newton":
+            from .newton_visualizer import NewtonVisualizer
+
+            _VISUALIZER_REGISTRY["newton"] = NewtonVisualizer
+            return NewtonVisualizer
+        if name == "kit":
+            from .kit_visualizer import KitVisualizer
+
+            _VISUALIZER_REGISTRY["kit"] = KitVisualizer
+            return KitVisualizer
+        if name == "rerun":
+            from .rerun_visualizer import RerunVisualizer
+
+            _VISUALIZER_REGISTRY["rerun"] = RerunVisualizer
+            return RerunVisualizer
+        return None
+    except ImportError as exc:
+        import warnings
+
+        warnings.warn(f"Failed to load visualizer '{name}': {exc}", ImportWarning)
+        return None

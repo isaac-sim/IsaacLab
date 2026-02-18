@@ -16,13 +16,24 @@ from .factories import (
     create_mock_rigid_body_view,
     create_mock_rigid_contact_view,
 )
-from .views import MockArticulationView, MockRigidBodyView, MockRigidContactView
+from .views import (
+    MockArticulationView,
+    MockArticulationViewWarp,
+    MockRigidBodyView,
+    MockRigidBodyViewWarp,
+    MockRigidContactView,
+    MockRigidContactViewWarp,
+)
 
 __all__ = [
-    # Views
+    # Views (torch)
     "MockRigidBodyView",
     "MockArticulationView",
     "MockRigidContactView",
+    # Views (warp)
+    "MockRigidBodyViewWarp",
+    "MockArticulationViewWarp",
+    "MockRigidContactViewWarp",
     # Factories
     "create_mock_rigid_body_view",
     "create_mock_articulation_view",
