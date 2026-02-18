@@ -55,31 +55,6 @@ The required Python version is as follows:
 - For Isaac Sim 5.X, the required Python version is 3.11.
 
 
-Windows-Specific Requirements
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-MSVC Build Tools
-^^^^^^^^^^^^^^^^
-
-On Windows, installing Isaac Lab requires the **Microsoft Visual C++ (MSVC) Build Tools**.
-These are needed to compile certain Python packages and native extensions during installation.
-
-To install them:
-
-1. Download the **Visual Studio Build Tools for C++** <https://visualstudio.microsoft.com/visual-cpp-build-tools/>.
-2. Run the installer and select the **"Visual Studio Build Tools 202x"**.
-3. Complete the installation.
-
-Long Path Support
-^^^^^^^^^^^^^^^^^
-
-Windows **long path support** must be enabled to avoid issues with file paths exceeding the default length limit.
-Run the following command in an **PowerShell terminal with administrator privileges** to enable it:
-
-.. code-block:: powershell
-
-   Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1
-
 Driver Requirements
 ~~~~~~~~~~~~~~~~~~~
 
