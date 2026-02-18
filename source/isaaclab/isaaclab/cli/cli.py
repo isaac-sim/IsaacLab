@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-import os
-import subprocess
 
 from .conda import setup_conda_env
 from .format import format_code
@@ -14,7 +12,6 @@ from .utils import (
     ISAACLAB_ROOT,
     build_docs,
     extract_isaacsim_exe,
-    extract_python_exe,
     is_windows,
     print_info,
     run_command,
@@ -135,9 +132,7 @@ def cli():
     elif args.sim is not None:
         # Sim execution.
         sim_exe = extract_isaacsim_exe()
-
         print_info(f"Running isaac-sim from: {sim_exe}")
-
         cmd = sim_exe
 
         # Add ext folder.
@@ -149,36 +144,15 @@ def cli():
 
     elif args.new is not None:
         print_info("Installing template dependencies...")
-        python_exe = extract_python_exe()
         reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-        run_command([python_exe, "-m", "pip", "install", "-q", "-r", str(reqs)])
+        run_python_command("-m", ["pip", "install", "-q", "-r", str(reqs)])
 
         print_info("Running template generator...")
         cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
         run_python_command(cli_script, args.new)
 
     elif args.test is not None:
-        python_exe = extract_python_exe()
-
-        # Make sure pytest is installed.
-        try:
-            # Check if pytest is available as a module.
-            run_python_command("pip", ["show", "pytest"], is_module=True, check=True)
-        except subprocess.CalledProcessError:
-            if is_windows():
-                print_info("pytest not found, please run install first with 'isaaclab.bat -i'...")
-            else:
-                print_info("pytest not found, please run install first with './isaaclab.sh -i'...")
-            return
-
-        cmd = [
-            python_exe,
-            "-m",
-            "pytest",
-            str(ISAACLAB_ROOT / "tools"),
-        ] + args.test
-
-        run_command(cmd, check=False)
+        run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + args.test)
 
     else:
         parser.print_help()
