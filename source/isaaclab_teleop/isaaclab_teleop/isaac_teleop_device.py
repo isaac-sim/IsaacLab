@@ -81,8 +81,10 @@ class IsaacTeleopDevice:
 
     def __del__(self):
         """Clean up resources when the object is destroyed."""
-        self._command_handler.cleanup()
-        self._anchor_manager.cleanup()
+        if hasattr(self, "_command_handler"):
+            self._command_handler.cleanup()
+        if hasattr(self, "_anchor_manager"):
+            self._anchor_manager.cleanup()
 
     def __str__(self) -> str:
         """Returns a string containing information about the IsaacTeleop device."""
