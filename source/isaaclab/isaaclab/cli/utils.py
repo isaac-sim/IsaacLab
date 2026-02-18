@@ -21,6 +21,7 @@ _ANSI_COLOR_RESET = "\033[0m"
 _ANSI_COLOR_INFO = "\033[36m"  # cyan
 _ANSI_COLOR_WARNING = "\033[33m"  # yellow
 _ANSI_COLOR_ERROR = "\033[31m"  # red
+_ANSI_COLOR_DEBUG = "\033[1;32m"  # bold green
 
 
 def is_windows():
@@ -64,11 +65,28 @@ def print_error(message, stream=sys.stderr):
     print(f"{label} {message}", file=stream)
 
 
+def print_debug(message, stream=sys.stdout):
+    if os.environ.get("DEBUG") != "1":
+        return
+    label = _colorize("[DEBUG]", _ANSI_COLOR_DEBUG, stream)
+    print(f"{label} {message}", file=stream)
+
+
 def run_command(cmd, cwd=None, env=None, shell=False, check=True):
     """Run a command in a subprocess."""
 
     if cwd is None:
         cwd = ISAACLAB_ROOT
+
+    command_str = " ".join(str(part) for part in cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
+
+    # Print some debug info.
+    print_debug(f'run_command(): DIR: "{cwd}"')
+    print_debug(f'run_command(): CMD: "{command_str}"')
+    if env is not None:
+        print_debug(f"run_command(): ENV: {env}")
+    else:
+        print_debug("run_command(): ENV: <inherited>")
 
     try:
         subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check)
