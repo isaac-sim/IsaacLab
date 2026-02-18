@@ -46,7 +46,7 @@ class RenderData:
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self.outputs = RenderData.CameraOutputs()
         self.width = getattr(sensor.cfg, "width", 100)
-        self.height = getattr(sensor.cfg, "width", 100)
+        self.height = getattr(sensor.cfg, "height", 100)
 
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for output_name, tensor_data in output_data.items():
@@ -223,7 +223,6 @@ class NewtonWarpRenderer:
         newton_body_index = mapping[physx_world_id, physx_body_id]
         newton_world_id = newton_body_world[newton_body_index]
 
-        pos = physx_pos[newton_world_id, physx_body_id]
-        quat = physx_quat[newton_world_id, physx_body_id]
-
-        out_transform[newton_body_index] = wp.transformf(pos, quat)
+        out_transform[newton_body_index] = wp.transformf(
+            physx_pos[newton_world_id, physx_body_id], physx_quat[newton_world_id, physx_body_id]
+        )
