@@ -8,13 +8,16 @@ from __future__ import annotations
 import asyncio
 import functools
 import textwrap
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 import omni.kit.commands
 import omni.ui as ui
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+
+if TYPE_CHECKING:
+    from omni.kit.xr.scene_view.utils import UiContainer
 
 Vec3Type: TypeAlias = Gf.Vec3f | Gf.Vec3d
 
