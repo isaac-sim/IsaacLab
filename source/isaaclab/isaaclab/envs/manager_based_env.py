@@ -142,7 +142,7 @@ class ManagerBasedEnv:
 
         # Set scene reference for Newton Warp renderer (PhysX -> Newton state sync)
         try:
-            from isaaclab.sim._impl.newton_manager import NewtonManager
+            from isaaclab.managers.newton_manager import NewtonManager
 
             NewtonManager.set_scene(self.scene)
         except Exception:
@@ -174,10 +174,17 @@ class ManagerBasedEnv:
             with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 # since the reset can trigger callbacks which use the stage,
                 # we need to set the stage context here
-                with use_stage(self.sim.stage):
+                import time as _t
+
+                print("[INFO]:   (1/3) sim.reset() — activating physics for all envs...", flush=True)
+                _t0 = _t.perf_counter()
+                with use_stage(self.sim.get_initial_stage()):
                     self.sim.reset()
                 print(f"[INFO]:   sim.reset() done in {_t.perf_counter() - _t0:.2f} s", flush=True)
-                print("[INFO]:   (2/3) scene.update() — pre-populating data buffers (articulations, sensors)...", flush=True)
+                print(
+                    "[INFO]:   (2/3) scene.update() — pre-populating data buffers (articulations, sensors)...",
+                    flush=True,
+                )
                 _t1 = _t.perf_counter()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.

@@ -15,10 +15,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 250
     empirical_normalization = True
     experiment_name = "dexsuite_kuka_allegro"
-    obs_groups = {
-        "policy": ["policy", "proprio", "perception"],
-        "critic": ["policy", "proprio", "perception"]
-    }
+    obs_groups = {"policy": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]}
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_obs_normalization=True,

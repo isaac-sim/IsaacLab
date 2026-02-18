@@ -44,15 +44,15 @@ def _copy_physx_poses_to_newton_kernel(
 
 class NewtonManager:
     """Manages Newton Warp model for rendering with PhysX simulation.
-    
+
     This is a simplified version of Newton-Warp's NewtonManager that only handles rendering.
     PhysX is used for physics simulation, and Newton is used only for Warp-based ray tracing.
-    
+
     Key differences from full Newton simulation:
     - No physics solver (PhysX handles that)
     - Only maintains model geometry and rigid body poses
     - State is synchronized from PhysX each frame
-    
+
     Lifecycle:
         1. initialize() - Build Newton model from USD stage
         2. Each frame: update_state() with PhysX rigid body poses
@@ -82,14 +82,14 @@ class NewtonManager:
     @classmethod
     def initialize(cls, num_envs: int, device: str = "cuda:0"):
         """Initialize Newton model from USD stage for rendering.
-        
+
         Creates a Newton model that mirrors the PhysX scene structure but is used
         only for rendering, not physics simulation.
-        
+
         Args:
             num_envs: Number of parallel environments
             device: Device to run Newton on ("cuda:0", etc.)
-        
+
         Raises:
             ImportError: If Newton package is not installed
             RuntimeError: If USD stage is not available
@@ -170,10 +170,10 @@ class NewtonManager:
     @classmethod
     def get_model(cls):
         """Get the Newton model for rendering.
-        
+
         Returns:
             Newton Model instance containing scene geometry
-            
+
         Raises:
             RuntimeError: If not initialized
         """
@@ -184,10 +184,10 @@ class NewtonManager:
     @classmethod
     def get_state_0(cls):
         """Get the current Newton state for rendering.
-        
+
         Returns:
             Newton State instance with current rigid body poses
-            
+
         Raises:
             RuntimeError: If not initialized
         """
@@ -198,11 +198,11 @@ class NewtonManager:
     @classmethod
     def update_state_from_usdrt(cls):
         """Update Newton state from USD runtime (USDRT) stage.
-        
+
         This reads the current rigid body transforms from the USDRT fabric stage
         and updates the Newton state for rendering. This allows Newton's renderer
         to use the latest PhysX simulation results.
-        
+
         Note: This is the key synchronization point between PhysX and Newton.
         """
         if not cls._is_initialized:
@@ -420,7 +420,7 @@ class NewtonManager:
     @classmethod
     def reset(cls):
         """Reset Newton state to initial configuration.
-        
+
         This should be called when environments are reset in PhysX.
         """
         if not cls._is_initialized:
@@ -440,19 +440,19 @@ class NewtonManager:
     @staticmethod
     def _matrix_to_quaternion(rot_matrix):
         """Convert 3x3 rotation matrix to quaternion (w, x, y, z).
-        
+
         Args:
             rot_matrix: 3x3 rotation matrix as list of lists
-            
+
         Returns:
             tuple: Quaternion as (w, x, y, z)
         """
         # Shoemake's algorithm for matrix to quaternion conversion
         # Based on: https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-        
+
         m = rot_matrix
         trace = m[0][0] + m[1][1] + m[2][2]
-        
+
         if trace > 0:
             s = 0.5 / (trace + 1.0) ** 0.5
             w = 0.25 / s
@@ -477,5 +477,5 @@ class NewtonManager:
             x = (m[0][2] + m[2][0]) / s
             y = (m[1][2] + m[2][1]) / s
             z = 0.25 * s
-            
+
         return (w, x, y, z)

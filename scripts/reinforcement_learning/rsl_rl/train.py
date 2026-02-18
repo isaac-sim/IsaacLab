@@ -274,6 +274,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 f.write("\n".join(_timing_lines) + "\n")
         if os.path.isfile(_save_script):
             import subprocess
+
             subprocess.run(["bash", _save_script, _dest], cwd=_repo_root, timeout=120, check=False)
             print(f"[INFO] Run artifacts saved to {_dest}", flush=True)
     except Exception as e:

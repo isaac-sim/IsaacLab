@@ -207,7 +207,15 @@ single_camera_newton_warp_variants = {
 
 @configclass
 class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
-    scene = KukaAllegroSingleTiledCameraSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False, camera_type="rgb", width=64, height=64, renderer_type="rtx")
+    scene = KukaAllegroSingleTiledCameraSceneCfg(
+        num_envs=4096,
+        env_spacing=3,
+        replicate_physics=False,
+        camera_type="rgb",
+        width=64,
+        height=64,
+        renderer_type="rtx",
+    )
     observations: KukaAllegroSingleCameraObservationsCfg = KukaAllegroSingleCameraObservationsCfg()
     variants: dict = {}
 

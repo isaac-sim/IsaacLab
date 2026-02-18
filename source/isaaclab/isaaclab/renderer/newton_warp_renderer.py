@@ -6,12 +6,12 @@
 """Newton OpenGL Visualizer implementation."""
 
 import math
-import torch
 
+import torch
 import warp as wp
 from newton.sensors import SensorTiledCamera
 
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.managers.newton_manager import NewtonManager
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.utils.timer import Timer
 
@@ -46,15 +46,15 @@ def _detile_rgba_kernel(
 ):
     """Detile a tiled RGBA image into separate environment images."""
     env_id, y, x = wp.tid()
-    
+
     # Calculate which tile this environment corresponds to
     tile_y = env_id // tiles_per_side
     tile_x = env_id % tiles_per_side
-    
+
     # Calculate position in tiled image
     tiled_y = tile_y * tile_height + y
     tiled_x = tile_x * tile_width + x
-    
+
     # Copy RGBA channels
     output[env_id, y, x, 0] = tiled_image[tiled_y, tiled_x, 0]  # R
     output[env_id, y, x, 1] = tiled_image[tiled_y, tiled_x, 1]  # G
@@ -72,15 +72,15 @@ def _detile_depth_kernel(
 ):
     """Detile a tiled depth image into separate environment depth images."""
     env_id, y, x = wp.tid()
-    
+
     # Calculate which tile this environment corresponds to
     tile_y = env_id // tiles_per_side
     tile_x = env_id % tiles_per_side
-    
+
     # Calculate position in tiled image
     tiled_y = tile_y * tile_height + y
     tiled_x = tile_x * tile_width + x
-    
+
     # Copy depth value
     output[env_id, y, x, 0] = tiled_depth[tiled_y, tiled_x]
 
@@ -122,7 +122,10 @@ class NewtonWarpRenderer(RendererBase):
         """Initialize the renderer."""
         import sys
 
-        print("[NewtonWarpRenderer] initialize() called — Newton Warp renderer active (debug + timing enabled).", flush=True)
+        print(
+            "[NewtonWarpRenderer] initialize() called — Newton Warp renderer active (debug + timing enabled).",
+            flush=True,
+        )
         sys.stdout.flush()
         self._model = NewtonManager.get_model()
 
@@ -262,7 +265,12 @@ class NewtonWarpRenderer(RendererBase):
             self.save_image(tiled_rgb, env_index=None, data_type="rgb")
             print(f"[NewtonWarpRenderer] Saved tiled RGB → {frame_dir}/", flush=True)
             try:
-                for timer_name in ("newton_warp_render_full", "newton_warp_prep", "newton_warp_kernel_only", "newton_warp_copy_buffers"):
+                for timer_name in (
+                    "newton_warp_render_full",
+                    "newton_warp_prep",
+                    "newton_warp_kernel_only",
+                    "newton_warp_copy_buffers",
+                ):
                     stats = Timer.get_timer_statistics(timer_name)
                     print(
                         f"[NewtonWarpRenderer] {timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",

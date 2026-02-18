@@ -216,9 +216,7 @@ class vision_camera(ManagerTermBase):
         self.sensor_type = self.sensor.cfg.data_types[0]
         self.norm_fn = self._depth_norm if self.sensor_type == "distance_to_image_plane" else self._rgb_norm
 
-    def __call__(
-        self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
-    ) -> torch.Tensor:
+    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
         """Obtain and optionally normalize the camera image data.
 
         Args:
