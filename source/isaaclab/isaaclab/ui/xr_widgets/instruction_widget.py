@@ -12,8 +12,6 @@ from typing import Any, TypeAlias
 
 import omni.kit.commands
 import omni.ui as ui
-from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
-from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
@@ -153,6 +151,13 @@ def show_instruction(
     Returns:
         UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
     """
+    try:
+        from omni.kit.xr.scene_view.utils import UiContainer, WidgetComponent
+        from omni.kit.xr.scene_view.utils.spatial_source import SpatialSource
+    except ImportError:
+        # TODO(isaaclab-3.0): Re-enable once omni.kit.xr.scene_view.utils is available in the kit file
+        return None
+
     global camera_facing_widget_container, camera_facing_widget_timers
 
     # Check if widget exists and has different text
