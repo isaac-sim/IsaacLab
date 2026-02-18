@@ -14,6 +14,14 @@ def format_code():
     """Run code formatting using pre-commit."""
     python_exe = extract_python_exe()
 
+    def _run_pre_commit():
+        if pre_commit_command:
+            print_info(f'Using "pre-commit" command: "{pre_commit_command}"')
+            run_command([pre_commit_command, "run", "--all-files"], env=env)
+        elif pre_commit_module:
+            print_info('Using "pre-commit" module...')
+            run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], env=env, cwd=ISAACLAB_ROOT)
+
     # Reset the python path to avoid conflicts with pre-commit.
     # This is needed because the pre-commit hooks are installed in a
     # separate virtual environment and it uses the system python to run the hooks.
@@ -21,45 +29,39 @@ def format_code():
     if env.get("CONDA_DEFAULT_ENV") or env.get("VIRTUAL_ENV"):
         env["PYTHONPATH"] = ""
 
-    # Check if pre-commit is installed and install it if not.
-    # We check both the executable and the python module.
-    pre_commit_installed = False
-    if shutil.which("pre-commit"):
-        pre_commit_installed = True
-    else:
-        try:
-            subprocess.run(
-                [python_exe, "-m", "pip", "show", "pre-commit"],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            pre_commit_installed = True
-        except subprocess.CalledProcessError:
-            pass
+    # Check if pre-commit is installed.
 
-    if not pre_commit_installed:
-        print_info("Installing pre-commit module...")
+    pre_commit_module = False
+    pre_commit_command = shutil.which("pre-commit")
+
+    if not pre_commit_command:
+        result = run_command(
+            [python_exe, "-m", "pip", "show", "pre-commit"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            pre_commit_module = True
+
+    # If pre-commit is not installed, install it.
+    if not pre_commit_command and not pre_commit_module:
+        print_info('Pre-commit not found either as a command or module. Installing "pre-commit" module...')
         run_command([python_exe, "-m", "pip", "install", "pre-commit"])
+        pre_commit_module = True
 
     print_info("Formatting the repository...")
 
     try:
         # Run pre-commit as a module since we may have just installed it.
-        run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], env=env)
+        _run_pre_commit()
 
     except SystemExit:
-        # Pre-commit exits with code=1 when files changed,
-        # that is expected.
-        pass
-
+        # Pre-commit exits with code=1 when files changed, that is expected.
         # To verify if the error is due to pre-commit just changing files,
         # run pre-commit again to see if it exits with code=0.
-        run_command(
-            [python_exe, "-m", "pre_commit", "run", "--all-files"],
-            cwd=ISAACLAB_ROOT,
-            env=env,
-        )
+        print_info("Pre-commit changed some files, running it again to validate...")
+        _run_pre_commit()
 
     finally:
         pass

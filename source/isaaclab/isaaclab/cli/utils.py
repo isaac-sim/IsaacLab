@@ -72,7 +72,7 @@ def print_debug(message, stream=sys.stdout):
     print(f"{label} {message}", file=stream)
 
 
-def run_command(cmd, cwd=None, env=None, shell=False, check=True):
+def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, stderr=None):
     """Run a command in a subprocess."""
 
     if cwd is None:
@@ -107,9 +107,9 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True):
                 print_debug(f"run_command(): ENV removed: {env_removed}")
 
     try:
-        subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check)
+        return subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check, stdout=stdout, stderr=stderr)
     except subprocess.CalledProcessError as e:
-        print_error(f"Command failed with exit code {e.returncode}: {e.cmd}")
+        print_error(f'Command failed with code {e.returncode}: "{command_str}"')
         sys.exit(e.returncode)
 
 
