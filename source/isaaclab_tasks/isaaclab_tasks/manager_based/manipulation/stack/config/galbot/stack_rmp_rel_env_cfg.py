@@ -7,7 +7,6 @@
 import os
 
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_teleop import IsaacTeleopCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
@@ -27,81 +26,6 @@ from isaaclab.controllers.config.rmp_flow import (  # isort: skip
     GALBOT_RIGHT_ARM_RMPFLOW_CFG,
 )
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-
-
-def _build_se3_rel_gripper_pipeline(hand_side="left"):
-    """Build an IsaacTeleop Se3Rel + Gripper pipeline for single-arm manipulator teleoperation.
-
-    Creates a Se3RelRetargeter for end-effector delta pose tracking and
-    a GripperRetargeter for pinch-based gripper control from hand tracking data.
-    All outputs are flattened into a single 7D action tensor via TensorReorderer.
-    """
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-    from isaacteleop.retargeting_engine.retargeters import (
-        GripperRetargeter,
-        GripperRetargeterConfig,
-        Se3RelRetargeter,
-        Se3RetargeterConfig,
-        TensorReorderer,
-    )
-    from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
-
-    controllers = ControllersSource(name="controllers")
-    hands = HandsSource(name="hands")
-    transform_input = ValueInput("world_T_anchor", TransformMatrix())
-    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
-
-    hand_key = HandsSource.LEFT if hand_side == "left" else HandsSource.RIGHT
-
-    # SE3 Relative Pose Retargeter
-    se3_cfg = Se3RetargeterConfig(
-        input_device=hand_key,
-        zero_out_xy_rotation=True,
-        use_wrist_rotation=False,
-        use_wrist_position=True,
-        delta_pos_scale_factor=10.0,
-        delta_rot_scale_factor=10.0,
-    )
-    se3 = Se3RelRetargeter(se3_cfg, name="ee_delta")
-    connected_se3 = se3.connect({hand_key: transformed_hands.output(hand_key)})
-
-    # Gripper Retargeter (pinch-based)
-    gripper_cfg = GripperRetargeterConfig(hand_side=hand_side)
-    gripper = GripperRetargeter(gripper_cfg, name="gripper")
-    controller_key = ControllersSource.LEFT if hand_side == "left" else ControllersSource.RIGHT
-    connected_gripper = gripper.connect(
-        {
-            f"hand_{hand_side}": hands.output(hand_key),
-            f"controller_{hand_side}": controllers.output(controller_key),
-        }
-    )
-
-    # TensorReorderer: flatten into a 7D action tensor [delta_pose(6), gripper(1)]
-    ee_elements = ["dx", "dy", "dz", "drx", "dry", "drz"]
-    gripper_elements = ["gripper_cmd"]
-
-    reorderer = TensorReorderer(
-        input_config={
-            "ee_delta": ee_elements,
-            "gripper": gripper_elements,
-        },
-        output_order=ee_elements + gripper_elements,
-        name="action_reorderer",
-        input_types={
-            "ee_delta": "array",
-            "gripper": "scalar",
-        },
-    )
-    connected_reorderer = reorderer.connect(
-        {
-            "ee_delta": connected_se3.output("ee_delta"),
-            "gripper": connected_gripper.output("gripper_command"),
-        }
-    )
-
-    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
-    return pipeline
 
 
 ##
@@ -139,14 +63,6 @@ class RmpFlowGalbotLeftArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotLeftArmC
         self.decimation = 3
         self.episode_length_s = 30.0
 
-        # IsaacTeleop-based teleoperation pipeline (left hand)
-        pipeline = _build_se3_rel_gripper_pipeline(hand_side="left")
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
-
 
 ##
 # RmpFlow Controller for Galbot Right Arm Cube Stack Task (with Surface Gripper)
@@ -182,14 +98,6 @@ class RmpFlowGalbotRightArmCubeStackEnvCfg(stack_joint_pos_env_cfg.GalbotRightAr
 
         # Enable CCD to avoid tunneling
         self.sim.physics = PhysxCfg(enable_ccd=True)
-
-        # IsaacTeleop-based teleoperation pipeline (right hand)
-        pipeline = _build_se3_rel_gripper_pipeline(hand_side="right")
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
 
 
 ##
