@@ -7,7 +7,6 @@ Changelog
 Changed
 ^^^^^^^
 
-
 * Fixed flatdict installation failure due to setuptools dependency by removing flatdict
   dependency entirely.
 
