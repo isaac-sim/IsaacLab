@@ -12,7 +12,6 @@ from pathlib import Path
 from .utils import (
     ISAACLAB_ROOT,
     determine_python_version,
-    extract_isaacsim_path,
     is_windows,
     print_error,
     print_info,
@@ -40,15 +39,7 @@ def get_conda_prefix(env_name):
     """Get the prefix of the conda environment."""
     # Use conda run to get sys.prefix
     try:
-        cmd = [
-            "conda",
-            "run",
-            "-n",
-            env_name,
-            "python",
-            "-c",
-            "import sys; print(sys.prefix)",
-        ]
+        cmd = ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.prefix)"]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return Path(result.stdout.strip())
     except subprocess.CalledProcessError:
@@ -113,18 +104,7 @@ def setup_conda_env(env_name):
             f.write(patched_content)
 
         try:
-            run_command(
-                [
-                    "conda",
-                    "env",
-                    "create",
-                    "-y",
-                    "--file",
-                    str(temp_yml),
-                    "-n",
-                    env_name,
-                ]
-            )
+            run_command(["conda", "env", "create", "-y", "--file", str(temp_yml), "-n", env_name])
         finally:
             if temp_yml.exists():
                 temp_yml.unlink()
@@ -141,37 +121,7 @@ def setup_conda_env(env_name):
     activate_d.mkdir(parents=True, exist_ok=True)
     deactivate_d.mkdir(parents=True, exist_ok=True)
 
-    # Check if we have _isaac_sim directory -> if so that means binaries were installed.
-    # We need to setup conda variables to load the binaries.
-    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh"
-
     if not is_windows():
-        setenv_sh = activate_d / "setenv.sh"
-        unsetenv_sh = deactivate_d / "unsetenv.sh"
-
-        with open(setenv_sh, "w") as f:
-            f.write("#!/usr/bin/env bash\n\n")
-            f.write("# For Isaac Lab\n")
-            f.write(f"export ISAACLAB_PATH={ISAACLAB_ROOT}\n")
-            f.write("# Show icon if not running headless\n")
-            f.write("export RESOURCE_NAME=IsaacSim\n\n")
-
-            if isaacsim_setup_conda_env_script.exists():
-                f.write("# For Isaac Sim\n")
-                f.write(f"source {isaacsim_setup_conda_env_script}\n")
-
-        with open(unsetenv_sh, "w") as f:
-            f.write("#!/usr/bin/env bash\n\n")
-            f.write("# For Isaac Lab\n")
-            f.write("unset ISAACLAB_PATH\n\n")
-            f.write("# For Isaac Sim\n")
-            f.write("unset RESOURCE_NAME\n\n")
-            if isaacsim_setup_conda_env_script.exists():
-                f.write("# For Isaac Sim\n")
-                f.write("unset CARB_APP_PATH\n")
-                f.write("unset EXP_PATH\n")
-                f.write("unset ISAAC_PATH\n")
-
         print_info(f"Created conda environment named '{env_name}'.\n")
         print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.sh -i")
@@ -179,29 +129,7 @@ def setup_conda_env(env_name):
         print("\t\t4. To deactivate the environment, run:              conda deactivate")
         print("\n")
 
-    # Windows
     if is_windows():
-        setenv_bat = activate_d / "env_vars.bat"
-        unsetenv_bat = deactivate_d / "unsetenv_vars.bat"
-
-        isaac_path = extract_isaacsim_path()
-
-        with open(setenv_bat, "w") as f:
-            f.write("@echo off\n")
-            f.write('set "RESOURCE_NAME=IsaacSim"\n')
-            if isaac_path and isaac_path.exists():
-                f.write(f"set CARB_APP_PATH={isaac_path}\\kit\n")
-                f.write(f"set EXP_PATH={isaac_path}\\apps\n")
-                f.write(f"set ISAAC_PATH={isaac_path}\n")
-                f.write(f"set PYTHONPATH=%PYTHONPATH%;{isaac_path}\\site\n")
-
-        with open(unsetenv_bat, "w") as f:
-            f.write("@echo off\n")
-            f.write('set "RESOURCE_NAME="\n')
-            f.write('set "CARB_APP_PATH="\n')
-            f.write('set "EXP_PATH="\n')
-            f.write('set "ISAAC_PATH="\n')
-
         print_info(f"Created conda environment named '{env_name}'.\n")
         print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")

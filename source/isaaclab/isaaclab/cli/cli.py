@@ -149,8 +149,9 @@ def cli():
             env["EXP_PATH"] = str(isaacsim_path / "apps")
             env["ISAAC_PATH"] = str(isaacsim_path)
             current_pythonpath = env.get("PYTHONPATH", "")
-            isaac_site_path = str(isaacsim_path / "site")
-            env["PYTHONPATH"] = f"{current_pythonpath};{isaac_site_path}" if current_pythonpath else isaac_site_path
+            isaacsim_pythonpath = str(isaacsim_path / "site")
+            isaaclab_pythonpath = str(ISAACLAB_ROOT / "source" / "isaaclab")
+            env["PYTHONPATH"] = f"{current_pythonpath};{isaacsim_pythonpath};{isaaclab_pythonpath}"
 
         env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
 
