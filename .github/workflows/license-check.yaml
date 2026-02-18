@@ -54,6 +54,7 @@ jobs:
 
     - name: Install dependencies using ./isaaclab.sh -i
       env:
+        DEBUG: 1
         OMNI_KIT_ACCEPT_EULA: yes
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
