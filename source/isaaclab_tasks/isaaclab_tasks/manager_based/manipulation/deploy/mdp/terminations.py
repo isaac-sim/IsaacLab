@@ -105,7 +105,7 @@ class reset_when_gear_dropped(ManagerTermBase):
             "gear_large": env.scene["factory_gear_large"],
         }
 
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        _, _, eef_indices = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
             self.eef_idx = None
         else:
@@ -206,7 +206,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
             "gear_large": env.scene["factory_gear_large"],
         }
 
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        _, _, eef_indices = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
             self.eef_idx = None
         else:

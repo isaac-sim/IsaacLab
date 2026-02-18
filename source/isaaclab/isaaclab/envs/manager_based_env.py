@@ -179,6 +179,7 @@ class ManagerBasedEnv:
             # we need to set the stage context here
             with use_stage(self.sim.get_initial_stage()):
                 self.sim.reset()
+                self.event_manager._resolve_terms_callback(event=None) 
             # update scene to pre populate data buffers for assets and sensors.
             # this is needed for the observation manager to get valid tensors for initialization.
             # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.

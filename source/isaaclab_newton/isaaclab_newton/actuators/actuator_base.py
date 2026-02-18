@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import TYPE_CHECKING, ClassVar
 
+import torch
 import warp as wp
 from isaaclab_newton.actuators.kernels import clip_efforts_with_limits
 
@@ -154,6 +155,101 @@ class ActuatorBase(ABC):
     def joint_mask(self) -> wp.array:
         """Articulation's masked indices that denote which joints are part of the group."""
         return self._joint_mask
+
+    @property
+    def joint_indices(self) -> torch.Tensor:
+        """Articulation's joint indices that are part of the group."""
+        return torch.tensor(self._joint_indices, device=self._device)
+
+    @property
+    def stiffness(self) -> torch.Tensor:
+        """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._actuator_stiffness)
+
+    @stiffness.setter
+    def stiffness(self, value: torch.Tensor):
+        wp.copy(self.data._actuator_stiffness, wp.from_torch(value))
+
+    @property
+    def damping(self) -> torch.Tensor:
+        """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._actuator_damping)
+
+    @damping.setter
+    def damping(self, value: torch.Tensor):
+        wp.copy(self.data._actuator_damping, wp.from_torch(value))
+
+    @property
+    def armature(self) -> torch.Tensor:
+        """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_armature)
+
+    @armature.setter
+    def armature(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_armature, wp.from_torch(value))
+
+    @property
+    def friction(self) -> torch.Tensor:
+        """The joint static friction of the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_friction_coeff)
+
+    @friction.setter
+    def friction(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_friction_coeff, wp.from_torch(value))
+
+    @property
+    def dynamic_friction(self) -> torch.Tensor:
+        """The joint dynamic friction of the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._joint_dynamic_friction)
+
+    @dynamic_friction.setter
+    def dynamic_friction(self, value: torch.Tensor):
+        wp.copy(self.data._joint_dynamic_friction, wp.from_torch(value))
+
+    @property
+    def viscous_friction(self) -> torch.Tensor:
+        """The joint viscous friction of the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._joint_viscous_friction)
+
+    @viscous_friction.setter
+    def viscous_friction(self, value: torch.Tensor):
+        wp.copy(self.data._joint_viscous_friction, wp.from_torch(value))
+
+    @property
+    def effort_limit(self) -> torch.Tensor:
+        """The effort limit for the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_effort_limits_sim)
+
+    @effort_limit.setter
+    def effort_limit(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_effort_limits_sim, wp.from_torch(value))
+
+    @property
+    def effort_limit_sim(self) -> torch.Tensor:
+        """The effort limit for the actuator joints in the simulation. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_effort_limits_sim)
+
+    @effort_limit_sim.setter
+    def effort_limit_sim(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_effort_limits_sim, wp.from_torch(value))
+
+    @property
+    def velocity_limit(self) -> torch.Tensor:
+        """The velocity limit for the actuator joints. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_vel_limits_sim)
+
+    @velocity_limit.setter
+    def velocity_limit(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_vel_limits_sim, wp.from_torch(value))
+
+    @property
+    def velocity_limit_sim(self) -> torch.Tensor:
+        """The velocity limit for the actuator joints in the simulation. Shape is (num_envs, num_joints)."""
+        return wp.to_torch(self.data._sim_bind_joint_vel_limits_sim)
+
+    @velocity_limit_sim.setter
+    def velocity_limit_sim(self, value: torch.Tensor):
+        wp.copy(self.data._sim_bind_joint_vel_limits_sim, wp.from_torch(value))
 
     """
     Operations.

@@ -712,7 +712,12 @@ class randomize_joint_parameters(ManagerTermBase):
             static_friction_coeff = friction_coeff[env_ids[:, None], joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            major_version = int(env.sim.get_version()[0])
+            # Newton's SimulationContext does not expose get_version() since it is not backed by
+            # Isaac Sim. Default to version 5 behaviour (all friction types supported).
+            try:
+                major_version = int(env.sim.get_version()[0])
+            except AttributeError:
+                major_version = 5
             if major_version >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
@@ -1189,7 +1194,10 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # rigid bodies
     for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
+        # Note: On Newton, data properties (default_root_state, default_joint_pos, etc.) return
+        # warp arrays which do not support torch tensor indexing. We wrap with wp.to_torch()
+        # before slicing with env_ids to get a torch-compatible view.
+        default_root_state = wp.to_torch(rigid_object.data.default_root_state)[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
@@ -1197,14 +1205,14 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
+        default_root_state = wp.to_torch(articulation_asset.data.default_root_state)[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         articulation_asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
         articulation_asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
         # obtain default joint positions
-        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
-        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
+        default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
         # reset joint targets if required

@@ -14,8 +14,9 @@ Migrated from PhysX to Newton. Key changes:
 
 from __future__ import annotations
 
+import os
 import random
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 
 import torch
 
@@ -24,8 +25,21 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 from . import ik_utils
+
+_ik_log_file: IO | None = None
+
+
+def _get_ik_log() -> IO:
+    """Get or create the IK log file handle (raw file I/O, no logging module)."""
+    global _ik_log_file
+    if _ik_log_file is None:
+        log_path = os.path.join(os.getcwd(), "ik_grasp_pose_newton.log")
+        print(f"[IK LOG] Writing IK log to: {log_path}", flush=True)
+        _ik_log_file = open(log_path, "w")
+    return _ik_log_file
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -175,11 +189,11 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 )
             self.gear_grasp_offset_tensors[gear_type] = torch.tensor(
                 gear_offsets_grasp[gear_type], device=env.device, dtype=torch.float32
-            )
+            )  # (3,)
 
-        # Stack grasp offset tensors for vectorized indexing (shape: 3, 3)
+        # Stack grasp offset tensors for vectorized indexing
         # Index 0=small, 1=medium, 2=large
-        self.gear_grasp_offsets_stacked = torch.stack(
+        self.gear_grasp_offsets_stacked = torch.stack(  # (3, 3) — [num_gear_types, xyz]
             [
                 self.gear_grasp_offset_tensors["gear_small"],
                 self.gear_grasp_offset_tensors["gear_medium"],
@@ -190,30 +204,35 @@ class set_robot_to_grasp_pose(ManagerTermBase):
 
         # Pre-cache grasp rotation offset tensor (XYZW convention)
         grasp_rot_offset = cfg.params["grasp_rot_offset"]
-        self.grasp_rot_offset_tensor = (
+        self.grasp_rot_offset_tensor = (  # (N, 4) — [num_envs, xyzw]
             torch.tensor(grasp_rot_offset, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
         )
 
         # Pre-allocate buffers for batch operations
-        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
-        self.local_env_indices = torch.arange(env.num_envs, device=env.device)
-        self.gear_grasp_offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)  # (N,)
+        self.local_env_indices = torch.arange(env.num_envs, device=env.device)  # (N,)
+        self.gear_grasp_offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)  # (N, 3)
 
         # Cache hand grasp/close widths
         self.hand_grasp_width = env.cfg.hand_grasp_width
         self.hand_close_width = env.cfg.hand_close_width
 
         # Find end effector index once
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        _, _, eef_indices = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
             raise ValueError(f"End effector body '{self.end_effector_body_name}' not found in robot")
         self.eef_idx = eef_indices[0]
 
         # Build list of arm joint IDs for numerical Jacobian
-        all_joints, _ = self.robot_asset.find_joints([".*"])
-        self.arm_joint_ids = list(all_joints[: self.num_arm_joints])
-        self.all_joints = all_joints
-        self.finger_joints = all_joints[self.num_arm_joints :]
+        joint_names, _, all_joints = self.robot_asset.find_joints([".*"])
+        self.arm_joint_ids = list(all_joints[: self.num_arm_joints])  # list of length A (num_arm_joints)
+        self.all_joints = all_joints  # list of length J (num_all_joints = A + F)
+        self.finger_joints = all_joints[self.num_arm_joints :]  # list of length F (num_finger_joints)
+        print(f"[GRASP INIT] all_joints ({len(all_joints)}): {all_joints}", flush=True)
+        print(f"[GRASP INIT] joint_names: {joint_names}", flush=True)
+        print(f"[GRASP INIT] arm_joint_ids ({len(self.arm_joint_ids)}): {self.arm_joint_ids}", flush=True)
+        print(f"[GRASP INIT] finger_joints ({len(self.finger_joints)}): {self.finger_joints}", flush=True)
+        print(f"[GRASP INIT] finger_joints type: {type(self.finger_joints)}", flush=True)
 
     def __call__(
         self,
@@ -241,6 +260,9 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             max_iterations: Maximum IK iterations
             pos_randomization_range: Optional position randomization range
         """
+        log = _get_ik_log()
+        log.write(f"[EVENT] set_robot_to_grasp_pose() called for env_ids: {env_ids.tolist()}\n")
+
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
             raise RuntimeError(
@@ -250,87 +272,114 @@ class set_robot_to_grasp_pose(ManagerTermBase):
 
         gear_type_manager: randomize_gear_type = env._gear_type_manager
 
+        # Notation: R = len(env_ids) (reset batch), J = num_all_joints, A = num_arm_joints
+
         # Slice buffers for current batch size
         num_reset_envs = len(env_ids)
-        gear_type_indices = self.gear_type_indices[:num_reset_envs]
-        local_env_indices = self.local_env_indices[:num_reset_envs]
-        gear_grasp_offsets = self.gear_grasp_offsets_buffer[:num_reset_envs]
-        grasp_rot_offset_tensor = self.grasp_rot_offset_tensor[env_ids]
+        gear_type_indices = self.gear_type_indices[:num_reset_envs]  # (R,)
+        local_env_indices = self.local_env_indices[:num_reset_envs]  # (R,)
+        gear_grasp_offsets = self.gear_grasp_offsets_buffer[:num_reset_envs]  # (R, 3)
+        grasp_rot_offset_tensor = self.grasp_rot_offset_tensor[env_ids]  # (R, 4)
 
         # IK loop
+        log.write(f"{'='*80}\n")
+        log.write(f"[IK LOOP] Starting IK with max_iterations={max_iterations}\n")
+        log.write(f"{'='*80}\n")
         for i in range(max_iterations):
+            log.write(f"--- Iteration {i+1}/{max_iterations} ---\n")
             # Get current joint state (convert from Warp to torch)
-            joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
-            joint_vel = wp.to_torch(self.robot_asset.data.joint_vel)[env_ids].clone()
+            joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()  # (R, J)
+            joint_vel = wp.to_torch(self.robot_asset.data.joint_vel)[env_ids].clone()  # (R, J)
+
+            if i == 0:
+                log.write(f"  initial_joint_pos: {joint_pos[0].cpu().numpy()}\n")
 
             # Stack all gear positions and quaternions (convert from Warp)
+            # Each root_link_pos_w is (N, 3); stack on dim=1 -> (N, 3, 3); then index -> (R, 3, 3)
             all_gear_pos = torch.stack(
                 [
-                    wp.to_torch(env.scene["factory_gear_small"].data.root_link_pos_w),
-                    wp.to_torch(env.scene["factory_gear_medium"].data.root_link_pos_w),
-                    wp.to_torch(env.scene["factory_gear_large"].data.root_link_pos_w),
+                    wp.to_torch(env.scene["factory_gear_small"].data.root_link_pos_w),  # (N, 3)
+                    wp.to_torch(env.scene["factory_gear_medium"].data.root_link_pos_w),  # (N, 3)
+                    wp.to_torch(env.scene["factory_gear_large"].data.root_link_pos_w),  # (N, 3)
                 ],
                 dim=1,
-            )[env_ids]
+            )[env_ids]  # (R, 3, 3) — [batch, gear_type, xyz]
 
+            # Each root_link_quat_w is (N, 4); stack on dim=1 -> (N, 3, 4); then index -> (R, 3, 4)
             all_gear_quat = torch.stack(
                 [
-                    wp.to_torch(env.scene["factory_gear_small"].data.root_link_quat_w),
-                    wp.to_torch(env.scene["factory_gear_medium"].data.root_link_quat_w),
-                    wp.to_torch(env.scene["factory_gear_large"].data.root_link_quat_w),
+                    wp.to_torch(env.scene["factory_gear_small"].data.root_link_quat_w),  # (N, 4)
+                    wp.to_torch(env.scene["factory_gear_medium"].data.root_link_quat_w),  # (N, 4)
+                    wp.to_torch(env.scene["factory_gear_large"].data.root_link_quat_w),  # (N, 4)
                 ],
                 dim=1,
-            )[env_ids]
+            )[env_ids]  # (R, 3, 4) — [batch, gear_type, xyzw]
 
             # Get gear type indices directly as tensor
-            all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-            gear_type_indices[:] = all_gear_type_indices[env_ids]
+            all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()  # (N,)
+            gear_type_indices[:] = all_gear_type_indices[env_ids]  # (R,)
 
-            # Select gear data using advanced indexing
-            grasp_object_pos_world = all_gear_pos[local_env_indices, gear_type_indices]
-            grasp_object_quat = all_gear_quat[local_env_indices, gear_type_indices]
+            # Select gear data using advanced indexing — picks one gear per env
+            grasp_object_pos_world = all_gear_pos[local_env_indices, gear_type_indices]  # (R, 3)
+            grasp_object_quat = all_gear_quat[local_env_indices, gear_type_indices]  # (R, 4)
+
+            if i == 0:
+                log.write(f"  gear_type_idx:    {gear_type_indices[0].item()}\n")
+                log.write(f"  gear_pos_raw:     {grasp_object_pos_world[0].cpu().numpy()}\n")
+                log.write(f"  gear_quat_raw:    {grasp_object_quat[0].cpu().numpy()}\n")
+                log.write(f"  grasp_rot_offset: {grasp_rot_offset_tensor[0].cpu().numpy()}\n")
 
             # Apply rotation offset (XYZW convention)
-            grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)
+            grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)  # (R, 4)
 
             # Get grasp offsets (vectorized)
-            gear_grasp_offsets[:] = self.gear_grasp_offsets_stacked[gear_type_indices]
+            gear_grasp_offsets[:] = self.gear_grasp_offsets_stacked[gear_type_indices]  # (R, 3)
 
             # Add position randomization if specified
             if pos_randomization_range is not None:
                 pos_keys = ["x", "y", "z"]
                 range_list_pos = [pos_randomization_range.get(key, (0.0, 0.0)) for key in pos_keys]
-                ranges_pos = torch.tensor(range_list_pos, device=env.device)
+                ranges_pos = torch.tensor(range_list_pos, device=env.device)  # (3, 2)
                 rand_pos_offsets = math_utils.sample_uniform(
                     ranges_pos[:, 0], ranges_pos[:, 1], (len(env_ids), 3), device=env.device
-                )
-                gear_grasp_offsets = gear_grasp_offsets + rand_pos_offsets
+                )  # (R, 3)
+                gear_grasp_offsets = gear_grasp_offsets + rand_pos_offsets  # (R, 3)
 
             # Transform offsets from gear frame to world frame
-            grasp_object_pos_world = grasp_object_pos_world + math_utils.quat_apply(
-                grasp_object_quat, gear_grasp_offsets
+            grasp_object_pos_world = grasp_object_pos_world + math_utils.quat_apply(  # (R, 3)
+                grasp_object_quat, gear_grasp_offsets  # (R, 4), (R, 3)
             )
 
             # Get end effector pose (convert from Warp)
-            eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[env_ids, self.eef_idx]
-            eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[env_ids, self.eef_idx]
+            # body_link_pos_w is (N, num_bodies, 3); index by [env_ids, eef_idx] -> (R, 3)
+            eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[env_ids, self.eef_idx]  # (R, 3)
+            eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[env_ids, self.eef_idx]  # (R, 4)
 
             # Compute pose error using ik_utils (XYZW convention)
             pos_error, axis_angle_error = ik_utils.get_pose_error(
-                fingertip_midpoint_pos=eef_pos,
-                fingertip_midpoint_quat=eef_quat,
-                ctrl_target_fingertip_midpoint_pos=grasp_object_pos_world,
-                ctrl_target_fingertip_midpoint_quat=grasp_object_quat,
+                fingertip_midpoint_pos=eef_pos,  # (R, 3)
+                fingertip_midpoint_quat=eef_quat,  # (R, 4)
+                ctrl_target_fingertip_midpoint_pos=grasp_object_pos_world,  # (R, 3)
+                ctrl_target_fingertip_midpoint_quat=grasp_object_quat,  # (R, 4)
                 jacobian_type="geometric",
                 rot_error_type="axis_angle",
-            )
-            delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
+            )  # pos_error: (R, 3), axis_angle_error: (R, 3)
+            delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)  # (R, 6)
 
             # Check convergence
-            pos_error_norm = torch.norm(pos_error, dim=-1)
-            rot_error_norm = torch.norm(axis_angle_error, dim=-1)
+            pos_error_norm = torch.norm(pos_error, dim=-1)  # (R,)
+            rot_error_norm = torch.norm(axis_angle_error, dim=-1)  # (R,)
+            log.write(f"  pos_error_norm: {pos_error_norm[0].item():.10f}\n")
+            log.write(f"  rot_error_norm: {rot_error_norm[0].item():.10f}\n")
+            log.write(f"  pos_error:      {pos_error[0].cpu().numpy()}\n")
+            log.write(f"  rot_error:      {axis_angle_error[0].cpu().numpy()}\n")
+            log.write(f"  eef_pos:        {eef_pos[0].cpu().numpy()}\n")
+            log.write(f"  eef_quat:       {eef_quat[0].cpu().numpy()}\n")
+            log.write(f"  target_pos:     {grasp_object_pos_world[0].cpu().numpy()}\n")
+            log.write(f"  target_quat:    {grasp_object_quat[0].cpu().numpy()}\n")
 
             if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
+                log.write(f"  CONVERGED at iteration {i+1}\n")
                 break
 
             # Compute numerical Jacobian (replaces root_physx_view.get_jacobians())
@@ -339,44 +388,82 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 arm_joint_ids=self.arm_joint_ids,
                 eef_body_idx=self.eef_idx,
                 env_ids=env_ids,
-            )
+            )  # (R, 6, A)
 
             # Solve IK using damped least squares
             delta_dof_pos = ik_utils.solve_ik_dls(
-                jacobian=jacobian,
-                delta_pose=delta_hand_pose,
+                jacobian=jacobian,  # (R, 6, A)
+                delta_pose=delta_hand_pose,  # (R, 6)
                 lambda_val=0.1,
-            )
+            )  # (R, A)
+
+            log.write(f"  delta_dof_pos:  {delta_dof_pos[0].cpu().numpy()}\n")
 
             # Update joint positions (only arm joints)
-            joint_pos[:, : self.num_arm_joints] = joint_pos[:, : self.num_arm_joints] + delta_dof_pos
-            joint_vel = torch.zeros_like(joint_pos)
+            joint_pos[:, : self.num_arm_joints] = joint_pos[:, : self.num_arm_joints] + delta_dof_pos  # (R, A) += (R, A)
+            # joint_vel = torch.zeros_like(joint_pos)  # (R, J) — zeroed ALL joints including gripper
+            joint_vel[:, : self.num_arm_joints] = 0  # only zero arm velocities, preserve gripper
 
-            # Write to sim
-            self.robot_asset.set_joint_position_target(joint_pos, env_ids=env_ids)
-            self.robot_asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
+            log.write(f"  joint_pos_new:  {joint_pos[0].cpu().numpy()}\n")
+
+            # Write to sim (arm + gripper state; gripper qpos is read-back unchanged,
+            # gripper qvel is preserved from sim read on line 292)
+            # self.robot_asset.set_joint_position_target(joint_pos, env_ids=env_ids)  # (R, J)
+            # self.robot_asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)  # (R, J)
+            self.robot_asset.set_joint_position_target(joint_pos[:, :self.num_arm_joints], joint_ids=self.arm_joint_ids, env_ids=env_ids)
+            self.robot_asset.set_joint_velocity_target(joint_vel[:, :self.num_arm_joints], joint_ids=self.arm_joint_ids, env_ids=env_ids)
             self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+            NewtonManager.forward_kinematics()
+
+        log.write(f"[IK LOOP] FINISHED after {i+1} iterations\n")
+        log.write(f"  final_joint_pos: {joint_pos[0].cpu().numpy()}\n")
 
         # Set gripper to grasp position
-        joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
+        joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()  # (R, J)
+        joint_vel = torch.zeros_like(joint_pos)  # (R, J) — zero all velocities for clean gripper reset
 
         # Get gear types for all environments
-        all_gear_types = gear_type_manager.get_all_gear_types()
+        all_gear_types = gear_type_manager.get_all_gear_types()  # list of length N (str per env)
+        log.write(f"  finger_joints: {self.finger_joints} (len={len(self.finger_joints)})\n")
+        log.write(f"  joint_pos shape: {joint_pos.shape}\n")
+        log.write(f"  joint_pos BEFORE gripper set: {joint_pos[0].cpu().numpy()}\n")
         for row_idx, env_id in enumerate(env_ids.tolist()):
             gear_key = all_gear_types[env_id]
-            hand_grasp_width = self.hand_grasp_width[gear_key]
-            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)
+            hand_grasp_width = self.hand_grasp_width[gear_key]  # scalar
+            log.write(f"  row_idx={row_idx}, env_id={env_id}, gear_key={gear_key}, hand_grasp_width={hand_grasp_width}\n")
+            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)  # mutates (R, J)
 
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
-        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        log.write(f"  joint_pos_after_grasp: {joint_pos[0].cpu().numpy()}\n")
 
-        # Set gripper to closed position
+        # Write arm + gripper joint state directly (immediate positioning)
+        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)  # (R, J), (R, J)
+        NewtonManager.forward_kinematics()
+
+        # Verify: read back joint state from Newton's state to confirm it was written
+        readback = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
+        log.write(f"  READBACK after write_joint_state_to_sim: {readback[0].cpu().numpy()}\n")
+
+        # Also read Newton's state_0.joint_q directly for comparison
+        state_joint_q = wp.to_torch(NewtonManager.get_state_0().joint_q)
+        log.write(f"  Newton state_0.joint_q shape: {state_joint_q.shape}\n")
+        log.write(f"  Newton state_0.joint_q[:20]: {state_joint_q[:20].cpu().numpy()}\n")
+
+        # Set actuator target to grasp width (same as state) so actuator holds position
+        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)  # (R, J)
+
+        # Set gripper to closed position as actuator target
         for row_idx, env_id in enumerate(env_ids.tolist()):
             gear_key = all_gear_types[env_id]
             hand_close_width = self.hand_close_width[gear_key]
-            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)
+            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)  # mutates (R, J)
 
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+        log.write(f"  joint_pos_after_close: {joint_pos[0].cpu().numpy()}\n")
+        log.write(f"{'='*80}\n")
+        log.flush()
+
+        # Push close target to actuator buffer and then to MuJoCo ctrl
+        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)  # (R, J)
+        self.robot_asset.write_data_to_sim()
 
 
 class randomize_gears_and_base_pose(ManagerTermBase):

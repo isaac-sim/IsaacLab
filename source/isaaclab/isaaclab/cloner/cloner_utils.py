@@ -303,6 +303,8 @@ def newton_replicate(
         p = ModelBuilder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(stage, root_path=src_path, load_visual_shapes=True)
+        # Bridge PhysX disableGravity -> MuJoCo gravcomp for each prototype
+        NewtonManager._apply_gravity_compensation(p, stage)
         if simplify_meshes:
             p.approximate_meshes("convex_hull")
         protos[src_path] = p

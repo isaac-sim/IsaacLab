@@ -19,6 +19,7 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
+from isaaclab.sim._impl.newton_manager import NewtonManager
 
 
 def get_pose_error(
@@ -46,20 +47,20 @@ def get_pose_error(
         A tuple of (pos_error, rot_error) each of shape (N, 3).
     """
     # Position error
-    pos_error = ctrl_target_fingertip_midpoint_pos - fingertip_midpoint_pos
+    pos_error = ctrl_target_fingertip_midpoint_pos - fingertip_midpoint_pos  # (N, 3)
 
     # Rotation error as axis-angle
     # q_error = q_target * q_current^{-1}
-    fingertip_quat_inv = math_utils.quat_conjugate(fingertip_midpoint_quat)
-    quat_error = math_utils.quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_quat_inv)
+    fingertip_quat_inv = math_utils.quat_conjugate(fingertip_midpoint_quat)  # (N, 4)
+    quat_error = math_utils.quat_mul(ctrl_target_fingertip_midpoint_quat, fingertip_quat_inv)  # (N, 4)
 
     # Ensure shortest path: if w < 0, negate (w is at index 3 in XYZW)
-    quat_error = quat_error * (1.0 - 2.0 * (quat_error[:, 3:4] < 0.0).float())
+    quat_error = quat_error * (1.0 - 2.0 * (quat_error[:, 3:4] < 0.0).float())  # (N, 4)
 
     # Convert quaternion error to axis-angle
-    rot_error = math_utils.axis_angle_from_quat(quat_error)
+    rot_error = math_utils.axis_angle_from_quat(quat_error)  # (N, 3)
 
-    return pos_error, rot_error
+    return pos_error, rot_error  # (N, 3), (N, 3)
 
 
 def compute_numerical_jacobian(
@@ -85,47 +86,50 @@ def compute_numerical_jacobian(
     Returns:
         Jacobian tensor of shape (num_envs, 6, num_arm_joints).
     """
+    # Notation: R = len(env_ids), A = len(arm_joint_ids), J = num_all_joints
     num_envs = len(env_ids)
     num_joints = len(arm_joint_ids)
     device = robot.device
 
-    jacobian = torch.zeros(num_envs, 6, num_joints, device=device, dtype=torch.float32)
+    jacobian = torch.zeros(num_envs, 6, num_joints, device=device, dtype=torch.float32)  # (R, 6, A)
 
     # Get current joint positions
-    current_joint_pos = wp.to_torch(robot.data.joint_pos)[env_ids].clone()
+    current_joint_pos = wp.to_torch(robot.data.joint_pos)[env_ids].clone()  # (R, J)
 
     # Get current end-effector pose
-    eef_pos_current = wp.to_torch(robot.data.body_link_pos_w)[env_ids, eef_body_idx].clone()
-    eef_quat_current = wp.to_torch(robot.data.body_link_quat_w)[env_ids, eef_body_idx].clone()
+    eef_pos_current = wp.to_torch(robot.data.body_link_pos_w)[env_ids, eef_body_idx].clone()  # (R, 3)
+    eef_quat_current = wp.to_torch(robot.data.body_link_quat_w)[env_ids, eef_body_idx].clone()  # (R, 4)
 
     for i, joint_id in enumerate(arm_joint_ids):
         # Perturb joint i by +delta
-        perturbed_joint_pos = current_joint_pos.clone()
+        perturbed_joint_pos = current_joint_pos.clone()  # (R, J)
         perturbed_joint_pos[:, joint_id] += delta
 
         # Write perturbed state to sim and step forward kinematics
-        joint_vel = torch.zeros_like(perturbed_joint_pos)
+        joint_vel = torch.zeros_like(perturbed_joint_pos)  # (R, J)
         robot.write_joint_state_to_sim(perturbed_joint_pos, joint_vel, env_ids=env_ids)
+        NewtonManager.forward_kinematics()
 
         # Get perturbed end-effector pose
-        eef_pos_perturbed = wp.to_torch(robot.data.body_link_pos_w)[env_ids, eef_body_idx]
-        eef_quat_perturbed = wp.to_torch(robot.data.body_link_quat_w)[env_ids, eef_body_idx]
+        eef_pos_perturbed = wp.to_torch(robot.data.body_link_pos_w)[env_ids, eef_body_idx]  # (R, 3)
+        eef_quat_perturbed = wp.to_torch(robot.data.body_link_quat_w)[env_ids, eef_body_idx]  # (R, 4)
 
         # Linear velocity component (position change / delta)
-        jacobian[:, :3, i] = (eef_pos_perturbed - eef_pos_current) / delta
+        jacobian[:, :3, i] = (eef_pos_perturbed - eef_pos_current) / delta  # (R, 3)
 
         # Angular velocity component (orientation change / delta)
         # q_delta = q_perturbed * q_current^{-1}
-        quat_current_inv = math_utils.quat_conjugate(eef_quat_current)
-        quat_delta = math_utils.quat_mul(eef_quat_perturbed, quat_current_inv)
-        axis_angle_delta = math_utils.axis_angle_from_quat(quat_delta)
-        jacobian[:, 3:, i] = axis_angle_delta / delta
+        quat_current_inv = math_utils.quat_conjugate(eef_quat_current)  # (R, 4)
+        quat_delta = math_utils.quat_mul(eef_quat_perturbed, quat_current_inv)  # (R, 4)
+        axis_angle_delta = math_utils.axis_angle_from_quat(quat_delta)  # (R, 3)
+        jacobian[:, 3:, i] = axis_angle_delta / delta  # (R, 3)
 
     # Restore original joint positions
-    joint_vel = torch.zeros_like(current_joint_pos)
+    joint_vel = torch.zeros_like(current_joint_pos)  # (R, J)
     robot.write_joint_state_to_sim(current_joint_pos, joint_vel, env_ids=env_ids)
+    NewtonManager.forward_kinematics()
 
-    return jacobian
+    return jacobian  # (R, 6, A)
 
 
 def solve_ik_dls(
@@ -147,22 +151,21 @@ def solve_ik_dls(
     Returns:
         Joint position deltas of shape (N, num_joints).
     """
-    # J^T: (N, num_joints, 6)
-    j_transpose = torch.transpose(jacobian, 1, 2)
+    # Notation: N = batch size, A = num_arm_joints
 
-    # J @ J^T: (N, 6, 6)
-    jjt = torch.bmm(jacobian, j_transpose)
+    j_transpose = torch.transpose(jacobian, 1, 2)  # J^T: (N, A, 6)
+
+    jjt = torch.bmm(jacobian, j_transpose)  # J @ J^T: (N, 6, 6)
 
     # Add damping: J @ J^T + lambda^2 * I
-    eye = torch.eye(6, device=jacobian.device, dtype=jacobian.dtype).unsqueeze(0)
-    jjt_damped = jjt + (lambda_val**2) * eye
+    eye = torch.eye(6, device=jacobian.device, dtype=jacobian.dtype).unsqueeze(0)  # (1, 6, 6)
+    jjt_damped = jjt + (lambda_val**2) * eye  # (N, 6, 6)
 
     # inv(J @ J^T + lambda^2 * I) @ delta_pose
-    # delta_pose: (N, 6) -> (N, 6, 1)
-    delta_pose_unsqueezed = delta_pose.unsqueeze(-1)
-    solved = torch.linalg.solve(jjt_damped, delta_pose_unsqueezed)
+    delta_pose_unsqueezed = delta_pose.unsqueeze(-1)  # (N, 6) -> (N, 6, 1)
+    solved = torch.linalg.solve(jjt_damped, delta_pose_unsqueezed)  # (N, 6, 1)
 
-    # J^T @ solved: (N, num_joints, 1) -> (N, num_joints)
-    delta_dof_pos = torch.bmm(j_transpose, solved).squeeze(-1)
+    # J^T @ solved
+    delta_dof_pos = torch.bmm(j_transpose, solved).squeeze(-1)  # (N, A, 1) -> (N, A)
 
-    return delta_dof_pos
+    return delta_dof_pos  # (N, A)
