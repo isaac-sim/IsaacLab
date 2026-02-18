@@ -46,7 +46,11 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
+<<<<<<< HEAD
     "flatdict==4.0.0",
+=======
+    "flatdict>=3.4.0,<4.0.1", # suggested by greptile; 
+>>>>>>> 6508a09b6b0 (flatdict greptile suggestion)
     "flaky",
     "packaging",
     # visualizers
