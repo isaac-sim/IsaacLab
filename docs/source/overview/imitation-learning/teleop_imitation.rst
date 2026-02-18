@@ -226,7 +226,7 @@ Then, use Isaac Lab Mimic to generate some additional demonstrations:
          --input_file ./datasets/annotated_dataset.hdf5 \
          --output_file ./datasets/generated_dataset_small.hdf5
 
-.. figure:: /_static/mimic/franka_datagen.png
+.. figure:: ../../_static/mimic/franka_datagen.png
    :width: 100%
    :align: center
    :alt: Franka robot performing the pick and place task
@@ -249,7 +249,6 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --visualizer kit \
          --headless \
          --num_envs 10 \
          --generation_num_trials 1000 \
@@ -262,7 +261,6 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --visualizer kit \
          --enable_cameras \
          --headless \
          --num_envs 10 \
@@ -530,7 +528,6 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --visualizer kit \
    --device cpu \
    --headless \
    --num_envs 20 \
@@ -885,7 +882,6 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
-      --visualizer kit \
       --enable_cameras \
       --device cpu \
       --headless \
