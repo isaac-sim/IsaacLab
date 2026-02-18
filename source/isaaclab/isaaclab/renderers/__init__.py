@@ -3,4 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from .renderer import Renderer
 from .newton_warp_renderer import NewtonWarpRenderer
