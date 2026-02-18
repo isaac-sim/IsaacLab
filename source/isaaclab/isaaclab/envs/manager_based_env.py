@@ -142,7 +142,7 @@ class ManagerBasedEnv:
 
         # Set scene reference for Newton Warp renderer (PhysX -> Newton state sync)
         try:
-            from isaaclab.managers.newton_manager import NewtonManager
+            from isaaclab.sim._impl.newton_manager import NewtonManager
 
             NewtonManager.set_scene(self.scene)
         except Exception:

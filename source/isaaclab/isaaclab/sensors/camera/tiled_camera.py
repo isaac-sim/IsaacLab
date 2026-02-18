@@ -196,7 +196,7 @@ class TiledCamera(Camera):
         if self.cfg.renderer_type == "newton_warp":
             # Use Newton Warp renderer
             from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
-            from isaaclab.managers.newton_manager import NewtonManager
+            from isaaclab.sim._impl.newton_manager import NewtonManager
 
             # Initialize Newton Manager if not already initialized
             if not hasattr(NewtonManager, "_is_initialized") or not NewtonManager._is_initialized:
@@ -301,7 +301,7 @@ class TiledCamera(Camera):
         # Use Newton Warp renderer if configured
         if self._renderer is not None:
             # Sync PhysX -> Newton on GPU so robots/cube move in the image, then render
-            from isaaclab.managers.newton_manager import NewtonManager
+            from isaaclab.sim._impl.newton_manager import NewtonManager
 
             with Timer(name="newton_warp_sync_plus_render", msg="Newton Warp (sync + render) took"):
                 NewtonManager.update_state_from_physx_tensors_gpu()

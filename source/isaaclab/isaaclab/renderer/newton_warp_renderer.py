@@ -11,7 +11,7 @@ import torch
 import warp as wp
 from newton.sensors import SensorTiledCamera
 
-from isaaclab.managers.newton_manager import NewtonManager
+from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 from isaaclab.utils.timer import Timer
 
