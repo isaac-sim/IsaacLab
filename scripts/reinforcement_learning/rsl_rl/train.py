@@ -3,9 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to train RL agent with RSL-RL."""
+"""Train an RL agent with RSL-RL.
 
-"""Launch Isaac Sim Simulator first."""
+This script is the main entry point for RSL-RL training. It supports a renderer backend
+via ``--renderer_backend`` (e.g. ``rtx`` or ``warp_renderer`` for Newton Warp). When using
+Newton Warp, the end-of-run timing summary includes timers such as ``newton_warp_sync_plus_render``
+and ``newton_warp_render_full``. Launch Isaac Sim first (see AppLauncher below).
+"""
 
 import argparse
 import sys
@@ -41,6 +45,7 @@ parser.add_argument(
     choices=("rtx", "warp_renderer"),
     help="Camera renderer backend: 'rtx' (RTX) or 'warp_renderer' (Newton Warp). Sets env.scene variant unless overridden.",
 )
+# When env.scene is not overridden, renderer_backend drives env.scene (see block below)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -233,7 +238,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 
-    # print average sim / render timing if available
+    # Print average sim/render timing when available; also written to run_artifacts/<timestamp>/timing_summary.txt.
+    # Newton Warp timers (newton_warp_sync_plus_render, etc.) only appear when using the Newton Warp renderer.
     try:
         timers = [
             ("simulate", "Sim (physics step)"),

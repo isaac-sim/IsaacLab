@@ -5,8 +5,10 @@
 
 """Newton Manager for PhysX to Newton Warp model conversion.
 
-This manager creates a Newton model for rendering purposes while PhysX handles physics simulation.
-It builds the Newton model from the USD stage and synchronizes rigid body states from PhysX.
+This module lives in ``isaaclab.sim._impl`` and is used only when the Newton Warp renderer
+is enabled (e.g. ``TiledCameraCfg(renderer_type="newton_warp", ...)``). It creates a Newton
+model for rendering purposes while PhysX handles physics simulation, building the model
+from the USD stage and synchronizing rigid body states from PhysX each frame.
 """
 
 from __future__ import annotations
@@ -45,18 +47,20 @@ def _copy_physx_poses_to_newton_kernel(
 class NewtonManager:
     """Manages Newton Warp model for rendering with PhysX simulation.
 
-    This is a simplified version of Newton-Warp's NewtonManager that only handles rendering.
-    PhysX is used for physics simulation, and Newton is used only for Warp-based ray tracing.
+    This is a simplified, rendering-only version of the NewtonManager in the IsaacLab-Newton-Warp
+    branch (where it lives in ``sim._impl.newton_manager`` and runs full Newton physics).
+    Here, PhysX runs simulation and this class only builds the Newton model and syncs state
+    for the Warp renderer.
 
     Key differences from full Newton simulation:
-    - No physics solver (PhysX handles that)
+    - No physics solver (handled by PhysX)
     - Only maintains model geometry and rigid body poses
     - State is synchronized from PhysX each frame
 
     Lifecycle:
         1. initialize() - Build Newton model from USD stage
-        2. Each frame: update_state() with PhysX rigid body poses
-        3. Renderer calls get_model() and get_state_0() for ray tracing
+        2. Each frame: update_state_from_physx_tensors_gpu() (or update_state_from_usdrt()) then render
+        3. NewtonWarpRenderer calls get_model() and get_state_0() for ray tracing
     """
 
     _builder = None
@@ -370,7 +374,12 @@ class NewtonManager:
 
     @classmethod
     def update_state_from_physx_tensors_gpu(cls):
-        """Update Newton body poses from PhysX tensors using GPU kernels. Use this before render so robots/cube move."""
+        """Update Newton body poses from PhysX tensors using GPU kernels.
+
+        Call this before each render when using the Newton Warp renderer so the image
+        reflects the current PhysX simulation state. TiledCamera calls it automatically
+        before rendering; the call is timed as ``newton_state_sync_tensors``.
+        """
         if not cls._is_initialized:
             logger.warning("[NewtonManager] Not initialized, cannot update state")
             return

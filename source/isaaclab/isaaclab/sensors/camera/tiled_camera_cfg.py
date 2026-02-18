@@ -16,4 +16,5 @@ class TiledCameraCfg(CameraCfg):
     class_type: type = TiledCamera
 
     renderer_type: str | None = None
-    """Renderer type to use for camera rendering. Options: None (RTX), "newton_warp"."""
+    """Renderer backend. If ``"newton_warp"``, uses Newton Warp ray tracing (PhysX sim + Newton
+    state sync). If ``None``, uses Omniverse RTX tiled rendering (Replicator annotators)."""

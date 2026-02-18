@@ -58,6 +58,10 @@ class TiledCamera(Camera):
     - ``"instance_segmentation_fast"``: The instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
+    When ``renderer_type == "newton_warp"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
+    Newton Warp backend: PhysX runs simulation and Newton/Warp perform ray tracing; PhysX→Newton
+    state sync runs before each render. The combined sync+render is timed as ``newton_warp_sync_plus_render``.
+
     .. note::
         Currently the following sensor types are not supported in a "view" format:
 
@@ -298,9 +302,8 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        # Use Newton Warp renderer if configured
+        # Newton Warp path: sync PhysX→Newton then render; whole block timed as newton_warp_sync_plus_render
         if self._renderer is not None:
-            # Sync PhysX -> Newton on GPU so robots/cube move in the image, then render
             from isaaclab.sim._impl.newton_manager import NewtonManager
 
             with Timer(name="newton_warp_sync_plus_render", msg="Newton Warp (sync + render) took"):

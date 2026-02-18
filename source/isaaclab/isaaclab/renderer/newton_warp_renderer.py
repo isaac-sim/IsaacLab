@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton OpenGL Visualizer implementation."""
+"""Newton Warp renderer: Warp-based ray tracing using a Newton model.
+
+Used when ``TiledCameraCfg(renderer_type="newton_warp", ...)``. PhysX runs simulation;
+state is synced from PhysX into the Newton model before each render via
+:class:`~isaaclab.sim._impl.newton_manager.NewtonManager`.
+"""
 
 import math
 
@@ -96,7 +101,12 @@ def _copy_depth_with_channel(
 
 
 class NewtonWarpRenderer(RendererBase):
-    """Newton Warp Renderer implementation."""
+    """Renderer using Newton's Warp-based tiled camera for RGB and depth.
+
+    Works with PhysX simulation: state is synced from PhysX into the Newton model
+    (via NewtonManager) before each render. Supports the same tiled layout as RTX
+    (one tile per environment). Requires the ``newton`` package.
+    """
 
     _model = None
 
@@ -238,6 +248,10 @@ class NewtonWarpRenderer(RendererBase):
             camera_positions: Tensor of shape (num_envs, 3) - camera positions in world frame
             camera_orientations: Tensor of shape (num_envs, 4) - camera quaternions (x, y, z, w) in world frame
             intrinsic_matrices: Tensor of shape (num_envs, 3, 3) - camera intrinsic matrices
+
+        Note:
+            This call is timed as ``newton_warp_render_full`` (prep + kernel + buffer copy).
+            PhysX→Newton state sync is done in TiledCamera before calling render and is timed separately.
         """
         num_envs = camera_positions.shape[0]
 
