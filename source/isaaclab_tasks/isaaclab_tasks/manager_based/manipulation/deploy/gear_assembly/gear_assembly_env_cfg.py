@@ -89,9 +89,12 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
         # XYZW quaternion: same as gear_base (converted from WXYZ)
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
+        # z offset +0.0675 above gear base so the gear spawns above it (midpoint of main's [0.0575, 0.0775] range)
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.0325), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
+    # Medium and large gears kept in scene (referenced by observations, rewards, events)
+    # but unused. Spawned below the ground plane so they fall out of the way.
     factory_gear_medium = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/FactoryGearMedium",
         spawn=sim_utils.UsdFileCfg(
@@ -113,8 +116,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        # XYZW quaternion: same as gear_base (converted from WXYZ)
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.5), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     factory_gear_large = RigidObjectCfg(
@@ -138,8 +140,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        # XYZW quaternion: same as gear_base (converted from WXYZ)
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.5), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     # robots

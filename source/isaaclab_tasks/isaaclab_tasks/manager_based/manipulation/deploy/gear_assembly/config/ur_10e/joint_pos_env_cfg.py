@@ -152,10 +152,12 @@ def set_finger_joint_pos_robotiq_2f85(
 ):
     """Set finger joint positions for Robotiq 2F-85 gripper (Menagerie model).
 
-    Only sets the two driver joints to the target position. The tendon actuator
-    (via control.mujoco.ctrl) drives the gripper; the remaining joints (coupler,
-    spring_link, follower) are resolved by connect equality constraints in the
-    MuJoCo solver.
+    Sets all 8 joints to kinematically consistent positions based on the driver
+    angle. The constrained joint positions were determined by running the MJCF
+    model to equilibrium in standalone MuJoCo. For the grasp range (0.4-0.6):
+      - coupler ≈ 0
+      - spring_link ≈ driver
+      - follower ≈ -0.963 * driver
 
     Menagerie 2F-85 joint order (8 joints):
       [0] right_driver_joint       range=[0, 0.8]      (drive)
@@ -176,9 +178,22 @@ def set_finger_joint_pos_robotiq_2f85(
     if len(finger_joints) < 8:
         raise ValueError(f"Menagerie 2F-85 gripper requires at least 8 finger joints, got {len(finger_joints)}")
 
+    theta = finger_joint_position
+    coupler_pos = 0.0
+    spring_link_pos = theta
+    follower_pos = -0.963 * theta
+
     for idx in reset_ind_joint_pos:
-        joint_pos[idx, finger_joints[0]] = finger_joint_position  # right_driver_joint
-        joint_pos[idx, finger_joints[4]] = finger_joint_position  # left_driver_joint
+        # Right side
+        joint_pos[idx, finger_joints[0]] = theta            # right_driver_joint
+        joint_pos[idx, finger_joints[1]] = coupler_pos      # right_coupler_joint
+        joint_pos[idx, finger_joints[2]] = spring_link_pos  # right_spring_link_joint
+        joint_pos[idx, finger_joints[3]] = follower_pos     # right_follower_joint
+        # Left side (symmetric)
+        joint_pos[idx, finger_joints[4]] = theta            # left_driver_joint
+        joint_pos[idx, finger_joints[5]] = coupler_pos      # left_coupler_joint
+        joint_pos[idx, finger_joints[6]] = spring_link_pos  # left_spring_link_joint
+        joint_pos[idx, finger_joints[7]] = follower_pos     # left_follower_joint
 
 
 ##
@@ -561,15 +576,11 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         # No IsaacLab ImplicitActuatorCfg needed for the gripper.
         # The arm actuators (shoulder, elbow, wrist) come from UR10e_CFG.
         #
-        # Use BinaryTendonActionCfg to control the gripper via the tendon actuator.
-        # The Menagerie 2F-85 MJCF names the tendon "split" with ctrlrange [0, 255].
-        # 0 = open, 255 = fully closed.
-        self.actions.gripper_action = mdp.BinaryTendonActionCfg(
-            asset_name="robot",
-            tendon_names=["split"],
-            open_command_expr={"split": 0.0},
-            close_command_expr={"split": 255.0},
-        )
+        # Gripper is NOT part of the RL action space. The tendon ctrl is set to a
+        # constant close command in set_robot_to_grasp_pose (reset event) and the
+        # MuJoCo ctrl buffer holds that value between steps. This avoids the
+        # BinaryTendonAction flip-flop problem where random policy outputs cause
+        # violent open/close switching every step.
 
         # Set gripper-specific joint setter function
         self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f85
@@ -578,9 +589,9 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         # Offset is [x, y, z] in the combined frame (gear_quat * grasp_rot_offset).
         # The combined rotation flips the X direction, so negate the shaft offset.
         self.gear_offsets_grasp = {
-            "gear_small": [-self.gear_offsets["gear_small"][0], 0.0, -0.21],
-            "gear_medium": [-self.gear_offsets["gear_medium"][0], 0.0, -0.21],
-            "gear_large": [-self.gear_offsets["gear_large"][0], 0.0, -0.21],
+            "gear_small": [-self.gear_offsets["gear_small"][0], 0.0, -0.19],
+            "gear_medium": [-self.gear_offsets["gear_medium"][0], 0.0, -0.19],
+            "gear_large": [-self.gear_offsets["gear_large"][0], 0.0, -0.19],
         }
 
         # Initial driver joint positions for grasp/close (range [0, 0.8]).
