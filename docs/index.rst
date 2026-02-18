@@ -94,6 +94,7 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
+   source/setup/physx_warp_training
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
