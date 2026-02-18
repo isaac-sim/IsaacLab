@@ -59,11 +59,16 @@ if args_cli.video:
     args_cli.enable_cameras = True
 
 # Set env.scene from --renderer_backend if user did not already pass env.scene
+_env_scene_override = None
 if not any(a.startswith("env.scene=") for a in hydra_args):
     if args_cli.renderer_backend == "warp_renderer":
-        hydra_args = list(hydra_args) + ["env.scene=64x64newton_rgb"]
+        _env_scene_override = "64x64newton_rgb"
+        hydra_args = list(hydra_args) + ["env.scene=" + _env_scene_override]
     else:
-        hydra_args = list(hydra_args) + ["env.scene=64x64tiled_rgb"]
+        _env_scene_override = "64x64tiled_rgb"
+        hydra_args = list(hydra_args) + ["env.scene=" + _env_scene_override]
+else:
+    _env_scene_override = next((a.split("=", 1)[1] for a in hydra_args if a.startswith("env.scene=")), None)
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
@@ -98,6 +103,18 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 
 import logging
 import os
+
+# One-time log so we can verify --renderer_backend drives env.scene (and thus TiledCamera renderer_type)
+if not any(a.startswith("env.scene=") for a in sys.argv[1:]):
+    print(
+        f"[train.py] renderer_backend={args_cli.renderer_backend!r} -> env.scene={_env_scene_override!r} (default)",
+        flush=True,
+    )
+else:
+    print(
+        f"[train.py] renderer_backend={args_cli.renderer_backend!r}; env.scene overridden by user",
+        flush=True,
+    )
 import time
 from datetime import datetime
 

@@ -10,9 +10,12 @@ state is synced from PhysX into the Newton model before each render via
 :class:`~isaaclab.sim._impl.newton_manager.NewtonManager`.
 """
 
+import logging
 import math
 
 import torch
+
+logger = logging.getLogger(__name__)
 import warp as wp
 from newton.sensors import SensorTiledCamera
 
@@ -253,6 +256,10 @@ class NewtonWarpRenderer(RendererBase):
             This call is timed as ``newton_warp_render_full`` (prep + kernel + buffer copy).
             PhysX→Newton state sync is done in TiledCamera before calling render and is timed separately.
         """
+        if self._render_call_count == 0:
+            logger.info(
+                "NewtonWarpRenderer.render() called (first time); backend confirmed newton_warp.",
+            )
         num_envs = camera_positions.shape[0]
 
         # Full render timer (apples-to-apples with Newton+Warp: prep + kernel + buffer copy)
