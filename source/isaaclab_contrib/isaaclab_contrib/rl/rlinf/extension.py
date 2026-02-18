@@ -181,8 +181,6 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
-    original_get_model = rlinf_gr00t_mod.get_model
-
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
         """Load a GR00T model with custom ``data_config`` and embodiment tag.
 
