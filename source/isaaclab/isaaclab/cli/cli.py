@@ -14,11 +14,9 @@ from .utils import (
     ISAACLAB_ROOT,
     build_docs,
     extract_isaacsim_exe,
-    extract_isaacsim_path,
     extract_python_exe,
     is_windows,
     print_info,
-    print_warning,
     run_command,
     run_docker_helper,
     run_python_command,
@@ -132,33 +130,10 @@ def cli():
         run_docker_helper(args.docker)
 
     elif args.python is not None:
-        # Python execution.
-
-        isaacsim_path = None
-
-        try:
-            isaacsim_path = extract_isaacsim_path()
-        except SystemExit:
-            isaacsim_path = None
-            print_warning("Isaac Sim not found.")
-
-        # Set up proper env vars for Isaac Sim
-        env = os.environ.copy()
-        if isaacsim_path and isaacsim_path.exists():
-            env["CARB_APP_PATH"] = str(isaacsim_path / "kit")
-            env["EXP_PATH"] = str(isaacsim_path / "apps")
-            env["ISAAC_PATH"] = str(isaacsim_path)
-            current_pythonpath = env.get("PYTHONPATH", "")
-            isaacsim_pythonpath = str(isaacsim_path / "site")
-            isaaclab_pythonpath = str(ISAACLAB_ROOT / "source" / "isaaclab")
-            env["PYTHONPATH"] = f"{current_pythonpath};{isaacsim_pythonpath};{isaaclab_pythonpath}"
-
-        env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
-
         if args.python:
-            run_python_command(args.python[0], args.python[1:], env=env)
+            run_python_command(args.python[0], args.python[1:])
         else:
-            run_python_command("-i", [], env=env)
+            run_python_command("-i", [])
 
     elif args.sim is not None:
         # Sim execution.

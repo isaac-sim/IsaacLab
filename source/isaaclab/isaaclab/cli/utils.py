@@ -254,6 +254,29 @@ def extract_isaacsim_path():
     return isaacsim_path
 
 
+def _generate_python_env():
+    isaacsim_path = None
+
+    try:
+        isaacsim_path = extract_isaacsim_path()
+    except SystemExit:
+        isaacsim_path = None
+        print_warning("Isaac Sim not found.")
+
+    env = os.environ.copy()
+    if isaacsim_path and isaacsim_path.exists():
+        env["CARB_APP_PATH"] = str(isaacsim_path / "kit")
+        env["EXP_PATH"] = str(isaacsim_path / "apps")
+        env["ISAAC_PATH"] = str(isaacsim_path)
+        current_pythonpath = env.get("PYTHONPATH", "")
+        isaacsim_pythonpath = str(isaacsim_path / "site")
+        isaaclab_pythonpath = str(ISAACLAB_ROOT / "source" / "isaaclab")
+        env["PYTHONPATH"] = f"{current_pythonpath};{isaacsim_pythonpath};{isaaclab_pythonpath}"
+
+    env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
+    return env
+
+
 def extract_isaacsim_exe():
     """
     Find the Isaac Sim executable.
@@ -362,15 +385,15 @@ def run_python_command(
     cmd.append(str(script_or_module))
     cmd.extend(args)
 
-    env_for_debug = env
     if env is None:
         env = os.environ.copy()
+        env.update(_generate_python_env())
 
     command_str = " ".join(str(part) for part in cmd)
 
     print_debug(f'run_python_command(): CWD: "{os.getcwd()}"')
     print_debug(f'run_python_command(): CMD: "{command_str}"')
-    _print_debug_env("run_python_command()", env_for_debug)
+    _print_debug_env("run_python_command()", env)
 
     return subprocess.run(
         cmd,
