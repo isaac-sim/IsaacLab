@@ -14,10 +14,11 @@ from .utils import (
     ISAACLAB_ROOT,
     build_docs,
     extract_isaacsim_exe,
+    extract_isaacsim_path,
     extract_python_exe,
-    is_arm,
     is_windows,
     print_info,
+    print_warning,
     run_command,
     run_docker_helper,
     run_python_command,
@@ -27,7 +28,6 @@ from .uv import setup_uv_env
 
 
 def cli():
-
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog="isaaclab" + (".bat" if is_windows() else ".sh"),
@@ -135,11 +135,29 @@ def cli():
         # Python execution.
         # Args.python is a list of remaining args.
         python_exe = extract_python_exe()
+
         # The first arg might be the script or -m, pass all.
         cmd = [python_exe] + args.python
         env = os.environ.copy()
-        if is_arm():
-            env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
+
+        isaacsim_path = None
+
+        try:
+            isaacsim_path = extract_isaacsim_path()
+        except SystemExit:
+            isaacsim_path = None
+            print_warning("Isaac Sim not found.")
+
+        # Set up proper env vars for Isaac Sim
+        if isaacsim_path and isaacsim_path.exists():
+            env["CARB_APP_PATH"] = str(isaacsim_path / "kit")
+            env["EXP_PATH"] = str(isaacsim_path / "apps")
+            env["ISAAC_PATH"] = str(isaacsim_path)
+            current_pythonpath = env.get("PYTHONPATH", "")
+            isaac_site_path = str(isaacsim_path / "site")
+            env["PYTHONPATH"] = f"{current_pythonpath};{isaac_site_path}" if current_pythonpath else isaac_site_path
+
+        env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
 
         # We use subprocess calling python.
         subprocess.run(cmd, env=env)
