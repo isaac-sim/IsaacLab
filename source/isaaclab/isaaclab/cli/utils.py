@@ -171,9 +171,9 @@ def extract_python_exe():
             )
 
         if is_windows():
-            python_exe = DEFAULT_ISAAC_SIM_PATH / "python.bat"
+            python_exe = extract_isaacsim_path() / "python.bat"
         else:
-            python_exe = DEFAULT_ISAAC_SIM_PATH / "python.sh"
+            python_exe = extract_isaacsim_path() / "python.sh"
 
         print_debug(f'extract_python_exe(): Checking for Kit python at: "{python_exe}"')
 
@@ -291,7 +291,7 @@ def determine_python_version():
     """Detect Isaac Sim version and return the matching Python version."""
 
     # 1. Version file
-    version_file = DEFAULT_ISAAC_SIM_PATH / "VERSION"
+    version_file = extract_isaacsim_path() / "VERSION"
     isaacsim_version = None
     if version_file.exists():
         with open(version_file) as f:
