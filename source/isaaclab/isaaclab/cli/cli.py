@@ -27,38 +27,11 @@ from .uv import setup_uv_env
 
 
 def cli():
-    if is_windows():
-        epilog = """
-Examples:
-
-\tREM Install in an existing uv environment:
-\t.\\path\\to\\your\\env\\Scripts\\activate.bat
-\tisaaclab.bat -i
-
-\tREM Create and setup a new uv environment:
-\tisaaclab.bat -u my_env
-\t.\\path\\to\\your\\env\\Scripts\\activate.bat
-\tisaaclab.bat -i
-"""
-    else:
-        epilog = """
-Examples:
-
-\t# Install in an existing uv environment:
-\tsource /path/to/your/env/bin/activate
-\t./isaaclab.sh -i
-
-\t# Create and setup a new uv environment:
-\t./isaaclab.sh -u my_env
-\tsource /path/to/your/env/bin/activate
-\t./isaaclab.sh -i
-"""
 
     parser = argparse.ArgumentParser(
-        description="Utility to manage Isaac Lab.",
-        prog="isaaclab",
+        description="Isaac Lab CLI",
+        prog="isaaclab" + (".bat" if is_windows() else ".sh"),
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog=epilog,
     )
 
     parser.add_argument(
