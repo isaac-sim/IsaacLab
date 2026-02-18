@@ -107,9 +107,6 @@ def cli():
 
     if args.install:
         install(args.install)
-        # Install vscode update unless we're in docker.
-        if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-            update_vscode_settings()
 
     elif args.format:
         format_code()

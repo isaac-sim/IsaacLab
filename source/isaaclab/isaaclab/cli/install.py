@@ -7,7 +7,16 @@ import os
 import shutil
 import subprocess
 
-from .utils import ISAACLAB_ROOT, extract_python_exe, is_arm, is_windows, print_info, print_warning, run_command
+from .utils import (
+    ISAACLAB_ROOT,
+    extract_python_exe,
+    is_arm,
+    is_windows,
+    print_info,
+    print_warning,
+    run_command,
+    update_vscode_settings,
+)
 
 
 def install_system_deps():
@@ -234,3 +243,7 @@ def install(install_type="all"):
         # Restore LD_PRELOAD if we cleared it.
         if saved_ld_preload:
             os.environ["LD_PRELOAD"] = saved_ld_preload
+
+    # Install vscode update unless we're in docker.
+    if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
+        update_vscode_settings()
