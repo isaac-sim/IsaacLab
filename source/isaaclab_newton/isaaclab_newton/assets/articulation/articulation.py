@@ -158,7 +158,7 @@ class Articulation(BaseArticulation):
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        return 0
+        return self._root_view.tendon_count
 
     @property
     def num_spatial_tendons(self) -> int:
@@ -195,8 +195,7 @@ class Articulation(BaseArticulation):
     @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
-        # TODO: check if the articulation has fixed tendons
-        return []
+        return list(self._root_view.tendon_names)
 
     @property
     def spatial_tendon_names(self) -> list[str]:
@@ -417,7 +416,15 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the tendon mask, names, and indices.
         """
-        raise NotImplementedError("Fixed tendons are not supported in Newton.")
+        tendon_names = self._root_view.tendon_names
+        if not tendon_names:
+            raise ValueError("No fixed tendons found in the articulation.")
+        search_names = tendon_subsets if tendon_subsets is not None else tendon_names
+        indices, names = string_utils.resolve_matching_names(name_keys, search_names, preserve_order)
+        mask = torch.zeros(len(tendon_names), dtype=torch.bool)
+        mask[indices] = True
+        mask = wp.from_torch(mask.to(self.device))
+        return mask, names, indices
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -1833,7 +1840,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon stiffness is not supported in Newton.")
+        self._root_view.set_attribute("mujoco.tendon_stiffness", NewtonManager.get_model(), stiffness)
 
     def set_fixed_tendon_damping(
         self,
@@ -1855,7 +1862,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon damping is not supported in Newton.")
+        self._root_view.set_attribute("mujoco.tendon_damping", NewtonManager.get_model(), damping)
 
     def set_fixed_tendon_limit_stiffness(
         self,
@@ -1877,7 +1884,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon limit stiffness is not supported in Newton.")
+        raise NotImplementedError("Fixed tendon limit stiffness attribute is not available in Newton.")
 
     def set_fixed_tendon_position_limit(
         self,
@@ -1899,7 +1906,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon position limit is not supported in Newton.")
+        self._root_view.set_attribute("mujoco.tendon_range", NewtonManager.get_model(), limit)
 
     @deprecated("set_fixed_tendon_position_limit", since="2.1.0", remove_in="4.0.0")
     def set_fixed_tendon_limit(
@@ -1950,7 +1957,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon rest length is not supported in Newton.")
+        self._root_view.set_attribute("mujoco.tendon_springlength", NewtonManager.get_model(), rest_length)
 
     def set_fixed_tendon_offset(
         self,
@@ -1972,7 +1979,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon offset is not supported in Newton.")
+        raise NotImplementedError("Fixed tendon offset attribute is not available in Newton.")
 
     def write_fixed_tendon_properties_to_sim(
         self,
@@ -1983,13 +1990,82 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write fixed tendon properties into the simulation.
 
+        For Newton, tendon properties are written directly via set_attribute calls,
+        so this is a no-op. The solver picks up attribute changes on the next step.
+
         Args:
             fixed_tendon_ids: The fixed tendon indices to set the properties for. Defaults to None (all fixed tendons).
             env_ids: The environment indices to set the properties for. Defaults to None (all environments).
             fixed_tendon_mask: The fixed tendon mask. Shape is (num_fixed_tendons,).
             env_mask: The environment mask. Shape is (num_instances,).
         """
-        raise NotImplementedError("Fixed tendon properties are not supported in Newton.")
+        pass
+
+    def _get_tendon_ctrl_flat_indices(self, tendon_names: list[str]) -> torch.Tensor:
+        """Return cached flat indices into the ctrl buffer for the given tendon names.
+
+        The flat indices map (world, tendon) pairs to positions in the 1-D ctrl
+        buffer so that a single scatter write can update all worlds at once.
+        """
+        key = tuple(tendon_names)
+        if key not in self._tendon_ctrl_index_cache:
+            act_indices: list[int] = []
+            for name in tendon_names:
+                if name not in self._tendon_name_to_ctrl_idx:
+                    raise ValueError(
+                        f"Tendon '{name}' not found in tendon actuator mapping. "
+                        f"Available: {list(self._tendon_name_to_ctrl_idx.keys())}"
+                    )
+                act_indices.append(self._tendon_name_to_ctrl_idx[name])
+
+            n_worlds = self._mujoco_ctrl.shape[0] // self._ctrl_per_world if self._ctrl_per_world > 0 else 1
+            world_offsets = torch.arange(n_worlds, device=self.device, dtype=torch.long) * self._ctrl_per_world
+            act_idx_t = torch.tensor(act_indices, device=self.device, dtype=torch.long)
+            # shape: (n_worlds, n_tendons) -> flatten to (n_worlds * n_tendons,)
+            self._tendon_ctrl_index_cache[key] = (world_offsets.unsqueeze(1) + act_idx_t.unsqueeze(0)).reshape(-1)
+        return self._tendon_ctrl_index_cache[key]
+
+    def set_tendon_actuator_target(
+        self,
+        target: torch.Tensor | wp.array,
+        tendon_names: list[str] | None = None,
+    ) -> None:
+        """Write control values to tendon actuators via control.mujoco.ctrl.
+
+        Tendon actuators use MuJoCo's CTRL_DIRECT mode, so the values are written
+        directly to the MuJoCo ctrl buffer. The MuJoCo solver then applies the
+        gain/bias model defined in the MJCF to produce joint forces.
+
+        Args:
+            target: Control values. Shape is (num_instances, num_tendon_actuators) or
+                (num_instances, 1) if a single tendon is targeted.
+            tendon_names: Names of the tendons whose actuators to target.
+                Defaults to None (all tendon actuators).
+        """
+        if self._mujoco_ctrl is None:
+            raise RuntimeError("No tendon actuators available. Ensure MJCF defines tendon actuators.")
+
+        if tendon_names is None:
+            tendon_names = list(self._tendon_name_to_ctrl_idx.keys())
+
+        flat_indices = self._get_tendon_ctrl_flat_indices(tendon_names)
+        n_tendons = len(tendon_names)
+        n_worlds = flat_indices.shape[0] // n_tendons
+
+        target_t = wp.to_torch(target) if isinstance(target, wp.array) else target
+        if target_t.device != self.device:
+            target_t = target_t.to(self.device)
+
+        # Zero-copy torch view of the warp ctrl buffer
+        ctrl_torch = wp.to_torch(self._mujoco_ctrl)
+
+        if target_t.ndim > 1 and target_t.shape[1] > 1:
+            vals = target_t[:n_worlds, :n_tendons].contiguous().reshape(-1)
+        else:
+            # Single-column or 1-D: broadcast the same value to every tendon per world
+            vals = target_t[:n_worlds].reshape(n_worlds, 1).expand(n_worlds, n_tendons).contiguous().reshape(-1)
+
+        ctrl_torch[flat_indices] = vals
 
     def set_spatial_tendon_stiffness(
         self,
@@ -2354,23 +2430,60 @@ class Articulation(BaseArticulation):
                 # Bind the applied effort to the simulation effort
                 # self.data._applied_effort = self.data.actuator_effort_target
 
-        # perform some sanity checks to ensure actuators are prepared correctly
+        # Sanity check: warn if more actuated joints than available.
+        # Joints driven by tendon actuators (via CTRL_DIRECT) are not counted here
+        # because they bypass the IsaacLab actuator model pipeline.
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
-        if total_act_joints != (self.num_joints - self.num_fixed_tendons):
+        if total_act_joints > self.num_joints:
             warnings.warn(
-                "Not all actuators are configured! Total number of actuated joints not equal to number of"
-                f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}.",
+                "More actuated joints configured than available!"
+                f" Total actuated: {total_act_joints}, available: {self.num_joints}.",
                 UserWarning,
             )
 
     def _process_tendons(self):
-        """Process fixed and spatialtendons."""
-        # create a list to store the fixed tendon names
-        self._fixed_tendon_names = list()
+        """Process fixed and spatial tendons and discover tendon actuator ctrl indices."""
+        self._fixed_tendon_names = list(self._root_view.tendon_names)
         self._spatial_tendon_names = list()
-        # parse fixed tendons properties if they exist
-        if self.num_fixed_tendons > 0:
-            raise NotImplementedError("Tendons are not implemented yet")
+
+        # Build mapping from tendon name -> ctrl index for CTRL_DIRECT tendon actuators.
+        # Newton stores tendon actuators with trntype=2 and ctrl_source=CTRL_DIRECT.
+        # Their index in control.mujoco.ctrl equals their MJCF-order actuator index.
+        self._tendon_name_to_ctrl_idx: dict[str, int] = {}
+        self._mujoco_ctrl = None
+        self._ctrl_per_world: int = 0
+        self._tendon_ctrl_index_cache: dict[tuple[str, ...], torch.Tensor] = {}
+
+        model = NewtonManager.get_model()
+        mujoco_attrs = getattr(model, "mujoco", None)
+        if mujoco_attrs is None or not hasattr(mujoco_attrs, "actuator_trntype"):
+            return
+
+        trntype_arr = mujoco_attrs.actuator_trntype.numpy()
+        trnid_arr = mujoco_attrs.actuator_trnid.numpy()
+
+        view_tendon_names = list(self._root_view.tendon_names)
+
+        for act_idx in range(len(trntype_arr)):
+            if int(trntype_arr[act_idx]) == 2:  # tendon transmission
+                tendon_idx = int(trnid_arr[act_idx, 0]) if trnid_arr.ndim > 1 else int(trnid_arr[act_idx])
+                if tendon_idx < len(view_tendon_names):
+                    tendon_name = view_tendon_names[tendon_idx]
+                else:
+                    tendon_name = f"tendon_{tendon_idx}"
+                self._tendon_name_to_ctrl_idx[tendon_name] = act_idx
+
+        if self._tendon_name_to_ctrl_idx:
+            mujoco_ns = getattr(NewtonManager.get_control(), "mujoco", None)
+            self._mujoco_ctrl = getattr(mujoco_ns, "ctrl", None) if mujoco_ns is not None else None
+            if self._mujoco_ctrl is not None:
+                n_ctrl = self._mujoco_ctrl.shape[0]
+                n_worlds = model.world_count if hasattr(model, "world_count") else 1
+                self._ctrl_per_world = n_ctrl // n_worlds if n_worlds > 0 else n_ctrl
+                logger.info(
+                    f"Discovered tendon actuators: {self._tendon_name_to_ctrl_idx} "
+                    f"(ctrl buffer size: {n_ctrl}, worlds: {n_worlds})"
+                )
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -2493,12 +2606,17 @@ class Articulation(BaseArticulation):
         # convert table to string
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
-        # read out all fixed tendon parameters from simulation
+        # log fixed tendon information
         if self.num_fixed_tendons > 0:
-            raise NotImplementedError("Tendons are not implemented yet")
-
-        if self.num_spatial_tendons > 0:
-            raise NotImplementedError("Tendons are not implemented yet")
+            tendon_table = PrettyTable()
+            tendon_table.title = f"Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table.field_names = ["Index", "Name"]
+            tendon_table.align["Name"] = "l"
+            for index, name in enumerate(self._fixed_tendon_names):
+                tendon_table.add_row([index, name])
+            logger.info(f"Fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())
+            if self._tendon_name_to_ctrl_idx:
+                logger.info(f"Tendon actuator ctrl mapping: {self._tendon_name_to_ctrl_idx}")
 
     """
     Internal Warp helpers.

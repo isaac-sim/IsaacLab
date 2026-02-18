@@ -297,26 +297,23 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         newton_cfg=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
-                njmax=10000,    # High for contact-rich gear insertion
-                nconmax=10000 ,#    Many contact points from gear teeth
-                iterations=200,  # High accuracy for insertion precision
-                ls_iterations=50,
-                cone="pyramidal",
-                impratio=1,
+                njmax=10000,
+                nconmax=10000,
+                iterations=80,
+                ls_iterations=10,
+                cone="elliptic",
+                impratio=10,
                 ls_parallel=True,
-                integrator="implicit",
-                save_to_mjcf="GearAssemblyEnv.xml",  # Debug: remove later
+                integrator="implicitfast",
                 use_mujoco_contacts=False,
             ),
             num_substeps=2,
-            debug_mode=True,  # Enable initially, disable for training
+            debug_mode=False,
             # SDF collision for gear meshes (fine-toothed concave geometry)
-            sdf_max_resolution=512,
-            sdf_narrow_band_range=(-0.005, 0.005),
+            sdf_max_resolution=256,
+            sdf_narrow_band_range=(-0.01, 0.01),
             sdf_contact_margin=0.01,
-            # Apply SDF to all gear bodies (base, small, medium, large)
             sdf_shape_patterns=[".*[Gg]ear.*"],
-            # Hydroelastic contacts for distributed surface contacts on gear teeth
             hydroelastic_cfg=HydroelasticCfg(
                 k_hydro=1e10,
                 shape_patterns=[".*[Gg]ear.*"],

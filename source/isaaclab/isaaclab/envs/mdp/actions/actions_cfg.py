@@ -14,6 +14,7 @@ from . import (  # surface_gripper_actions,; task_space_actions,
     joint_actions,
     joint_actions_to_limits,
     non_holonomic_actions,
+    tendon_actions,
 )
 
 ##
@@ -222,6 +223,45 @@ class AbsBinaryJointPositionActionCfg(ActionTermCfg):
     """Whether to use positive (Open actions > Close actions) threshold. Defaults to True."""
 
     class_type: type[ActionTerm] = binary_joint_actions.AbsBinaryJointPositionAction
+
+
+##
+# Tendon actions.
+##
+
+
+@configclass
+class TendonActionCfg(ActionTermCfg):
+    """Configuration for the tendon action term.
+
+    See :class:`TendonAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = tendon_actions.TendonAction
+
+    tendon_names: list[str] = MISSING
+    """List of tendon names or regex expressions that the action will be mapped to."""
+    scale: float | dict[str, float] = 1.0
+    """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
+    offset: float | dict[str, float] = 0.0
+    """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
+
+
+@configclass
+class BinaryTendonActionCfg(ActionTermCfg):
+    """Configuration for the binary tendon action term.
+
+    See :class:`BinaryTendonAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = tendon_actions.BinaryTendonAction
+
+    tendon_names: list[str] = MISSING
+    """List of tendon names or regex expressions that the action will be mapped to."""
+    open_command_expr: dict[str, float] = MISSING
+    """The tendon command to move to *open* configuration."""
+    close_command_expr: dict[str, float] = MISSING
+    """The tendon command to move to *close* configuration."""
 
 
 ##

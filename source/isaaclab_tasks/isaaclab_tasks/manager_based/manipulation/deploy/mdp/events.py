@@ -418,52 +418,34 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         log.write(f"[IK LOOP] FINISHED after {i+1} iterations\n")
         log.write(f"  final_joint_pos: {joint_pos[0].cpu().numpy()}\n")
 
-        # Set gripper to grasp position
+        # Write arm joint state to sim (gripper joints left at current state)
         joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()  # (R, J)
-        joint_vel = torch.zeros_like(joint_pos)  # (R, J) — zero all velocities for clean gripper reset
+        joint_vel = torch.zeros_like(joint_pos)  # (R, J)
 
-        # Get gear types for all environments
-        all_gear_types = gear_type_manager.get_all_gear_types()  # list of length N (str per env)
-        log.write(f"  finger_joints: {self.finger_joints} (len={len(self.finger_joints)})\n")
-        log.write(f"  joint_pos shape: {joint_pos.shape}\n")
-        log.write(f"  joint_pos BEFORE gripper set: {joint_pos[0].cpu().numpy()}\n")
-        for row_idx, env_id in enumerate(env_ids.tolist()):
-            gear_key = all_gear_types[env_id]
-            hand_grasp_width = self.hand_grasp_width[gear_key]  # scalar
-            log.write(f"  row_idx={row_idx}, env_id={env_id}, gear_key={gear_key}, hand_grasp_width={hand_grasp_width}\n")
-            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)  # mutates (R, J)
-
-        log.write(f"  joint_pos_after_grasp: {joint_pos[0].cpu().numpy()}\n")
-
-        # Write arm + gripper joint state directly (immediate positioning)
-        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)  # (R, J), (R, J)
+        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
         NewtonManager.forward_kinematics()
 
-        # Verify: read back joint state from Newton's state to confirm it was written
-        readback = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
-        log.write(f"  READBACK after write_joint_state_to_sim: {readback[0].cpu().numpy()}\n")
+        # Set arm actuator targets to hold current position
+        self.robot_asset.set_joint_position_target(
+            joint_pos[:, :self.num_arm_joints], joint_ids=self.arm_joint_ids, env_ids=env_ids
+        )
 
-        # Also read Newton's state_0.joint_q directly for comparison
-        state_joint_q = wp.to_torch(NewtonManager.get_state_0().joint_q)
-        log.write(f"  Newton state_0.joint_q shape: {state_joint_q.shape}\n")
-        log.write(f"  Newton state_0.joint_q[:20]: {state_joint_q[:20].cpu().numpy()}\n")
-
-        # Set actuator target to grasp width (same as state) so actuator holds position
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)  # (R, J)
-
-        # Set gripper to closed position as actuator target
+        # Drive gripper via tendon actuator only (control.mujoco.ctrl).
+        # MJCF ctrlrange [0, 255]: 0 = fully open, 255 = fully closed.
+        # Map hand_grasp_width (driver joint range [0, 0.8]) to ctrl range [0, 255].
+        all_gear_types = gear_type_manager.get_all_gear_types()
+        grasp_ctrl = torch.zeros(len(env_ids), 1, device=env.device)
         for row_idx, env_id in enumerate(env_ids.tolist()):
             gear_key = all_gear_types[env_id]
-            hand_close_width = self.hand_close_width[gear_key]
-            self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)  # mutates (R, J)
+            hand_grasp_width = self.hand_grasp_width[gear_key]
+            grasp_ctrl[row_idx, 0] = (hand_grasp_width / 0.8) * 255.0
+            log.write(f"  env={env_id}, gear={gear_key}, grasp_width={hand_grasp_width}, ctrl={grasp_ctrl[row_idx, 0].item():.1f}\n")
 
-        log.write(f"  joint_pos_after_close: {joint_pos[0].cpu().numpy()}\n")
+        log.write(f"  Setting tendon grasp ctrl: {grasp_ctrl[0].item():.1f}\n")
+        self.robot_asset.set_tendon_actuator_target(grasp_ctrl, tendon_names=None)
+
         log.write(f"{'='*80}\n")
         log.flush()
-
-        # Push close target to actuator buffer and then to MuJoCo ctrl
-        self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)  # (R, J)
-        self.robot_asset.write_data_to_sim()
 
 
 class randomize_gears_and_base_pose(ManagerTermBase):

@@ -22,146 +22,87 @@ from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembl
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.universal_robots import UR10e_ROBOTIQ_GRIPPER_CFG, UR10e_ROBOTIQ_2F_85_CFG  # isort: skip
+from isaaclab_assets.robots.universal_robots import UR10e_CFG, UR10e_ROBOTIQ_GRIPPER_CFG, UR10e_ROBOTIQ_2F_85_CFG  # isort: skip
 
+MENAGERIE_2F85_MJCF = "/home/vidurv/mujoco_menagerie/robotiq_2f85/2f85.xml"
 
 ##
-# Robotiq 2F-85 four-bar linkage: mimic joint equality constraints for Newton/MuJoCo
+# Robotiq 2F-85: Load Menagerie MJCF model into Newton builder
 ##
 
 
-def _add_robotiq_2f85_mimic_joints():
-    """Add MuJoCo equality constraints that replicate PhysxMimicJointAPI for the Robotiq 2F-85.
+def _custom_instantiate_builder_with_gripper():
+    """Override Newton's default builder instantiation to compose the gripper between
+    the robot arm and the rest of the scene.
 
-    The Robotiq 2F-85 USD defines mimic joints (PhysxMimicJointAPI) that couple passive
-    gripper joints to the drive joint (finger_joint). Newton's USD importer does not
-    parse PhysxMimicJointAPI, so we manually inject the equivalent MuJoCo joint-equality
-    constraints into the builder before finalization.
-
-    We also register eq_solref/eq_solimp custom attributes so the constraints can be
-    made stiff enough to simulate a rigid mechanical linkage.
-
-    Gearing from Robotiq_2F_85_phyisics_mimic.usda:
-      - right_outer_knuckle_joint:        gearing = -1  (rotZ, ref: finger_joint)
-      - left_inner_finger_joint:          gearing = +1  (rotX, ref: finger_joint)
-      - left_inner_finger_knuckle_joint:  gearing = +1  (rotX, ref: finger_joint)
-      - right_inner_finger_joint:         gearing = -1  (rotX, ref: finger_joint)
-      - right_inner_finger_knuckle_joint: gearing = +1  (rotX, ref: finger_joint)
-
-    The polycoef [a, b, 0, 0, 0] means: joint2 = a + b * joint1
+    Newton's ``parent_body`` requires attaching to the most recently added
+    articulation. Since ``add_usd(stage)`` loads all prims at once (robot + gears),
+    we split the USD loading:
+      1. Load the robot arm only (``root_path`` pointing to the Robot prim)
+      2. Attach the Menagerie gripper MJCF to wrist_3_link
+      3. Load the remaining scene objects (gears, gear base, stand, ground)
     """
-    import newton
+    from pxr import UsdGeom
+
     import warp as wp
 
-    vec5 = wp.types.vector(length=5, dtype=wp.float32)
+    from isaaclab.sim.utils import get_current_stage
 
-    builder = NewtonManager._builder
-    if builder is None:
-        return
+    stage = get_current_stage()
+    up_axis = UsdGeom.GetStageUpAxis(stage)
 
-    # Register eq_solref and eq_solimp custom attributes so we can set stiff
-    # constraint parameters. These are normally registered by the MuJoCo solver,
-    # but we need them available during builder phase.
-    if not builder.has_custom_attribute("mujoco:eq_solref"):
-        builder.add_custom_attribute(
-            newton.ModelBuilder.CustomAttribute(
-                name="eq_solref",
-                frequency=newton.Model.AttributeFrequency.EQUALITY_CONSTRAINT,
-                assignment=newton.Model.AttributeAssignment.MODEL,
-                dtype=wp.vec2,
-                default=wp.vec2(0.02, 1.0),
-                namespace="mujoco",
-            )
-        )
-    if not builder.has_custom_attribute("mujoco:eq_solimp"):
-        builder.add_custom_attribute(
-            newton.ModelBuilder.CustomAttribute(
-                name="eq_solimp",
-                frequency=newton.Model.AttributeFrequency.EQUALITY_CONSTRAINT,
-                assignment=newton.Model.AttributeAssignment.MODEL,
-                dtype=vec5,
-                default=vec5(0.9, 0.95, 0.001, 0.5, 2.0),
-                namespace="mujoco",
-            )
-        )
+    from newton import ModelBuilder
+    builder = ModelBuilder(up_axis=up_axis)
 
-    # Build joint name -> index lookup
-    joint_name_to_idx = {}
-    for idx, key in enumerate(builder.joint_key):
-        # joint keys are full prim paths; extract the short name
+    # Step 1: Load the robot arm ONLY (must be first so we can attach gripper to it)
+    print("[INFO] Step 1: Loading UR10e arm from USD...")
+    builder.add_usd(stage, root_path="/World/envs/env_0/Robot")
+
+    # Step 2: Find wrist_3_link and attach Menagerie gripper
+    ee_body_idx = -1
+    for idx, key in enumerate(builder.body_key):
         short_name = key.rsplit("/", 1)[-1] if "/" in key else key
-        joint_name_to_idx[short_name] = idx
+        if short_name == "wrist_3_link":
+            ee_body_idx = idx
+            break
 
-    drive_joint = "finger_joint"
-    if drive_joint not in joint_name_to_idx:
-        print(f"[WARN] Cannot add mimic joints: '{drive_joint}' not found in builder")
-        return
+    if ee_body_idx == -1:
+        raise RuntimeError("Cannot attach gripper: 'wrist_3_link' not found after loading robot USD")
 
-    drive_idx = joint_name_to_idx[drive_joint]
+    print(f"[INFO] Step 2: Attaching Menagerie Robotiq 2F-85 to body {ee_body_idx} ({builder.body_key[ee_body_idx]})")
 
-    # Mimic joint definitions: (joint_name, mjcf_gearing, suppress_actuator)
-    #
-    # The USD uses PhysxMimicJointAPI with gearing in USD axis space (all joints axis="Z").
-    # Newton's USD-to-MJCF export can flip axes, so we must convert gearing to MJCF space:
-    #   mjcf_gearing = usd_gearing * (drive_axis_sign / passive_axis_sign)
-    # where drive (finger_joint) has MJCF axis = -1.
-    #
-    #  Joint                          | MJCF axis | USD gear | MJCF gear
-    #  right_outer_knuckle_joint      |    +1     |   -1     |   +1
-    #  left_inner_finger_joint        |    -1     |   +1     |   +1
-    #  left_inner_finger_knuckle_joint|    +1     |   +1     |   +1
-    #  right_inner_finger_joint       |    -1     |   -1     |   -1
-    #  right_inner_finger_knuckle_joint|   -1     |   +1     |   +1
-    #
-    # suppress_actuator=True for truly passive linkage joints (knuckles);
-    # False for inner finger joints that keep their own actuators for grasping force.
-    # Gearing values taken directly from Robotiq_2F_85_phyisics_mimic.usda.
-    # Knuckle joints (passive linkage) have actuators suppressed.
-    # Inner finger joints keep actuators for grasping force + constraint compliance.
-    mimic_joints = [
-        ("right_outer_knuckle_joint", 1.0, True),
-        ("left_inner_finger_joint", 1.0, True),
-        ("left_inner_finger_knuckle_joint", 1.0, True),
-        ("right_inner_finger_joint", -1.0, True),
-        ("right_inner_finger_knuckle_joint", 1.0, True),
-    ]
+    mount_xform = wp.transform(
+        p=(0.0, 0.0, 0.0),
+        q=(0.0, 0.0, -0.7071067811865476, 0.7071067811865476),
+    )
 
-    for passive_name, gearing, suppress_actuator in mimic_joints:
-        if passive_name not in joint_name_to_idx:
-            print(f"[WARN] Mimic joint '{passive_name}' not found in builder, skipping")
-            continue
+    builder.add_mjcf(
+        source=MENAGERIE_2F85_MJCF,
+        parent_body=ee_body_idx,
+        floating=False,
+        xform=mount_xform,
+        enable_self_collisions=False,
+        verbose=True,
+    )
 
-        passive_idx = joint_name_to_idx[passive_name]
-        # MuJoCo convention: joint1 = constrained, joint2 = reference
-        # polycoef: joint1 = polycoef[0] + polycoef[1]*joint2 + ...
-        polycoef = [0.0, gearing, 0.0, 0.0, 0.0]
+    print(f"[INFO] Gripper loaded. Bodies: {len(builder.body_key)}, Joints: {len(builder.joint_key)}")
 
-        builder.add_equality_constraint_joint(
-            joint1=passive_idx,
-            joint2=drive_idx,
-            polycoef=polycoef,
-            key=f"mimic_{passive_name}",
-            enabled=True,
-            # Stiff constraint for rigid mechanical linkage.
-            # Direct mode solref: (-stiffness, -damping)
-            custom_attributes={
-                "mujoco:eq_solref": wp.vec2(0.02, 1.0),
-                "mujoco:eq_solimp": vec5(0.99, 0.999, 0.00001, 0.5, 2.0),
-            },
-        )
+    # Step 3: Load remaining scene objects (everything except the robot)
+    print("[INFO] Step 3: Loading remaining scene objects from USD...")
+    builder.add_usd(
+        stage,
+        ignore_paths=["/World/envs/env_0/Robot"],
+    )
 
-        if suppress_actuator:
-            # Set actuator mode to NONE so the MuJoCo exporter does not create
-            # a <general> actuator for this purely passive joint.
-            # Also set effort_limit to a large value so actfrcrange doesn't become
-            # (0,0) which MuJoCo rejects.
-            dof_start = builder.joint_qd_start[passive_idx]
-            dof_dim = builder.joint_dof_dim[passive_idx]
-            for d in range(dof_dim[0] + dof_dim[1]):
-                builder.joint_act_mode[dof_start + d] = 0  # ActuatorMode.NONE
-                builder.joint_effort_limit[dof_start + d] = 1e9
+    print(f"[INFO] Full scene loaded. Bodies: {len(builder.body_key)}, Joints: {len(builder.joint_key)}")
 
-        print(f"[INFO] Added mimic constraint: {drive_joint}[{drive_idx}] -> {passive_name}[{passive_idx}], gearing={gearing}, suppress_actuator={suppress_actuator}")
+    # Step 4: Apply SDF collision config and gravity compensation
+    # These were previously handled by NewtonManager._apply_sdf_config and
+    # _apply_gravity_compensation in the old instantiate_builder_from_stage.
+    NewtonManager._apply_sdf_config(builder)
+    NewtonManager._apply_gravity_compensation(builder, stage)
+
+    NewtonManager.set_builder(builder)
 
 
 ##
@@ -209,41 +150,35 @@ def set_finger_joint_pos_robotiq_2f85(
     finger_joints: list[int],
     finger_joint_position: float,
 ):
-    """Set finger joint positions for Robotiq 2F-85 gripper.
+    """Set finger joint positions for Robotiq 2F-85 gripper (Menagerie model).
 
-    Sets the drive joint and manually applies mimic gearing to all constrained
-    joints.  MuJoCo equality constraints are only resolved during ``solver.step()``,
-    **not** during ``forward_kinematics()``, so we must set all joint positions
-    explicitly during reset to keep the kinematic state consistent.
+    Only sets the two driver joints to the target position. The tendon actuator
+    (via control.mujoco.ctrl) drives the gripper; the remaining joints (coupler,
+    spring_link, follower) are resolved by connect equality constraints in the
+    MuJoCo solver.
+
+    Menagerie 2F-85 joint order (8 joints):
+      [0] right_driver_joint       range=[0, 0.8]      (drive)
+      [1] right_coupler_joint      range=[-1.57, 0]    (constrained)
+      [2] right_spring_link_joint  range=[-0.297, 0.8]  (constrained)
+      [3] right_follower_joint     range=[-0.87, 0.87]  (constrained)
+      [4] left_driver_joint        range=[0, 0.8]      (coupled via tendon)
+      [5] left_coupler_joint       range=[-1.57, 0]    (constrained)
+      [6] left_spring_link_joint   range=[-0.297, 0.8]  (constrained)
+      [7] left_follower_joint      range=[-0.87, 0.87]  (constrained)
 
     Args:
         joint_pos: Joint positions tensor
         reset_ind_joint_pos: Row indices into the sliced joint_pos tensor
         finger_joints: List of finger joint indices
-        finger_joint_position: Target position for finger joints
+        finger_joint_position: Target position for driver joints [0, 0.8]
     """
-    for idx in reset_ind_joint_pos:
-        # For 2F-85 gripper (6 joints expected)
-        # Joint order (DOF 6-11):
-        #   [0] finger_joint                     axis=-1  range=[0, 0.82]   (drive)
-        #   [1] left_inner_finger_joint          axis=-1  range=[-pi, pi]   (gearing +1)
-        #   [2] left_inner_finger_knuckle_joint  axis=+1  range=[-pi, pi]   (gearing +1)
-        #   [3] right_outer_knuckle_joint        axis=+1  range=[0, 0.82]   (gearing +1)
-        #   [4] right_inner_finger_joint         axis=-1  range=[-pi, pi]   (gearing -1)
-        #   [5] right_inner_finger_knuckle_joint axis=-1  range=[-pi, pi]   (gearing +1)
-        #
-        # Mimic gearing from _add_robotiq_2f85_mimic_joints():
-        #   passive_joint = gearing * drive_joint
-        if len(finger_joints) < 6:
-            raise ValueError(f"2F-85 gripper requires at least 6 finger joints, got {len(finger_joints)}")
+    if len(finger_joints) < 8:
+        raise ValueError(f"Menagerie 2F-85 gripper requires at least 8 finger joints, got {len(finger_joints)}")
 
-        v = finger_joint_position
-        joint_pos[idx, finger_joints[0]] = v     # finger_joint (drive)
-        joint_pos[idx, finger_joints[1]] = v     # left_inner_finger_joint        (gearing +1)
-        joint_pos[idx, finger_joints[2]] = v     # left_inner_finger_knuckle_joint (gearing +1)
-        joint_pos[idx, finger_joints[3]] = v     # right_outer_knuckle_joint       (gearing +1)
-        joint_pos[idx, finger_joints[4]] = -v    # right_inner_finger_joint        (gearing -1)
-        joint_pos[idx, finger_joints[5]] = v     # right_inner_finger_knuckle_joint (gearing +1)
+    for idx in reset_ind_joint_pos:
+        joint_pos[idx, finger_joints[0]] = finger_joint_position  # right_driver_joint
+        joint_pos[idx, finger_joints[4]] = finger_joint_position  # left_driver_joint
 
 
 ##
@@ -404,12 +339,14 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         # XYZW grasp rotation offset
         # Converted from WXYZ [0.0, sqrt(2)/2, sqrt(2)/2, 0.0]
         # -> XYZW [sqrt(2)/2, sqrt(2)/2, 0.0, 0.0]
-        self.grasp_rot_offset = [
-            math.sqrt(2) / 2,
-            math.sqrt(2) / 2,
-            0.0,
-            0.0,
-        ]
+        # self.grasp_rot_offset = [
+        #     math.sqrt(2) / 2,
+        #     math.sqrt(2) / 2,
+        #     0.0,
+        #     0.0,
+        # ]
+
+        self.grasp_rot_offset = [0.0, 1.0, 0.0, 0.0]
         self.gripper_joint_setter_func = None  # Set in subclass
 
         # Gear orientation termination thresholds (in degrees)
@@ -565,24 +502,26 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
 
 @configclass
 class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
-    """Configuration for UR10e with Robotiq 2F-85 gripper."""
+    """Configuration for UR10e with Robotiq 2F-85 gripper (Menagerie MJCF model).
+
+    The gripper is loaded from MuJoCo Menagerie via ``builder.add_mjcf()`` in a
+    Newton builder callback. The MJCF parser automatically imports the proper
+    4-bar linkage with connect constraints, fixed tendon, damping, armature,
+    and springs. No manual constraint injection needed.
+    """
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # Register Newton builder callback to inject MuJoCo equality constraints
-        # for the Robotiq 2F-85 four-bar linkage (replaces PhysxMimicJointAPI).
-        # This runs after builder.add_usd(stage) but before builder.finalize().
-        NewtonManager.add_on_init_callback(_add_robotiq_2f85_mimic_joints)
+        # Override Newton's default builder instantiation to split USD loading
+        # so we can compose the MJCF gripper between arm and scene objects.
+        # This replaces the default instantiate_builder_from_stage() method.
+        NewtonManager.instantiate_builder_from_stage = staticmethod(_custom_instantiate_builder_with_gripper)
 
-        # switch robot to ur10e with 2F-85 gripper
-        # NOTE: joint_drive_props ensures UsdPhysics.DriveAPI is applied to ALL joints
-        # (including gripper joints that lack it in the source USD). Without this, the
-        # Newton/MuJoCo backend won't create actuators for those joints.
-        self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
+        # Use base UR10e WITHOUT gripper variant -- the gripper comes from MJCF
+        self.scene.robot = UR10e_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
+            spawn=UR10e_CFG.spawn.replace(
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
@@ -599,15 +538,12 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=1
                 ),
                 collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-                # NOTE: Non-zero gains ensure Newton marks these joints as position-driven
-                # (not effort-only) during USD import, so MuJoCo actuators are exported.
                 joint_drive_props=sim_utils.JointDrivePropertiesCfg(
                     drive_type="force",
                     stiffness=10,
                     damping=1.0e-6,
                 ),
             ),
-            actuators=UR10e_ROBOTIQ_2F_85_CFG.actuators.copy(),
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
                     "shoulder_pan_joint": 2.7228,
@@ -618,59 +554,47 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                     "wrist_3_joint": -1.9896,
                 },
                 pos=(0.0, 0.0, 0.0),
-                # XYZW identity quaternion
                 rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
-
-        # 2F-85 gripper actuator configuration
-        # All coupled joints handled by stiff equality constraints -- no actuators needed.
-        self.scene.robot.actuators.pop("gripper_finger", None)
-        self.scene.robot.actuators.pop("gripper_passive", None)
-        self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
-            joint_names_expr=["finger_joint"],
-            effort_limit_sim=40.0,
-            velocity_limit_sim=10.0,
-            stiffness=40.0,
-            damping=5.0,
-            friction=0.0,
-            armature=0.0,
+        # Gripper actuator is imported from MJCF (tendon-targeted, CTRL_DIRECT mode).
+        # No IsaacLab ImplicitActuatorCfg needed for the gripper.
+        # The arm actuators (shoulder, elbow, wrist) come from UR10e_CFG.
+        #
+        # Use BinaryTendonActionCfg to control the gripper via the tendon actuator.
+        # The Menagerie 2F-85 MJCF names the tendon "split" with ctrlrange [0, 255].
+        # 0 = open, 255 = fully closed.
+        self.actions.gripper_action = mdp.BinaryTendonActionCfg(
+            asset_name="robot",
+            tendon_names=["split"],
+            open_command_expr={"split": 0.0},
+            close_command_expr={"split": 255.0},
         )
-        # Passive linkage joints are handled by MuJoCo equality constraints
-        # (injected via _add_robotiq_2f85_mimic_joints callback above).
-        # No actuator needed -- remove the inherited one.
-        self.scene.robot.actuators.pop("gripper_passive", None)
 
         # Set gripper-specific joint setter function
         self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f85
 
         # gear offsets and grasp positions for the 2F-85 gripper
+        # Offset is [x, y, z] in the combined frame (gear_quat * grasp_rot_offset).
+        # The combined rotation flips the X direction, so negate the shaft offset.
         self.gear_offsets_grasp = {
-            "gear_small": [0.0, self.gear_offsets["gear_small"][0], -0.19],
-            "gear_medium": [0.0, self.gear_offsets["gear_medium"][0], -0.19],
-            "gear_large": [0.0, self.gear_offsets["gear_large"][0], -0.19],
+            "gear_small": [-self.gear_offsets["gear_small"][0], 0.0, -0.21],
+            "gear_medium": [-self.gear_offsets["gear_medium"][0], 0.0, -0.21],
+            "gear_large": [-self.gear_offsets["gear_large"][0], 0.0, -0.21],
         }
 
-        # Grasp widths for 2F-85 gripper
-        self.hand_grasp_width = {"gear_small": 0.60, "gear_medium": 0.50, "gear_large": 0.46}
+        # Initial driver joint positions for grasp/close (range [0, 0.8]).
+        # hand_grasp_width: open enough to surround the gear before closing.
+        # hand_close_width: initial joint state for close (tendon actuator takes over).
+        self.hand_grasp_width = {"gear_small": 0.58, "gear_medium": 0.48, "gear_large": 0.44}
+        self.hand_close_width = {"gear_small": 0.8, "gear_medium": 0.8, "gear_large": 0.8}
 
-        # Close widths for 2F-85 gripper
-        self.hand_close_width = {"gear_small": 0.57, "gear_medium": 0.48, "gear_large": 0.44}
-
-        # # Populate event term parameters
+        # Populate event term parameters
         self.events.set_robot_to_grasp_pose.params["gear_offsets_grasp"] = self.gear_offsets_grasp
         self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
         self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
-
-        # Populate termination term parameters
-        # self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
-        # self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name
-        # self.terminations.gear_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
-
-        # self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
-        # self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
 
 
 @configclass
