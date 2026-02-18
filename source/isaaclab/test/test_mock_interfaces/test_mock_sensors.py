@@ -39,16 +39,18 @@ class TestMockImu:
 
     def test_lazy_tensor_initialization(self, imu):
         """Test that unset properties return zero tensors with correct shapes."""
+        import warp as wp
+
         # Position
-        pos = imu.data.pos_w
+        pos = wp.to_torch(imu.data.pos_w)
         assert pos.shape == (4, 3)
         assert torch.all(pos == 0)
 
-        # Quaternion (should be identity: w=1, x=0, y=0, z=0)
-        quat = imu.data.quat_w
+        # Quaternion (should be identity in XYZW format: x=0, y=0, z=0, w=1)
+        quat = wp.to_torch(imu.data.quat_w)
         assert quat.shape == (4, 4)
-        assert torch.all(quat[:, 0] == 1)  # w component
-        assert torch.all(quat[:, 1:] == 0)  # xyz components
+        assert torch.all(quat[:, :3] == 0)  # xyz components
+        assert torch.all(quat[:, 3] == 1)  # w component
 
         # Velocities and accelerations
         assert imu.data.lin_vel_b.shape == (4, 3)
@@ -58,36 +60,44 @@ class TestMockImu:
 
     def test_projected_gravity_default(self, imu):
         """Test default gravity direction."""
-        gravity = imu.data.projected_gravity_b
+        import warp as wp
+
+        gravity = wp.to_torch(imu.data.projected_gravity_b)
         assert gravity.shape == (4, 3)
         # Default gravity should point down: (0, 0, -1)
         assert torch.all(gravity[:, 2] == -1)
 
     def test_set_mock_data(self, imu):
         """Test bulk data setter."""
+        import warp as wp
+
         lin_vel = torch.randn(4, 3)
         ang_vel = torch.randn(4, 3)
 
         imu.data.set_mock_data(lin_vel_b=lin_vel, ang_vel_b=ang_vel)
 
-        assert torch.allclose(imu.data.lin_vel_b, lin_vel)
-        assert torch.allclose(imu.data.ang_vel_b, ang_vel)
+        assert torch.allclose(wp.to_torch(imu.data.lin_vel_b), lin_vel)
+        assert torch.allclose(wp.to_torch(imu.data.ang_vel_b), ang_vel)
 
     def test_per_property_setter(self, imu):
         """Test individual property setters."""
+        import warp as wp
+
         lin_acc = torch.randn(4, 3)
         imu.data.set_lin_acc_b(lin_acc)
-        assert torch.allclose(imu.data.lin_acc_b, lin_acc)
+        assert torch.allclose(wp.to_torch(imu.data.lin_acc_b), lin_acc)
 
     def test_pose_composition(self, imu):
         """Test that pose_w combines pos_w and quat_w correctly."""
+        import warp as wp
+
         pos = torch.randn(4, 3)
-        quat = torch.tensor([[1, 0, 0, 0]] * 4, dtype=torch.float32)
+        quat = torch.tensor([[0, 0, 0, 1]] * 4, dtype=torch.float32)  # XYZW format
 
         imu.data.set_pos_w(pos)
         imu.data.set_quat_w(quat)
 
-        pose = imu.data.pose_w
+        pose = wp.to_torch(imu.data.pose_w)
         assert pose.shape == (4, 7)
         assert torch.allclose(pose[:, :3], pos)
         assert torch.allclose(pose[:, 3:], quat)

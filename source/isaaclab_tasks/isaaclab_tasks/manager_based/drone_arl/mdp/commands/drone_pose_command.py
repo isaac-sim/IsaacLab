@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.commands.pose_command import UniformPoseCommand
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error
@@ -35,8 +36,8 @@ class DroneUniformPoseCommand(UniformPoseCommand):
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            self.robot.data.root_pos_w,
-            self.robot.data.root_quat_w,
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
@@ -45,8 +46,8 @@ class DroneUniformPoseCommand(UniformPoseCommand):
             # Sub-terrain shift for correct position error calculation @grzemal
             self.pose_command_b[:, :3] + self._env.scene.env_origins,
             self.pose_command_w[:, 3:],
-            self.robot.data.body_pos_w[:, self.body_idx],
-            self.robot.data.body_quat_w[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx],
+            wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx],
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
@@ -63,5 +64,5 @@ class DroneUniformPoseCommand(UniformPoseCommand):
             self.pose_command_b[:, :3] + self._env.scene.env_origins, self.pose_command_b[:, 3:]
         )
         # -- current body pose
-        body_link_pose_w = self.robot.data.body_link_pose_w[:, self.body_idx]
+        body_link_pose_w = wp.to_torch(self.robot.data.body_link_pose_w)[:, self.body_idx]
         self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])

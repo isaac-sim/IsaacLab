@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import mdp
@@ -96,10 +97,16 @@ class DifficultyScheduler(ManagerTermBase):
         object: RigidObject = env.scene[object_cfg.name]
         command = env.command_manager.get_command("object_pose")
         des_pos_w, des_quat_w = combine_frame_transforms(
-            asset.data.root_pos_w[env_ids], asset.data.root_quat_w[env_ids], command[env_ids, :3], command[env_ids, 3:7]
+            wp.to_torch(asset.data.root_pos_w)[env_ids],
+            wp.to_torch(asset.data.root_quat_w)[env_ids],
+            command[env_ids, :3],
+            command[env_ids, 3:7],
         )
         pos_err, rot_err = compute_pose_error(
-            des_pos_w, des_quat_w, object.data.root_pos_w[env_ids], object.data.root_quat_w[env_ids]
+            des_pos_w,
+            des_quat_w,
+            wp.to_torch(object.data.root_pos_w)[env_ids],
+            wp.to_torch(object.data.root_quat_w)[env_ids],
         )
         pos_dist = torch.linalg.norm(pos_err, dim=1)
         rot_dist = torch.linalg.norm(rot_err, dim=1)

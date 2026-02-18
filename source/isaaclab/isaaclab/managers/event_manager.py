@@ -212,6 +212,12 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
+            # initialize class-based terms if not already initialized (for non-prestartup modes)
+            if inspect.isclass(term_cfg.func):
+                logger.info(
+                    f"Initializing term '{self._mode_term_names[mode][index]}' with class '{term_cfg.func.__name__}'."
+                )
+                term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]

@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
+import warp as wp
 
 from isaacsim.core.cloner import GridCloner
 
@@ -155,8 +156,8 @@ def _run_ik_controller(
     ee_pose_b_des = torch.zeros(num_envs, diff_ik_controller.action_dim, device=sim.device)
     ee_pose_b_des[:] = ee_pose_b_des_set[current_goal_idx]
     # Compute current pose of the end-effector
-    ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
-    root_pose_w = robot.data.root_pose_w
+    ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, ee_frame_idx]
+    root_pose_w = wp.to_torch(robot.data.root_pose_w)
     ee_pos_b, ee_quat_b = subtract_frame_transforms(
         root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
     )
@@ -178,14 +179,14 @@ def _run_ik_controller(
                 torch.testing.assert_close(pos_error_norm, des_error, rtol=0.0, atol=1e-3)
                 torch.testing.assert_close(rot_error_norm, des_error, rtol=0.0, atol=1e-3)
             # reset joint state
-            joint_pos = robot.data.default_joint_pos.clone()
-            joint_vel = robot.data.default_joint_vel.clone()
+            joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
+            joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
             # joint_pos *= sample_uniform(0.9, 1.1, joint_pos.shape, joint_pos.device)
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.set_joint_position_target(joint_pos)
             robot.write_data_to_sim()
             # randomize root state yaw, ik should work regardless base rotation
-            root_state = robot.data.root_state_w.clone()
+            root_state = wp.to_torch(robot.data.root_state_w).clone()
             root_state[:, 3:7] = random_yaw_orientation(num_envs, sim.device)
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
@@ -202,14 +203,14 @@ def _run_ik_controller(
             # at reset, the jacobians are not updated to the latest state
             # so we MUST skip the first step
             # obtain quantities from simulation
-            jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
-            ee_pose_w = robot.data.body_pose_w[:, ee_frame_idx]
-            root_pose_w = robot.data.root_pose_w
+            jacobian = wp.to_torch(robot.root_view.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
+            ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, ee_frame_idx]
+            root_pose_w = wp.to_torch(robot.data.root_pose_w)
             base_rot = root_pose_w[:, 3:7]
             base_rot_matrix = matrix_from_quat(quat_inv(base_rot))
             jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
             jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-            joint_pos = robot.data.joint_pos[:, arm_joint_ids]
+            joint_pos = wp.to_torch(robot.data.joint_pos)[:, arm_joint_ids]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]

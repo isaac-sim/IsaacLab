@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
@@ -83,9 +84,11 @@ class UniformPose2dCommand(CommandTerm):
     def _update_metrics(self):
         # logs data
         self.metrics["error_pos_2d"] = torch.linalg.norm(
-            self.pos_command_w[:, :2] - self.robot.data.root_pos_w[:, :2], dim=1
+            self.pos_command_w[:, :2] - wp.to_torch(self.robot.data.root_pos_w)[:, :2], dim=1
         )
-        self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w))
+        self.metrics["error_heading"] = torch.abs(
+            wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
+        )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # obtain env origins for the environments
@@ -94,18 +97,20 @@ class UniformPose2dCommand(CommandTerm):
         r = torch.empty(len(env_ids), device=self.device)
         self.pos_command_w[env_ids, 0] += r.uniform_(*self.cfg.ranges.pos_x)
         self.pos_command_w[env_ids, 1] += r.uniform_(*self.cfg.ranges.pos_y)
-        self.pos_command_w[env_ids, 2] += self.robot.data.default_root_state[env_ids, 2]
+        self.pos_command_w[env_ids, 2] += wp.to_torch(self.robot.data.default_root_state)[env_ids, 2]
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
-            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_pos_w[env_ids]
+            target_vec = self.pos_command_w[env_ids] - wp.to_torch(self.robot.data.root_pos_w)[env_ids]
             target_direction = torch.atan2(target_vec[:, 1], target_vec[:, 0])
             flipped_target_direction = wrap_to_pi(target_direction + torch.pi)
 
             # compute errors to find the closest direction to the current heading
             # this is done to avoid the discontinuity at the -pi/pi boundary
-            curr_to_target = wrap_to_pi(target_direction - self.robot.data.heading_w[env_ids]).abs()
-            curr_to_flipped_target = wrap_to_pi(flipped_target_direction - self.robot.data.heading_w[env_ids]).abs()
+            curr_to_target = wrap_to_pi(target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
+            curr_to_flipped_target = wrap_to_pi(
+                flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]
+            ).abs()
 
             # set the heading command to the closest direction
             self.heading_command_w[env_ids] = torch.where(
@@ -119,9 +124,9 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_command(self):
         """Re-target the position command to the current root state."""
-        target_vec = self.pos_command_w - self.robot.data.root_pos_w[:, :3]
-        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(self.robot.data.root_quat_w), target_vec)
-        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - self.robot.data.heading_w)
+        target_vec = self.pos_command_w - wp.to_torch(self.robot.data.root_pos_w)[:, :3]
+        self.pos_command_b[:] = quat_apply_inverse(yaw_quat(wp.to_torch(self.robot.data.root_quat_w)), target_vec)
+        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - wp.to_torch(self.robot.data.heading_w))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first time
@@ -181,18 +186,20 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
             self.terrain.terrain_levels[env_ids], self.terrain.terrain_types[env_ids], ids
         ]
         # offset the position command by the current root height
-        self.pos_command_w[env_ids, 2] += self.robot.data.default_root_state[env_ids, 2]
+        self.pos_command_w[env_ids, 2] += wp.to_torch(self.robot.data.default_root_state)[env_ids, 2]
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
-            target_vec = self.pos_command_w[env_ids] - self.robot.data.root_pos_w[env_ids]
+            target_vec = self.pos_command_w[env_ids] - wp.to_torch(self.robot.data.root_pos_w)[env_ids]
             target_direction = torch.atan2(target_vec[:, 1], target_vec[:, 0])
             flipped_target_direction = wrap_to_pi(target_direction + torch.pi)
 
             # compute errors to find the closest direction to the current heading
             # this is done to avoid the discontinuity at the -pi/pi boundary
-            curr_to_target = wrap_to_pi(target_direction - self.robot.data.heading_w[env_ids]).abs()
-            curr_to_flipped_target = wrap_to_pi(flipped_target_direction - self.robot.data.heading_w[env_ids]).abs()
+            curr_to_target = wrap_to_pi(target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]).abs()
+            curr_to_flipped_target = wrap_to_pi(
+                flipped_target_direction - wp.to_torch(self.robot.data.heading_w)[env_ids]
+            ).abs()
 
             # set the heading command to the closest direction
             self.heading_command_w[env_ids] = torch.where(

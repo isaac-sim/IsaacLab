@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+1.1.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to wrap warp data property accesses with ``wp.to_torch()``
+  for compatibility with the new warp backend. This includes direct RL environments
+  and all manager-based MDP functions (actions, observations, rewards, terminations,
+  commands, events, and curriculums).
+
+
 1.0.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~
 

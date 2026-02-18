@@ -20,6 +20,8 @@ mass matricescomputed by PhysX.
 
 import argparse
 
+import warp as wp
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -318,26 +320,30 @@ def update_states(
     gravity = robot.root_view.get_gravity_compensation_forces()[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
-    root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w))
+    root_rot_matrix = matrix_from_quat(quat_inv(wp.to_torch(robot.data.root_quat_w)))
     jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
     jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, jacobian_b[:, 3:, :])
 
     # Compute current pose of the end-effector
-    root_pos_w = robot.data.root_pos_w
-    root_quat_w = robot.data.root_quat_w
-    ee_pos_w = robot.data.body_pos_w[:, ee_frame_idx]
-    ee_quat_w = robot.data.body_quat_w[:, ee_frame_idx]
+    root_pos_w = wp.to_torch(robot.data.root_pos_w)
+    root_quat_w = wp.to_torch(robot.data.root_quat_w)
+    ee_pos_w = wp.to_torch(robot.data.body_pos_w)[:, ee_frame_idx]
+    ee_quat_w = wp.to_torch(robot.data.body_quat_w)[:, ee_frame_idx]
     ee_pos_b, ee_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
     root_pose_w = torch.cat([root_pos_w, root_quat_w], dim=-1)
     ee_pose_w = torch.cat([ee_pos_w, ee_quat_w], dim=-1)
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
     # Compute the current velocity of the end-effector
-    ee_vel_w = robot.data.body_vel_w[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
-    root_vel_w = robot.data.root_vel_w  # Extract root velocity in the world frame
+    ee_vel_w = wp.to_torch(robot.data.body_vel_w)[
+        :, ee_frame_idx, :
+    ]  # Extract end-effector velocity in the world frame
+    root_vel_w = wp.to_torch(robot.data.root_vel_w)  # Extract root velocity in the world frame
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
-    ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w, relative_vel_w[:, 0:3])  # From world to root frame
-    ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w, relative_vel_w[:, 3:6])
+    ee_lin_vel_b = quat_apply_inverse(
+        wp.to_torch(robot.data.root_quat_w), relative_vel_w[:, 0:3]
+    )  # From world to root frame
+    ee_ang_vel_b = quat_apply_inverse(wp.to_torch(robot.data.root_quat_w), relative_vel_w[:, 3:6])
     ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
     # Calculate the contact force
@@ -352,8 +358,8 @@ def update_states(
     ee_force_b = ee_force_w
 
     # Get joint positions and velocities
-    joint_pos = robot.data.joint_pos[:, arm_joint_ids]
-    joint_vel = robot.data.joint_vel[:, arm_joint_ids]
+    joint_pos = wp.to_torch(robot.data.joint_pos)[:, arm_joint_ids]
+    joint_vel = wp.to_torch(robot.data.joint_vel)[:, arm_joint_ids]
 
     return (
         jacobian_b,

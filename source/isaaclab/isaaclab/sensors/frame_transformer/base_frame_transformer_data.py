@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import torch
+import warp as wp
 
 
 class BaseFrameTransformerData(ABC):
@@ -36,48 +36,48 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pos_source(self) -> torch.Tensor:
+    def target_pos_source(self) -> wp.array:
         """Position of the target frame(s) relative to source frame. Shape is (N, M, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def target_quat_source(self) -> torch.Tensor:
+    def target_quat_source(self) -> wp.array:
         """Orientation of the target frame(s) relative to source frame (x, y, z, w). Shape is (N, M, 4)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def target_pose_w(self) -> torch.Tensor:
+    def target_pose_w(self) -> wp.array:
         """Pose of the target frame(s) after offset in world frame. Shape is (N, M, 7). Quaternion in xyzw order."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def target_pos_w(self) -> torch.Tensor:
+    def target_pos_w(self) -> wp.array:
         """Position of the target frame(s) after offset in world frame. Shape is (N, M, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def target_quat_w(self) -> torch.Tensor:
+    def target_quat_w(self) -> wp.array:
         """Orientation of the target frame(s) after offset in world frame (x, y, z, w). Shape is (N, M, 4)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def source_pose_w(self) -> torch.Tensor:
+    def source_pose_w(self) -> wp.array:
         """Pose of the source frame after offset in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def source_pos_w(self) -> torch.Tensor:
+    def source_pos_w(self) -> wp.array:
         """Position of the source frame after offset in world frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def source_quat_w(self) -> torch.Tensor:
+    def source_quat_w(self) -> wp.array:
         """Orientation of the source frame after offset in world frame (x, y, z, w). Shape is (N, 4)."""
         raise NotImplementedError

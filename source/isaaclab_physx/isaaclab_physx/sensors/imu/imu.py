@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from pxr import UsdGeom, UsdPhysics
 
@@ -20,6 +21,7 @@ from isaaclab.sensors.imu import BaseImu
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .imu_data import ImuData
+from .kernels import imu_reset_kernel, imu_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.imu import ImuCfg
@@ -107,19 +109,27 @@ class Imu(BaseImu):
         super().reset(env_ids)
         # resolve None
         if env_ids is None:
-            env_ids = slice(None)
-        # reset accumulative data buffers
-        self._data.pos_w[env_ids] = 0.0
-        self._data.quat_w[env_ids] = 0.0
-        self._data.quat_w[env_ids, 0] = 1.0
-        self._data.projected_gravity_b[env_ids] = 0.0
-        self._data.projected_gravity_b[env_ids, 2] = -1.0
-        self._data.lin_vel_b[env_ids] = 0.0
-        self._data.ang_vel_b[env_ids] = 0.0
-        self._data.lin_acc_b[env_ids] = 0.0
-        self._data.ang_acc_b[env_ids] = 0.0
-        self._prev_lin_vel_w[env_ids] = 0.0
-        self._prev_ang_vel_w[env_ids] = 0.0
+            env_ids_wp = self._ALL_ENV_INDICES
+        else:
+            env_ids_wp = wp.from_torch(torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32)
+
+        wp.launch(
+            imu_reset_kernel,
+            dim=env_ids_wp.shape[0],
+            inputs=[
+                env_ids_wp,
+                self._data._pos_w,
+                self._data._quat_w,
+                self._data._lin_vel_b,
+                self._data._ang_vel_b,
+                self._data._lin_acc_b,
+                self._data._ang_acc_b,
+                self._data._projected_gravity_b,
+                self._prev_lin_vel_w,
+                self._prev_ang_vel_w,
+            ],
+            device=self._device,
+        )
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
@@ -171,7 +181,8 @@ class Imu(BaseImu):
         gravity = self._physics_sim_view.get_gravity()
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        self.GRAVITY_VEC_W = gravity_dir.repeat(self.num_instances, 1)
+        gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
+        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f)
 
         # Create internal buffers
         self._initialize_buffers_impl()
@@ -184,59 +195,54 @@ class Imu(BaseImu):
             fixed_p = torch.tensor(fixed_pos_b, device=self._device).repeat(self._view.count, 1)
             fixed_q = torch.tensor(fixed_quat_b, device=self._device).repeat(self._view.count, 1)
 
-            cfg_p = self._offset_pos_b.clone()
-            cfg_q = self._offset_quat_b.clone()
+            cfg_p = wp.to_torch(self._offset_pos_b).clone()
+            cfg_q = wp.to_torch(self._offset_quat_b).clone()
 
             composed_p = fixed_p + math_utils.quat_apply(fixed_q, cfg_p)
             composed_q = math_utils.quat_mul(fixed_q, cfg_q)
 
-            self._offset_pos_b = composed_p
-            self._offset_quat_b = composed_q
+            self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
+            self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-
         # default to all sensors
         if len(env_ids) == self._num_envs:
-            env_ids = slice(None)
-        # world pose of the rigid source (ancestor) from the PhysX view
-        pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
+            env_ids_wp = self._ALL_ENV_INDICES
+        else:
+            env_ids_wp = wp.from_torch(torch.tensor(env_ids, dtype=torch.int32, device=self._device), dtype=wp.int32)
 
-        # sensor pose in world: apply composed offset
-        self._data.pos_w[env_ids] = pos_w + math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids])
-        self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b[env_ids])
+        # Fetch view data as warp typed arrays
+        transforms = self._view.get_transforms().view(wp.transformf)
+        velocities = self._view.get_velocities().view(wp.spatial_vectorf)
+        # get_coms() returns a CPU warp array; copy to pre-allocated GPU buffer
+        wp.copy(self._coms_buffer, self._view.get_coms().view(wp.transformf))
 
-        # COM of rigid source (body frame)
-        com_pos_b = self._view.get_coms().to(self.device).split([3, 4], dim=-1)[0]
-
-        # Velocities at rigid source COM
-        lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
-
-        # If sensor offset or COM != link origin, account for angular velocity contribution
-        lin_vel_w += torch.linalg.cross(
-            ang_vel_w, math_utils.quat_apply(quat_w, self._offset_pos_b[env_ids] - com_pos_b[env_ids]), dim=-1
+        wp.launch(
+            imu_update_kernel,
+            dim=env_ids_wp.shape[0],
+            inputs=[
+                env_ids_wp,
+                transforms,
+                velocities,
+                self._coms_buffer,
+                self._offset_pos_b,
+                self._offset_quat_b,
+                self._gravity_bias_w,
+                self.GRAVITY_VEC_W,
+                self._prev_lin_vel_w,
+                self._prev_ang_vel_w,
+                1.0 / self._dt,
+                self._data._pos_w,
+                self._data._quat_w,
+                self._data._lin_vel_b,
+                self._data._ang_vel_b,
+                self._data._lin_acc_b,
+                self._data._ang_acc_b,
+                self._data._projected_gravity_b,
+            ],
+            device=self._device,
         )
-
-        # numerical derivative (world frame)
-        lin_acc_w = (lin_vel_w - self._prev_lin_vel_w[env_ids]) / self._dt + self._gravity_bias_w[env_ids]
-        ang_acc_w = (ang_vel_w - self._prev_ang_vel_w[env_ids]) / self._dt
-
-        # batch rotate world->body using current sensor orientation
-        dynamics_data = torch.stack((lin_vel_w, ang_vel_w, lin_acc_w, ang_acc_w, self.GRAVITY_VEC_W[env_ids]), dim=0)
-        dynamics_data_rot = math_utils.quat_apply_inverse(self._data.quat_w[env_ids].repeat(5, 1), dynamics_data).chunk(
-            5, dim=0
-        )
-        # store the velocities.
-        self._data.lin_vel_b[env_ids] = dynamics_data_rot[0]
-        self._data.ang_vel_b[env_ids] = dynamics_data_rot[1]
-        # store the accelerations
-        self._data.lin_acc_b[env_ids] = dynamics_data_rot[2]
-        self._data.ang_acc_b[env_ids] = dynamics_data_rot[3]
-        # store projected gravity
-        self._data.projected_gravity_b[env_ids] = dynamics_data_rot[4]
-
-        self._prev_lin_vel_w[env_ids] = lin_vel_w
-        self._prev_ang_vel_w[env_ids] = ang_vel_w
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
@@ -244,17 +250,27 @@ class Imu(BaseImu):
         self._data.create_buffers(num_envs=self._view.count, device=self._device)
 
         # Sensor-internal buffers for velocity tracking (not exposed via data)
-        self._prev_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._prev_ang_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._prev_lin_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._prev_ang_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
 
         # Store sensor offset (applied relative to rigid source).
         # This may be composed later with a fixed ancestor->target transform.
-        self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
-        self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
+        offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
+        self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
+
         # Set gravity bias
-        self._gravity_bias_w = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(
-            self._view.count, 1
+        gravity_bias_torch = torch.tensor(list(self.cfg.gravity_bias), device=self._device).repeat(self._view.count, 1)
+        self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
+
+        # Pre-allocate all-env indices for fast path
+        self._ALL_ENV_INDICES = wp.from_torch(
+            torch.arange(self._view.count, dtype=torch.int32, device=self._device), dtype=wp.int32
         )
+
+        # Pre-allocate GPU buffer for COMs (get_coms() returns CPU array)
+        self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -275,19 +291,24 @@ class Imu(BaseImu):
         if self._view is None:
             return
         # get marker location
-        # -- base state
-        base_pos_w = self._data.pos_w.clone()
+        # -- base state (convert warp -> torch for visualization)
+        base_pos_w = wp.to_torch(self._data.pos_w).clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
-        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(
+            wp.to_torch(self._data.lin_acc_b).shape[0], 1
+        )
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
+        pos_w_torch = wp.to_torch(self._data.pos_w)
+        quat_w_torch = wp.to_torch(self._data.quat_w)
+        lin_acc_b_torch = wp.to_torch(self._data.lin_acc_b)
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
-                self._data.pos_w,
-                self._data.pos_w + math_utils.quat_apply(self._data.quat_w, self._data.lin_acc_b),
+                pos_w_torch,
+                pos_w_torch + math_utils.quat_apply(quat_w_torch, lin_acc_b_torch),
                 up_axis=up_axis,
                 device=self._device,
             )

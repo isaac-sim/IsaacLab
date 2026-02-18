@@ -11,6 +11,8 @@ import random
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
+from isaaclab_physx.assets.articulation.kernels import update_default_joint_values
 
 from isaacsim.core.utils.extensions import enable_extension
 
@@ -30,7 +32,21 @@ def set_default_joint_pose(
 ):
     # Set the default pose for robots in all envs
     asset = env.scene[asset_cfg.name]
-    asset.data.default_joint_pos[:] = torch.tensor(default_pose, device=env.device).repeat(env.num_envs, 1)
+    # Convert default_pose to 1D array and create joint indices
+    default_pose_1d = torch.tensor(default_pose, device=env.device).repeat(env.num_envs, 1).flatten()
+    num_joints = len(default_pose_1d)
+    joint_ids = torch.arange(num_joints, device=env.device, dtype=torch.int32)
+    # Use update_default_joint_values kernel to update all joints for all environments
+    wp.launch(
+        update_default_joint_values,
+        dim=(env.num_envs, num_joints),
+        inputs=[
+            default_pose_1d,
+            joint_ids,
+        ],
+        outputs=[asset.data.default_joint_pos],
+        device=env.device,
+    )
 
 
 def randomize_joint_by_gaussian_offset(
@@ -43,16 +59,16 @@ def randomize_joint_by_gaussian_offset(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Add gaussian noise to joint states
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    joint_pos = wp.to_torch(asset.data.default_joint_pos)[env_ids].clone()
+    joint_vel = wp.to_torch(asset.data.default_joint_vel)[env_ids].clone()
     joint_pos += math_utils.sample_gaussian(mean, std, joint_pos.shape, joint_pos.device)
 
     # Clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
+    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[env_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
 
     # Don't noise the gripper poses
-    joint_pos[:, -2:] = asset.data.default_joint_pos[env_ids, -2:]
+    joint_pos[:, -2:] = wp.to_torch(asset.data.default_joint_pos)[env_ids, -2:]
 
     # Set into the physics simulation
     asset.set_joint_position_target(joint_pos, env_ids=env_ids)
@@ -228,13 +244,14 @@ def randomize_rigid_objects_in_focus(
             object_id = random.randint(0, asset.num_objects - 1)
             selected_ids.append(object_id)
 
-            # Create object state tensor
-            object_states = torch.stack([out_focus_state] * asset.num_objects).to(device=env.device)
+            # Create object state tensor with shape (num_envs, num_objects, state_dim)
+            # Since we're updating one environment, we need shape (1, num_objects, state_dim)
+            object_states = torch.stack([out_focus_state] * asset.num_objects).to(device=env.device).unsqueeze(0)
             pose_tensor = torch.tensor([pose_list[asset_idx]], device=env.device)
             positions = pose_tensor[:, 0:3] + env.scene.env_origins[cur_env, 0:3]
             orientations = math_utils.quat_from_euler_xyz(pose_tensor[:, 3], pose_tensor[:, 4], pose_tensor[:, 5])
-            object_states[object_id, 0:3] = positions
-            object_states[object_id, 3:7] = orientations
+            object_states[0, object_id, 0:3] = positions.squeeze(0)
+            object_states[0, object_id, 3:7] = orientations.squeeze(0)
 
             asset.write_object_state_to_sim(
                 object_state=object_states, env_ids=torch.tensor([cur_env], device=env.device)

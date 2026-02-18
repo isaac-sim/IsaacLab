@@ -20,6 +20,8 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 
 import argparse
 
+import warp as wp
+
 from isaaclab.app import AppLauncher
 
 # add argparse arguments
@@ -160,9 +162,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         else:
             # obtain quantities from simulation
             jacobian = robot.root_view.get_jacobians()[:, ee_jacobi_idx, :, robot_entity_cfg.joint_ids]
-            ee_pose_w = robot.data.body_pose_w[:, robot_entity_cfg.body_ids[0]]
-            root_pose_w = robot.data.root_pose_w
-            joint_pos = robot.data.joint_pos[:, robot_entity_cfg.joint_ids]
+            ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, robot_entity_cfg.body_ids[0]]
+            root_pose_w = wp.to_torch(robot.data.root_pose_w)
+            joint_pos = wp.to_torch(robot.data.joint_pos)[:, robot_entity_cfg.joint_ids]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]

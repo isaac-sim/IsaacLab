@@ -2,6 +2,52 @@ Changelog
 ---------
 
 
+0.4.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all PhysX asset classes to warp backend:
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper`.
+  Internal state buffers now use ``wp.array`` with structured warp types
+  (``wp.vec3f``, ``wp.quatf``, ``wp.transformf``, ``wp.spatial_vectorf``).
+
+* Migrated all PhysX sensor classes to warp backend:
+  :class:`~isaaclab_physx.sensors.ContactSensor`,
+  :class:`~isaaclab_physx.sensors.Imu`, and
+  :class:`~isaaclab_physx.sensors.FrameTransformer`.
+
+* Split all write methods into ``_index`` and ``_mask`` variants for explicit
+  sparse-index vs. boolean-mask semantics.
+
+Added
+^^^^^
+
+* Added warp kernel modules for fused GPU computations:
+
+  * :mod:`isaaclab_physx.assets.kernels` — shared kernels for root state extraction,
+    velocity transforms, and data write-back.
+  * :mod:`isaaclab_physx.assets.articulation.kernels` — articulation-specific kernels
+    for joint state, body properties, and COM computations.
+  * :mod:`isaaclab_physx.assets.deformable_object.kernels` — nodal state and mean
+    vertex computations.
+  * :mod:`isaaclab_physx.assets.rigid_object_collection.kernels` — 2D indexed kernels
+    for multi-body collections.
+  * :mod:`isaaclab_physx.sensors.contact_sensor.kernels` — contact force aggregation
+    and history buffer management.
+  * :mod:`isaaclab_physx.sensors.imu.kernels` — fused IMU update combining acceleration,
+    gyroscope, and gravity projection.
+  * :mod:`isaaclab_physx.sensors.frame_transformer.kernels` — frame transform computations.
+
+* Added warp-based mock PhysX views for unit testing:
+  ``MockArticulationViewWarp``, ``MockRigidBodyViewWarp``, ``MockRigidContactViewWarp``.
+
+
 0.3.0 (2026-02-11)
 ~~~~~~~~~~~~~~~~~~
 

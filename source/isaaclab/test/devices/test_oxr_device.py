@@ -185,9 +185,9 @@ def test_xr_anchor(empty_env, mock_xrcore):
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()
-    np.testing.assert_almost_equal(position.cpu().numpy(), [[1, 2, 3]])
+    np.testing.assert_almost_equal(position.numpy(), [[1, 2, 3]])
     # XformPrimView returns quaternion in xyzw format, identity is [0, 0, 0, 1]
-    np.testing.assert_almost_equal(orientation.cpu().numpy(), [[0, 0, 0, 1]])
+    np.testing.assert_almost_equal(orientation.numpy(), [[0, 0, 0, 1]])
 
     # Check that xr anchor mode and custom anchor are set correctly
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
@@ -208,9 +208,8 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()
-    np.testing.assert_almost_equal(position.cpu().numpy(), [[0, 0, 0]])
-    # XformPrimView returns quaternion in xyzw format, identity is [0, 0, 0, 1]
-    np.testing.assert_almost_equal(orientation.cpu().numpy(), [[0, 0, 0, 1]])
+    np.testing.assert_almost_equal(position.numpy().tolist(), [[0, 0, 0]])
+    np.testing.assert_almost_equal(orientation.numpy().tolist(), [[0, 0, 0, 1]])
 
     # Check that xr anchor mode and custom anchor are set correctly
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
@@ -232,9 +231,8 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()
-    np.testing.assert_almost_equal(position.cpu().numpy(), [[0, 0, 0]])
-    # XformPrimView returns quaternion in xyzw format, identity is [0, 0, 0, 1]
-    np.testing.assert_almost_equal(orientation.cpu().numpy(), [[0, 0, 0, 1]])
+    np.testing.assert_almost_equal(position.numpy().tolist(), [[0, 0, 0]])
+    np.testing.assert_almost_equal(orientation.numpy().tolist(), [[0, 0, 0, 1]])
 
     # Check that xr anchor mode and custom anchor are set correctly
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
