@@ -560,9 +560,7 @@ class TestRandomPolicy:
 
             for key, val in gr00t_obs.items():
                 if isinstance(val, np.ndarray):
-                    assert self._check_valid_array(val), (
-                        f"Step {step}: NaN/Inf in gr00t_obs['{key}']"
-                    )
+                    assert self._check_valid_array(val), f"Step {step}: NaN/Inf in gr00t_obs['{key}']"
 
             action_chunk = self._make_random_gr00t_action()
             action = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
@@ -611,13 +609,9 @@ class TestRandomPolicy:
         gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
 
         # gr00t_mapping.state[0]: slice [0,7] → state.arm
-        np.testing.assert_allclose(
-            gr00t_obs["state.arm"][0, 0], np.arange(7, dtype=np.float32), atol=1e-6
-        )
+        np.testing.assert_allclose(gr00t_obs["state.arm"][0, 0], np.arange(7, dtype=np.float32), atol=1e-6)
         # gr00t_mapping.state[1]: slice [7,14] → state.hand
-        np.testing.assert_allclose(
-            gr00t_obs["state.hand"][0, 0], np.arange(7, 14, dtype=np.float32), atol=1e-6
-        )
+        np.testing.assert_allclose(gr00t_obs["state.hand"][0, 0], np.arange(7, 14, dtype=np.float32), atol=1e-6)
 
     def test_image_value_preservation(self, set_config_env) -> None:
         """Pixel values should survive the obs conversion without corruption."""
