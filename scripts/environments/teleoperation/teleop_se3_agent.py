@@ -72,6 +72,8 @@ import logging
 import gymnasium as gym
 import torch
 
+import omni.usd
+
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
@@ -315,5 +317,9 @@ def main() -> None:
 if __name__ == "__main__":
     # run the main function
     main()
+    # Close the USD stage and pump the event loop so the viewport widget
+    # processes the closure before the app teardown destroys it.
+    omni.usd.get_context().close_stage()
+    simulation_app.update()
     # close sim app
     simulation_app.close()

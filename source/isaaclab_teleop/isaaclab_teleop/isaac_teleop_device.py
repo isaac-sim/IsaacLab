@@ -127,6 +127,7 @@ class IsaacTeleopDevice:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context manager and clean up the IsaacTeleop session."""
+        self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
 

@@ -127,6 +127,8 @@ class XrAnchorSynchronizer:
                     return
 
                 rt_matrix = world_matrix_attr.Get()
+                if rt_matrix is None:
+                    return
                 rt_pos = rt_matrix.ExtractTranslation()
 
                 if self.__anchor_prim_initial_quat is None:

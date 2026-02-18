@@ -112,8 +112,7 @@ from typing import Any
 def remove_camera_configs(env_cfg: Any) -> Any:
     """Removes cameras from environments when using XR devices.
 
-    XR does not support additional cameras in the environment as they can cause
-    rendering conflicts and performance issues. This function scans the environment
+    Having additional cameras cause operation performance issues. This function scans the environment
     configuration for camera objects and removes them, along with any associated
     observation terms that reference these cameras.
 
@@ -145,7 +144,7 @@ def remove_camera_configs(env_cfg: Any) -> Any:
                     if hasattr(obsterm, "params") and obsterm.params:
                         for param_value in obsterm.params.values():
                             if isinstance(param_value, SceneEntityCfg) and param_value.name == attr_name:
-                                delattr(env_cfg.observations.policy, attr_name)
-                                logger.info(f"Removed camera observation term: {attr_name}")
+                                delattr(env_cfg.observations.policy, obs_name)
+                                logger.info(f"Removed camera observation term: {obs_name}")
                                 break
     return env_cfg
