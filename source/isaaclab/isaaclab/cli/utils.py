@@ -104,6 +104,7 @@ def extract_python_exe():
     # Try conda python.
     conda_prefix = os.environ.get("CONDA_PREFIX")
     if conda_prefix:
+        print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
         # Use conda python.
         if is_windows():
             python_exe = Path(conda_prefix) / "python.exe"
@@ -111,38 +112,63 @@ def extract_python_exe():
             python_exe = Path(conda_prefix) / "bin" / "python"
             if not python_exe.exists():
                 python_exe = Path(conda_prefix) / "bin" / "python3"
+    else:
+        print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
     # Try uv virtual environment python.
     if not python_exe or not Path(python_exe).exists():
+        if python_exe:
+            print_debug(
+                f'extract_python_exe(): Conda python "{python_exe}" not found, '
+                "trying to find virtual environment python."
+            )
+
         venv_prefix = os.environ.get("VIRTUAL_ENV")
         if venv_prefix:
+            print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
             if is_windows():
                 python_exe = Path(venv_prefix) / "Scripts" / "python.exe"
             else:
                 python_exe = Path(venv_prefix) / "bin" / "python"
                 if not python_exe.exists():
                     python_exe = Path(venv_prefix) / "bin" / "python3"
+        else:
+            print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
 
     # Try kit python.
     if not python_exe or not Path(python_exe).exists():
+        if python_exe:
+            print_debug(
+                f'extract_python_exe(): Virtual env python "{python_exe}" does not exist, trying to find Kit python...'
+            )
+
         if is_windows():
             python_exe = DEFAULT_ISAAC_SIM_PATH / "python.bat"
         else:
             python_exe = DEFAULT_ISAAC_SIM_PATH / "python.sh"
 
+        print_debug(f'extract_python_exe(): Checking for Kit python at: "{python_exe}"')
+
     # Try system python.
     if not python_exe or not Path(python_exe).exists():
+        print_debug(f'extract_python_exe(): Kit python "{python_exe}" does not exist. Checking system python.')
         python_exe = shutil.which("python") or shutil.which("python3")
         python_exe = Path(python_exe) if python_exe else None
+        print_debug(f"extract_python_exe(): System python candidate: {python_exe}")
 
     # See if we found it.
     if not python_exe or not Path(python_exe).exists():
+        print_debug(
+            f'extract_python_exe(): System python "{python_exe}" does not exist. '
+            "Checking sys.executable (current Python interpreter)."
+        )
         # Check if we can use python that is running us.
         # This handles docker or system installs.
         try:
             result = subprocess.run([sys.executable, "-m", "pip", "list"], capture_output=True, text=True, check=False)
             if "isaacsim-rl" in result.stdout:
                 python_exe = sys.executable
+                print_debug(f'extract_python_exe(): Found "isaacsim-rl" module in sys.executable: "{python_exe}"')
         except Exception:
             pass
 
