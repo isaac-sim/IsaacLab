@@ -5,10 +5,9 @@
 
 import tempfile
 
-from isaaclab_teleop import IsaacTeleopCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrCfg
 
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 

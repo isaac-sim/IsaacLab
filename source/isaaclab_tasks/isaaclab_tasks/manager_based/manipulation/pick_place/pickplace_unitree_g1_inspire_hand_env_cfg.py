@@ -6,7 +6,7 @@ import os
 import tempfile
 
 import torch
-from isaaclab_teleop import IsaacTeleopCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrCfg
 from pink.tasks import FrameTask
 
 import isaaclab.controllers.utils as ControllerUtils
@@ -14,7 +14,6 @@ import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm

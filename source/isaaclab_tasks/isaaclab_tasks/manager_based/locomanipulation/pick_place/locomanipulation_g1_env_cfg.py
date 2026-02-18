@@ -3,13 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg
+from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices.openxr import XrCfg
-from isaaclab.devices.openxr.xr_cfg import XrAnchorRotationMode
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
