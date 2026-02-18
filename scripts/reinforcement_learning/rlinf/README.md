@@ -49,8 +49,7 @@ scripts/reinforcement_learning/rlinf/
 ```
 source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
 ├── __init__.py
-├── extension.py             # RLinf extension: task registration, obs/action conversion
-└── rl_cfg.py                # Configuration dataclasses (RLinfIsaacLabCfg, etc.)
+└── extension.py             # RLinf extension: task registration, obs/action conversion
 ```
 
 **Task-specific config** (in `source/isaaclab_tasks/`):
@@ -59,8 +58,7 @@ source/isaaclab_contrib/isaaclab_contrib/rl/rlinf/
 source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/
 ├── config/
 │   └── isaaclab_ppo_gr00t_assemble_trocar.yaml   # Single YAML config (Hydra)
-├── g129_dex3_env_cfg.py                           # IsaacLab environment config
-└── rl_ppo_cfg.py                                  # Python-first RLinf config (reference)
+└── g129_dex3_env_cfg.py                           # IsaacLab environment config
 ```
 
 ## Prerequisites
