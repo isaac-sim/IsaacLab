@@ -201,8 +201,6 @@ def install(install_type="all"):
         print_info(f"Using uv/venv environment: {os.environ['VIRTUAL_ENV']}")
     elif os.environ.get("CONDA_PREFIX"):
         print_info(f"Using conda environment: {os.environ['CONDA_PREFIX']}")
-    else:
-        print_info("Using Isaac Sim Python or system Python")
 
     print_info(f"Python executable: {python_exe}")
 
@@ -221,6 +219,7 @@ def install(install_type="all"):
         # Install pytorch (version based on arch).
         ensure_cuda_torch()
 
+        # Install the python modules for the extensions in Isaac Lab.
         install_isaaclab_extensions()
 
         # Install the python packages for supported reinforcement learning frameworks.
