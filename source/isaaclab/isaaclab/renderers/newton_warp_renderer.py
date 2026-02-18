@@ -160,12 +160,16 @@ class NewtonWarpRenderer:
         self.__update_mapping()
         for name, articulation in self.scene.articulations.items():
             if mapping := self.physx_to_newton_body_mapping.get(name):
-                physx_pos = wp.from_torch(articulation.data.body_pos_w)
-                physx_quat = wp.from_torch(articulation.data.body_quat_w)
                 wp.launch(
                     NewtonWarpRenderer.__update_transforms,
                     mapping.shape,
-                    [mapping, self.newton_model.body_world, physx_pos, physx_quat, self.newton_state.body_q],
+                    [
+                        mapping,
+                        self.newton_model.body_world,
+                        articulation.data.body_pos_w,
+                        articulation.data.body_quat_w,
+                        self.newton_state.body_q,
+                    ],
                 )
 
     def update_camera(
@@ -210,8 +214,8 @@ class NewtonWarpRenderer:
     def __update_transforms(
         mapping: wp.array(dtype=wp.int32, ndim=2),
         newton_body_world: wp.array(dtype=wp.int32),
-        physx_pos: wp.array(dtype=wp.float32, ndim=3),
-        physx_quat: wp.array(dtype=wp.float32, ndim=3),
+        physx_pos: wp.array(dtype=wp.vec3f, ndim=2),
+        physx_quat: wp.array(dtype=wp.quatf, ndim=2),
         out_transform: wp.array(dtype=wp.transformf),
     ):
         physx_world_id, physx_body_id = wp.tid()
@@ -219,10 +223,7 @@ class NewtonWarpRenderer:
         newton_body_index = mapping[physx_world_id, physx_body_id]
         newton_world_id = newton_body_world[newton_body_index]
 
-        pos_raw = physx_pos[newton_world_id, physx_body_id]
-        pos = wp.vec3f(pos_raw[0], pos_raw[1], pos_raw[2])
-
-        quat_raw = physx_quat[newton_world_id, physx_body_id]
-        quat = wp.quatf(quat_raw[0], quat_raw[1], quat_raw[2], quat_raw[3])
+        pos = physx_pos[newton_world_id, physx_body_id]
+        quat = physx_quat[newton_world_id, physx_body_id]
 
         out_transform[newton_body_index] = wp.transformf(pos, quat)
