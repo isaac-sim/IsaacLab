@@ -189,7 +189,7 @@ class NewtonWarpRenderer(RendererBase):
         self._data_types = ["rgba", "rgb", "depth"]
         self._num_tiles_per_side = math.ceil(math.sqrt(self._num_envs))
 
-        # Raw buffers from the tiled camera sensor; output buffers are views set each frame in _copy_outputs_to_buffers()
+        # Raw buffers from tiled camera sensor; output buffers are views set each frame in _copy_outputs_to_buffers()
         self._raw_output_rgb_buffer = self._tiled_camera_sensor.create_color_image_output()
         self._raw_output_depth_buffer = self._tiled_camera_sensor.create_depth_image_output()
 
@@ -286,17 +286,13 @@ class NewtonWarpRenderer(RendererBase):
                     "newton_warp_copy_buffers",
                 ):
                     stats = Timer.get_timer_statistics(timer_name)
-                    print(
-                        f"[NewtonWarpRenderer] {timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
-                        flush=True,
-                    )
+                    msg = f"{timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}"
+                    print(f"[NewtonWarpRenderer] {msg}", flush=True)
                 for timer_name in ("newton_state_sync_usdrt", "newton_state_sync_tensors"):
                     try:
                         stats = Timer.get_timer_statistics(timer_name)
-                        print(
-                            f"[NewtonWarpRenderer] {timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}",
-                            flush=True,
-                        )
+                        msg = f"{timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}"
+                        print(f"[NewtonWarpRenderer] {msg}", flush=True)
                     except Exception:
                         pass
             except Exception:

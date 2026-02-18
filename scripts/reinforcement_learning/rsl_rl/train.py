@@ -3,13 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Train an RL agent with RSL-RL.
+"""Script to train RL agent with RSL-RL."""
 
-This script is the main entry point for RSL-RL training. It supports a renderer backend
-via ``--renderer_backend`` (e.g. ``rtx`` or ``warp_renderer`` for Newton Warp). When using
-Newton Warp, the end-of-run timing summary includes timers such as ``newton_warp_sync_plus_render``
-and ``newton_warp_render_full``. Launch Isaac Sim first (see AppLauncher below).
-"""
+"""Launch Isaac Sim Simulator first."""
 
 import argparse
 import sys
@@ -43,9 +39,11 @@ parser.add_argument(
     type=str,
     default="rtx",
     choices=("rtx", "warp_renderer"),
-    help="Camera renderer backend: 'rtx' (RTX) or 'warp_renderer' (Newton Warp). Sets env.scene variant unless overridden.",
+    help=(
+        "Camera renderer backend: 'rtx' (RTX) or 'warp_renderer' (Newton Warp). "
+        "Sets env.scene variant unless overridden."
+    ),
 )
-# When env.scene is not overridden, renderer_backend drives env.scene (see block below)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args

@@ -249,10 +249,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- compute observations (includes camera/tiled camera rendering)
         # note: done after reset to get the correct observations for reset envs
         if self.common_step_counter <= 3 or self.common_step_counter % 50 == 0:
-            print(
-                f"[PERF][manager_based_rl_env] Computing observations (camera/tiled camera render) step #{self.common_step_counter}...",
-                flush=True,
+            msg = (
+                f"[PERF][manager_based_rl_env] Computing observations (camera/tiled render) "
+                f"step #{self.common_step_counter}..."
             )
+            print(msg, flush=True)
         with Timer(name="render", msg="Rendering step took"):
             self.obs_buf = self.observation_manager.compute(update_history=True)
 

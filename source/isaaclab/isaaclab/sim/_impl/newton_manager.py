@@ -106,8 +106,9 @@ class NewtonManager:
         cls._device = device
 
         try:
-            import omni.usd
             from newton import Axis, ModelBuilder
+
+            import omni.usd
             from pxr import UsdGeom
         except ImportError as e:
             raise ImportError(
@@ -219,7 +220,6 @@ class NewtonManager:
         try:
             import omni.usd
             import usdrt
-            from pxr import UsdGeom
         except ImportError as e:
             logger.error(f"Failed to import USDRT for state synchronization: {e}")
             return
@@ -266,9 +266,9 @@ class NewtonManager:
 
                     # Extract rotation matrix (top-left 3x3)
                     rot_matrix = [
-                        [world_xform[0], world_xform[1], world_xform[2]],    # row 0
-                        [world_xform[4], world_xform[5], world_xform[6]],    # row 1
-                        [world_xform[8], world_xform[9], world_xform[10]]    # row 2
+                        [world_xform[0], world_xform[1], world_xform[2]],  # row 0
+                        [world_xform[4], world_xform[5], world_xform[6]],  # row 1
+                        [world_xform[8], world_xform[9], world_xform[10]],  # row 2
                     ]
 
                     # Convert rotation matrix to quaternion (xyzw format for Newton)
@@ -292,7 +292,11 @@ class NewtonManager:
             # Copy updated transforms back to Warp array
             if updated_count > 0:
                 cls._state_0.body_q.assign(body_q_np)
-                logger.debug(f"[NewtonManager] Updated {updated_count}/{cls._model.body_count} body transforms from PhysX")
+                logger.debug(
+                    "[NewtonManager] Updated %s/%s body transforms from PhysX",
+                    updated_count,
+                    cls._model.body_count,
+                )
 
     @classmethod
     def _body_path_to_newton_idx_lookup(cls, body_path: str, root_path: str, body_name: str) -> int:
@@ -320,6 +324,7 @@ class NewtonManager:
         if cls._scene is None or not cls._is_initialized:
             return
         import torch
+
         cls._physx_to_newton_maps = {}
 
         # One-time debug: log sample Newton body_key paths vs our paths (remove after fixing)
@@ -340,7 +345,9 @@ class NewtonManager:
             if not _debug_done:
                 logger.warning(
                     "[NewtonManager] DEBUG articulation %r: root_path[0]=%r, body_names[:8]=%r",
-                    art_name, root_paths[0], body_names[:8],
+                    art_name,
+                    root_paths[0],
+                    body_names[:8],
                 )
             # Newton body_key uses link paths under the articulation root (e.g. /World/envs/env_0/Robot/iiwa7_link_0).
             # PhysX root_path is often the root joint prim (e.g. .../Robot/root_joint); use its parent as base.
@@ -354,11 +361,18 @@ class NewtonManager:
                     flat_idx += 1
             num_matched = (mapping >= 0).sum().item()
             cls._physx_to_newton_maps[art_name] = mapping
-            logger.info(f"[NewtonManager] Built GPU mapping for articulation '{art_name}': {num_matched}/{total_bodies} bodies matched")
+            logger.info(
+                "[NewtonManager] Built GPU mapping for articulation '%s': %s/%s bodies matched",
+                art_name,
+                num_matched,
+                total_bodies,
+            )
             if num_matched == 0:
                 logger.warning(
                     "[NewtonManager] DEBUG no matches for %r; sample our path=%r/%r",
-                    art_name, root_paths[0], body_names[0],
+                    art_name,
+                    root_paths[0],
+                    body_names[0],
                 )
         if hasattr(cls._scene, "rigid_objects") and cls._scene.rigid_objects:
             for obj_name, rigid_object in cls._scene.rigid_objects.items():
@@ -368,7 +382,11 @@ class NewtonManager:
                 for env_idx in range(num_instances):
                     mapping[env_idx] = cls._body_path_to_newton_idx.get(root_paths[env_idx], -1)
                 cls._physx_to_newton_maps[obj_name] = mapping
-                logger.info(f"[NewtonManager] Built GPU mapping for rigid object '{obj_name}': {num_instances} instances")
+                logger.info(
+                    "[NewtonManager] Built GPU mapping for rigid object '%s': %s instances",
+                    obj_name,
+                    num_instances,
+                )
         if not _debug_done:
             cls._build_mapping_debug_done = True
 
@@ -388,7 +406,6 @@ class NewtonManager:
         if cls._scene is None or not hasattr(cls, "_physx_to_newton_maps"):
             cls.update_state_from_usdrt()
             return
-        import torch
         with Timer(name="newton_state_sync_tensors", msg="Newton state sync (PhysX tensors GPU) took"):
             for art_name, articulation in cls._scene.articulations.items():
                 if art_name not in cls._physx_to_newton_maps:

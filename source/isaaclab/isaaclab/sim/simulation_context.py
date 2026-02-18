@@ -75,6 +75,7 @@ class SimulationContext:
 
     # SINGLETON PATTERN
 
+<<<<<<< HEAD
     _instance: SimulationContext | None = None
 
     def __new__(cls, cfg: SimulationCfg | None = None):
@@ -82,6 +83,201 @@ class SimulationContext:
         if cls._instance is not None:
             return cls._instance
         return super().__new__(cls)
+=======
+        self._disable_app_control_on_stop_handle = True
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
+        _t0 = _t.perf_counter()
+        super().reset(soft=soft)
+        # app.update() may be changing the cuda device in reset, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+        # enable kinematic rendering with fabric
+        if self.physics_sim_view:
+            _t1 = _t.perf_counter()
+            self.physics_sim_view._backend.initialize_kinematic_bodies()
+            elapsed = _t.perf_counter() - _t1
+            print(f"[PERF][simulation_context] reset(): initialize_kinematic_bodies() took {elapsed:.3f} s", flush=True)
+        # perform additional rendering steps to warm up replicator buffers
+        # this is only needed for the first time we set the simulation
+        if not soft:
+            for i in range(2):
+                _t2 = _t.perf_counter()
+                self.render()
+                elapsed = _t.perf_counter() - _t2
+                print(f"[PERF][simulation_context] reset(): render() warmup {i + 1}/2 took {elapsed:.3f} s", flush=True)
+        self._disable_app_control_on_stop_handle = False
+
+    def forward(self) -> None:
+        """Updates articulation kinematics and fabric for rendering."""
+        if self._fabric_iface is not None:
+            if self.physics_sim_view is not None and self.is_playing():
+                # Update the articulations' link's poses before rendering
+                self.physics_sim_view.update_articulations_kinematic()
+            self._update_fabric(0.0, 0.0)
+
+    def step(self, render: bool = True):
+        """Steps the simulation.
+
+        .. note::
+            This function blocks if the timeline is paused. It only returns when the timeline is playing.
+
+        Args:
+            render: Whether to render the scene after stepping the physics simulation.
+                    If set to False, the scene is not rendered and only the physics simulation is stepped.
+        """
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
+
+        # update anim recording if needed
+        if self._anim_recording_enabled:
+            is_anim_recording_finished = self._update_anim_recording()
+            if is_anim_recording_finished:
+                logger.warning("[INFO][SimulationContext]: Animation recording finished. Closing app.")
+                self._app.shutdown()
+
+        # check if the simulation timeline is paused. in that case keep stepping until it is playing
+        if not self.is_playing():
+            # step the simulator (but not the physics) to have UI still active
+            while not self.is_playing():
+                self.render()
+                # meantime if someone stops, break out of the loop
+                if self.is_stopped():
+                    break
+            # need to do one step to refresh the app
+            # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
+            #   without this the app becomes unresponsive.
+            # FIXME: This steps physics as well, which we is not good in general.
+            self.app.update()
+
+        # step the simulation
+        import time as _t
+
+        _t0 = _t.perf_counter()
+        super().step(render=render)
+        if not hasattr(self, "_step_log_count"):
+            self._step_log_count = 0
+        self._step_log_count += 1
+        if self._step_log_count <= 3 or self._step_log_count % 100 == 0:
+            elapsed = _t.perf_counter() - _t0
+            print(
+                f"[PERF][simulation_context] step(): super().step(render={render}) took {elapsed:.3f} s "
+                f"(call #{self._step_log_count})",
+                flush=True,
+            )
+
+        # app.update() may be changing the cuda device in step, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
+    def render(self, mode: RenderMode | None = None):
+        """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
+
+        This function is used to refresh the rendering components of the simulation. This includes updating the
+        view-ports, UI elements, and other extensions (besides physics simulation) that are running in the
+        background. The rendering components are refreshed based on the render mode.
+
+        Please see :class:`RenderMode` for more information on the different render modes.
+
+        Args:
+            mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
+        """
+        # check if we need to raise an exception that was raised in a callback
+        if builtins.ISAACLAB_CALLBACK_EXCEPTION is not None:
+            exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
+            builtins.ISAACLAB_CALLBACK_EXCEPTION = None
+            raise exception_to_raise
+        import time as _t
+
+        _t0 = _t.perf_counter()
+        # check if we need to change the render mode
+        if mode is not None:
+            self.set_render_mode(mode)
+        # render based on the render mode
+        if self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING:
+            # we never want to render anything here (this is for complete headless mode)
+            pass
+        elif self.render_mode == self.RenderMode.NO_RENDERING:
+            # throttle the rendering frequency to keep the UI responsive
+            self._render_throttle_counter += 1
+            if self._render_throttle_counter % self._render_throttle_period == 0:
+                self._render_throttle_counter = 0
+                # here we don't render viewport so don't need to flush fabric data
+                # note: we don't call super().render() anymore because they do flush the fabric data
+                self.set_setting("/app/player/playSimulations", False)
+                self._app.update()
+                self.set_setting("/app/player/playSimulations", True)
+        else:
+            # manually flush the fabric data to update Hydra textures
+            _t1 = _t.perf_counter()
+            self.forward()
+            # render the simulation
+            _t2 = _t.perf_counter()
+            # note: we don't call super().render() anymore because they do above operation inside
+            #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
+            self.set_setting("/app/player/playSimulations", False)
+            self._app.update()
+            self.set_setting("/app/player/playSimulations", True)
+        # Throttle render() logging to every 50th call to avoid log flood
+        if not hasattr(self, "_render_log_count"):
+            self._render_log_count = 0
+        self._render_log_count += 1
+        if self._render_log_count <= 3 or self._render_log_count % 50 == 0:
+            elapsed = _t.perf_counter() - _t0
+            print(
+                f"[PERF][simulation_context] render() total took {elapsed:.3f} s (call #{self._render_log_count})",
+                flush=True,
+            )
+
+        # app.update() may be changing the cuda device, so we force it back to our desired device here
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
+
+    """
+    Operations - Override (extension)
+    """
+
+    async def reset_async(self, soft: bool = False):
+        # need to load all "physics" information from the USD file
+        if not soft:
+            omni.physx.acquire_physx_interface().force_load_physics_from_usd()
+        # play the simulation
+        await super().reset_async(soft=soft)
+
+    """
+    Initialization/Destruction - Override.
+    """
+
+    def _init_stage(self, *args, **kwargs) -> Usd.Stage:
+        _ = super()._init_stage(*args, **kwargs)
+        with sim_utils.use_stage(self.get_initial_stage()):
+            # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+            # when in headless mode
+            self.set_setting("/app/player/playSimulations", False)
+            self._app.update()
+            self.set_setting("/app/player/playSimulations", True)
+            # set additional physx parameters and bind material
+            self._set_additional_physx_params()
+            # load flatcache/fabric interface
+            self._load_fabric_interface()
+            # return the stage
+            return self.stage
+
+    async def _initialize_stage_async(self, *args, **kwargs) -> Usd.Stage:
+        await super()._initialize_stage_async(*args, **kwargs)
+        # set additional physx parameters and bind material
+        self._set_additional_physx_params()
+        # load flatcache/fabric interface
+        self._load_fabric_interface()
+        # return the stage
+        return self.stage
+>>>>>>> 7e3e86f0a8c (--format)
 
     @classmethod
     def instance(cls) -> SimulationContext | None:

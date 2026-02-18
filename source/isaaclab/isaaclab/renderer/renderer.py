@@ -22,7 +22,7 @@ class RendererBase(ABC):
         # List of data types to use for rendering, e.g. ["rgb", "depth", "semantic_segmentation"]
         self._data_types = []
 
-        # output buffer format is a dict, where the keys is the data type and the value is a list of buffers for each camera
+        # output buffer format: dict mapping data type -> list of buffers (one per camera)
         # TODO: Document the standard format of the output data buffers. Need discussion.
         self._output_data_buffers = dict()
 
