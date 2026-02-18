@@ -133,12 +133,6 @@ def cli():
 
     elif args.python is not None:
         # Python execution.
-        # Args.python is a list of remaining args.
-        python_exe = extract_python_exe()
-
-        # The first arg might be the script or -m, pass all.
-        cmd = [python_exe] + args.python
-        env = os.environ.copy()
 
         isaacsim_path = None
 
@@ -149,6 +143,7 @@ def cli():
             print_warning("Isaac Sim not found.")
 
         # Set up proper env vars for Isaac Sim
+        env = os.environ.copy()
         if isaacsim_path and isaacsim_path.exists():
             env["CARB_APP_PATH"] = str(isaacsim_path / "kit")
             env["EXP_PATH"] = str(isaacsim_path / "apps")
@@ -159,8 +154,10 @@ def cli():
 
         env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
 
-        # We use subprocess calling python.
-        subprocess.run(cmd, env=env)
+        if args.python:
+            run_python_command(args.python[0], args.python[1:], env=env)
+        else:
+            run_python_command("-i", [], env=env)
 
     elif args.sim is not None:
         # Sim execution.
