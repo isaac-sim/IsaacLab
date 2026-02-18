@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import re
 import shutil
 import subprocess
 import sys
@@ -10,8 +11,8 @@ from pathlib import Path
 
 from .utils import (
     ISAACLAB_ROOT,
+    determine_python_version,
     extract_isaacsim_path,
-    is_isaacsim_version_5_x,
     is_windows,
     print_error,
     print_info,
@@ -20,7 +21,7 @@ from .utils import (
 )
 
 
-def patch_environment_yml(yml_path, use_python_311):
+def patch_environment_yml(yml_path, python_version="3.12"):
     """
     Read environment.yml, return content with patched python version.
     """
@@ -29,10 +30,9 @@ def patch_environment_yml(yml_path, use_python_311):
 
     new_lines = []
     for line in lines:
-        if "python=3.12" in line and use_python_311:
-            new_lines.append(line.replace("python=3.12", "python=3.11"))
-        else:
-            new_lines.append(line)
+        if "python=3." in line:
+            line = re.sub(r"python=3\.\d+(?:\.\d+)?", f"python={python_version}", line)
+        new_lines.append(line)
     return "".join(new_lines)
 
 
@@ -56,15 +56,18 @@ def get_conda_prefix(env_name):
 
 
 def setup_conda_env(env_name):
-    """setup anaconda environment for Isaac Lab"""
+    """Setup conda environment for Isaac Lab"""
+
     # Check if conda is installed.
     if not shutil.which("conda"):
         print_error("Conda could not be found. Please install conda and try again.")
         sys.exit(1)
 
-    # Check if _isaac_sim symlink exists and isaacsim-rl is not installed via pip.
-    check_symlink = not (ISAACLAB_ROOT / "_isaac_sim").exists()
-    check_pip = True
+    # Check if _isaac_sim symlink exists
+    symlink_missing = not (ISAACLAB_ROOT / "_isaac_sim").exists()
+
+    # Check if pip package isaacsim-rl is installed.
+    pip_package_missing = True
     try:
         subprocess.run(
             [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
@@ -72,11 +75,11 @@ def setup_conda_env(env_name):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        check_pip = False  # installed
+        pip_package_missing = False  # installed
     except subprocess.CalledProcessError:
-        check_pip = True  # not installed
+        pip_package_missing = True  # not installed
 
-    if check_symlink and check_pip:
+    if symlink_missing and pip_package_missing:
         print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
         print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
         print(
@@ -88,23 +91,24 @@ def setup_conda_env(env_name):
     result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True)
     if env_name in result.stdout:
         print_info(f"Conda environment named '{env_name}' already exists.")
+        env_exists = True
     else:
         print_info(f"Creating conda environment named '{env_name}'...")
         print_info(f"Installing dependencies from {ISAACLAB_ROOT}/environment.yml")
+        env_exists = False
 
-        # Patch Python version if needed, but back up first.
+    if not env_exists:
+        # Patch Python version if needed.
         env_yml = ISAACLAB_ROOT / "environment.yml"
 
+        # Determine appropriate python version based on Isaac Sim version.
+        python_version = determine_python_version()
+
         # Prepare patched yml.
-        use_311 = is_isaacsim_version_5_x()
-        if use_311:
-            print_info("Detected Isaac Sim 5.X -> using python=3.11")
-        else:
-            print_info("Isaac Sim 6.0+ detected, installing python=3.12")
 
         # Write a temp file.
         temp_yml = ISAACLAB_ROOT / "environment_temp.yml"
-        patched_content = patch_environment_yml(env_yml, use_311)
+        patched_content = patch_environment_yml(env_yml, python_version)
         with open(temp_yml, "w") as f:
             f.write(patched_content)
 

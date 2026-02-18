@@ -233,27 +233,44 @@ def extract_isaacsim_exe():
     return [str(isaacsim_exe)]
 
 
-def is_isaacsim_version_5_x():
-    """Detects Isaac Sim version and returns True if version starts with 5.X"""
+def determine_python_version():
+    """Detect Isaac Sim version and return the matching Python version."""
+
     # 1. Version file
     version_file = DEFAULT_ISAAC_SIM_PATH / "VERSION"
+    isaacsim_version = None
     if version_file.exists():
         with open(version_file) as f:
             version = f.read().strip()
-            if version.startswith("5."):
-                return True
-            return False
+            if version:
+                isaacsim_version = version
 
-    # 2. Try importing
-    try:
-        from importlib.metadata import version
+    # 2. Try importing package metadata
+    if isaacsim_version is None:
+        try:
+            from importlib.metadata import version
 
-        v = version("isaacsim")
-        return v.startswith("5.")
-    except Exception:
-        pass
+            isaacsim_version = version("isaacsim")
+        except Exception:
+            pass
 
-    return False
+    # We can't find the version, raise an error.
+    if isaacsim_version is None:
+        print_error("Unable to determine Isaac Sim version.")
+        raise RuntimeError("Unable to determine Isaac Sim version.")
+
+    if isaacsim_version.startswith("5."):
+        python_version = "3.11"
+    elif isaacsim_version.startswith("6."):
+        python_version = "3.12"
+    else:
+        # We don't recognize the IsaacSim version.
+        print_error(f"Unsupported Isaac Sim version: {isaacsim_version}")
+        raise RuntimeError(f"Unsupported Isaac Sim version: {isaacsim_version}")
+
+    print_info(f"Detected Isaac Sim {isaacsim_version} -> using python={python_version}")
+
+    return python_version
 
 
 def run_docker_helper(args):

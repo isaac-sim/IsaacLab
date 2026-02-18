@@ -9,7 +9,7 @@ import sys
 
 from .utils import (
     ISAACLAB_ROOT,
-    is_isaacsim_version_5_x,
+    determine_python_version,
     is_windows,
     print_error,
     print_info,
@@ -53,11 +53,8 @@ def setup_uv_env(env_name):
 
     env_path = ISAACLAB_ROOT / env_name
 
-    # Determine python version.
-    if is_isaacsim_version_5_x():
-        py_ver = "3.11"
-    else:
-        py_ver = "3.12"
+    # Determine appropriate python version based on Isaac Sim version.
+    py_ver = determine_python_version()
 
     # Check if the environment exists.
     if not env_path.exists():
