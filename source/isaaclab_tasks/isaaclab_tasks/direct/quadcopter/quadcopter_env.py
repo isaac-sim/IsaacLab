@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -124,7 +125,7 @@ class QuadcopterEnv(DirectRLEnv):
         }
         # Get specific body indices
         self._body_id = self._robot.find_bodies("body")[0]
-        self._robot_mass = self._robot.root_view.get_masses()[0].sum()
+        self._robot_mass = wp.to_torch(self._robot.root_view.get_masses())[0].sum()
         self._gravity_magnitude = torch.tensor(self.sim.cfg.gravity, device=self.device).norm()
         self._robot_weight = (self._robot_mass * self._gravity_magnitude).item()
 
@@ -159,13 +160,13 @@ class QuadcopterEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         desired_pos_b, _ = subtract_frame_transforms(
-            self._robot.data.root_pos_w, self._robot.data.root_quat_w, self._desired_pos_w
+            wp.to_torch(self._robot.data.root_pos_w), wp.to_torch(self._robot.data.root_quat_w), self._desired_pos_w
         )
         obs = torch.cat(
             [
-                self._robot.data.root_lin_vel_b,
-                self._robot.data.root_ang_vel_b,
-                self._robot.data.projected_gravity_b,
+                wp.to_torch(self._robot.data.root_lin_vel_b),
+                wp.to_torch(self._robot.data.root_ang_vel_b),
+                wp.to_torch(self._robot.data.projected_gravity_b),
                 desired_pos_b,
             ],
             dim=-1,
@@ -174,9 +175,9 @@ class QuadcopterEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        lin_vel = torch.sum(torch.square(self._robot.data.root_lin_vel_b), dim=1)
-        ang_vel = torch.sum(torch.square(self._robot.data.root_ang_vel_b), dim=1)
-        distance_to_goal = torch.linalg.norm(self._desired_pos_w - self._robot.data.root_pos_w, dim=1)
+        lin_vel = torch.sum(torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)), dim=1)
+        ang_vel = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)), dim=1)
+        distance_to_goal = torch.linalg.norm(self._desired_pos_w - wp.to_torch(self._robot.data.root_pos_w), dim=1)
         distance_to_goal_mapped = 1 - torch.tanh(distance_to_goal / 0.8)
         rewards = {
             "lin_vel": lin_vel * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -191,16 +192,18 @@ class QuadcopterEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        died = torch.logical_or(self._robot.data.root_pos_w[:, 2] < 0.1, self._robot.data.root_pos_w[:, 2] > 2.0)
+        died = torch.logical_or(
+            wp.to_torch(self._robot.data.root_pos_w)[:, 2] < 0.1, wp.to_torch(self._robot.data.root_pos_w)[:, 2] > 2.0
+        )
         return died, time_out
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self._robot._ALL_INDICES
+            env_ids = wp.to_torch(self._robot._ALL_INDICES)
 
         # Logging
         final_distance_to_goal = torch.linalg.norm(
-            self._desired_pos_w[env_ids] - self._robot.data.root_pos_w[env_ids], dim=1
+            self._desired_pos_w[env_ids] - wp.to_torch(self._robot.data.root_pos_w)[env_ids], dim=1
         ).mean()
         extras = dict()
         for key in self._episode_sums.keys():
@@ -227,9 +230,9 @@ class QuadcopterEnv(DirectRLEnv):
         self._desired_pos_w[env_ids, :2] += self._terrain.env_origins[env_ids, :2]
         self._desired_pos_w[env_ids, 2] = torch.zeros_like(self._desired_pos_w[env_ids, 2]).uniform_(0.5, 1.5)
         # Reset robot state
-        joint_pos = self._robot.data.default_joint_pos[env_ids]
-        joint_vel = self._robot.data.default_joint_vel[env_ids]
-        default_root_state = self._robot.data.default_root_state[env_ids]
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
+        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
+        default_root_state = wp.to_torch(self._robot.data.default_root_state)[env_ids]
         default_root_state[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)

@@ -11,23 +11,19 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    is_identity_pose,
-    normalize,
-    quat_from_angle_axis,
-    subtract_frame_transforms,
-)
+from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
+from .kernels import frame_transformer_update_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer import FrameTransformerCfg
@@ -347,75 +343,85 @@ class FrameTransformer(BaseFrameTransformer):
             self._target_frame_offset_pos = torch.stack(target_frame_offset_pos).repeat(self._num_envs, 1)
             self._target_frame_offset_quat = torch.stack(target_frame_offset_quat).repeat(self._num_envs, 1)
 
+        # Store number of target frames for kernel launch
+        self._num_target_frames = len(self._target_frame_names)
+
+        # --- Pre-compute warp index arrays for fused kernel ---
+        # Source raw indices: (N,) — direct index into raw_transforms per env
+        source_raw_list = []
+        for e in range(self._num_envs):
+            source_raw_list.append(self._per_env_indices[self._source_frame_body_ids[e].item()])
+        self._source_raw_indices = wp.from_torch(
+            torch.tensor(source_raw_list, dtype=torch.int32, device=self._device), dtype=wp.int32
+        )
+
+        # Target raw indices: (N, M) — direct index into raw_transforms per (env, frame)
+        M = self._num_target_frames
+        target_raw = torch.zeros((self._num_envs, M), dtype=torch.int32, device=self._device)
+        for e in range(self._num_envs):
+            for f in range(M):
+                dup_idx = self._duplicate_frame_indices[e * M + f].item()
+                body_idx = self._target_frame_body_ids[dup_idx].item()
+                target_raw[e, f] = self._per_env_indices[body_idx]
+        self._target_raw_indices = wp.from_torch(target_raw.contiguous(), dtype=wp.int32)
+
+        # --- Pre-compute warp offset arrays (always created; identity when not configured) ---
+        # Source offsets: (N,)
+        if self._apply_source_frame_offset:
+            self._source_offset_pos_wp = wp.from_torch(self._source_frame_offset_pos.contiguous(), dtype=wp.vec3f)
+            self._source_offset_quat_wp = wp.from_torch(self._source_frame_offset_quat.contiguous(), dtype=wp.quatf)
+        else:
+            self._source_offset_pos_wp = wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device)
+            self._source_offset_quat_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)
+            # Identity quaternion: (0, 0, 0, 1)
+            wp.to_torch(self._source_offset_quat_wp)[:, 3] = 1.0
+
+        # Target offsets: (M,)
+        if self._apply_target_frame_offset:
+            # Only need per-frame offsets (not per-env*frame), take first M entries
+            tgt_off_pos = torch.stack(target_frame_offset_pos)  # (M, 3)
+            tgt_off_quat = torch.stack(target_frame_offset_quat)  # (M, 4)
+            self._target_offset_pos_wp = wp.from_torch(tgt_off_pos.contiguous(), dtype=wp.vec3f)
+            self._target_offset_quat_wp = wp.from_torch(tgt_off_quat.contiguous(), dtype=wp.quatf)
+        else:
+            self._target_offset_pos_wp = wp.zeros(M, dtype=wp.vec3f, device=self._device)
+            self._target_offset_quat_wp = wp.zeros(M, dtype=wp.quatf, device=self._device)
+            # Identity quaternion: (0, 0, 0, 1)
+            wp.to_torch(self._target_offset_quat_wp)[:, 3] = 1.0
+
         # Create data buffers
         self._data.create_buffers(
             num_envs=self._num_envs,
-            num_target_frames=len(duplicate_frame_indices),
+            num_target_frames=self._num_target_frames,
             target_frame_names=self._target_frame_names,
             device=self._device,
         )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # default to all sensors
-        if len(env_ids) == self._num_envs:
-            env_ids = ...
+        # Get raw transforms from PhysX view and reinterpret as transformf
+        raw_transforms = self._frame_physx_view.get_transforms().view(wp.transformf)
 
-        # Extract transforms from view - shape is:
-        # (the total number of source and target body frames being tracked * self._num_envs, 7)
-        transforms = self._frame_physx_view.get_transforms()
-
-        # Reorder the transforms to be per environment as is expected of SensorData
-        transforms = transforms[self._per_env_indices]
-
-        # Process source frame transform
-        source_frames = transforms[self._source_frame_body_ids]
-        # Only apply offset if the offsets will result in a coordinate frame transform
-        if self._apply_source_frame_offset:
-            source_pos_w, source_quat_w = combine_frame_transforms(
-                source_frames[:, :3],
-                source_frames[:, 3:],
-                self._source_frame_offset_pos,
-                self._source_frame_offset_quat,
-            )
-        else:
-            source_pos_w = source_frames[:, :3]
-            source_quat_w = source_frames[:, 3:]
-
-        # Process target frame transforms
-        target_frames = transforms[self._target_frame_body_ids]
-        duplicated_target_frame_pos_w = target_frames[self._duplicate_frame_indices, :3]
-        duplicated_target_frame_quat_w = target_frames[self._duplicate_frame_indices, 3:]
-
-        # Only apply offset if the offsets will result in a coordinate frame transform
-        if self._apply_target_frame_offset:
-            target_pos_w, target_quat_w = combine_frame_transforms(
-                duplicated_target_frame_pos_w,
-                duplicated_target_frame_quat_w,
-                self._target_frame_offset_pos,
-                self._target_frame_offset_quat,
-            )
-        else:
-            target_pos_w = duplicated_target_frame_pos_w
-            target_quat_w = duplicated_target_frame_quat_w
-
-        # Compute the transform of the target frame with respect to the source frame
-        total_num_frames = len(self._target_frame_names)
-        target_pos_source, target_quat_source = subtract_frame_transforms(
-            source_pos_w.unsqueeze(1).expand(-1, total_num_frames, -1).reshape(-1, 3),
-            source_quat_w.unsqueeze(1).expand(-1, total_num_frames, -1).reshape(-1, 4),
-            target_pos_w,
-            target_quat_w,
+        wp.launch(
+            frame_transformer_update_kernel,
+            dim=(self._num_envs, self._num_target_frames),
+            inputs=[
+                raw_transforms,
+                self._source_raw_indices,
+                self._target_raw_indices,
+                self._source_offset_pos_wp,
+                self._source_offset_quat_wp,
+                self._target_offset_pos_wp,
+                self._target_offset_quat_wp,
+                self._data._source_pos_w,
+                self._data._source_quat_w,
+                self._data._target_pos_w,
+                self._data._target_quat_w,
+                self._data._target_pos_source,
+                self._data._target_quat_source,
+            ],
+            device=self._device,
         )
-
-        # Update buffers
-        # note: The frame names / ordering don't change so no need to update them after initialization
-        self._data.source_pos_w[:] = source_pos_w.view(-1, 3)
-        self._data.source_quat_w[:] = source_quat_w.view(-1, 4)
-        self._data.target_pos_w[:] = target_pos_w.view(-1, total_num_frames, 3)
-        self._data.target_quat_w[:] = target_quat_w.view(-1, total_num_frames, 4)
-        self._data.target_pos_source[:] = target_pos_source.view(-1, total_num_frames, 3)
-        self._data.target_quat_source[:] = target_quat_source.view(-1, total_num_frames, 4)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -431,14 +437,20 @@ class FrameTransformer(BaseFrameTransformer):
                 self.frame_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # Convert warp -> torch at the boundary for visualization
+        source_pos_w = wp.to_torch(self._data._source_pos_w)
+        source_quat_w = wp.to_torch(self._data._source_quat_w)
+        target_pos_w = wp.to_torch(self._data._target_pos_w)
+        target_quat_w = wp.to_torch(self._data._target_quat_w)
+
         # Get the all frames pose
-        frames_pos = torch.cat([self._data.source_pos_w, self._data.target_pos_w.view(-1, 3)], dim=0)
-        frames_quat = torch.cat([self._data.source_quat_w, self._data.target_quat_w.view(-1, 4)], dim=0)
+        frames_pos = torch.cat([source_pos_w, target_pos_w.view(-1, 3)], dim=0)
+        frames_quat = torch.cat([source_quat_w, target_quat_w.view(-1, 4)], dim=0)
 
         # Get the all connecting lines between frames pose
         lines_pos, lines_quat, lines_length = self._get_connecting_lines(
-            start_pos=self._data.source_pos_w.repeat_interleave(self._data.target_pos_w.size(1), dim=0),
-            end_pos=self._data.target_pos_w.view(-1, 3),
+            start_pos=source_pos_w.repeat_interleave(target_pos_w.size(1), dim=0),
+            end_pos=target_pos_w.view(-1, 3),
         )
 
         # Initialize default (identity) scales and marker indices for all markers (frames + lines)

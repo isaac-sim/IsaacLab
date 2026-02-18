@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+import warp as wp
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
 import carb
@@ -619,35 +620,35 @@ class InteractiveScene:
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
             asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
+            asset_state["root_pose"] = wp.to_torch(articulation.data.root_pose_w).clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
-            asset_state["joint_position"] = articulation.data.joint_pos.clone()
-            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
+            asset_state["root_velocity"] = wp.to_torch(articulation.data.root_vel_w).clone()
+            asset_state["joint_position"] = wp.to_torch(articulation.data.joint_pos).clone()
+            asset_state["joint_velocity"] = wp.to_torch(articulation.data.joint_vel).clone()
             state["articulation"][asset_name] = asset_state
         # deformable objects
         state["deformable_object"] = dict()
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = dict()
-            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
+            asset_state["nodal_position"] = wp.to_torch(deformable_object.data.nodal_pos_w).clone()
             if is_relative:
                 asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
+            asset_state["nodal_velocity"] = wp.to_torch(deformable_object.data.nodal_vel_w).clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
+            asset_state["root_pose"] = wp.to_torch(rigid_object.data.root_pose_w).clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
+            asset_state["root_velocity"] = wp.to_torch(rigid_object.data.root_vel_w).clone()
             state["rigid_object"][asset_name] = asset_state
         # surface grippers
         state["gripper"] = dict()
         for asset_name, gripper in self._surface_grippers.items():
-            state["gripper"][asset_name] = gripper.state.clone()
+            state["gripper"][asset_name] = wp.to_torch(gripper.state).clone()
         return state
 
     """

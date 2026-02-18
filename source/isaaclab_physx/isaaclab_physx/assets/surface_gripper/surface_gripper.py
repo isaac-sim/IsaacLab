@@ -9,7 +9,9 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
+import warp as wp
 
 from isaacsim.core.utils.extensions import enable_extension
 
@@ -24,6 +26,32 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# -- Warp kernels --
+
+
+@wp.kernel
+def write_scalar_at_indices(
+    data: wp.array(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    if from_mask:
+        out[env_ids[i]] = data[env_ids[i]]
+    else:
+        out[env_ids[i]] = data[i]
+
+
+@wp.kernel
+def fill_scalar_at_indices(
+    value: wp.float32,
+    env_ids: wp.array(dtype=wp.int32),
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    out[env_ids[i]] = value
 
 
 class SurfaceGripper(AssetBase):
@@ -90,7 +118,7 @@ class SurfaceGripper(AssetBase):
         return self._num_envs
 
     @property
-    def state(self) -> torch.Tensor:
+    def state(self) -> wp.array:
         """Returns the gripper state buffer.
 
         The gripper state is a list of integers:
@@ -101,7 +129,7 @@ class SurfaceGripper(AssetBase):
         return self._gripper_state
 
     @property
-    def command(self) -> torch.Tensor:
+    def command(self) -> wp.array:
         """Returns the gripper command buffer.
 
         The gripper command is a list of floats:
@@ -117,8 +145,141 @@ class SurfaceGripper(AssetBase):
         return self._gripper_view
 
     """
-    Operations
+    Operations - _index / _mask API
     """
+
+    def set_grippers_command_index(
+        self, states: torch.Tensor | wp.array, env_ids: wp.array | None = None, full_data: bool = False
+    ) -> None:
+        """Set the internal gripper command buffer. This function does not write to the simulation.
+
+        Possible values for the gripper command are:
+            - [-1, -0.3] --> Open
+            - ]-0.3, 0.3[ --> Do nothing
+            - [0.3, 1] --> Close
+
+        Args:
+            states: A tensor/array of floats representing the gripper command.
+            env_ids: Environment indices. Defaults to None (all environments).
+            full_data: Whether ``states`` is indexed by ``env_ids`` (True) or is compact (False).
+        """
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+
+        # Convert torch input to warp
+        if isinstance(states, torch.Tensor):
+            states = wp.from_torch(states.to(torch.float32).contiguous(), dtype=wp.float32)
+
+        wp.launch(
+            write_scalar_at_indices,
+            dim=env_ids.shape[0],
+            inputs=[states, env_ids, full_data],
+            outputs=[self._gripper_command],
+            device=self._device,
+        )
+
+    def set_grippers_command_mask(self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | None = None) -> None:
+        """Set the internal gripper command buffer using a boolean mask.
+
+        Args:
+            states: A tensor/array of floats representing the gripper command (full size).
+            env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
+        """
+        if env_mask is not None:
+            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
+        else:
+            env_ids = self._ALL_INDICES
+        self.set_grippers_command_index(states, env_ids, full_data=True)
+
+    def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
+        """Set the internal gripper command buffer. This function does not write to the simulation.
+
+        .. deprecated:: v2.0.0
+            Use :meth:`set_grippers_command_index` instead.
+
+        Args:
+            states: A tensor of integers representing the gripper command.
+            indices: A tensor of integers representing the indices. Defaults to None.
+        """
+        env_ids = self._resolve_env_ids(indices)
+        self.set_grippers_command_index(states, env_ids)
+
+    def update_gripper_properties_index(
+        self,
+        max_grip_distance: wp.array | None = None,
+        coaxial_force_limit: wp.array | None = None,
+        shear_force_limit: wp.array | None = None,
+        retry_interval: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Update the gripper properties.
+
+        Args:
+            max_grip_distance: The maximum grip distance. Shape (num_envs,) or (len(env_ids),).
+            coaxial_force_limit: The coaxial force limit. Shape (num_envs,) or (len(env_ids),).
+            shear_force_limit: The shear force limit. Shape (num_envs,) or (len(env_ids),).
+            retry_interval: The retry interval. Shape (num_envs,) or (len(env_ids),).
+            env_ids: Environment indices. Defaults to None (all environments).
+            full_data: Whether input arrays are indexed by ``env_ids`` (True) or compact (False).
+        """
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+
+        for prop_data, prop_buf in [
+            (max_grip_distance, self._max_grip_distance),
+            (coaxial_force_limit, self._coaxial_force_limit),
+            (shear_force_limit, self._shear_force_limit),
+            (retry_interval, self._retry_interval),
+        ]:
+            if prop_data is not None:
+                wp.launch(
+                    write_scalar_at_indices,
+                    dim=env_ids.shape[0],
+                    inputs=[prop_data, env_ids, full_data],
+                    outputs=[prop_buf],
+                    device=self._device,
+                )
+
+        # Convert to list for the GripperView API
+        indices_list = wp.to_torch(env_ids).tolist()
+        self._gripper_view.set_surface_gripper_properties(
+            max_grip_distance=wp.to_torch(self._max_grip_distance).tolist(),
+            coaxial_force_limit=wp.to_torch(self._coaxial_force_limit).tolist(),
+            shear_force_limit=wp.to_torch(self._shear_force_limit).tolist(),
+            retry_interval=wp.to_torch(self._retry_interval).tolist(),
+            indices=indices_list,
+        )
+
+    def update_gripper_properties_mask(
+        self,
+        max_grip_distance: wp.array | None = None,
+        coaxial_force_limit: wp.array | None = None,
+        shear_force_limit: wp.array | None = None,
+        retry_interval: wp.array | None = None,
+        env_mask: torch.Tensor | None = None,
+    ) -> None:
+        """Update the gripper properties using a boolean mask.
+
+        Args:
+            max_grip_distance: The maximum grip distance. Shape (num_envs,).
+            coaxial_force_limit: The coaxial force limit. Shape (num_envs,).
+            shear_force_limit: The shear force limit. Shape (num_envs,).
+            retry_interval: The retry interval. Shape (num_envs,).
+            env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
+        """
+        if env_mask is not None:
+            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
+        else:
+            env_ids = self._ALL_INDICES
+        self.update_gripper_properties_index(
+            max_grip_distance=max_grip_distance,
+            coaxial_force_limit=coaxial_force_limit,
+            shear_force_limit=shear_force_limit,
+            retry_interval=retry_interval,
+            env_ids=env_ids,
+            full_data=True,
+        )
 
     def update_gripper_properties(
         self,
@@ -130,34 +291,32 @@ class SurfaceGripper(AssetBase):
     ) -> None:
         """Update the gripper properties.
 
+        .. deprecated:: v2.0.0
+            Use :meth:`update_gripper_properties_index` instead.
+
         Args:
-            max_grip_distance: The maximum grip distance of the gripper. Should be a tensor of shape (num_envs,).
-            coaxial_force_limit: The coaxial force limit of the gripper. Should be a tensor of shape (num_envs,).
-            shear_force_limit: The shear force limit of the gripper. Should be a tensor of shape (num_envs,).
-            retry_interval: The retry interval of the gripper. Should be a tensor of shape (num_envs,).
-            indices: The indices of the grippers to update the properties for. Can be a tensor of any shape.
+            max_grip_distance: The maximum grip distance. Shape (num_envs,).
+            coaxial_force_limit: The coaxial force limit. Shape (num_envs,).
+            shear_force_limit: The shear force limit. Shape (num_envs,).
+            retry_interval: The retry interval. Shape (num_envs,).
+            indices: The indices of the grippers to update. Defaults to None.
         """
+        env_ids = self._resolve_env_ids(indices)
 
-        if indices is None:
-            indices = self._ALL_INDICES
+        # Convert torch inputs to warp
+        def _to_wp(t):
+            if t is None:
+                return None
+            if isinstance(t, torch.Tensor):
+                return wp.from_torch(t.to(torch.float32).contiguous(), dtype=wp.float32)
+            return t
 
-        indices_as_list = indices.tolist()
-
-        if max_grip_distance is not None:
-            self._max_grip_distance[indices] = max_grip_distance
-        if coaxial_force_limit is not None:
-            self._coaxial_force_limit[indices] = coaxial_force_limit
-        if shear_force_limit is not None:
-            self._shear_force_limit[indices] = shear_force_limit
-        if retry_interval is not None:
-            self._retry_interval[indices] = retry_interval
-
-        self._gripper_view.set_surface_gripper_properties(
-            max_grip_distance=self._max_grip_distance.tolist(),
-            coaxial_force_limit=self._coaxial_force_limit.tolist(),
-            shear_force_limit=self._shear_force_limit.tolist(),
-            retry_interval=self._retry_interval.tolist(),
-            indices=indices_as_list,
+        self.update_gripper_properties_index(
+            max_grip_distance=_to_wp(max_grip_distance),
+            coaxial_force_limit=_to_wp(coaxial_force_limit),
+            shear_force_limit=_to_wp(shear_force_limit),
+            retry_interval=_to_wp(retry_interval),
+            env_ids=env_ids,
         )
 
     def update(self, dt: float) -> None:
@@ -181,7 +340,7 @@ class SurfaceGripper(AssetBase):
             with the object if some conditions are met: such as if a large force is applied to the gripped object.
         """
         state_list: list[int] = self._gripper_view.get_surface_gripper_status()
-        self._gripper_state = torch.tensor(state_list, dtype=torch.float32, device=self._device) - 1.0
+        self._gripper_state = wp.array([float(s) - 1.0 for s in state_list], dtype=wp.float32, device=self._device)
 
     def write_data_to_sim(self) -> None:
         """Write the gripper command to the SurfaceGripperView.
@@ -193,52 +352,72 @@ class SurfaceGripper(AssetBase):
 
         The Do nothing command is not applied, and is only used to indicate whether the gripper state has changed.
         """
+        # Convert to torch at the GripperView boundary (zero-copy on CPU)
+        command_torch = wp.to_torch(self._gripper_command)
         # Remove the SurfaceGripper indices that have a commanded value of 2
-        indices = (
-            torch.argwhere(torch.logical_or(self._gripper_command < -0.3, self._gripper_command > 0.3))
-            .to(torch.int32)
-            .tolist()
-        )
+        indices = torch.argwhere(torch.logical_or(command_torch < -0.3, command_torch > 0.3)).to(torch.int32).tolist()
         # Write to the SurfaceGripperView if there are any indices to write to
         if len(indices) > 0:
-            self._gripper_view.apply_gripper_action(self._gripper_command.tolist(), indices)
+            self._gripper_view.apply_gripper_action(command_torch.tolist(), indices)
 
-    def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
-        """Set the internal gripper command buffer. This function does not write to the simulation.
-
-        Possible values for the gripper command are:
-            - [-1, -0.3] --> Open
-            - ]-0.3, 0.3[ --> Do nothing
-            - [0.3, 1] --> Close
+    def reset_index(self, env_ids: wp.array | None = None) -> None:
+        """Reset the gripper command buffer.
 
         Args:
-            states: A tensor of integers representing the gripper command. Shape must match that of indices.
-            indices: A tensor of integers representing the indices of the grippers to set the command for. Defaults
-                     to None, in which case all grippers are set.
+            env_ids: Environment indices. Defaults to None (all environments).
         """
-        if indices is None:
-            indices = self._ALL_INDICES
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
 
-        self._gripper_command[indices] = states
+        # Reset the selected grippers to an open status
+        wp.launch(
+            fill_scalar_at_indices,
+            dim=env_ids.shape[0],
+            inputs=[wp.float32(-1.0), env_ids],
+            outputs=[self._gripper_command],
+            device=self._device,
+        )
+        self.write_data_to_sim()
+        # Sets the gripper last command to be 0.0 (do nothing)
+        wp.launch(
+            fill_scalar_at_indices,
+            dim=env_ids.shape[0],
+            inputs=[wp.float32(0.0), env_ids],
+            outputs=[self._gripper_command],
+            device=self._device,
+        )
+        # Force set the state to open. It will read open in the next update call.
+        wp.launch(
+            fill_scalar_at_indices,
+            dim=env_ids.shape[0],
+            inputs=[wp.float32(-1.0), env_ids],
+            outputs=[self._gripper_state],
+            device=self._device,
+        )
+
+    def reset_mask(self, env_mask: torch.Tensor | None = None) -> None:
+        """Reset the gripper command buffer using a boolean mask.
+
+        Args:
+            env_mask: Boolean mask of shape (num_envs,). Defaults to None (all environments).
+        """
+        if env_mask is not None:
+            env_ids = wp.from_torch(torch.argwhere(env_mask).view(-1).to(torch.int32), dtype=wp.int32)
+        else:
+            env_ids = self._ALL_INDICES
+        self.reset_index(env_ids)
 
     def reset(self, indices: torch.Tensor | None = None) -> None:
         """Reset the gripper command buffer.
 
-        Args:
-            indices: A tensor of integers representing the indices of the grippers to reset the command for. Defaults
-                     to None, in which case all grippers are reset.
-        """
-        # Would normally set the buffer to 0, for now we won't do that
-        if indices is None:
-            indices = self._ALL_INDICES
+        .. deprecated:: v2.0.0
+            Use :meth:`reset_index` instead.
 
-        # Reset the selected grippers to an open status
-        self._gripper_command[indices] = -1.0
-        self.write_data_to_sim()
-        # Sets the gripper last command to be 0.0 (do nothing)
-        self._gripper_command[indices] = 0
-        # Force set the state to open. It will read open in the next update call.
-        self._gripper_state[indices] = -1.0
+        Args:
+            indices: A tensor of integers representing the indices of the grippers to reset. Defaults to None.
+        """
+        env_ids = self._resolve_env_ids(indices)
+        self.reset_index(env_ids)
 
     """
     Initialization.
@@ -306,17 +485,15 @@ class SurfaceGripper(AssetBase):
         # Process the configuration
         self._process_cfg()
 
-        # Initialize gripper view and set properties. Note we do not set the properties through the gripper view
-        # to avoid having to convert them to list of floats here. Instead, we do it in the update_gripper_properties
-        # function which does this conversion internally.
+        # Initialize gripper view and set properties.
         self._gripper_view = GripperView(
             self._prim_expr,
         )
-        self.update_gripper_properties(
-            max_grip_distance=self._max_grip_distance.clone(),
-            coaxial_force_limit=self._coaxial_force_limit.clone(),
-            shear_force_limit=self._shear_force_limit.clone(),
-            retry_interval=self._retry_interval.clone(),
+        self.update_gripper_properties_index(
+            max_grip_distance=wp.clone(self._max_grip_distance),
+            coaxial_force_limit=wp.clone(self._coaxial_force_limit),
+            shear_force_limit=wp.clone(self._shear_force_limit),
+            retry_interval=wp.clone(self._retry_interval),
         )
 
         # log information about the surface gripper
@@ -324,18 +501,18 @@ class SurfaceGripper(AssetBase):
         logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers
-        self.reset()
+        self.reset_index()
 
     def _create_buffers(self) -> None:
         """Create the buffers for storing the gripper state, command, and properties."""
-        self._gripper_state = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
-        self._gripper_command = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
-        self._ALL_INDICES = torch.arange(self._num_envs, device=self._device, dtype=torch.long)
+        self._gripper_state = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._gripper_command = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._ALL_INDICES = wp.array(np.arange(self._num_envs, dtype=np.int32), device=self._device)
 
-        self._max_grip_distance = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
-        self._coaxial_force_limit = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
-        self._shear_force_limit = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
-        self._retry_interval = torch.zeros(self._num_envs, device=self._device, dtype=torch.float32)
+        self._max_grip_distance = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._coaxial_force_limit = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._shear_force_limit = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._retry_interval = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
 
     def _process_cfg(self) -> None:
         """Process the configuration for the gripper properties."""
@@ -382,15 +559,35 @@ class SurfaceGripper(AssetBase):
     Helper functions.
     """
 
+    def _resolve_env_ids(self, env_ids) -> wp.array:
+        """Resolve environment indices to a warp array.
+
+        Args:
+            env_ids: Environment indices. Can be None, a slice, a list, or a torch.Tensor.
+
+        Returns:
+            A warp array of int32 indices.
+        """
+        if env_ids is None or env_ids == slice(None):
+            return self._ALL_INDICES
+        elif isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self._device)
+        elif isinstance(env_ids, torch.Tensor):
+            return wp.from_torch(env_ids.to(torch.int32).contiguous(), dtype=wp.int32)
+        return env_ids
+
     def parse_gripper_parameter(
         self, cfg_value: float | int | tuple | None, default_value: float | int | tuple | None, ndim: int = 0
-    ) -> torch.Tensor:
+    ) -> wp.array:
         """Parse the gripper parameter.
 
         Args:
             cfg_value: The value to parse. Can be a float, int, tuple, or None.
             default_value: The default value to use if cfg_value is None. Can be a float, int, tuple, or None.
             ndim: The number of dimensions of the parameter. Defaults to 0.
+
+        Returns:
+            A warp array of float32 values.
         """
         # Adjust the buffer size based on the number of dimensions
         if ndim == 0:
@@ -426,4 +623,5 @@ class SurfaceGripper(AssetBase):
         else:
             raise ValueError("The parameter value is None and no default value is provided.")
 
-        return param
+        # Convert to warp
+        return wp.from_torch(param, dtype=wp.float32)

@@ -70,7 +70,7 @@ import warp as wp
 from isaaclab_physx.assets.articulation.articulation import Articulation
 from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
 from isaaclab_physx.test.benchmark import make_tensor_body_ids, make_tensor_env_ids, make_tensor_joint_ids
-from isaaclab_physx.test.mock_interfaces.views import MockArticulationView
+from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
@@ -90,7 +90,7 @@ def create_test_articulation(
     num_joints: int = 6,
     num_bodies: int = 7,
     device: str = "cuda:0",
-) -> tuple[Articulation, MockArticulationView, MagicMock]:
+) -> tuple[Articulation, MockArticulationViewWarp, MagicMock]:
     """Create a test Articulation instance with mocked dependencies."""
     joint_names = [f"joint_{i}" for i in range(num_joints)]
     body_names = [f"body_{i}" for i in range(num_bodies)]
@@ -104,13 +104,14 @@ def create_test_articulation(
     )
 
     # Create PhysX mock view
-    mock_view = MockArticulationView(
+    mock_view = MockArticulationViewWarp(
         count=num_instances,
         num_links=num_bodies,
         num_dofs=num_joints,
         device=device,
     )
     mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
 
     # Set up the mock view's metatype for accessing names/counts
     mock_metatype = MagicMock()
@@ -137,9 +138,9 @@ def create_test_articulation(
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_ALL_INDICES", torch.arange(num_instances, device=device))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES", torch.arange(num_bodies, device=device))
-    object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, device=device))
+    object.__setattr__(articulation, "_ALL_INDICES", torch.arange(num_instances, dtype=torch.int32, device=device))
+    object.__setattr__(articulation, "_ALL_BODY_INDICES", torch.arange(num_bodies, dtype=torch.int32, device=device))
+    object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, dtype=torch.int32, device=device))
 
     # Warp arrays for set_external_force_and_torque
     all_indices = torch.arange(num_instances, dtype=torch.int32, device=device)

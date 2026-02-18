@@ -25,7 +25,7 @@ def make_tensor_env_ids(num_instances: int, device: str) -> torch.Tensor:
     Returns:
         Tensor of environment IDs [0, 1, ..., num_instances-1].
     """
-    return torch.arange(num_instances, dtype=torch.long, device=device)
+    return torch.arange(num_instances, dtype=torch.int32, device=device)
 
 
 def make_tensor_joint_ids(num_joints: int, device: str) -> torch.Tensor:
@@ -38,7 +38,7 @@ def make_tensor_joint_ids(num_joints: int, device: str) -> torch.Tensor:
     Returns:
         Tensor of joint IDs [0, 1, ..., num_joints-1].
     """
-    return torch.arange(num_joints, dtype=torch.long, device=device)
+    return torch.arange(num_joints, dtype=torch.int32, device=device)
 
 
 def make_tensor_body_ids(num_bodies: int, device: str) -> torch.Tensor:
@@ -51,7 +51,7 @@ def make_tensor_body_ids(num_bodies: int, device: str) -> torch.Tensor:
     Returns:
         Tensor of body IDs [0, 1, ..., num_bodies-1].
     """
-    return torch.arange(num_bodies, dtype=torch.long, device=device)
+    return torch.arange(num_bodies, dtype=torch.int32, device=device)
 
 
 def make_warp_env_mask(num_instances: int, device: str) -> wp.array:

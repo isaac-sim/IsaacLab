@@ -47,6 +47,7 @@ simulation_app = app_launcher.app
 import random
 
 import torch
+import warp as wp
 
 import omni.usd
 from pxr import Gf, Sdf
@@ -254,7 +255,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # root state
-            root_state = scene["asset"].data.default_root_state.clone()
+            root_state = wp.to_torch(scene["asset"].data.default_root_state).clone()
             root_state[:, :3] += scene.env_origins
             scene["asset"].write_root_pose_to_sim(root_state[:, :7])
             scene["asset"].write_root_velocity_to_sim(root_state[:, 7:])
@@ -262,8 +263,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             if isinstance(scene["asset"], Articulation):
                 # set joint positions with some noise
                 joint_pos, joint_vel = (
-                    scene["asset"].data.default_joint_pos.clone(),
-                    scene["asset"].data.default_joint_vel.clone(),
+                    wp.to_torch(scene["asset"].data.default_joint_pos).clone(),
+                    wp.to_torch(scene["asset"].data.default_joint_vel).clone(),
                 )
                 joint_pos += torch.rand_like(joint_pos) * 0.1
                 scene["asset"].write_joint_state_to_sim(joint_pos, joint_vel)
@@ -273,9 +274,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         if isinstance(scene["asset"], Articulation):
             # -- generate actions/commands
-            targets = scene["asset"].data.default_joint_pos + 5 * (
-                torch.rand_like(scene["asset"].data.default_joint_pos) - 0.5
-            )
+            default_joint_pos = wp.to_torch(scene["asset"].data.default_joint_pos)
+            targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
             # -- apply action to the asset
             scene["asset"].set_joint_position_target(targets)
         # -- write data to sim

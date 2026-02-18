@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import RigidObject
@@ -135,7 +136,7 @@ def ang_vel_xyz_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
 
     # compute squared magnitude of angular velocity (all axes)
-    ang_vel_squared = torch.sum(torch.square(asset.data.root_ang_vel_b), dim=1)
+    ang_vel_squared = torch.sum(torch.square(wp.to_torch(asset.data.root_ang_vel_b)), dim=1)
 
     return torch.exp(-ang_vel_squared / std**2)
 
@@ -216,7 +217,7 @@ def lin_vel_xyz_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
 
     # compute squared magnitude of linear velocity (all axes)
-    lin_vel_squared = torch.sum(torch.square(asset.data.root_lin_vel_w), dim=1)
+    lin_vel_squared = torch.sum(torch.square(wp.to_torch(asset.data.root_lin_vel_w)), dim=1)
 
     return torch.exp(-lin_vel_squared / std**2)
 
@@ -245,7 +246,7 @@ def yaw_aligned(
     asset: RigidObject = env.scene[asset_cfg.name]
 
     # extract yaw from current orientation
-    _, _, yaw = math_utils.euler_xyz_from_quat(asset.data.root_quat_w)
+    _, _, yaw = math_utils.euler_xyz_from_quat(wp.to_torch(asset.data.root_quat_w))
 
     # normalize yaw to [-pi, pi] (target is 0)
     yaw = math_utils.wrap_to_pi(yaw)
