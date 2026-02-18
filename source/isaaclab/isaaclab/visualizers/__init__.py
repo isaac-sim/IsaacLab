@@ -34,6 +34,9 @@ __all__ = [
     "KitVisualizerCfg",
     "RerunVisualizerCfg",
     "get_visualizer_class",
+    "KitVisualizer",
+    "NewtonVisualizer",
+    "RerunVisualizer",
 ]
 
 
@@ -64,3 +67,24 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
 
         warnings.warn(f"Failed to load visualizer '{name}': {exc}", ImportWarning)
         return None
+
+
+def __getattr__(name: str):
+    """Lazily expose visualizer classes at package level.
+
+    This preserves backwards-compatible imports such as:
+    `from isaaclab.visualizers import KitVisualizer`.
+    """
+    if name == "KitVisualizer":
+        from .kit_visualizer import KitVisualizer
+
+        return KitVisualizer
+    if name == "NewtonVisualizer":
+        from .newton_visualizer import NewtonVisualizer
+
+        return NewtonVisualizer
+    if name == "RerunVisualizer":
+        from .rerun_visualizer import RerunVisualizer
+
+        return RerunVisualizer
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
