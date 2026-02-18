@@ -3,27 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
-# All rights reserved.
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to evaluate a trained RLinf agent.
 
 This script runs evaluation using RLinf's distributed infrastructure,
 which is required for VLA model inference.
 
 Usage:
-    # Evaluate a trained checkpoint
-    isaaclab.sh -p play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+    # Evaluate a trained checkpoint (config YAML in the same directory as play.py)
+    python play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
         --model_path /path/to/checkpoint
 
-    # Evaluate with video recording
-    isaaclab.sh -p play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
-        --model_path /path/to/checkpoint --video
+    # Evaluate with config YAML in a custom directory
+    python play.py --config_path /path/to/config/dir \\
+        --config_name isaaclab_ppo_gr00t_assemble_trocar --model_path /path/to/checkpoint
 
-    # Evaluate with specific number of environments
-    isaaclab.sh -p play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
-        --model_path /path/to/checkpoint --num_envs 8
+    # Evaluate with video recording
+    python play.py --config_name isaaclab_ppo_gr00t_assemble_trocar \\
+        --model_path /path/to/checkpoint --video
 
 Note:
     Evaluation requires the full RLinf infrastructure since VLA models
@@ -58,14 +54,11 @@ parser.add_argument("--video", action="store_true", default=False, help="Enable 
 cli_args.add_rlinf_args(parser)
 args_cli = parser.parse_args()
 
-# Default config directory (task-specific YAML lives here)
-_DEFAULT_CONFIG_DIR = str(
-    SCRIPT_DIR.parents[2] / "source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/config"
-)
-_DEFAULT_CONFIG_NAME = "isaaclab_ppo_gr00t_assemble_trocar"
-# Resolve config path and name from CLI args (--config_path / --config_name) with defaults
-config_dir = args_cli.config_path or _DEFAULT_CONFIG_DIR
-config_name = args_cli.config_name or _DEFAULT_CONFIG_NAME
+# Resolve config path and name from CLI args
+if not args_cli.config_name:
+    parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
+config_dir = args_cli.config_path or str(SCRIPT_DIR)
+config_name = args_cli.config_name
 os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
 
 # Add config dir to PYTHONPATH so that Ray rollout workers can resolve

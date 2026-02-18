@@ -44,11 +44,12 @@ Usage:
 
 from __future__ import annotations
 
+import collections.abc
 import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -96,7 +97,14 @@ def register() -> None:
 
 
 def _load_full_cfg() -> dict:
-    """Load and cache the full YAML config from ``RLINF_CONFIG_FILE``."""
+    """Load and cache the full YAML config from ``RLINF_CONFIG_FILE``.
+
+    Raises:
+        ValueError: If the ``RLINF_CONFIG_FILE`` environment variable is not set.
+
+    Returns:
+        The parsed YAML config as a nested dictionary.
+    """
     global _full_cfg_cache
     if _full_cfg_cache is not None:
         return _full_cfg_cache
@@ -110,19 +118,32 @@ def _load_full_cfg() -> dict:
 
 
 def _get_isaaclab_cfg() -> dict:
-    """Shortcut: return ``env.train.isaaclab`` from the cached full config."""
+    """Return the ``env.train.isaaclab`` section from the cached full config.
+
+    Returns:
+        The IsaacLab-specific configuration dictionary. Empty dict if the section is missing.
+    """
     return _load_full_cfg().get("env", {}).get("train", {}).get("isaaclab", {})
 
 
 def _patch_embodiment_tags(cfg: dict) -> None:
     """Add custom embodiment tag to RLinf's EmbodimentTag enum and mapping if needed.
 
-    Reads from YAML config (env.train.isaaclab.embodiment_tag and embodiment_tag_id).
-    Only adds tag if not already in RLinf's native registry.
+    Reads ``embodiment_tag`` and ``embodiment_tag_id`` from the IsaacLab config section.
+    Only adds the tag if it is not already present in RLinf's native registry.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
     # GR00T uses embodiment tags to identify different robots.  Custom robots
     # (like G129+Dex3) need a unique tag string and numeric ID so that the
     # model's tokenizer can map them to the correct action/state dimensions.
+    #
+    # The numeric ID is the projector index in GR00T's Action Expert Module.
+    # Known mapping (from gr00t/data/embodiment_tags.py):
+    #   17 = oxe_droid, 24 = gr1, 26 = agibot_genie1, 31 = new_embodiment
+    # Default 31 corresponds to the "new_embodiment" slot reserved for
+    # fine-tuning on custom robots.
     embodiment_tag = cfg.get("embodiment_tag", "new_embodiment")
     tag_id = cfg.get("embodiment_tag_id", 31)
 
@@ -146,9 +167,13 @@ def _patch_embodiment_tags(cfg: dict) -> None:
 
 
 def _patch_gr00t_get_model(cfg: dict) -> None:
-    """Monkeypatch RLinf's GR00T get_model to support custom data_config.
-    Patch is needed if user specifies a custom data_config_class.
-    Also ensures embodiment_tag is registered.
+    """Monkeypatch RLinf's GR00T ``get_model`` to support custom ``data_config``.
+
+    The patch is applied only when the user specifies a ``data_config_class`` in the
+    YAML config. Embodiment tags are always ensured to be registered.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
     # Always ensure embodiment tag is registered
     _patch_embodiment_tags(cfg)
@@ -162,7 +187,21 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
     original_get_model = rlinf_gr00t_mod.get_model
 
-    def patched_get_model(model_cfg, torch_dtype=None):
+    def patched_get_model(model_cfg, torch_dtype=None) -> object:
+        """Load a GR00T model with custom ``data_config`` and embodiment tag.
+
+        Args:
+            model_cfg: RLinf model configuration object containing ``model_path``,
+                ``embodiment_tag``, ``denoising_steps``, ``num_action_chunks``,
+                ``obs_converter_type``, and ``rl_head_config``.
+            torch_dtype: The torch dtype for the model. Defaults to ``torch.bfloat16``.
+
+        Raises:
+            FileNotFoundError: If ``model_cfg.model_path`` does not exist.
+
+        Returns:
+            The loaded GR00T model instance.
+        """
         if torch_dtype is None:
             torch_dtype = torch.bfloat16
 
@@ -220,7 +259,13 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
 def _register_gr00t_converters(cfg: dict) -> None:
     """Register GR00T obs/action converters for IsaacLab tasks.
-    Reads obs_converter_type from YAML config (env.train.isaaclab.obs_converter_type).
+
+    Reads ``obs_converter_type`` from the YAML config (``env.train.isaaclab.obs_converter_type``)
+    and registers the corresponding observation and action conversion functions into
+    RLinf's ``simulation_io`` registry.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
     from rlinf.models.embodiment.gr00t import simulation_io
 
@@ -238,13 +283,20 @@ def _register_gr00t_converters(cfg: dict) -> None:
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
     """Convert IsaacLab env observations to GR00T format.
 
-    Uses gr00t_mapping from YAML config (cfg.env.isaaclab.gr00t_mapping).
+    Uses ``gr00t_mapping`` from the YAML config (``env.train.isaaclab.gr00t_mapping``)
+    to map IsaacLab observation keys to GR00T-expected keys.
 
-    Expected input (from _wrap_obs):
-      - main_images: (B, H, W, C) torch tensor
-      - extra_view_images: (B, N, H, W, C) torch tensor
-      - states: (B, D) torch tensor
-      - task_descriptions: list[str]
+    Args:
+        env_obs: Observation dictionary from ``_wrap_obs`` with the following keys:
+
+            - ``"main_images"``: ``(B, H, W, C)`` torch tensor.
+            - ``"extra_view_images"``: ``(B, N, H, W, C)`` torch tensor.
+            - ``"states"``: ``(B, D)`` torch tensor.
+            - ``"task_descriptions"``: list of strings.
+
+    Returns:
+        A dictionary with GR00T-formatted observations (numpy arrays with a time
+        dimension, e.g. ``(B, T=1, H, W, C)``).
     """
     groot_obs = {}
     # Load mapping config from YAML or env var
@@ -285,10 +337,19 @@ def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
     return groot_obs
 
 
-def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -> Any:
+def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -> np.ndarray:
     """Convert GR00T action output to IsaacLab env action format.
 
-    Uses action_mapping from YAML config (cfg.env.isaaclab.action_mapping).
+    Uses ``action_mapping`` from the YAML config (``env.train.isaaclab.action_mapping``)
+    to apply optional prefix/suffix zero-padding to the concatenated action vector.
+
+    Args:
+        action_chunk: Dictionary of action arrays from GR00T, each with shape
+            ``(B, T, D_i)``.
+        chunk_size: Number of time steps to keep from the action chunk. Defaults to 1.
+
+    Returns:
+        Concatenated and padded action array with shape ``(B, chunk_size, D)``.
     """
 
     # Load mapping config from YAML or env var
@@ -373,17 +434,35 @@ def _create_generic_env_wrapper(task_id: str) -> type:
         Config is read from the YAML file via ``_get_isaaclab_cfg()``.
         """
 
-        def __init__(self, cfg, num_envs, seed_offset, total_num_processes, worker_info):
+        def __init__(self, cfg, num_envs: int, seed_offset: int, total_num_processes: int, worker_info):
+            """Initialize the generic IsaacLab environment wrapper.
+
+            Args:
+                cfg: RLinf environment configuration object.
+                num_envs: Number of parallel environments.
+                seed_offset: Seed offset for reproducibility.
+                total_num_processes: Total number of worker processes.
+                worker_info: RLinf worker metadata.
+            """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
-        def _make_env_function(self):
+        def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
 
-            This function runs in child process (via SubProcIsaacLabEnv).
-            All isaaclab-dependent imports happen here, after AppLauncher starts.
+            This function runs in a child process (via ``SubProcIsaacLabEnv``).
+            All IsaacLab-dependent imports happen here, after ``AppLauncher`` starts.
+
+            Returns:
+                A callable that creates and returns the IsaacLab environment and sim app.
             """
 
-            def make_env_isaaclab():
+            def make_env_isaaclab() -> tuple:
+                """Create the IsaacLab environment inside the child process.
+
+                Returns:
+                    A tuple of ``(env, sim_app)`` where ``env`` is the unwrapped
+                    gymnasium environment and ``sim_app`` is the Isaac Sim application.
+                """
                 from isaaclab.app import AppLauncher
 
                 sim_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -399,15 +478,23 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
             return make_env_isaaclab
 
-        def _wrap_obs(self, obs):
-            """Convert observations to RLinf format.
-            Output format matches i4h's convention:
-              - main_images: (B, H, W, C) - single main camera
-              - extra_view_images: (B, N, H, W, C) - stacked extra cameras
-              - states: (B, D) - concatenated state vector
-              - task_descriptions: list[str] - task descriptions
+        def _wrap_obs(self, obs: dict) -> dict:
+            """Convert IsaacLab observations to the RLinf format.
 
-            Config is read from the YAML file via ``_get_isaaclab_cfg()``.
+            The output format matches i4h's convention:
+
+            - ``"main_images"``: ``(B, H, W, C)`` — single main camera.
+            - ``"extra_view_images"``: ``(B, N, H, W, C)`` — stacked extra cameras.
+            - ``"states"``: ``(B, D)`` — concatenated state vector.
+            - ``"task_descriptions"``: ``list[str]`` — task descriptions.
+
+            Config is read from the YAML file via :func:`_get_isaaclab_cfg`.
+
+            Args:
+                obs: Raw observation dictionary from the IsaacLab environment.
+
+            Returns:
+                A dictionary with observations mapped to the RLinf convention.
             """
             # import torch
 
@@ -461,8 +548,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
             return rlinf_obs
 
-        def add_image(self, obs):
-            """Get image for video logging."""
+        def add_image(self, obs: dict) -> np.ndarray | None:
+            """Get image for video logging.
+
+            Args:
+                obs: Raw observation dictionary from the IsaacLab environment.
+
+            Returns:
+                A numpy array of shape ``(H, W, C)`` for the first environment, or
+                ``None`` if no camera image is available.
+            """
             camera_obs = obs.get("camera_images", {})
             cfg = _get_isaaclab_cfg()
             # Try main_images key, fallback to first available camera
