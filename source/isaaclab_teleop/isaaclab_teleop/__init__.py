@@ -20,6 +20,6 @@ ISAACLAB_TELEOP_METADATA = toml.load(os.path.join(ISAACLAB_TELEOP_EXT_DIR, "conf
 __version__ = ISAACLAB_TELEOP_METADATA["package"]["version"]
 
 from .isaac_teleop_cfg import IsaacTeleopCfg
-from .isaac_teleop_device import IsaacTeleopDevice
+from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs

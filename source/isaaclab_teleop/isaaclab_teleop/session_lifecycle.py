@@ -300,6 +300,7 @@ class TeleopSessionLifecycle:
             except Exception as e:
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
+        self._session_start_deferred_logged = False
         logger.info("IsaacTeleop session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------

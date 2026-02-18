@@ -201,27 +201,13 @@ def main() -> None:
 
     try:
         if use_isaac_teleop:
-            # Use IsaacTeleop stack
-            from isaaclab_teleop import IsaacTeleopDevice
+            from isaaclab_teleop import create_isaac_teleop_device
 
-            import carb.settings
-            import omni.kit.app
-
-            carb.settings.get_settings().set("/persistent/xr/openxr/disableInputBindings", True)
-            carb.settings.get_settings().set('/xr/openxr/components/"isaacsim.kit.xr.teleop.bridge"/enabled', True)
-            manager = omni.kit.app.get_app().get_extension_manager()
-            manager.set_extension_enabled_immediate("isaacsim.kit.xr.teleop.bridge", True)
-
-            # Propagate the CLI --device to the teleop config so action tensors
-            # are placed on the same device the user requested for the sim.
-            env_cfg.isaac_teleop.sim_device = args_cli.device
-
-            logger.info("Using IsaacTeleop stack for teleoperation")
-            teleop_interface = IsaacTeleopDevice(env_cfg.isaac_teleop)
-
-            # Add callbacks
-            for key, callback in teleoperation_callbacks.items():
-                teleop_interface.add_callback(key, callback)
+            teleop_interface = create_isaac_teleop_device(
+                env_cfg.isaac_teleop,
+                sim_device=args_cli.device,
+                callbacks=teleoperation_callbacks,
+            )
 
         elif hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
             # Use native Isaac Lab teleop stack

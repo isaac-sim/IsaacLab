@@ -201,3 +201,62 @@ class IsaacTeleopDevice:
             self._prev_right_a_pressed = current
         else:
             self._prev_right_a_pressed = False
+
+
+def _enable_teleop_bridge() -> None:
+    """Enable the XR teleop bridge extension and configure carb settings.
+
+    Must be called after the Omniverse AppLauncher has started.
+    """
+    import carb.settings
+    import omni.kit.app
+
+    carb.settings.get_settings().set("/persistent/xr/openxr/disableInputBindings", True)
+    carb.settings.get_settings().set('/xr/openxr/components/"isaacsim.kit.xr.teleop.bridge"/enabled', True)
+    ext_manager = omni.kit.app.get_app().get_extension_manager()
+    ext_manager.set_extension_enabled_immediate("isaacsim.kit.xr.teleop.bridge", True)
+
+
+def create_isaac_teleop_device(
+    cfg: IsaacTeleopCfg,
+    sim_device: str | None = None,
+    callbacks: dict[str, Callable] | None = None,
+) -> IsaacTeleopDevice:
+    """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
+
+    This helper centralises the boilerplate that every script must execute
+    before constructing an :class:`IsaacTeleopDevice`:
+
+    1. Disable default OpenXR input bindings (prevents conflicts).
+    2. Enable the ``isaacsim.kit.xr.teleop.bridge`` extension.
+    3. Optionally override :attr:`IsaacTeleopCfg.sim_device` so action tensors
+       land on the same device the caller uses for the simulation.
+
+    Note:
+        When *sim_device* is provided, ``cfg.sim_device`` is mutated in place
+        before the device is constructed.
+
+    Args:
+        cfg: IsaacTeleop configuration.
+        sim_device: If provided, overrides ``cfg.sim_device`` so action tensors
+            are placed on the requested torch device (e.g. ``"cuda:0"``).
+        callbacks: Optional mapping of command keys (e.g. ``"START"``, ``"STOP"``,
+            ``"RESET"``) to callables registered on the device.
+
+    Returns:
+        A fully configured :class:`IsaacTeleopDevice` ready for use in a
+        ``with`` block.
+    """
+    _enable_teleop_bridge()
+
+    if sim_device is not None:
+        cfg.sim_device = sim_device
+
+    logger.info("Using IsaacTeleop stack for teleoperation")
+    device = IsaacTeleopDevice(cfg)
+
+    if callbacks is not None:
+        for key, func in callbacks.items():
+            device.add_callback(key, func)
+
+    return device
