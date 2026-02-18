@@ -20,12 +20,11 @@ from pxr import UsdGeom
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from ...renderers.newton_warp_renderer import NewtonWarpRenderer
 from ..sensor_base import SensorBase
 from .camera import Camera
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveScene
+    from isaaclab.renderers.renderer import Renderer
 
     from .tiled_camera_cfg import TiledCameraCfg
 
@@ -82,7 +81,7 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg, scene: InteractiveScene | None = None):
+    def __init__(self, cfg: TiledCameraCfg, renderer: Renderer | None = None):
         """Initializes the tiled camera sensor.
 
         Args:
@@ -92,8 +91,8 @@ class TiledCamera(Camera):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        self.scene = scene
-        self.renderer: NewtonWarpRenderer | None = None
+        self.renderer = renderer
+        self.render_data = None
         super().__init__(cfg)
 
     def __del__(self):
@@ -187,8 +186,8 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
             cam_prim_paths.append(cam_prim_path)
 
-        if self.cfg.renderer == "newton":
-            self.renderer = NewtonWarpRenderer(self.scene)
+        if self.renderer is not None:
+            self.render_data = self.renderer.create_render_data(self)
 
         else:
             # Create replicator tiled render product
@@ -262,7 +261,9 @@ class TiledCamera(Camera):
     def _update_poses(self, env_ids: Sequence[int]):
         super()._update_poses(env_ids)
         if self.renderer is not None:
-            self.renderer.update_camera(self, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
+            self.renderer.update_camera(
+                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+            )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
@@ -273,13 +274,12 @@ class TiledCamera(Camera):
             self._update_poses(env_ids)
 
         if self.renderer is not None:
-            self.renderer.update_transforms()
-            self.renderer.render(self)
+            self.renderer.render(self.render_data)
 
             for output_name, output_data in self._data.output.items():
                 if output_name == "rgb":
                     continue
-                self.renderer.convert_output(self, output_name, output_data)
+                self.renderer.write_output(self.render_data, output_name, output_data)
             return
 
         # Extract the flattened image buffer
@@ -460,7 +460,7 @@ class TiledCamera(Camera):
         self._data.output = data_dict
         self._data.info = dict()
         if self.renderer is not None:
-            self.renderer.set_outputs(self._data.output)
+            self.renderer.set_outputs(self.render_data, self._data.output)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""

@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import newton
@@ -13,14 +13,14 @@ import torch
 import warp as wp
 
 import isaaclab.sim as isaaclab_sim
-import isaaclab.utils.math
+from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
     from isaaclab.sensors import SensorBase
 
 
-class CameraManager:
+class RenderData:
     class OutputNames:
         RGB = "rgb"
         RGBA = "rgba"
@@ -37,98 +37,81 @@ class CameraManager:
         normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         instance_segmentation_image: wp.array(dtype=wp.uint32, ndim=4) = None
 
-    @dataclass
-    class CameraData:
-        camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
-        camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
-        outputs: CameraManager.CameraOutputs = field(default_factory=lambda: CameraManager.CameraOutputs())
-        name: str | None = None
-        width: int = 100
-        height: int = 100
-
-    def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, scene: InteractiveScene):
+    def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
         self.render_context = render_context
-        self.scene = scene
+        self.sensor = sensor
         self.num_cameras = 1
-        self.camera_data: dict[SensorBase, CameraManager.CameraData] = {}
 
-        for name, sensor in self.scene.sensors.items():
-            camera_data = CameraManager.CameraData()
-            camera_data.name = name
-            camera_data.width = getattr(sensor.cfg, "width", camera_data.width)
-            camera_data.height = getattr(sensor.cfg, "height", camera_data.height)
-            self.camera_data[sensor] = camera_data
+        self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
+        self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
+        self.outputs = RenderData.CameraOutputs()
+        self.width = getattr(sensor.cfg, "width", 100)
+        self.height = getattr(sensor.cfg, "width", 100)
 
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
-        for name, sensor in self.scene.sensors.items():
-            if camera_data := self.camera_data.get(sensor):
-                for output_name, tensor_data in output_data.items():
-                    if output_name == CameraManager.OutputNames.RGBA:
-                        camera_data.outputs.color_image = self.__from_torch(camera_data, tensor_data, dtype=wp.uint32)
-                    elif output_name == CameraManager.OutputNames.ALBEDO:
-                        camera_data.outputs.albedo_image = self.__from_torch(camera_data, tensor_data, dtype=wp.uint32)
-                    elif output_name == CameraManager.OutputNames.DEPTH:
-                        camera_data.outputs.depth_image = self.__from_torch(camera_data, tensor_data, dtype=wp.float32)
-                    elif output_name == CameraManager.OutputNames.NORMALS:
-                        camera_data.outputs.normals_image = self.__from_torch(camera_data, tensor_data, dtype=wp.vec3f)
-                    elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
-                        camera_data.outputs.instance_segmentation_image = self.__from_torch(
-                            camera_data, tensor_data, dtype=wp.uint32
-                        )
-                    elif output_name == CameraManager.OutputNames.RGB:
-                        pass
-                    else:
-                        print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+        for output_name, tensor_data in output_data.items():
+            if output_name == RenderData.OutputNames.RGBA:
+                self.outputs.color_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderData.OutputNames.ALBEDO:
+                self.outputs.albedo_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderData.OutputNames.DEPTH:
+                self.outputs.depth_image = self.__from_torch(tensor_data, dtype=wp.float32)
+            elif output_name == RenderData.OutputNames.NORMALS:
+                self.outputs.normals_image = self.__from_torch(tensor_data, dtype=wp.vec3f)
+            elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+                self.outputs.instance_segmentation_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderData.OutputNames.RGB:
+                pass
+            else:
+                print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 
-    def get_output(self, camera_data: CameraData, output_name: str) -> wp.array:
-        if output_name == CameraManager.OutputNames.RGBA:
-            return camera_data.outputs.color_image
-        elif output_name == CameraManager.OutputNames.ALBEDO:
-            return camera_data.outputs.albedo_image
-        elif output_name == CameraManager.OutputNames.DEPTH:
-            return camera_data.outputs.depth_image
-        elif output_name == CameraManager.OutputNames.NORMALS:
-            return camera_data.outputs.normals_image
-        elif output_name == CameraManager.OutputNames.INSTANCE_SEGMENTATION:
-            return camera_data.outputs.instance_segmentation_image
+    def get_output(self, output_name: str) -> wp.array:
+        if output_name == RenderData.OutputNames.RGBA:
+            return self.outputs.color_image
+        elif output_name == RenderData.OutputNames.ALBEDO:
+            return self.outputs.albedo_image
+        elif output_name == RenderData.OutputNames.DEPTH:
+            return self.outputs.depth_image
+        elif output_name == RenderData.OutputNames.NORMALS:
+            return self.outputs.normals_image
+        elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+            return self.outputs.instance_segmentation_image
         return None
 
-    def update(
-        self, camera_data: CameraData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
-    ):
-        converted_orientations = isaaclab.utils.math.convert_camera_frame_orientation_convention(
+    def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
+        converted_orientations = convert_camera_frame_orientation_convention(
             orientations, origin="world", target="opengl"
         )
 
-        camera_data.camera_transforms = wp.empty((1, self.scene.num_envs), dtype=wp.transformf)
+        self.camera_transforms = wp.empty((1, self.render_context.num_worlds), dtype=wp.transformf)
         wp.launch(
-            CameraManager.__update_transforms,
-            self.scene.num_envs,
-            [positions, converted_orientations, camera_data.camera_transforms],
+            RenderData.__update_transforms,
+            self.render_context.num_worlds,
+            [positions, converted_orientations, self.camera_transforms],
         )
 
         if self.render_context is not None:
             first_focal_length = intrinsics[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(camera_data.height / (2.0 * first_focal_length))
+            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            camera_data.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(
-                camera_data.width, camera_data.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
+            self.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(
+                self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
 
-    def __from_torch(self, camera_data: CameraData, tensor: torch.Tensor, dtype) -> wp.array:
+    def __from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
         torch_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
                 ptr=torch_array.ptr,
                 dtype=dtype,
-                shape=(self.render_context.num_worlds, self.num_cameras, camera_data.height, camera_data.width),
+                shape=(self.render_context.num_worlds, self.num_cameras, self.height, self.width),
                 device=torch_array.device,
                 copy=False,
             )
 
         print("NewtonWarpRenderer - torch output array is non-contiguous")
         return wp.zeros(
-            (self.render_context.num_worlds, self.num_cameras, camera_data.height, camera_data.width),
+            (self.render_context.num_worlds, self.num_cameras, self.height, self.width),
             dtype=dtype,
             device=torch_array.device,
         )
@@ -144,6 +127,8 @@ class CameraManager:
 
 
 class NewtonWarpRenderer:
+    RenderData = RenderData
+
     def __init__(self, scene: InteractiveScene):
         assert scene is not None, "NewtonWarpRenderer needs an InteractiveScene to initialize!"
 
@@ -164,10 +149,12 @@ class NewtonWarpRenderer:
         self.physx_to_newton_body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
-        self.camera_manager = CameraManager(self.newton_sensor.render_context, self.scene)
 
-    def set_outputs(self, output_data: dict[str, torch.Tensor]):
-        self.camera_manager.set_outputs(output_data)
+    def create_render_data(self, sensor: SensorBase) -> RenderData:
+        return RenderData(self.newton_sensor.render_context, sensor)
+
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+        render_data.set_outputs(output_data)
 
     def update_transforms(self):
         self.__update_mapping()
@@ -182,37 +169,27 @@ class NewtonWarpRenderer:
                 )
 
     def update_camera(
-        self, sensor: SensorBase, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+        self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
     ):
-        if camera_data := self.camera_manager.camera_data.get(sensor):
-            self.camera_manager.update(camera_data, positions, orientations, intrinsics)
+        render_data.update(positions, orientations, intrinsics)
 
-    def render(self, sensor: SensorBase):
-        if camera_data := self.camera_manager.camera_data.get(sensor):
-            self.__render(camera_data)
-
-    def render_all(self):
-        for name, camera_data in self.camera_manager.camera_data.items():
-            self.__render(camera_data)
-
-    def convert_output(self, sensor: SensorBase, output_name: str, output_data: torch.Tensor):
-        if camera_data := self.camera_manager.camera_data.get(sensor):
-            image_data = self.camera_manager.get_output(camera_data, output_name)
-            if image_data is not None:
-                if image_data.ptr != output_data.data_ptr():
-                    wp.copy(wp.from_torch(output_data), image_data)
-
-    def __render(self, camera_data: CameraManager.CameraData):
+    def render(self, render_data: RenderData):
         self.newton_sensor.render(
             self.newton_state,
-            camera_data.camera_transforms,
-            camera_data.camera_rays,
-            color_image=camera_data.outputs.color_image,
-            albedo_image=camera_data.outputs.albedo_image,
-            depth_image=camera_data.outputs.depth_image,
-            normal_image=camera_data.outputs.normals_image,
-            shape_index_image=camera_data.outputs.instance_segmentation_image,
+            render_data.camera_transforms,
+            render_data.camera_rays,
+            color_image=render_data.outputs.color_image,
+            albedo_image=render_data.outputs.albedo_image,
+            depth_image=render_data.outputs.depth_image,
+            normal_image=render_data.outputs.normals_image,
+            shape_index_image=render_data.outputs.instance_segmentation_image,
         )
+
+    def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
+        image_data = render_data.get_output(output_name)
+        if image_data is not None:
+            if image_data.ptr != output_data.data_ptr():
+                wp.copy(wp.from_torch(output_data), image_data)
 
     def __update_mapping(self):
         if self.physx_to_newton_body_mapping:

@@ -14,4 +14,3 @@ class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor."""
 
     class_type: type = TiledCamera
-    renderer: str = "rtx"
