@@ -219,10 +219,10 @@ def extract_isaacsim_path():
     Find the Isaac Sim installation path.
     """
     # Use the sym-link path to Isaac Sim directory.
-    isaac_path = DEFAULT_ISAAC_SIM_PATH
+    isaacsim_path = DEFAULT_ISAAC_SIM_PATH
 
     # If above path is not available, try to find the path using python.
-    if not isaac_path.exists():
+    if not isaacsim_path.exists():
         # Use the python executable to get the path.
         python_exe = extract_python_exe()
         # Retrieve the path importing isaac sim and getting the environment path.
@@ -236,14 +236,14 @@ def extract_isaacsim_path():
                 if res.returncode == 0:
                     output = res.stdout.strip()
                     if output:
-                        isaac_path = Path(output)
+                        isaacsim_path = Path(output)
         except Exception:
             pass
 
     # Check if there is a path available.
-    if not isaac_path.exists():
+    if not isaacsim_path.exists():
         # Throw an error if no path is found.
-        print_error(f"Unable to find the Isaac Sim directory: '{isaac_path}'")
+        print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
         print("\tThis could be due to the following reasons:")
         print("\t1. Conda environment is not activated.")
         print("\t2. Isaac Sim pip package 'isaacsim-rl' is not installed.")
@@ -251,7 +251,7 @@ def extract_isaacsim_path():
         # Exit.
         sys.exit(1)
 
-    return isaac_path
+    return isaacsim_path
 
 
 def extract_isaacsim_exe():
@@ -259,13 +259,13 @@ def extract_isaacsim_exe():
     Find the Isaac Sim executable.
     """
     # Obtain the isaac sim path.
-    isaac_path = extract_isaacsim_path()
+    isaacsim_path = extract_isaacsim_path()
 
     # Isaac Sim executable to use.
     if is_windows():
-        isaacsim_exe = isaac_path / "isaac-sim.bat"
+        isaacsim_exe = isaacsim_path / "isaac-sim.bat"
     else:
-        isaacsim_exe = isaac_path / "isaac-sim.sh"
+        isaacsim_exe = isaacsim_path / "isaac-sim.sh"
 
     # Check if there is a python path available.
     if not isaacsim_exe.exists():
@@ -281,7 +281,7 @@ def extract_isaacsim_exe():
         except Exception:
             pass
 
-        print_error(f"No Isaac Sim executable found at path: {isaac_path}")
+        print_error(f"No Isaac Sim executable found at path: {isaacsim_path}")
         sys.exit(1)
 
     return [str(isaacsim_exe)]
