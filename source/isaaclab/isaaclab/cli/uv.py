@@ -63,25 +63,6 @@ def setup_uv_env(env_name):
     else:
         print_info(f"uv environment '{env_name}' already exists.")
 
-    # Install activation hooks.
-    if is_windows():
-        activate_script = env_path / "Scripts" / "activate.bat"
-        # We can append to it.
-        if activate_script.exists():
-            # Add variables to environment during activation.
-            with open(activate_script, "a") as f:
-                f.write(f"\nset ISAACLAB_PATH={ISAACLAB_ROOT}\n")
-                f.write("set RESOURCE_NAME=IsaacSim\n")
-    else:
-        activate_script = env_path / "bin" / "activate"
-        if activate_script.exists():
-            # Add variables to environment during activation.
-            with open(activate_script, "a") as f:
-                f.write(f"\nexport ISAACLAB_PATH={ISAACLAB_ROOT}\n")
-                f.write("export RESOURCE_NAME=IsaacSim\n")
-                if (ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh").exists():
-                    f.write(f". {ISAACLAB_ROOT}/_isaac_sim/setup_conda_env.sh\n")
-
     print_info(f"Created uv environment named '{env_name}'.\n")
     if is_windows():
         print(f"\t\t1. To activate the environment, run:                {env_name}\\Scripts\\activate")
