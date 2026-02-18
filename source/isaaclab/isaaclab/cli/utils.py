@@ -311,6 +311,15 @@ def run_python_command(
     if env is None:
         env = os.environ.copy()
 
+    command_str = " ".join(str(part) for part in cmd)
+
+    print_debug(f'run_python_command(): DIR: "{os.getcwd()}"')
+    print_debug(f'run_python_command(): CMD: "{command_str}"')
+    if env is None:
+        print_debug("run_python_command(): ENV: <inherited>")
+    else:
+        print_debug(f"run_python_command(): ENV: {env}")
+
     return subprocess.run(
         cmd,
         env=env,
