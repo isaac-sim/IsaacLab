@@ -110,9 +110,12 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # Trigger an update of the joint acceleration buffer at a higher frequency
+        # Update the body link pose timestamp to avoid unnecessary kinematic updates.
+        self._body_link_pose_w_timestamp = self._sim_timestamp
+        # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
+        self.body_com_acc_w
 
     """
     Names.
@@ -575,6 +578,9 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        # Need to force the kinematic update to get the latest body link poses.
+        if self._body_link_pose_w_timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
         return self._sim_bind_body_link_pose_w
 
     @property
@@ -1199,6 +1205,7 @@ class ArticulationData(BaseArticulationData):
         self._num_bodies = self._root_view.link_count
         self._num_fixed_tendons = 0#self._root_view.max_fixed_tendons
         self._num_spatial_tendons = 0#self._root_view.max_spatial_tendons
+        self._body_link_pose_w_timestamp = -1.0
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.

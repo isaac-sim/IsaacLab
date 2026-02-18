@@ -63,11 +63,10 @@ def get_joint_acc_from_joint_vel(
 
 
 @wp.kernel
-def write_joint_vel_data(
+def write_joint_vel_data_index(
     in_data: wp.array2d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),
     joint_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),
     joint_acc: wp.array2d(dtype=wp.float32),
@@ -78,13 +77,9 @@ def write_joint_vel_data(
     It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
 
     Args:
-        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints) or
-            (num_selected_envs, num_selected_joints) depending on from_mask.
+        in_data: Input array containing joint velocity data. Shape is (num_selected_envs, num_selected_joints).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, indices from
-            env_ids and joint_ids are used to index into in_data. If False, in_data is indexed
-            directly using the thread indices.
         joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
         prev_joint_vel: Output array where previous joint velocities are written. Shape is
             (num_envs, num_joints).
@@ -92,22 +87,48 @@ def write_joint_vel_data(
             (num_envs, num_joints).
     """
     i, j = wp.tid()
-    if from_mask:
-        joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-        prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-    else:
-        joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
-        prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+    joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+    prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
     joint_acc[env_ids[i], joint_ids[j]] = 0.0
 
 
 @wp.kernel
-def write_joint_limit_data_to_buffer(
+def write_joint_vel_data_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint velocity data to the output buffers.
+
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+
+    Args:
+        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        joint_mask: Input array of joint mask. Shape is (num_joints,).
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_vel[i, j] = in_data[i, j]
+        prev_joint_vel[i, j] = in_data[i, j]
+        joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def write_joint_limit_data_to_buffer_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,
     env_ids: wp.array(dtype=wp.int32),
     joint_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     default_joint_pos: wp.array2d(dtype=wp.float32),
@@ -121,14 +142,10 @@ def write_joint_limit_data_to_buffer(
 
     Args:
         in_data: Input array containing joint position limits as vec2f (lower, upper).
-            Shape is (num_envs, num_joints) or (num_selected_envs, num_selected_joints)
-            depending on from_mask.
+            Shape is (num_selected_envs, num_selected_joints).
         soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, indices from
-            env_ids and joint_ids are used to index into in_data. If False, in_data is indexed
-            directly using the thread indices.
         joint_pos_limits: Output array where joint position limits are written. Shape is
             (num_envs, num_joints).
         soft_joint_pos_limits: Output array where soft joint position limits are written.
@@ -139,10 +156,7 @@ def write_joint_limit_data_to_buffer(
             positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
     """
     i, j = wp.tid()
-    if from_mask:
-        joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-    else:
-        joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[i, j]
+    joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[i, j]
     if (
         default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]
     ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
@@ -155,6 +169,55 @@ def write_joint_limit_data_to_buffer(
     soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(
         joint_pos_limits[env_ids[i], joint_ids[j]], soft_limit_factor
     )
+
+
+@wp.kernel
+def write_joint_limit_data_to_buffer_mask(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    clamped_defaults: wp.array(dtype=wp.int32),
+):
+    """Write joint limit data to the output buffers and compute soft limits.
+
+    This kernel writes joint position limits from the input array to the output buffer,
+    computes soft joint position limits, and clamps default joint positions if they
+    fall outside the limits.
+
+    Args:
+        in_data: Input array containing joint position limits as vec2f (lower, upper).
+            Shape is (num_envs, num_joints).
+        soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        joint_mask: Input array of joint mask. Shape is (num_joints,).
+        joint_pos_limits: Output array where joint position limits are written. Shape is
+            (num_envs, num_joints).
+        soft_joint_pos_limits: Output array where soft joint position limits are written.
+            Shape is (num_envs, num_joints).
+        default_joint_pos: Input/output array of default joint positions. If any values fall
+            outside the limits, they are clamped. Shape is (num_envs, num_joints).
+        clamped_defaults: Output 1-element array flag indicating whether any default joint
+            positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_pos_limits[i, j] = in_data[i, j]
+        if (
+            default_joint_pos[i, j] < joint_pos_limits[i, j][0]
+        ) or default_joint_pos[i, j] > joint_pos_limits[i, j][1]:
+            wp.atomic_add(clamped_defaults, 0, 1)
+            default_joint_pos[i, j] = wp.clamp(
+                default_joint_pos[i, j],
+                joint_pos_limits[i, j][0],
+                joint_pos_limits[i, j][1],
+            )
+        soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(
+            joint_pos_limits[i, j], soft_limit_factor
+        )
 
 
 @wp.kernel
@@ -282,6 +345,29 @@ def float_data_to_buffer_with_indices(
     """
     i, j = wp.tid()
     out_data[env_ids[i], joint_ids[j]] = in_data
+
+
+@wp.kernel
+def float_data_to_buffer_with_mask(
+    in_data: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    out_data: wp.array2d(dtype=wp.float32),
+):
+    """Write a scalar float value to a 2D buffer at specified mask.
+
+    This kernel broadcasts a single scalar float value to all the positions that are marked as True in the environment
+    and joint masks.
+
+    Args:
+        in_data: Input scalar float value to broadcast.
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        joint_mask: Input array of joint mask. Shape is (num_joints,).
+        out_data: Output array where the scalar value is written. Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        out_data[i, j] = in_data
 
 
 @wp.kernel
