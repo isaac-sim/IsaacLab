@@ -2312,7 +2312,7 @@ class Articulation(BaseArticulation):
             if param.ndim == 1:
                 wp.launch(
                     update_array1D_with_value_indexed,
-                    dim=(param.shape[0]),
+                    dim=(len(indices),),
                     inputs=[
                         param_value,
                         param,
