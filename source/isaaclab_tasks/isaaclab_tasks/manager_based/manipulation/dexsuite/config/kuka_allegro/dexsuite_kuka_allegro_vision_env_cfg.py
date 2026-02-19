@@ -3,6 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Dexsuite Kuka Allegro vision env config.
+
+Tasks: Single-camera tasks (e.g. Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0) use
+KukaAllegroSingleCameraMixinCfg and single_camera_variants. Duo-camera uses
+KukaAllegroDuoCameraMixinCfg and duo_camera_variants; only single-camera tasks are
+currently registered (see this package's __init__.py). The task name selects single vs duo;
+env.scene then picks resolution/renderer/camera type for that task.
+
+Scene variant convention (local / self-learning use):
+
+  env.scene = "<width>x<height><renderer_tag>_<camera_tag>"
+
+  - width, height: resolution (e.g. 64, 128, 256).
+  - renderer_tag: "tiled" → RTX rendering, "newton" → Newton Warp rendering.
+  - camera_tag: "rgb" | "depth" | "albedo" (maps to rgb, distance_to_image_plane, diffuse_albedo).
+
+  Examples: 64x64tiled_rgb, 128x128newton_depth. For tests without Isaac Sim, use
+  scene_variant_keys.parse_scene_key() and scene_variant_keys.get_scene_variant_keys().
+"""
+
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -16,6 +36,12 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from ... import dexsuite_env_cfg as dexsuite_state_impl
 from ... import mdp
 from . import dexsuite_kuka_allegro_env_cfg as kuka_allegro_dexsuite
+from . import scene_variant_keys as _svk
+
+
+def _scene_cfg_from_parsed(parsed: dict, scene_cls: type, base: dict) -> object:
+    """Build a scene config from parsed scene key and base kwargs."""
+    return scene_cls(**{**base, **parsed})
 
 
 @configclass
@@ -122,87 +148,29 @@ class KukaAllegroDuoCameraObservationsCfg(KukaAllegroSingleCameraObservationsCfg
 
 sa = {"num_envs": 4096, "env_spacing": 3, "replicate_physics": False}
 
-# RTX rendering variants
-singe_camera_variants = {
-    "64x64tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "64x64tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "64x64tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_albedo": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-}
-duo_camera_variants = {
-    "64x64tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "64x64tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "64x64tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 64, "height": 64, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "128x128tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 128, "height": 128, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_depth": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_rgb": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-    "256x256tiled_albedo": KukaAllegroDuoTiledCameraSceneCfg(
-        **{**sa, "camera_type": "diffuse_albedo", "width": 256, "height": 256, "renderer_type": "rtx"}
-    ),
-}
 
-# Newton Warp rendering variants
-single_camera_newton_warp_variants = {
-    "64x64newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 64, "height": 64, "renderer_type": "newton_warp"}
-    ),
-    "64x64newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 64, "height": 64, "renderer_type": "newton_warp"}
-    ),
-    "128x128newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 128, "height": 128, "renderer_type": "newton_warp"}
-    ),
-    "128x128newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 128, "height": 128, "renderer_type": "newton_warp"}
-    ),
-    "256x256newton_depth": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "distance_to_image_plane", "width": 256, "height": 256, "renderer_type": "newton_warp"}
-    ),
-    "256x256newton_rgb": KukaAllegroSingleTiledCameraSceneCfg(
-        **{**sa, "camera_type": "rgb", "width": 256, "height": 256, "renderer_type": "newton_warp"}
-    ),
-}
+def _build_scene_variants(scene_cls: type) -> dict:
+    """Build scene variants from convention: key = <width>x<height><renderer_tag>_<camera_tag>."""
+    out = {}
+    for (w, h) in _svk.RESOLUTIONS:
+        for renderer_tag, camera_tag in _svk.RENDERER_CAMERA_COMBO:
+            key = f"{w}x{h}{renderer_tag}_{camera_tag}"
+            parsed = {
+                "width": w,
+                "height": h,
+                "renderer_type": _svk.RENDERER_TAG_TO_TYPE[renderer_tag],
+                "camera_type": _svk.CAMERA_TAG_TO_TYPE[camera_tag],
+            }
+            out[key] = _scene_cfg_from_parsed(parsed, scene_cls, sa)
+    return out
+
+
+# Re-export for callers that import from this module (e.g. tests using full env)
+parse_scene_key = _svk.parse_scene_key
+
+
+single_camera_variants = _build_scene_variants(KukaAllegroSingleTiledCameraSceneCfg)
+duo_camera_variants = _build_scene_variants(KukaAllegroDuoTiledCameraSceneCfg)
 
 
 @configclass
@@ -221,8 +189,7 @@ class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg)
 
     def __post_init__(self: kuka_allegro_dexsuite.DexsuiteKukaAllegroLiftEnvCfg):
         super().__post_init__()
-        self.variants.setdefault("scene", {}).update(singe_camera_variants)
-        self.variants["scene"].update(single_camera_newton_warp_variants)
+        self.variants.setdefault("scene", {}).update(single_camera_variants)
 
 
 @configclass

@@ -3,41 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for TiledCamera renderer backend default and --renderer_backend -> env.scene contract.
+"""Tests for TiledCamera renderer backend and env.scene variant contract.
 
 Run with: pytest source/isaaclab/test/sensors/test_tiled_camera_renderer_backend.py -v
 (from repo root, with Isaac Lab env active). The contract tests run without Isaac Sim;
 the TiledCameraCfg default test requires the full env (imports isaaclab.sensors.camera).
+
+Renderer is dictated by env.scene=: tiled variants (e.g. 64x64tiled_rgb) use RTX,
+newton variants (e.g. 64x64newton_rgb) use Warp. train.py does not set --renderer_backend.
 """
 
 import pytest
 
-# Default env.scene values used by scripts/reinforcement_learning/rsl_rl/train.py when
-# --renderer_backend is set and the user does not pass env.scene=.
-RENDERER_BACKEND_TO_DEFAULT_ENV_SCENE = {
-    "rtx": "64x64tiled_rgb",
-    "warp_renderer": "64x64newton_rgb",
-}
+# env.scene variant names that select each backend (task defines these in scene variants)
+ENV_SCENE_RTX = "64x64tiled_rgb"
+ENV_SCENE_WARP = "64x64newton_rgb"
 
 
-class TestRendererBackendContract:
-    """Enforce --renderer_backend -> env.scene contract (no Isaac Sim required)."""
+class TestEnvSceneVariantContract:
+    """Enforce env.scene= variant names for RTX vs Warp (no Isaac Sim required)."""
 
-    def test_renderer_backend_rtx_maps_to_tiled_rgb(self):
-        """Default for --renderer_backend rtx must be env.scene=64x64tiled_rgb (RTX)."""
-        assert RENDERER_BACKEND_TO_DEFAULT_ENV_SCENE["rtx"] == "64x64tiled_rgb"
+    def test_tiled_variant_is_rtx(self):
+        """Tiled variant name (64x64tiled_rgb) selects RTX backend."""
+        assert "tiled" in ENV_SCENE_RTX
 
-    def test_renderer_backend_warp_maps_to_newton_rgb(self):
-        """Default for --renderer_backend warp_renderer must be env.scene=64x64newton_rgb."""
-        assert RENDERER_BACKEND_TO_DEFAULT_ENV_SCENE["warp_renderer"] == "64x64newton_rgb"
-
-    def test_only_newton_warp_selects_warp_renderer(self):
-        """Only 'newton_warp' should imply Newton Warp; None/rtx/other -> RTX."""
-        for rt in (None, "rtx", "other"):
-            effective = rt if rt is not None else "rtx"
-            assert effective != "newton_warp"
-        assert "newton_warp" not in RENDERER_BACKEND_TO_DEFAULT_ENV_SCENE
-        # train.py uses env.scene to select scene variant; scene variant sets renderer_type.
+    def test_newton_variant_is_warp(self):
+        """Newton variant name (64x64newton_rgb) selects Warp backend."""
+        assert "newton" in ENV_SCENE_WARP
 
 
 class TestTiledCameraCfgDefault:

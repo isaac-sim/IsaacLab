@@ -16,7 +16,7 @@ class TiledCameraCfg(CameraCfg):
     class_type: type = TiledCamera
 
     renderer_type: str | None = None
-    """Renderer backend. Default is ``None`` (RTX). If ``"newton_warp"``, uses Newton Warp ray
-    tracing (PhysX sim + Newton state sync). If ``None`` or anything else, uses Omniverse RTX
-    tiled rendering (Replicator annotators). The training script's ``--renderer_backend`` sets
-    ``env.scene`` so the task's scene variant supplies this value (e.g. rtx vs newton_warp)."""
+    """Renderer backend. Default is ``None`` (RTX). If ``"newton_warp"``, uses Warp ray tracing
+    (PhysX sim + Newton state sync). If ``None`` or anything else, uses Omniverse RTX
+    tiled rendering (Replicator annotators). Set by the task's scene variant; pass
+    ``env.scene=64x64tiled_rgb`` for RTX or ``env.scene=64x64newton_rgb`` for Warp."""

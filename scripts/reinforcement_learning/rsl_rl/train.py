@@ -5,10 +5,11 @@
 
 """Train an RL agent with RSL-RL.
 
-This script is the main entry point for RSL-RL training. It supports a renderer backend
-via ``--renderer_backend`` (e.g. ``rtx`` or ``warp_renderer`` for Newton Warp). When using
-Newton Warp, the end-of-run timing summary includes timers such as ``newton_warp_sync_plus_render``
-and ``newton_warp_render_full``. Launch Isaac Sim first (see AppLauncher below).
+This script is the main entry point for RSL-RL training. The renderer backend is chosen by
+``env.scene=``: use a tiled variant (e.g. ``64x64tiled_rgb``) for RTX or a newton variant
+(e.g. ``64x64newton_rgb``) for Warp. When using Warp, the end-of-run timing summary includes
+timers such as ``newton_warp_sync_plus_render`` and ``newton_warp_render_full``.
+Launch Isaac Sim first (see AppLauncher below).
 """
 
 import argparse
@@ -38,16 +39,6 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
-parser.add_argument(
-    "--renderer_backend",
-    type=str,
-    default="rtx",
-    choices=("rtx", "warp_renderer"),
-    help=(
-        "Camera renderer backend: 'rtx' (RTX) or 'warp_renderer' (Newton Warp). "
-        "Sets env.scene variant unless overridden."
-    ),
-)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -58,19 +49,8 @@ args_cli, hydra_args = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# Set env.scene from --renderer_backend if user did not already pass env.scene
-_env_scene_override = None
-if not any(a.startswith("env.scene=") for a in hydra_args):
-    if args_cli.renderer_backend == "warp_renderer":
-        _env_scene_override = "64x64newton_rgb"
-        hydra_args = list(hydra_args) + ["env.scene=" + _env_scene_override]
-    else:
-        _env_scene_override = "64x64tiled_rgb"
-        hydra_args = list(hydra_args) + ["env.scene=" + _env_scene_override]
-else:
-    _env_scene_override = next((a.split("=", 1)[1] for a in hydra_args if a.startswith("env.scene=")), None)
-
-# clear out sys.argv for Hydra
+# env.scene= is passed via hydra_args (e.g. env.scene=64x64tiled_rgb or env.scene=64x64newton_rgb);
+# the chosen variant dictates the renderer (tiled -> RTX, newton -> Warp).
 sys.argv = [sys.argv[0]] + hydra_args
 
 # launch omniverse app
@@ -103,18 +83,6 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 
 import logging
 import os
-
-# One-time log so we can verify --renderer_backend drives env.scene (and thus TiledCamera renderer_type)
-if not any(a.startswith("env.scene=") for a in sys.argv[1:]):
-    print(
-        f"[train.py] renderer_backend={args_cli.renderer_backend!r} -> env.scene={_env_scene_override!r} (default)",
-        flush=True,
-    )
-else:
-    print(
-        f"[train.py] renderer_backend={args_cli.renderer_backend!r}; env.scene overridden by user",
-        flush=True,
-    )
 import time
 from datetime import datetime
 
