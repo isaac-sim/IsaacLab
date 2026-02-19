@@ -43,6 +43,15 @@ class RendererBase(ABC):
         """Reset the renderer."""
         raise NotImplementedError("reset() is not implemented.")
 
+    def render(
+        self,
+        camera_positions,
+        camera_orientations,
+        intrinsic_matrices,
+    ) -> None:
+        """Render the scene. Used by e.g. TiledCamera to update output buffers."""
+        raise NotImplementedError("render() is not implemented.")
+
     def _initialize_output(self):
         """Initialize the output of the renderer."""
         raise NotImplementedError("initialize_output() is not implemented.")
