@@ -46,14 +46,14 @@ class AssetBaseCfg:
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
-    parameter_override_scalar: dict[str, tuple[Any, str | None]] = {}
-    """Parameter override for scalar values in the asset. Defaults to an empty dictionary.
+    parameter_override: dict[str, tuple[Any, str | None]] = {}
+    """Allows to override Newton Model parameters from the asset configuration. Defaults to an empty dictionary.
 
     dict[str, tuple[Any, str | None]]:
-     - The key, is the name of the Newton Model or TensorAPI field,
-     - The first value in the tuple, is the value to override the field with. It can only be a scalar.
-     - The second value in the tuple is the expression to be used to resolve the value. If None, then all values
-     are resolved.
+     - The key, is the name of the Newton Model parameter,
+     - The first value in the tuple, is the value to override the parameter with. It can only be a scalar.
+     - The second value in the tuple is the expression to be used to resolve the value. If None, then we apply that 
+     parameter to all the elements in the selected model parameter.
 
      Example:
      # Changes the collision stiffness and damping of the asset
