@@ -372,6 +372,9 @@ class DirectMARLEnv(gym.Env):
         # process actions
         self._pre_physics_step(actions)
 
+        # Expose the env-step iteration to visualizers (1-based).
+        self.sim.set_training_iteration(self.common_step_counter + 1)
+
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering

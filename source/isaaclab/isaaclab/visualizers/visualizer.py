@@ -63,6 +63,13 @@ class Visualizer(ABC):
         """Check if training is paused by visualizer controls."""
         return False
 
+    def set_training_iteration(self, iteration: int | None) -> None:
+        """Provide the current training iteration to the visualizer.
+
+        Backends that do not need this can keep the default no-op behavior.
+        """
+        pass
+
     def is_rendering_paused(self) -> bool:
         """Check if rendering is paused by visualizer controls."""
         return False
@@ -103,9 +110,7 @@ class Visualizer(ABC):
 
         num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
         if num_envs <= 0:
-            logger.debug(
-                "[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled."
-            )
+            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled.")
             return None
         if filter_mode == "env_ids":
             env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)

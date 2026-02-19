@@ -186,7 +186,13 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
 
         def wrapped_step(dt, state=None):
-            original_step(dt, state)
+            # Support both visualizer step signatures:
+            # - current: step(dt)
+            # - legacy:  step(dt, state)
+            try:
+                original_step(dt, state)
+            except TypeError:
+                original_step(dt)
             render_cb(render_dt)
 
         viz.step = wrapped_step

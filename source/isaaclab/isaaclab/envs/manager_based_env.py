@@ -467,6 +467,9 @@ class ManagerBasedEnv:
         # process actions
         self.action_manager.process_action(action.to(self.device))
 
+        # Expose the env-step iteration to visualizers (1-based).
+        self.sim.set_training_iteration(self._sim_step_counter // self.cfg.decimation + 1)
+
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop

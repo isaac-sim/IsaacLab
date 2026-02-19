@@ -13,7 +13,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-import flatdict
 import toml
 import torch
 
@@ -139,6 +138,7 @@ class SimulationContext:
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
+        self._training_iteration: int | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -183,9 +183,16 @@ class SimulationContext:
             if os.path.exists(preset_filename):
                 with open(preset_filename) as file:
                     preset_dict = toml.load(file)
-                preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-                for key, value in preset_dict.items():
-                    self.set_setting("/" + key.replace(".", "/"), value)
+
+                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
+                    for key, value in data.items():
+                        key_path = f"{path}/{key}" if path else f"/{key}"
+                        if isinstance(value, dict):
+                            _apply_nested_carb_settings(value, key_path)
+                        else:
+                            self.set_setting(key_path.replace(".", "/"), value)
+
+                _apply_nested_carb_settings(preset_dict)
             else:
                 logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
 
@@ -420,6 +427,17 @@ class SimulationContext:
                 return float(viz_dt)
         return self._viz_dt
 
+    def set_training_iteration(self, iteration: int | None) -> None:
+        """Set current training iteration exposed to visualizers."""
+        if iteration is None:
+            self._training_iteration = None
+            return
+        self._training_iteration = int(iteration)
+
+    def get_training_iteration(self) -> int | None:
+        """Get current training iteration exposed to visualizers."""
+        return self._training_iteration
+
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view on all visualizers that support it."""
         for viz in self._visualizers:
@@ -486,6 +504,7 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                viz.set_training_iteration(self._training_iteration)
                 if viz.is_rendering_paused():
                     continue
                 if viz.is_closed:
