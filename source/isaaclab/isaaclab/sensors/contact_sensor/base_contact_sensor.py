@@ -106,12 +106,6 @@ class BaseContactSensor(SensorBase):
 
     @property
     @abstractmethod
-    def contact_partner_names(self) -> list[str] | None:
-        """Ordered names of shapes or bodies that are selected as contact partners."""
-        raise NotImplementedError(f"Contact partner names is not implemented for {self.__class__.__name__}.")
-
-    @property
-    @abstractmethod
     def contact_view(self) -> None:
         """View for the contact forces captured.
 

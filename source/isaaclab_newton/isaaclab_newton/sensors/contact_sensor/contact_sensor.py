@@ -20,7 +20,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
 from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.utils.helpers import deprecated, warn_overhead_cost
+from isaaclab.utils.helpers import deprecated
 
 from .contact_sensor_data import ContactSensorData
 from .contact_sensor_kernels import (
@@ -127,8 +127,6 @@ class ContactSensor(BaseContactSensor):
             from isaaclab.utils.warp.utils import make_mask_from_torch_ids
 
             env_mask = make_mask_from_torch_ids(self._num_envs, env_ids, device=self._device)
-        else:
-            env_mask = env_mask
 
         # Compute num_filter_objects
         num_filter_objects = self._num_filter_objects
@@ -452,15 +450,10 @@ class ContactSensor(BaseContactSensor):
     def num_bodies(self) -> int:
         return self.num_sensors
 
-    @deprecated("use sensor_names")
     @property
+    @deprecated("use sensor_names")
     def body_names(self) -> list[str] | None:
         return self.sensor_names
-
-    @deprecated("use filter_object_names")
-    @property
-    def contact_partner_names(self) -> list[str] | None:
-        return self.filter_object_names
 
     @deprecated("use find_sensors")
     def find_bodies(
