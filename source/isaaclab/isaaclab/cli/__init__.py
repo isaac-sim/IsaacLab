@@ -5,7 +5,7 @@
 
 import argparse
 
-from .commands.conda import command_setup_conda
+from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
 from .commands.install import command_install
 from .commands.misc import (
@@ -16,7 +16,6 @@ from .commands.misc import (
     command_test,
     command_vscode_settings,
 )
-from .commands.uv import command_setup_uv
 from .utils import (
     is_windows,
     run_python_command,
