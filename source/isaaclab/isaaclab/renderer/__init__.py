@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 # Import config classes (no circular dependency)
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+from .ovrtx_renderer_cfg import OVRTXRendererCfg
 
 # Import renderer implementations (OVRTXRenderer has no heavy dependencies)
 from .ov_rtx_renderer import OVRTXRenderer
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
     from typing import Type
 
     from .newton_warp_renderer import NewtonWarpRenderer
+    from .ovrtx_renderer import OVRTXRenderer
 
     # from .kit_app_renderer import KitAppRenderer
 
@@ -83,7 +85,7 @@ def get_renderer_class(name: str) -> type[RendererBase] | None:
             _RENDERER_REGISTRY["newton_warp"] = NewtonWarpRenderer
             return NewtonWarpRenderer
         elif name == "ov_rtx":
-            from .ov_rtx_renderer import OVRTXRenderer
+            from .ovrtx_renderer import OVRTXRenderer
 
             _RENDERER_REGISTRY["ov_rtx"] = OVRTXRenderer
             return OVRTXRenderer
