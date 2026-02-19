@@ -1,0 +1,21 @@
+[package]
+
+# Note: Semantic Versioning is used: https://semver.org/
+version = "0.1.0"
+
+# Description
+title = "Newton simulation interfaces for IsaacLab core package"
+description="Extension providing IsaacLab with Newton specific abstractions."
+readme  = "docs/README.md"
+repository = "https://github.com/isaac-sim/IsaacLab"
+category = "robotics"
+keywords = ["robotics", "simulation", "newton"]
+
+[dependencies]
+"isaaclab" = {}
+
+[core]
+reloadable = false
+
+[[python.module]]
+name = "isaaclab_newton"
