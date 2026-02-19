@@ -80,6 +80,7 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    assets
    controllers
    mdp
+   rl
    sensors
 
 isaaclab_tasks extension
