@@ -432,3 +432,54 @@ def create_mock_newton_manager(
             "get_dt.return_value": 0.01,
         },
     )
+
+
+class MockNewtonContactSensor:
+    """Mock Newton contact sensor for testing without full simulation infrastructure.
+
+    This class mimics the interface of Newton's SensorContact and can be used to test
+    ContactSensor classes without requiring an actual simulation environment.
+    """
+
+    def __init__(
+        self,
+        num_sensing_objs: int,
+        num_counterparts: int = 1,
+        device: str = "cuda:0",
+    ):
+        """Initialize the mock contact sensor.
+
+        Args:
+            num_sensing_objs: Number of sensing objects (e.g., bodies or shapes).
+            num_counterparts: Number of counterparts per sensing object.
+            device: Device to use.
+        """
+        self.device = device
+        self.shape: tuple[int, int] = (num_sensing_objs, num_counterparts)
+        self.sensing_objs: list[tuple[int, int]] = [(i, 1) for i in range(num_sensing_objs)]
+        self.counterparts: list[tuple[int, int]] = [(i, 1) for i in range(num_counterparts)]
+        self.reading_indices: list[list[int]] = [list(range(num_counterparts)) for _ in range(num_sensing_objs)]
+
+        # Net force array (n_sensing_objs, n_counterparts) of vec3
+        self._net_force = wp.zeros(num_sensing_objs * num_counterparts, dtype=wp.vec3, device=device)
+        self.net_force = self._net_force.reshape(self.shape)
+
+    def eval(self, contacts):
+        """Mock eval - does nothing since forces are set directly via set_mock_data."""
+        pass
+
+    def get_total_force(self) -> wp.array:
+        """Get the total net force measured by the contact sensor."""
+        return self.net_force
+
+    def set_mock_data(self, net_force: wp.array | None = None):
+        """Set mock contact force data.
+
+        Args:
+            net_force: Force data shaped (num_sensing_objs, num_counterparts) of vec3.
+                       If None, zeros the force data.
+        """
+        if net_force is None:
+            self._net_force.zero_()
+        else:
+            self._net_force.assign(net_force)
