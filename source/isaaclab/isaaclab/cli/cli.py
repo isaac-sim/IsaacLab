@@ -9,9 +9,9 @@ from .conda import setup_conda_env
 from .format import format_code
 from .install import install
 from .utils import (
-    ISAACLAB_ROOT,
     build_docs,
     command_new,
+    command_test,
     is_windows,
     run_docker_helper,
     run_isaacsim,
@@ -135,7 +135,7 @@ def cli():
         command_new(args.new)
 
     elif args.test is not None:
-        run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + args.test)
+        command_test(args.test)
 
     else:
         parser.print_help()

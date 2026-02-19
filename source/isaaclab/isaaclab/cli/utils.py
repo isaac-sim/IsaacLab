@@ -335,6 +335,11 @@ def command_new(new_args):
     run_python_command(cli_script, new_args)
 
 
+def command_test(test_args):
+    """Run pytest for Isaac Lab tools tests (-t)."""
+    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
+
+
 def determine_python_version():
     """Detect Isaac Sim version and return the matching Python version."""
 
