@@ -41,12 +41,11 @@ class Visualizer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         """Update visualization for one step.
 
         Args:
             dt: Time step in seconds.
-            state: Updated physics state (e.g., newton.State).
         """
         raise NotImplementedError
 

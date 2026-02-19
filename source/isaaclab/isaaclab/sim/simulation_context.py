@@ -472,21 +472,23 @@ class SimulationContext:
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
         self._visualizer_step_counter += 1
-        if self._scene_data_provider:
-            env_ids_union: list[int] = []
-            for viz in self._visualizers:
-                ids = getattr(viz, "get_visualized_env_ids", lambda: None)()
-                if ids is not None:
-                    env_ids_union.extend(ids)
-            env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-            self._scene_data_provider.update(env_ids)
+        if self._scene_data_provider is None:
+            return
+        provider = self._scene_data_provider
+        env_ids_union: list[int] = []
+        for viz in self._visualizers:
+            ids = viz.get_visualized_env_ids()
+            if ids is not None:
+                env_ids_union.extend(ids)
+        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+        provider.update(env_ids)
 
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
                 if viz.is_rendering_paused():
                     continue
-                if getattr(viz, "is_closed", False):
+                if viz.is_closed:
                     logger.info("Visualizer closed: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
@@ -495,8 +497,8 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0, state=None)
-                viz.step(dt, state=None)
+                    viz.step(0.0)
+                viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)

@@ -118,7 +118,7 @@ class RerunVisualizer(Visualizer):
             logger.error(f"[RerunVisualizer] Failed to initialize viewer: {exc}")
             raise
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 

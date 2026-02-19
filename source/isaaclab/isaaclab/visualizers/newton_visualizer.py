@@ -270,7 +270,7 @@ class NewtonVisualizer(Visualizer):
         )
         self._is_initialized = True
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
@@ -375,3 +375,4 @@ class NewtonVisualizer(Visualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
