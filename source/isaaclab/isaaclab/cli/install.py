@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 
+from .commands import command_vscode_settings
 from .utils import (
     ISAACLAB_ROOT,
     extract_python_exe,
@@ -15,11 +16,10 @@ from .utils import (
     print_info,
     print_warning,
     run_command,
-    update_vscode_settings,
 )
 
 
-def install_system_deps():
+def _install_system_deps():
     """install system dependencies"""
     if is_windows():
         return
@@ -45,7 +45,7 @@ def install_system_deps():
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
-def ensure_cuda_torch():
+def _ensure_cuda_torch():
     """Ensure correct PyTorch and CUDA versions are installed."""
     python_exe = extract_python_exe()
 
@@ -121,7 +121,7 @@ def ensure_cuda_torch():
     )
 
 
-def install_isaaclab_extensions():
+def _install_isaaclab_extensions():
     """check if input directory is a python extension and install the module"""
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -150,7 +150,7 @@ def install_isaaclab_extensions():
             )
 
 
-def install_extra_frameworks(framework_name="all"):
+def _install_extra_frameworks(framework_name="all"):
     """install the python packages for supported reinforcement learning frameworks"""
     python_exe = extract_python_exe()
 
@@ -191,7 +191,7 @@ def install_extra_frameworks(framework_name="all"):
     )
 
 
-def install(install_type="all"):
+def command_install(install_type="all"):
     """
     Install stuff
 
@@ -199,7 +199,7 @@ def install(install_type="all"):
         install_type (str): The RL framework to install ('all', 'none', or specific name).
     """
     # Install system dependencies first.
-    install_system_deps()
+    _install_system_deps()
 
     # Install the python packages in IsaacLab/source directory.
     print_info("Installing extensions inside the Isaac Lab repository...")
@@ -226,18 +226,18 @@ def install(install_type="all"):
         run_command([python_exe, "-m", "pip", "install", "--upgrade", "pip"])
 
         # Install pytorch (version based on arch).
-        ensure_cuda_torch()
+        _ensure_cuda_torch()
 
         # Install the python modules for the extensions in Isaac Lab.
-        install_isaaclab_extensions()
+        _install_isaaclab_extensions()
 
         # Install the python packages for supported reinforcement learning frameworks.
         print_info("Installing extra requirements such as learning frameworks...")
-        install_extra_frameworks(install_type)
+        _install_extra_frameworks(install_type)
 
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
         # Can prevent that from happening.
-        ensure_cuda_torch()
+        _ensure_cuda_torch()
 
     finally:
         # Restore LD_PRELOAD if we cleared it.
@@ -246,4 +246,4 @@ def install(install_type="all"):
 
     # Install vscode update unless we're in docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-        update_vscode_settings()
+        command_vscode_settings()

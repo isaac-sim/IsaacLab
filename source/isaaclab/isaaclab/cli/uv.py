@@ -18,7 +18,7 @@ from .utils import (
 )
 
 
-def setup_uv_env(env_name):
+def command_setup_uv(env_name):
     """setup uv environment for Isaac Lab"""
     # Check if uv is installed.
     if not shutil.which("uv"):

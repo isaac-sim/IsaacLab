@@ -20,7 +20,7 @@ from .utils import (
 )
 
 
-def patch_environment_yml(yml_path, python_version="3.12"):
+def _patch_environment_yml(yml_path, python_version="3.12"):
     """
     Read environment.yml, return content with patched python version.
     """
@@ -35,7 +35,7 @@ def patch_environment_yml(yml_path, python_version="3.12"):
     return "".join(new_lines)
 
 
-def get_conda_prefix(env_name):
+def _get_conda_prefix(env_name):
     """Get the prefix of the conda environment."""
     # Use conda run to get sys.prefix
     try:
@@ -46,7 +46,7 @@ def get_conda_prefix(env_name):
         return None
 
 
-def setup_conda_env(env_name):
+def command_setup_conda(env_name):
     """Setup conda environment for Isaac Lab"""
 
     # Check if conda is installed.
@@ -99,7 +99,7 @@ def setup_conda_env(env_name):
 
         # Write a temp file.
         temp_yml = ISAACLAB_ROOT / "environment_temp.yml"
-        patched_content = patch_environment_yml(env_yml, python_version)
+        patched_content = _patch_environment_yml(env_yml, python_version)
         with open(temp_yml, "w") as f:
             f.write(patched_content)
 
@@ -110,7 +110,7 @@ def setup_conda_env(env_name):
                 temp_yml.unlink()
 
     # Now configure activation scripts.
-    conda_prefix = get_conda_prefix(env_name)
+    conda_prefix = _get_conda_prefix(env_name)
     if not conda_prefix:
         print_error(f"Could not determine prefix for env {env_name}")
         return

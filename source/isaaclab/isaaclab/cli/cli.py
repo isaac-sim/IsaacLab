@@ -5,20 +5,22 @@
 
 import argparse
 
-from .conda import setup_conda_env
-from .format import format_code
-from .install import install
-from .utils import (
-    build_docs,
+from .commands import (
+    command_build_docs,
     command_new,
+    command_run_docker,
+    command_run_isaacsim,
     command_test,
-    is_windows,
-    run_docker_helper,
-    run_isaacsim,
-    run_python_command,
-    update_vscode_settings,
+    command_vscode_settings,
 )
-from .uv import setup_uv_env
+from .conda import command_setup_conda
+from .format import command_format
+from .install import command_install
+from .utils import (
+    is_windows,
+    run_python_command,
+)
+from .uv import command_setup_uv
 
 
 def cli():
@@ -102,25 +104,25 @@ def cli():
     args = parser.parse_args()
 
     if args.install:
-        install(args.install)
+        command_install(args.install)
 
     elif args.format:
-        format_code()
+        command_format()
 
     elif args.conda:
-        setup_conda_env(args.conda)
+        command_setup_conda(args.conda)
 
     elif args.uv:
-        setup_uv_env(args.uv)
+        command_setup_uv(args.uv)
 
     elif args.vscode:
-        update_vscode_settings()
+        command_vscode_settings()
 
     elif args.docs:
-        build_docs()
+        command_build_docs()
 
     elif args.docker is not None:
-        run_docker_helper(args.docker)
+        command_run_docker(args.docker)
 
     elif args.python is not None:
         if args.python:
@@ -129,7 +131,7 @@ def cli():
             run_python_command("-i", [])
 
     elif args.sim is not None:
-        run_isaacsim(args.sim)
+        command_run_isaacsim(args.sim)
 
     elif args.new is not None:
         command_new(args.new)

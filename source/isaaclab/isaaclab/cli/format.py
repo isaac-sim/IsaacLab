@@ -9,7 +9,7 @@ import subprocess
 from .utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
-def format_code():
+def command_format():
     """Run code formatting using pre-commit."""
     python_exe = extract_python_exe()
 
