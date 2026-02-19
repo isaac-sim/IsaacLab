@@ -4,8 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import logging
+
 from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_teleop import IsaacTeleopCfg
+
+try:
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -324,12 +333,13 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # IsaacTeleop-based teleoperation pipeline (left hand)
-        pipeline = _build_se3_abs_gripper_pipeline(hand_side="left")
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_se3_abs_gripper_pipeline(hand_side="left")
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
 
 
 @configclass
@@ -366,9 +376,10 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # IsaacTeleop-based teleoperation pipeline (right hand)
-        pipeline = _build_se3_abs_gripper_pipeline(hand_side="right")
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_se3_abs_gripper_pipeline(hand_side="right")
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

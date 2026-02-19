@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg
-
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -14,7 +12,6 @@ from isaaclab.utils import configclass
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
-from .stack_ik_rel_env_cfg import _build_franka_se3_rel_gripper_pipeline
 
 ##
 # Pre-defined configs
@@ -120,14 +117,6 @@ class FrankaCubeStackSkillgenEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCf
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
-        )
-
-        # IsaacTeleop-based teleoperation pipeline
-        pipeline = _build_franka_se3_rel_gripper_pipeline(hand_side="right")
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
         )
 
         # Apply skillgen-specific cube position randomization

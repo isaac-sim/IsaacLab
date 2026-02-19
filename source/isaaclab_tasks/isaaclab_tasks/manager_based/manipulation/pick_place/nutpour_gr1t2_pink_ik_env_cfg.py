@@ -3,8 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg
+import logging
+
 from pink.tasks import DampingTask, FrameTask
+
+try:
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.controllers.pink_ik import NullSpacePostureTask, PinkIKControllerCfg
@@ -133,9 +142,10 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.mesh_path = temp_urdf_meshes_output_path
 
         # IsaacTeleop-based teleoperation pipeline
-        pipeline = _build_gr1t2_pickplace_pipeline()
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_gr1t2_pickplace_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

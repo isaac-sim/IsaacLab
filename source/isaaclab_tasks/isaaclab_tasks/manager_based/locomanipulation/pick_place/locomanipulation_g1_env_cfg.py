@@ -3,7 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+import logging
+
+try:
+    from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -403,12 +411,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.95),
-        anchor_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -424,14 +426,17 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
-        self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
-        self.xr.fixed_anchor_height = True
-        # Ensure XR anchor rotation follows the robot pelvis (yaw only), with smoothing for comfort
-        self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
+        if _TELEOP_AVAILABLE:
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, -0.95),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            self.xr.anchor_prim_path = "/World/envs/env_0/Robot/pelvis"
+            self.xr.fixed_anchor_height = True
+            self.xr.anchor_rotation_mode = XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED
 
-        # IsaacTeleop-based teleoperation pipeline
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_locomanipulation_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_g1_locomanipulation_pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

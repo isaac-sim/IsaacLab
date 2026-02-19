@@ -4,7 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+import logging
+
+try:
+    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -367,12 +375,6 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, -0.45),
-        anchor_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
@@ -390,10 +392,15 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # IsaacTeleop-based teleoperation pipeline
         # Build the pipeline and extract SE3 retargeters for UI parameter tuning
-        pipeline, se3_retargeters = _build_g1_upper_body_pipeline()
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            # retargeters_to_tune=lambda: se3_retargeters,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, -0.45),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            pipeline, se3_retargeters = _build_g1_upper_body_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                # retargeters_to_tune=lambda: se3_retargeters,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

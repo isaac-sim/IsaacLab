@@ -3,9 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import tempfile
 
-from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+try:
+    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
 
 import isaaclab.controllers.utils as ControllerUtils
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -39,12 +46,6 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     rewards = None
     curriculum = None
 
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
 
@@ -72,9 +73,14 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
 
         # IsaacTeleop-based teleoperation pipeline
-        pipeline = _build_gr1t2_pickplace_pipeline()
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if _TELEOP_AVAILABLE:
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            pipeline = _build_gr1t2_pickplace_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
