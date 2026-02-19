@@ -269,43 +269,24 @@ class PhysxSceneDataProvider:
         logger.warning(message, *args)
 
     def _get_view_world_poses(self, view: Any):
-        """Read world poses from a PhysX view via canonical get_transforms().
+        """Read world poses from a PhysX view.
 
-        Returns (positions, orientations) or (None, None). The returned tensors
-        are expected to be shaped [..., 3] and [..., 4].
+        Articulation views expose `get_root_transforms()`, while rigid-body views
+        expose `get_transforms()`.
         """
         if view is None:
             return None, None
 
-        view_type = type(view).__name__
-        method_name = "get_transforms"
-        method = getattr(view, method_name, None)
-        if not callable(method):
-            self._warn_once(
-                f"no-transform-api-{view_type}",
-                "[PhysxSceneDataProvider] Expected %s.%s() but it is unavailable.",
-                view_type,
-                method_name,
-            )
-            return None, None
-        try:
-            result = method()
-        except (AttributeError, RuntimeError, TypeError):
-            return None, None
+        result = view.get_root_transforms() if hasattr(view, "get_root_transforms") else view.get_transforms()
         if isinstance(result, tuple) and len(result) == 2:
             return result
-        if hasattr(result, "shape") and result.shape[-1] == 7:
-            try:
-                return result[:, :3], result[:, 3:7]
-            except Exception:
-                try:
-                    import warp as wp
+        if hasattr(result, "shape"):
+            return result[:, :3], result[:, 3:7]
 
-                    result_t = wp.to_torch(result)
-                    return result_t[:, :3], result_t[:, 3:7]
-                except Exception:
-                    return None, None
-        return None, None
+        import warp as wp
+
+        result_t = wp.to_torch(result)
+        return result_t[:, :3], result_t[:, 3:7]
 
     def _cache_view_index_map(self, view, key: str) -> None:
         """Map PhysX view indices to Newton body_key ordering."""
