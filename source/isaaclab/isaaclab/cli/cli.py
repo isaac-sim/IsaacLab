@@ -11,11 +11,10 @@ from .install import install
 from .utils import (
     ISAACLAB_ROOT,
     build_docs,
-    extract_isaacsim_exe,
     is_windows,
     print_info,
-    run_command,
     run_docker_helper,
+    run_isaacsim,
     run_python_command,
     update_vscode_settings,
 )
@@ -130,17 +129,7 @@ def cli():
             run_python_command("-i", [])
 
     elif args.sim is not None:
-        # Sim execution.
-        sim_exe = extract_isaacsim_exe()
-        print_info(f"Running isaac-sim from: {sim_exe}")
-        cmd = sim_exe
-
-        # Add ext folder.
-        cmd.append("--ext-folder")
-        cmd.append(str(ISAACLAB_ROOT / "source"))
-        cmd.extend(args.sim)
-
-        run_command(cmd, check=False)
+        run_isaacsim(args.sim)
 
     elif args.new is not None:
         print_info("Installing template dependencies...")

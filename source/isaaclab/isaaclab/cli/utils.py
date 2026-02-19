@@ -310,6 +310,19 @@ def extract_isaacsim_exe():
     return [str(isaacsim_exe)]
 
 
+def run_isaacsim(sim_args):
+    """Run Isaac Sim (-s)."""
+
+    isaacsim_exe = extract_isaacsim_exe()
+    print_info(f"Running Isaac Sim from: {isaacsim_exe}")
+
+    isaacsim_exe.append("--ext-folder")
+    isaacsim_exe.append(str(ISAACLAB_ROOT / "source"))
+    isaacsim_exe.extend(sim_args)
+
+    run_command(isaacsim_exe, check=False)
+
+
 def determine_python_version():
     """Detect Isaac Sim version and return the matching Python version."""
 
