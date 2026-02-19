@@ -2267,7 +2267,7 @@ class Articulation(BaseArticulation):
             if frequency is None:
                 # No frequency, so we can't resolve the value.
                 raise ValueError(
-                    f"Parameter '{param_name}' has no frequency, so it cannot be resolved."
+                    f"Parameter '{param_name}' has no frequency, so it cannot be resolved. "
                     "Please provide a scalar value instead."
                 )
             # Get the attribute through the selection API
