@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-import shutil
 import subprocess
 
 from .utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
@@ -15,12 +14,7 @@ def format_code():
     python_exe = extract_python_exe()
 
     def _run_pre_commit():
-        if pre_commit_command:
-            print_info(f'Using "pre-commit" command: "{pre_commit_command}"')
-            run_command([pre_commit_command, "run", "--all-files"], env=env)
-        elif pre_commit_module:
-            print_info('Using "pre-commit" module...')
-            run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], env=env, cwd=ISAACLAB_ROOT)
+        run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], env=env, cwd=ISAACLAB_ROOT)
 
     # Reset the python path to avoid conflicts with pre-commit.
     # This is needed because the pre-commit hooks are installed in a
@@ -32,23 +26,21 @@ def format_code():
     # Check if pre-commit is installed.
 
     pre_commit_module = False
-    pre_commit_command = shutil.which("pre-commit")
 
-    if not pre_commit_command:
-        result = run_command(
-            [python_exe, "-m", "pip", "show", "pre-commit"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if result.returncode == 0:
-            pre_commit_module = True
+    result = run_command(
+        [python_exe, "-m", "pip", "show", "pre-commit"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    if result.returncode == 0:
+        pre_commit_module = True
 
     # If pre-commit is not installed, install it.
-    if not pre_commit_command and not pre_commit_module:
-        print_info('Pre-commit not found either as a command or module. Installing "pre-commit" module...')
+    if not pre_commit_module:
+        print_info('Pre-commit not found. Installing "pre-commit" module...')
         run_command([python_exe, "-m", "pip", "install", "pre-commit"])
-        pre_commit_module = True
 
     print_info("Formatting the repository...")
 
