@@ -404,7 +404,6 @@ class FrameTransformer(BaseFrameTransformer):
         raw_transforms_flat = self._frame_physx_view.get_transforms()
         raw_transforms_flat = wp.clone(raw_transforms_flat, device=self.device)
 
-        import numpy as np
         transforms_np = raw_transforms_flat.numpy()
         # Flatten to 1D: (N, 7) -> (N*7,)
         transforms_flat = transforms_np.reshape(-1)
