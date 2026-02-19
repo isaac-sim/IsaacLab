@@ -11,6 +11,7 @@ import torch
 from pink.tasks import DampingTask, FrameTask
 
 try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
     from isaaclab_teleop import IsaacTeleopCfg, XrCfg
 
     _TELEOP_AVAILABLE = True

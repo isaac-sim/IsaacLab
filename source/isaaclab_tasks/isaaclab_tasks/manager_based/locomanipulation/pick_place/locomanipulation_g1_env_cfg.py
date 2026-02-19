@@ -6,6 +6,7 @@
 import logging
 
 try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
     from isaaclab_teleop import IsaacTeleopCfg, XrAnchorRotationMode, XrCfg
 
     _TELEOP_AVAILABLE = True

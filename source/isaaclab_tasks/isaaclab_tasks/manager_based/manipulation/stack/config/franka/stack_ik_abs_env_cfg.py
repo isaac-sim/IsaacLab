@@ -10,6 +10,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.utils import configclass
 
 try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
     from isaaclab_teleop import IsaacTeleopCfg
 
     _TELEOP_AVAILABLE = True
