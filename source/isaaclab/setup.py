@@ -44,7 +44,6 @@ INSTALL_REQUIRES = [
     "pytest-mock",
     "junitparser",
     "coverage==7.6.1",
-    "flatdict==4.0.0",
     "flaky",
     "packaging",
     # visualizers

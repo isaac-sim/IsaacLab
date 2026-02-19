@@ -16,7 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import os
 
-import flatdict
 import pytest
 import toml
 
@@ -24,6 +23,7 @@ import carb
 
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils.dict import to_flat_dict
 from isaaclab.utils.version import get_isaac_sim_version
 
 
@@ -118,7 +118,7 @@ def test_render_cfg_presets():
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+        preset_dict = to_flat_dict(preset_dict, delimiter=".")
 
         render_cfg = RenderCfg(
             rendering_mode=rendering_mode,
