@@ -52,7 +52,7 @@ class AssetBaseCfg:
     dict[str, tuple[Any, str | None]]:
      - The key, is the name of the Newton Model parameter,
      - The first value in the tuple, is the value to override the parameter with. It can only be a scalar.
-     - The second value in the tuple is the expression to be used to resolve the value. If None, then we apply that 
+     - The second value in the tuple is the expression to be used to resolve the value. If None, then we apply that
      parameter to all the elements in the selected model parameter.
 
      Example:
