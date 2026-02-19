@@ -126,8 +126,9 @@ class RelativePose(HasPose):
         """Get the 3D pose of the entity."""
 
         parent_pose = self.parent.get_pose()
+        relative_pose = self.relative_pose.to(parent_pose.device)
 
-        pose = transform_mul(parent_pose, self.relative_pose)
+        pose = transform_mul(parent_pose, relative_pose)
 
         return pose
 

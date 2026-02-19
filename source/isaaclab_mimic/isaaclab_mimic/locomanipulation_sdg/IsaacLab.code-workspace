@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../nre"
+		},
+		{
+			"path": "../../../../../real2sim"
+		},
+		{
+			"path": "../../../../../nurec-workflows"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.tpp": "cpp",
+			"*.kit": "toml",
+			"*.rst": "restructuredtext"
+		}
+	}
+}

@@ -285,7 +285,7 @@ def setup_navigation_scene(
         parent=env.get_end_fixture(),
     )
     base_goal_approach = RelativePose(
-        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]), parent=base_goal
+        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], device=env.device), parent=base_goal
     )
 
     # Plan navigation path
@@ -321,7 +321,7 @@ def handle_grasp_state(
     # Set control targets - robot stays stationary during grasping
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.GRASP_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to object
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -369,7 +369,7 @@ def handle_lift_state(
     # Set control targets - robot stays stationary during lifting
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.LIFT_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -428,7 +428,7 @@ def handle_navigate_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.NAVIGATE)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -482,7 +482,7 @@ def handle_approach_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.APPROACH)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -543,7 +543,7 @@ def handle_drop_off_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to end fixture
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -640,7 +640,7 @@ def replay(
     """
 
     # Initialize environment to starting state
-    env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0]), is_relative=True)
+    env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0], device=env.device), is_relative=True)
 
     # Create navigation control configuration
     config = LocomanipulationSDGControlConfig(
