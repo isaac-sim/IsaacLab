@@ -204,8 +204,6 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
-            # initialize term_cfg func before call
-            # term_cfg_func_obj = term_cfg.func(term_cfg, self._env)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]

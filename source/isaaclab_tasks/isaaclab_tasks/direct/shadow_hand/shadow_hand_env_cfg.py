@@ -8,7 +8,7 @@ from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -45,7 +45,7 @@ class EventCfg:
         min_step_count_between_reset=720,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_ids=list(range(20))), #, )joint_names=".*",
+            "asset_cfg": SceneEntityCfg("robot", joint_ids=list(range(20))),  # , )joint_names=".*",
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
             "operation": "scale",
