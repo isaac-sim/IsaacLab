@@ -141,5 +141,3 @@ def cli():
 
     else:
         parser.print_help()
-
-
