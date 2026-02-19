@@ -46,7 +46,7 @@ class AssetBaseCfg:
     The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
-    parameter_override: dict[str, tuple[Any, str | None]] = {}
+    model_parameter_override: dict[str, tuple[Any, str | None]] = {}
     """Allows to override Newton Model parameters from the asset configuration. Defaults to an empty dictionary.
 
     dict[str, tuple[Any, str | None]]:

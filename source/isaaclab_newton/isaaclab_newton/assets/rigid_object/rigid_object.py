@@ -916,7 +916,7 @@ class RigidObject(BaseRigidObject):
 
     def _process_parameter_override(self):
         model = NewtonManager.get_model()
-        for param_name, (param_value, param_expr) in self.cfg.parameter_override.items():
+        for param_name, (param_value, param_expr) in self.cfg.model_parameter_override.items():
             # Check that the parameter exists in the model.
             if getattr(model, param_name, None) is None:
                 raise ValueError(f"Parameter '{param_name}' is not found in the model.")
