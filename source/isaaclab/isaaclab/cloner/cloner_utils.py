@@ -309,7 +309,7 @@ def newton_replicate(
             xform=inverse_env_xform,
         )
         if simplify_meshes:
-            p.approximate_meshes("convex_hull")
+            p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
     # create a separate world for each environment (heterogeneous spawning)

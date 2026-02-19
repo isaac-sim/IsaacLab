@@ -50,7 +50,7 @@ class NewtonManager:
     _control: Control = None
     _on_init_callbacks: list = []
     _on_start_callbacks: list = []
-    _contacts: Contacts = None
+    _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
@@ -141,8 +141,7 @@ class NewtonManager:
         NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
         NewtonManager.forward_kinematics()
-        # Initialize empty contacts - will be replaced in initialize_solver() if collision pipeline is needed
-        NewtonManager._contacts = Contacts(0, 0)
+
         print("[INFO] Running on start callbacks")
         for callback in NewtonManager._on_start_callbacks:
             callback()
@@ -182,22 +181,21 @@ class NewtonManager:
         if NewtonManager._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if NewtonManager._collision_pipeline is None:
-                NewtonManager._collision_pipeline = CollisionPipeline.from_model(
+                NewtonManager._collision_pipeline = CollisionPipeline(
                     NewtonManager._model, broad_phase_mode=BroadPhaseMode.EXPLICIT
                 )
-            NewtonManager._contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
-            )
+            if NewtonManager._contacts is None:
+                NewtonManager._contacts = NewtonManager._collision_pipeline.contacts()
+
         elif NewtonManager._solver is not None and isinstance(NewtonManager._solver, SolverMuJoCo):
             # MuJoCo contacts mode: create properly sized Contacts object
             # The solver's update_contacts() will populate this from MuJoCo data
-            naconmax = NewtonManager._solver.mjw_data.naconmax
-            requested_attributes = {"force"} if NewtonManager._report_contacts else set()
+            rigid_contact_max = NewtonManager._solver.get_max_contact_count()
             NewtonManager._contacts = Contacts(
-                rigid_contact_max=naconmax,
+                rigid_contact_max=rigid_contact_max,
                 soft_contact_max=0,
                 device=NewtonManager._device,
-                requested_attributes=requested_attributes,
+                requested_attributes=NewtonManager._model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -259,11 +257,9 @@ class NewtonManager:
 
         # MJWarp computes its own collisions.
         if NewtonManager._needs_collision_pipeline:
-            contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
-            )
+            NewtonManager._collision_pipeline.collide(NewtonManager._state_0, NewtonManager._contacts)
+            contacts = NewtonManager._contacts
             # Update class-level contacts for sensor evaluation
-            NewtonManager._contacts = contacts
 
         if NewtonManager._num_substeps % 2 == 0:
             for i in range(NewtonManager._num_substeps):

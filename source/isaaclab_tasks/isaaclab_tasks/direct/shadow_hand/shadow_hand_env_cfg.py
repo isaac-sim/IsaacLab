@@ -45,7 +45,7 @@ class EventCfg:
         min_step_count_between_reset=720,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*", joint_ids=list(range(20))),
+            "asset_cfg": SceneEntityCfg("robot", joint_ids=list(range(20))), #, )joint_names=".*",
             "stiffness_distribution_params": (0.75, 1.5),
             "damping_distribution_params": (0.3, 3.0),
             "operation": "scale",
@@ -129,8 +129,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
 
     solver_cfg = MJWarpSolverCfg(
         solver="newton",
-        integrator="implicit",
-        njmax=80,
+        integrator="implicitfast",
+        njmax=150,
         nconmax=70,
         impratio=10.0,
         cone="elliptic",
@@ -253,36 +253,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     asymmetric_obs = True
     obs_type = "openai"
     # simulation
-    solver_cfg = MJWarpSolverCfg(
-        solver="newton",
-        integrator="implicit",
-        njmax=150,
-        nconmax=70,
-        impratio=10.0,
-        cone="elliptic",
-        update_data_interval=2,
-        iterations=100,
-        ls_iterations=15,
-        ls_parallel=True,
-        # save_to_mjcf="AllegroHand.xml",
-    )
 
-    # simulation
-    newton_cfg = NewtonCfg(
-        solver_cfg=solver_cfg,
-        num_substeps=2,
-        debug_mode=False,
-    )
-
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        render_interval=decimation,
-        physics_material=RigidBodyMaterialCfg(
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        newton_cfg=newton_cfg,
-    )
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
