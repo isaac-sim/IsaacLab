@@ -833,7 +833,7 @@ Download the Dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 Download the pre-generated dataset from `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/pick_place_datasets/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``
-(**Note: The dataset size is approximately 12GB**). The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
+(**Note: The dataset size is approximately 15GB**). The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
 
 .. hint::
