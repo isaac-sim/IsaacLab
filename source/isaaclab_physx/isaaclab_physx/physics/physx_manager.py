@@ -578,6 +578,8 @@ class PhysxManager(PhysicsManager):
         cls._physx.start_simulation()
         cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._physx_sim.fetch_results()
+        cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
+        cls._warmup_needed = False
 
         if cls._view_created:
             return
@@ -585,9 +587,6 @@ class PhysxManager(PhysicsManager):
         # Create tensor views
         cls._view = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
         cls._view_warp = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
-
-        cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
-        cls._warmup_needed = False
 
         if cls._view:
             cls._view.set_subspace_roots("/")
