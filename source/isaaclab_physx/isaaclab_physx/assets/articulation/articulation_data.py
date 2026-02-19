@@ -9,6 +9,7 @@ import warnings
 import weakref
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -479,7 +480,16 @@ class ArticulationData(BaseArticulationData):
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._root_link_pose_w.data = self._root_view.get_root_transforms().view(wp.transformf)
+            # Convert via numpy to ensure proper dtype conversion
+            root_transforms_raw = self._root_view.get_root_transforms()
+            if root_transforms_raw.dtype == wp.transformf:
+                # Already in the correct format
+                self._root_link_pose_w.data = wp.clone(root_transforms_raw, device=self.device)
+            else:
+                # Convert from float32 to transformf via numpy
+                transforms_np = root_transforms_raw.numpy()
+                transforms_flat = transforms_np.reshape(-1)
+                self._root_link_pose_w.data = wp.array(transforms_flat, dtype=wp.transformf, device=self.device)
             self._root_link_pose_w.timestamp = self._sim_timestamp
 
         return self._root_link_pose_w.data
@@ -575,7 +585,28 @@ class ArticulationData(BaseArticulationData):
             # perform forward kinematics (shouldn't cause overhead if it happened already)
             self._physics_sim_view.update_articulations_kinematic()
             # set the buffer data and timestamp
-            self._body_link_pose_w.data = self._root_view.get_link_transforms().view(wp.transformf)
+            link_transforms = self._root_view.get_link_transforms()
+            
+            # Handle shape mismatch: PhysX may return (num_envs, num_bodies, 7) float32
+            # but we need (num_instances, num_bodies) transformf
+            if len(link_transforms.shape) == 3 and link_transforms.dtype != wp.transformf:
+                # Convert from (M, N, 7) float32 to (M, N) transformf
+                transforms_np = link_transforms.numpy()
+                num_envs, num_bodies, _ = transforms_np.shape
+                # Flatten to (M*N, 7) then convert to transformf, then reshape to (M, N)
+                transforms_flat = transforms_np.reshape(-1, 7)
+                link_transforms = wp.array(transforms_flat, dtype=wp.transformf, device=self.device)
+                link_transforms = link_transforms.reshape((num_envs, num_bodies))
+            elif link_transforms.dtype != wp.transformf:
+                # If it's already 2D but wrong dtype, convert via numpy
+                transforms_np = link_transforms.numpy()
+                if len(transforms_np.shape) == 2 and transforms_np.shape[1] == 7:
+                    # (N, 7) -> (N,) transformf
+                    transforms_flat = transforms_np.reshape(-1, 7)
+                    link_transforms = wp.array(transforms_flat, dtype=wp.transformf, device=self.device)
+                    link_transforms = link_transforms.reshape((transforms_np.shape[0], 1))
+            
+            self._body_link_pose_w.data = wp.clone(link_transforms, device=self.device)
             self._body_link_pose_w.timestamp = self._sim_timestamp
 
         return self._body_link_pose_w.data
@@ -744,7 +775,17 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
+            # Convert via numpy to ensure proper dtype conversion
+            coms_raw = self._root_view.get_coms()
+            if coms_raw.dtype == wp.transformf:
+                # Already in the correct format, clone to target device
+                self._body_com_pose_b.data.assign(wp.clone(coms_raw, device=self.device))
+            else:
+                # Convert from float32 to transformf via numpy
+                coms_np = coms_raw.numpy()
+                coms_flat = coms_np.reshape(-1)
+                coms_transformed = wp.array(coms_flat, dtype=wp.transformf, device=self.device)
+                self._body_com_pose_b.data.assign(coms_transformed)
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         return self._body_com_pose_b.data
@@ -1197,7 +1238,10 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
         self._joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
-        self._joint_pos_limits.assign(self._root_view.get_dof_limits().view(wp.vec2f))
+        # self._joint_pos_limits.assign(self._root_view.get_dof_limits().view(wp.vec2f))
+        dof_limits = self._root_view.get_dof_limits()
+        dof_limits = wp.clone(dof_limits, device=self.device)
+        self._joint_pos_limits.assign(dof_limits)
         self._joint_vel_limits = wp.clone(self._root_view.get_dof_max_velocities(), device=self.device)
         self._joint_effort_limits = wp.clone(self._root_view.get_dof_max_forces(), device=self.device)
         # -- Joint properties (custom)
@@ -1255,11 +1299,25 @@ class ArticulationData(BaseArticulationData):
         """Generates a position array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: The transform array. Shape is (N,) or (M, N) with dtype=wp.transformf.
 
         Returns:
-            The position array. Shape is (N, 3).
+            The position array. Shape is (N,) or (M, N) with dtype=wp.vec3f.
         """
+        # Ensure transform is in the correct format (transformf dtype)
+        if transform.dtype != wp.transformf:
+            # If it's float32 with shape (M, N, 7), we need to convert it
+            transforms_np = transform.numpy()
+            if len(transforms_np.shape) == 3 and transforms_np.shape[2] == 7:
+                # (M, N, 7) -> (M, N) transformf
+                num_envs, num_bodies, _ = transforms_np.shape
+                transforms_flat = transforms_np.reshape(-1, 7)
+                transform = wp.array(transforms_flat, dtype=wp.transformf, device=self.device)
+                transform = transform.reshape((num_envs, num_bodies))
+            else:
+                raise ValueError(f"Unexpected transform shape/dtype: {transform.shape}, {transform.dtype}")
+        
+        # Use pointer arithmetic to reinterpret as vec3f (keeps same shape)
         return wp.array(
             ptr=transform.ptr,
             shape=transform.shape,
@@ -1272,11 +1330,26 @@ class ArticulationData(BaseArticulationData):
         """Generates a quaternion array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: The transform array. Shape is (N,) or (M, N) with dtype=wp.transformf.
 
         Returns:
-            The quaternion array. Shape is (N, 4).
+            The quaternion array. Shape is (N,) or (M, N) with dtype=wp.quatf.
         """
+        # Ensure transform is in the correct format (transformf dtype)
+        if transform.dtype != wp.transformf:
+            # If it's float32 with shape (M, N, 7), we need to convert it
+            transforms_np = transform.numpy()
+            if len(transforms_np.shape) == 3 and transforms_np.shape[2] == 7:
+                # (M, N, 7) -> (M, N) transformf
+                num_envs, num_bodies, _ = transforms_np.shape
+                transforms_flat = transforms_np.reshape(-1, 7)
+                transform = wp.array(transforms_flat, dtype=wp.transformf, device=self.device)
+                transform = transform.reshape((num_envs, num_bodies))
+            else:
+                raise ValueError(f"Unexpected transform shape/dtype: {transform.shape}, {transform.dtype}")
+        
+        # Use pointer arithmetic to reinterpret as quatf (keeps same shape)
+        # Offset by 3*4 bytes to skip position (3 floats) and get quaternion (4 floats)
         return wp.array(
             ptr=transform.ptr + 3 * 4,
             shape=transform.shape,

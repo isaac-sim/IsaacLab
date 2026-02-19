@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.2 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed physics initialization race condition and dtype conversion issues for PhysX tensor API in articulation data and sensors.
+
+
 0.4.1 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 
