@@ -323,6 +323,18 @@ def run_isaacsim(sim_args):
     run_command(isaacsim_exe, check=False)
 
 
+def command_new(new_args):
+    """Create a new external project or internal task from template (-n)."""
+
+    print_info("Installing template dependencies...")
+    reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
+    run_python_command("-m", ["pip", "install", "-q", "-r", str(reqs)])
+
+    print_info("Running template generator...")
+    cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
+    run_python_command(cli_script, new_args)
+
+
 def determine_python_version():
     """Detect Isaac Sim version and return the matching Python version."""
 

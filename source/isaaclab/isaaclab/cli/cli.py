@@ -11,8 +11,8 @@ from .install import install
 from .utils import (
     ISAACLAB_ROOT,
     build_docs,
+    command_new,
     is_windows,
-    print_info,
     run_docker_helper,
     run_isaacsim,
     run_python_command,
@@ -132,13 +132,7 @@ def cli():
         run_isaacsim(args.sim)
 
     elif args.new is not None:
-        print_info("Installing template dependencies...")
-        reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-        run_python_command("-m", ["pip", "install", "-q", "-r", str(reqs)])
-
-        print_info("Running template generator...")
-        cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
-        run_python_command(cli_script, args.new)
+        command_new(args.new)
 
     elif args.test is not None:
         run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + args.test)
