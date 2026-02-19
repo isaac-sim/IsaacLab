@@ -601,9 +601,9 @@ class randomize_actuator_gains(ManagerTermBase):
                 global_indices = actuator_joint_indices[actuator_indices]
             # Randomize stiffness
             if stiffness_distribution_params is not None:
-                stiffness = wp.to_torch(actuator.data.actuator_stiffness)[env_ids].clone()
-                stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
-                randomize(stiffness, stiffness_distribution_params)
+                stiffness = wp.to_torch(actuator.data.actuator_stiffness).clone()
+                stiffness[:, actuator_indices] = self.default_joint_stiffness[:, global_indices].clone()
+                randomize(stiffness[env_ids], stiffness_distribution_params)
                 actuator.data._actuator_stiffness = wp.from_torch(stiffness)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_stiffness_to_sim(
@@ -611,9 +611,9 @@ class randomize_actuator_gains(ManagerTermBase):
                     )
             # Randomize damping
             if damping_distribution_params is not None:
-                damping = wp.to_torch(self.asset.data.actuator_damping)[env_ids].clone()
-                damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
-                randomize(damping, damping_distribution_params)
+                damping = wp.to_torch(actuator.data.actuator_damping).clone()
+                damping[:, actuator_indices] = self.default_joint_damping[:, global_indices].clone()
+                randomize(damping[env_ids], damping_distribution_params)
                 actuator.data._actuator_damping = wp.from_torch(damping)
                 if isinstance(actuator, ImplicitActuator):
                     self.asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
@@ -802,7 +802,7 @@ class randomize_joint_parameters(ManagerTermBase):
                     " than upper joint limits. Please check the distribution parameters for the joint position limits."
                 )
             # set the position limits into the physics simulation
-            self.asset.write_joint_position_limit_to_sim(joint_pos_limits, joint_ids=joint_ids, env_ids=env_ids)
+            self.asset.write_joint_position_limit_to_sim(joint_pos_limits[...,0], joint_pos_limits[...,1], joint_ids=joint_ids, env_ids=env_ids)
 
 
 class randomize_fixed_tendon_parameters(ManagerTermBase):

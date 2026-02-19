@@ -1041,7 +1041,8 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_limit_to_sim(
         self,
-        limits: wp.array | float,
+        lower_limits: wp.array | float,
+        upper_limits: wp.array | float,
         joint_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
         joint_mask: wp.array | None = None,
@@ -1059,9 +1060,9 @@ class Articulation(BaseArticulation):
         """
         # Resolve indices into mask, convert from partial data to complete data, handles the conversion to warp.
 
-        if isinstance(limits, torch.Tensor):
+        if isinstance(upper_limits, torch.Tensor):
             upper_limits = make_complete_data_from_torch_dual_index(
-                limits[:, 0, :, 0],
+                upper_limits,
                 self.num_instances,
                 self.num_joints,
                 env_ids,
@@ -1071,9 +1072,9 @@ class Articulation(BaseArticulation):
                 out=self._temp_joint_pos,
             )
 
-        if isinstance(limits, torch.Tensor):
+        if isinstance(lower_limits, torch.Tensor):
             lower_limits = make_complete_data_from_torch_dual_index(
-                limits[:, 0, :, 1],
+                lower_limits,
                 self.num_instances,
                 self.num_joints,
                 env_ids,
