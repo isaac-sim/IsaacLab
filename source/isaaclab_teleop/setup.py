@@ -26,9 +26,10 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
     python_requires=">=3.10",
-    install_requires=[
-        "isaacteleop",
-    ],
+    install_requires=[],
+    extras_require={
+        "teleop": ["isaacteleop"],
+    },
     packages=find_packages(),
     classifiers=[
         "Natural Language :: English",

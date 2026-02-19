@@ -22,12 +22,12 @@ import importlib
 import numpy as np
 import pytest
 import torch
+from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 
 import carb
 import omni.usd
 
 import isaaclab.sim as sim_utils
-from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg

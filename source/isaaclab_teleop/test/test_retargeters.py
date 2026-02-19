@@ -36,7 +36,6 @@ sys.modules["isaaclab.sim"].SimulationContext.instance.return_value = mock_sim_c
 
 
 # Import after mocking
-from isaaclab.devices.device_base import DeviceBase
 from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import (
     G1LowerBodyStandingRetargeter,
     G1LowerBodyStandingRetargeterCfg,
@@ -45,9 +44,20 @@ from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.g1_motion_co
     G1LowerBodyStandingMotionControllerRetargeter,
     G1LowerBodyStandingMotionControllerRetargeterCfg,
 )
-from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeter, GripperRetargeterCfg
-from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_abs_retargeter import Se3AbsRetargeter, Se3AbsRetargeterCfg
-from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeter, Se3RelRetargeterCfg
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.gripper_retargeter import (
+    GripperRetargeter,
+    GripperRetargeterCfg,
+)
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_abs_retargeter import (
+    Se3AbsRetargeter,
+    Se3AbsRetargeterCfg,
+)
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_rel_retargeter import (
+    Se3RelRetargeter,
+    Se3RelRetargeterCfg,
+)
+
+from isaaclab.devices.device_base import DeviceBase
 
 # Mock dex retargeting utils
 with patch.dict(
@@ -66,11 +76,11 @@ with patch.dict(
         UnitreeG1Retargeter,
         UnitreeG1RetargeterCfg,
     )
-    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (  # noqa: E501
         G1TriHandUpperBodyMotionControllerGripperRetargeter,
         G1TriHandUpperBodyMotionControllerGripperRetargeterCfg,
     )
-    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (  # noqa: E501
         G1TriHandUpperBodyMotionControllerRetargeter,
         G1TriHandUpperBodyMotionControllerRetargeterCfg,
     )

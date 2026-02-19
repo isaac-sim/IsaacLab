@@ -16,7 +16,11 @@ import importlib
 from typing import cast
 
 import pytest
-import torch
+from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
+from isaaclab_teleop.deprecated.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
+
+# Import teleop device factory for testing
+from isaaclab_teleop.deprecated.teleop_device_factory import create_teleop_device
 
 # Import device classes to test
 from isaaclab.devices import (
@@ -24,11 +28,6 @@ from isaaclab.devices import (
     Se3Keyboard,
     Se3KeyboardCfg,
 )
-from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
-from isaaclab_teleop.deprecated.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
-
-# Import teleop device factory for testing
-from isaaclab_teleop.deprecated.teleop_device_factory import create_teleop_device
 
 
 @pytest.fixture
