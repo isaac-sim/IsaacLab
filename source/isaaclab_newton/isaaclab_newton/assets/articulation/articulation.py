@@ -2464,7 +2464,12 @@ class Articulation(BaseArticulation):
 
         view_tendon_names = list(self._root_view.tendon_names)
 
-        for act_idx in range(len(trntype_arr)):
+        # Only iterate over first world's actuators — the model stores actuators
+        # for ALL worlds, but ctrl indices must be per-world offsets.
+        n_worlds = model.world_count if hasattr(model, "world_count") else 1
+        n_actuators_per_world = len(trntype_arr) // max(n_worlds, 1)
+
+        for act_idx in range(n_actuators_per_world):
             if int(trntype_arr[act_idx]) == 2:  # tendon transmission
                 tendon_idx = int(trnid_arr[act_idx, 0]) if trnid_arr.ndim > 1 else int(trnid_arr[act_idx])
                 if tendon_idx < len(view_tendon_names):
@@ -2482,8 +2487,11 @@ class Articulation(BaseArticulation):
                 self._ctrl_per_world = n_ctrl // n_worlds if n_worlds > 0 else n_ctrl
                 logger.info(
                     f"Discovered tendon actuators: {self._tendon_name_to_ctrl_idx} "
-                    f"(ctrl buffer size: {n_ctrl}, worlds: {n_worlds})"
+                    f"(ctrl buffer size: {n_ctrl}, worlds: {n_worlds}, ctrl_per_world: {self._ctrl_per_world})"
                 )
+                print(f"[DEBUG TENDON] trntype shape: {trntype_arr.shape}, trnid shape: {trnid_arr.shape}")
+                print(f"[DEBUG TENDON] ctrl shape: {self._mujoco_ctrl.shape}, n_worlds: {n_worlds}, ctrl_per_world: {self._ctrl_per_world}")
+                print(f"[DEBUG TENDON] tendon_map: {self._tendon_name_to_ctrl_idx}")
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.

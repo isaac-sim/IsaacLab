@@ -211,14 +211,14 @@ class NewtonManager:
             else:
                 body_info[body_idx]["visual"].append(i)
 
+        # ShapeConfig for new collision shapes — sdf_* params are no longer
+        # accepted by add_shape_mesh; SDF must be built on the mesh directly
+        # via mesh.build_sdf() before adding the shape.
         shape_cfg_kwargs = dict(
             density=0.0,
             has_shape_collision=True,
             has_particle_collision=True,
             is_visible=True,
-            sdf_max_resolution=cfg.sdf_max_resolution,
-            sdf_narrow_band_range=cfg.sdf_narrow_band_range,
-            sdf_target_voxel_size=cfg.sdf_target_voxel_size,
             contact_margin=cfg.sdf_contact_margin,
         )
         if hydro_cfg is not None:
@@ -246,11 +246,17 @@ class NewtonManager:
             if info["collision"]:
                 for si in info["collision"]:
                     if builder.shape_type[si] == GeoType.MESH:
-                        if cfg.sdf_max_resolution is not None:
-                            builder.shape_sdf_max_resolution[si] = cfg.sdf_max_resolution
-                        if cfg.sdf_target_voxel_size is not None:
-                            builder.shape_sdf_target_voxel_size[si] = cfg.sdf_target_voxel_size
-                        builder.shape_sdf_narrow_band_range[si] = cfg.sdf_narrow_band_range
+                        # Build SDF on the mesh (new Newton API requires mesh.sdf)
+                        mesh = builder.shape_source[si]
+                        if mesh is not None:
+                            if mesh.sdf is not None:
+                                mesh.clear_sdf()
+                            sdf_kwargs = dict(narrow_band_range=cfg.sdf_narrow_band_range)
+                            if cfg.sdf_max_resolution is not None:
+                                sdf_kwargs["max_resolution"] = cfg.sdf_max_resolution
+                            if cfg.sdf_target_voxel_size is not None:
+                                sdf_kwargs["target_voxel_size"] = cfg.sdf_target_voxel_size
+                            mesh.build_sdf(**sdf_kwargs)
                         if cfg.sdf_contact_margin is not None:
                             builder.shape_contact_margin[si] = cfg.sdf_contact_margin
                         if body_gets_hydro:
@@ -280,9 +286,6 @@ class NewtonManager:
                     has_shape_collision=True,
                     has_particle_collision=True,
                     is_visible=True,
-                    sdf_max_resolution=cfg.sdf_max_resolution,
-                    sdf_narrow_band_range=cfg.sdf_narrow_band_range,
-                    sdf_target_voxel_size=cfg.sdf_target_voxel_size,
                     contact_margin=cfg.sdf_contact_margin,
                 )
                 add_cfg = non_hydro_cfg
@@ -290,6 +293,16 @@ class NewtonManager:
                 add_cfg = sdf_shape_cfg
                 if body_gets_hydro:
                     num_hydro += 1
+
+            # Build SDF on the mesh before adding the shape (new Newton API)
+            if mesh.sdf is not None:
+                mesh.clear_sdf()
+            sdf_kwargs = dict(narrow_band_range=cfg.sdf_narrow_band_range)
+            if cfg.sdf_max_resolution is not None:
+                sdf_kwargs["max_resolution"] = cfg.sdf_max_resolution
+            if cfg.sdf_target_voxel_size is not None:
+                sdf_kwargs["target_voxel_size"] = cfg.sdf_target_voxel_size
+            mesh.build_sdf(**sdf_kwargs)
 
             new_shape_id = builder.add_shape_mesh(
                 body=body_idx,
@@ -375,13 +388,13 @@ class NewtonManager:
             )
             return CollisionPipeline(
                 model,
-                broad_phase_mode="explicit",
+                broad_phase="explicit",
                 sdf_hydroelastic_config=sdf_hydro_config,
             )
 
         return CollisionPipeline(
             model,
-            broad_phase_mode="explicit",
+            broad_phase="explicit",
         )
 
     @classmethod

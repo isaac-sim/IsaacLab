@@ -264,23 +264,23 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    # gear_dropped = DoneTerm(
-    #     func=gear_assembly_terminations.reset_when_gear_dropped,
-    #     params={
-    #         "distance_threshold": 0.15,  # 15cm from gripper
-    #         "robot_asset_cfg": SceneEntityCfg("robot"),
-    #     },
-    # )
+    gear_dropped = DoneTerm(
+        func=gear_assembly_terminations.reset_when_gear_dropped,
+        params={
+            "distance_threshold": 0.15,  # 15cm from gripper
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
 
-    # gear_orientation_exceeded = DoneTerm(
-    #     func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
-    #     params={
-    #         "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
-    #         "pitch_threshold_deg": 7.0,  # Maximum pitch deviation in degrees
-    #         "yaw_threshold_deg": 180.0,  # Maximum yaw deviation in degrees
-    #         "robot_asset_cfg": SceneEntityCfg("robot"),
-    #     },
-    # )
+    gear_orientation_exceeded = DoneTerm(
+        func=gear_assembly_terminations.reset_when_gear_orientation_exceeds_threshold,
+        params={
+            "roll_threshold_deg": 7.0,  # Maximum roll deviation in degrees
+            "pitch_threshold_deg": 7.0,  # Maximum pitch deviation in degrees
+            "yaw_threshold_deg": 180.0,  # Maximum yaw deviation in degrees
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
 
 
 @configclass
@@ -307,11 +307,12 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
                 ls_parallel=True,
                 integrator="implicitfast",
                 use_mujoco_contacts=False,
+                save_to_mjcf="GearAssemblyEnv.xml",
             ),
             num_substeps=2,
             debug_mode=False,
             # SDF collision for gear meshes (fine-toothed concave geometry)
-            sdf_max_resolution=256,
+            sdf_max_resolution=128,
             sdf_narrow_band_range=(-0.01, 0.01),
             sdf_contact_margin=0.01,
             sdf_shape_patterns=[".*[Gg]ear.*"],

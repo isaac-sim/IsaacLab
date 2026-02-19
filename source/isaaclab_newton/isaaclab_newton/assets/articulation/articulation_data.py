@@ -2191,13 +2191,15 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0, 0]
+            _rt = self._root_view.get_root_transforms(NewtonManager.get_state_0())
+            print(f"[DEBUG] fixed_base root_transforms: shape={_rt.shape}, ndim={_rt.ndim}, dtype={_rt.dtype}")
+            self._sim_bind_root_link_pose_w = _rt[:, 0, 0] if _rt.ndim >= 3 else _rt[:, 0]
         else:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
         if self._sim_bind_root_com_vel_w is not None:
             if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
+                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0] if self._sim_bind_root_com_vel_w.ndim >= 3 else self._sim_bind_root_com_vel_w[:, 0]
             else:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
         # -- body properties

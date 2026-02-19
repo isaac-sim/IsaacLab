@@ -24,7 +24,11 @@ from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembl
 ##
 from isaaclab_assets.robots.universal_robots import UR10e_CFG, UR10e_ROBOTIQ_GRIPPER_CFG, UR10e_ROBOTIQ_2F_85_CFG  # isort: skip
 
-MENAGERIE_2F85_MJCF = "/home/vidurv/mujoco_menagerie/robotiq_2f85/2f85.xml"
+import os as _os
+
+MENAGERIE_2F85_MJCF = _os.path.join(
+    _os.path.dirname(__file__), "..", "..", "assets_mjcf", "robotiq_2f85", "2f85.xml"
+)
 
 ##
 # Robotiq 2F-85: Load Menagerie MJCF model into Newton builder
@@ -35,74 +39,91 @@ def _custom_instantiate_builder_with_gripper():
     """Override Newton's default builder instantiation to compose the gripper between
     the robot arm and the rest of the scene.
 
-    Newton's ``parent_body`` requires attaching to the most recently added
-    articulation. Since ``add_usd(stage)`` loads all prims at once (robot + gears),
-    we split the USD loading:
-      1. Load the robot arm only (``root_path`` pointing to the Robot prim)
-      2. Attach the Menagerie gripper MJCF to wrist_3_link
-      3. Load the remaining scene objects (gears, gear base, stand, ground)
+    Uses the per-env world building pattern (begin_world/add_builder/end_world) to
+    support multi-env training. Each env gets its own proto builder with MJCF gripper
+    attached, then added as an isolated world. This mirrors the canonical pattern in
+    ``cloner_utils.newton_replicate``.
     """
     from pxr import UsdGeom
 
     import warp as wp
+
+    from newton import ModelBuilder, solvers
 
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
     up_axis = UsdGeom.GetStageUpAxis(stage)
 
-    from newton import ModelBuilder
-    builder = ModelBuilder(up_axis=up_axis)
-
-    # Step 1: Load the robot arm ONLY (must be first so we can attach gripper to it)
-    print("[INFO] Step 1: Loading UR10e arm from USD...")
-    builder.add_usd(stage, root_path="/World/envs/env_0/Robot")
-
-    # Step 2: Find wrist_3_link and attach Menagerie gripper
-    ee_body_idx = -1
-    for idx, key in enumerate(builder.body_key):
-        short_name = key.rsplit("/", 1)[-1] if "/" in key else key
-        if short_name == "wrist_3_link":
-            ee_body_idx = idx
-            break
-
-    if ee_body_idx == -1:
-        raise RuntimeError("Cannot attach gripper: 'wrist_3_link' not found after loading robot USD")
-
-    print(f"[INFO] Step 2: Attaching Menagerie Robotiq 2F-85 to body {ee_body_idx} ({builder.body_key[ee_body_idx]})")
-
     mount_xform = wp.transform(
         p=(0.0, 0.0, 0.0),
         q=(0.0, 0.0, -0.7071067811865476, 0.7071067811865476),
     )
 
-    builder.add_mjcf(
-        source=MENAGERIE_2F85_MJCF,
-        parent_body=ee_body_idx,
-        floating=False,
-        xform=mount_xform,
-        enable_self_collisions=False,
-        verbose=True,
-    )
+    builder = ModelBuilder(up_axis=up_axis)
 
-    print(f"[INFO] Gripper loaded. Bodies: {len(builder.body_key)}, Joints: {len(builder.joint_key)}")
+    # Discover env paths
+    envs_prim = stage.GetPrimAtPath("/World/envs")
+    env_paths = sorted([c.GetPath().pathString for c in envs_prim.GetChildren()])
+    num_envs = len(env_paths)
+    print(f"[INFO] Building {num_envs} worlds with MJCF gripper (per-env pattern)")
 
-    # Step 3: Load remaining scene objects (everything except the robot)
-    print("[INFO] Step 3: Loading remaining scene objects from USD...")
-    builder.add_usd(
-        stage,
-        ignore_paths=["/World/envs/env_0/Robot"],
-    )
+    # Build each env as a separate world
+    for env_idx, env_path in enumerate(env_paths):
+        # Create proto builder for this env
+        proto = ModelBuilder(up_axis=up_axis)
+        solvers.SolverMuJoCo.register_custom_attributes(proto)  # CRITICAL for MJCF
 
-    print(f"[INFO] Full scene loaded. Bodies: {len(builder.body_key)}, Joints: {len(builder.joint_key)}")
+        # Load robot arm
+        robot_path = f"{env_path}/Robot"
+        proto.add_usd(stage, root_path=robot_path)
 
-    # Step 4: Apply SDF collision config and gravity compensation
-    # These were previously handled by NewtonManager._apply_sdf_config and
-    # _apply_gravity_compensation in the old instantiate_builder_from_stage.
-    NewtonManager._apply_sdf_config(builder)
-    NewtonManager._apply_gravity_compensation(builder, stage)
+        # Find wrist_3_link and attach MJCF gripper
+        ee_body_idx = -1
+        for idx in range(len(proto.body_key) - 1, -1, -1):
+            if proto.body_key[idx].endswith("wrist_3_link"):
+                ee_body_idx = idx
+                break
+        if ee_body_idx == -1:
+            raise RuntimeError(f"'wrist_3_link' not found in {robot_path}")
 
+        proto.add_mjcf(
+            source=MENAGERIE_2F85_MJCF,
+            parent_body=ee_body_idx,
+            floating=False,
+            xform=mount_xform,
+            enable_self_collisions=False,
+        )
+
+        # Load remaining scene objects for this env (gears, base, stand)
+        proto.add_usd(stage, root_path=env_path, ignore_paths=[robot_path])
+
+        # Load shared scene objects (ground, light) into each proto so they
+        # belong to a proper world — global shapes (world=-1) cause geom count
+        # mismatches in SolverMuJoCo._convert_to_mjc
+        proto.add_usd(stage, ignore_paths=["/World/envs"])
+
+        # Apply SDF config and gravity compensation on each proto BEFORE
+        # adding to builder — shapes added after begin_world/end_world don't
+        # inherit the correct world assignment.
+        pre_sdf = proto.shape_count
+        NewtonManager._apply_sdf_config(proto)
+        post_sdf = proto.shape_count
+        NewtonManager._apply_gravity_compensation(proto, stage)
+        print(f"[DEBUG] env_{env_idx} proto shapes: {pre_sdf} -> {post_sdf} (SDF added {post_sdf - pre_sdf})")
+
+        # Add proto as an isolated world
+        builder.begin_world()
+        builder.add_builder(proto)
+        builder.end_world()
+        print(f"[DEBUG] builder total shapes after env_{env_idx}: {builder.shape_count}, worlds: {builder.world_count}")
+
+        if env_idx == 0:
+            print(f"[INFO] env_0 proto: Bodies={len(proto.body_key)}, Joints={len(proto.joint_key)}")
     NewtonManager.set_builder(builder)
+    NewtonManager._num_envs = num_envs
+
+    print(f"[INFO] Final builder: Bodies={len(builder.body_key)}, Joints={len(builder.joint_key)}, Worlds={num_envs}")
 
 
 ##
@@ -589,9 +610,9 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         # Offset is [x, y, z] in the combined frame (gear_quat * grasp_rot_offset).
         # The combined rotation flips the X direction, so negate the shaft offset.
         self.gear_offsets_grasp = {
-            "gear_small": [-self.gear_offsets["gear_small"][0], 0.0, -0.19],
-            "gear_medium": [-self.gear_offsets["gear_medium"][0], 0.0, -0.19],
-            "gear_large": [-self.gear_offsets["gear_large"][0], 0.0, -0.19],
+            "gear_small": [-self.gear_offsets["gear_small"][0], 0.0, -0.20],
+            "gear_medium": [-self.gear_offsets["gear_medium"][0], 0.0, -0.20],
+            "gear_large": [-self.gear_offsets["gear_large"][0], 0.0, -0.20],
         }
 
         # Initial driver joint positions for grasp/close (range [0, 0.8]).
@@ -606,6 +627,14 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
+
+        # Populate termination term parameters
+        self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.terminations.gear_dropped.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
+
+        self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
+        self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
 
 
 @configclass
