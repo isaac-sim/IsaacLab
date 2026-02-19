@@ -25,6 +25,28 @@ if TYPE_CHECKING:
 from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
 
 
+@wp.kernel
+def _increment_frame_kernel(
+    env_mask: wp.array(dtype=wp.bool),
+    frame: wp.array(dtype=wp.int64),
+):
+    """Increment frame count for outdated environments."""
+    i = wp.tid()
+    if env_mask[i]:
+        frame[i] = frame[i] + wp.int64(1)
+
+
+@wp.kernel
+def _reset_frame_kernel(
+    env_mask: wp.array(dtype=wp.bool),
+    frame: wp.array(dtype=wp.int64),
+):
+    """Reset frame count for specified environments."""
+    i = wp.tid()
+    if env_mask[i]:
+        frame[i] = wp.int64(0)
+
+
 class TiledCamera(Camera):
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
@@ -116,13 +138,24 @@ class TiledCamera(Camera):
             raise RuntimeError(
                 "TiledCamera could not be initialized. Please check that the renderer is properly configured."
             )
-        # reset the timestamps
-        SensorBase.reset(self, env_ids)
-        # resolve None
-        if env_ids is None:
-            env_ids = slice(None)
+        # reset the timestamps (also builds env_mask from env_ids if needed)
+        SensorBase.reset(self, env_ids, env_mask)
+        # resolve mask for frame reset
+        if env_ids is None and env_mask is None:
+            reset_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+        elif env_mask is not None:
+            reset_mask = env_mask
+        else:
+            from isaaclab.utils.warp.utils import make_mask_from_torch_ids
+
+            reset_mask = make_mask_from_torch_ids(self._num_envs, env_ids, device=self._device)
         # reset the frame count
-        self._frame[env_ids] = 0
+        wp.launch(
+            _reset_frame_kernel,
+            dim=self._num_envs,
+            inputs=[reset_mask, self._frame],
+            device=self._device,
+        )
 
         self._renderer.reset()
 
@@ -153,7 +186,11 @@ class TiledCamera(Camera):
 
         if self.cfg.renderer_type == "newton_warp":
             renderer_cfg = NewtonWarpRendererCfg(
-                width=self.cfg.width, height=self.cfg.height, num_cameras=self._view.count, num_envs=self._num_envs
+                width=self.cfg.width,
+                height=self.cfg.height,
+                num_cameras=self._view.count,
+                num_envs=self._num_envs,
+                data_types=self.cfg.data_types,
             )
             # Lazy-load the renderer class
             renderer_cls = get_renderer_class("newton_warp")
@@ -168,7 +205,7 @@ class TiledCamera(Camera):
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        self._frame = wp.zeros(self._view.count, dtype=wp.int64, device=self._device)
 
         # Convert all encapsulated prims to Camera
         for cam_prim_path in self._view.prim_paths:
@@ -184,12 +221,23 @@ class TiledCamera(Camera):
         # Create internal buffers
         self._create_buffers()
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        # Resolve mask
+        if env_mask is None:
+            env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+
         # Increment frame count
-        self._frame[env_ids] += 1
+        wp.launch(
+            _increment_frame_kernel,
+            dim=self._num_envs,
+            inputs=[env_mask, self._frame],
+            device=self._device,
+        )
 
         # update latest camera pose
         if self.cfg.update_latest_camera_pose:
+            # _update_poses / get_world_poses expects integer indices
+            env_ids = torch.nonzero(wp.to_torch(env_mask).bool(), as_tuple=False).squeeze(-1)
             self._update_poses(env_ids)
 
         # call render function of the renderer to update the output buffers
