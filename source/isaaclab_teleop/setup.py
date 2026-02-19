@@ -8,7 +8,7 @@
 import os
 
 import toml
-from setuptools import setup
+from setuptools import find_packages, setup
 
 # Obtain the extension data from the extension.toml file
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -29,7 +29,7 @@ setup(
     install_requires=[
         "isaacteleop",
     ],
-    packages=["isaaclab_teleop"],
+    packages=find_packages(),
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.11",
