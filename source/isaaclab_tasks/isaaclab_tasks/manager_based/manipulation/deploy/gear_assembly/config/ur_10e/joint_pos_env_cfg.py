@@ -599,9 +599,7 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         #
         # Gripper is NOT part of the RL action space. The tendon ctrl is set to a
         # constant close command in set_robot_to_grasp_pose (reset event) and the
-        # MuJoCo ctrl buffer holds that value between steps. This avoids the
-        # BinaryTendonAction flip-flop problem where random policy outputs cause
-        # violent open/close switching every step.
+        # MuJoCo ctrl buffer holds that value between steps.
 
         # Set gripper-specific joint setter function
         self.gripper_joint_setter_func = set_finger_joint_pos_robotiq_2f85

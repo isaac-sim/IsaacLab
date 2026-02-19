@@ -247,23 +247,6 @@ class TendonActionCfg(ActionTermCfg):
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
 
 
-@configclass
-class BinaryTendonActionCfg(ActionTermCfg):
-    """Configuration for the binary tendon action term.
-
-    See :class:`BinaryTendonAction` for more details.
-    """
-
-    class_type: type[ActionTerm] = tendon_actions.BinaryTendonAction
-
-    tendon_names: list[str] = MISSING
-    """List of tendon names or regex expressions that the action will be mapped to."""
-    open_command_expr: dict[str, float] = MISSING
-    """The tendon command to move to *open* configuration."""
-    close_command_expr: dict[str, float] = MISSING
-    """The tendon command to move to *close* configuration."""
-
-
 ##
 # Non-holonomic actions.
 ##
