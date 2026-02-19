@@ -7,7 +7,6 @@ import os
 import shutil
 import subprocess
 
-from .misc import command_vscode_settings
 from ..utils import (
     ISAACLAB_ROOT,
     extract_python_exe,
@@ -17,6 +16,7 @@ from ..utils import (
     print_warning,
     run_command,
 )
+from .misc import command_vscode_settings
 
 
 def _install_system_deps():
