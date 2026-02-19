@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .utils import (
+from ..utils import (
     ISAACLAB_ROOT,
     determine_python_version,
     is_windows,

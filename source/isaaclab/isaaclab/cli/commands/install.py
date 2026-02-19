@@ -7,8 +7,8 @@ import os
 import shutil
 import subprocess
 
-from .commands import command_vscode_settings
-from .utils import (
+from .misc import command_vscode_settings
+from ..utils import (
     ISAACLAB_ROOT,
     extract_python_exe,
     is_arm,

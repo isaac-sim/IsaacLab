@@ -5,7 +5,10 @@
 
 import argparse
 
-from .commands import (
+from .commands.conda import command_setup_conda
+from .commands.format import command_format
+from .commands.install import command_install
+from .commands.misc import (
     command_build_docs,
     command_new,
     command_run_docker,
@@ -13,14 +16,11 @@ from .commands import (
     command_test,
     command_vscode_settings,
 )
-from .conda import command_setup_conda
-from .format import command_format
-from .install import command_install
+from .commands.uv import command_setup_uv
 from .utils import (
     is_windows,
     run_python_command,
 )
-from .uv import command_setup_uv
 
 
 def cli():

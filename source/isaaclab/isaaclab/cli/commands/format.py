@@ -6,7 +6,7 @@
 import os
 import subprocess
 
-from .utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
+from ..utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
 def command_format():

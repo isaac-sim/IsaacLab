@@ -5,7 +5,7 @@
 
 """Misc commands"""
 
-from .utils import (
+from ..utils import (
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
     extract_python_exe,

@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 
-from .utils import (
+from ..utils import (
     ISAACLAB_ROOT,
     determine_python_version,
     is_windows,
