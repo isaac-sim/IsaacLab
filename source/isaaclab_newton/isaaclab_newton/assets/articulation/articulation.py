@@ -2294,10 +2294,6 @@ class Articulation(BaseArticulation):
                     f" {actuator_cfg.joint_names_expr}."
                 )
 
-            if len(joint_names) == self.num_joints:
-                joint_indices = slice(None)
-            else:
-                joint_indices = torch.tensor(joint_indices, device=self.device)
             # create actuator collection
             # note: for efficiency avoid indexing when over all indices
             actuator: ActuatorBase = actuator_cfg.class_type(
