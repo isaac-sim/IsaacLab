@@ -2334,7 +2334,7 @@ class Articulation(BaseArticulation):
                 )
             else:
                 raise ValueError(
-                    f"Parameter '{param_name}' has an unsupported number of dimensions: {param.ndim}."
+                    f"Parameter '{param_name}' has an unsupported number of dimensions: {param.ndim}. "
                     "Only 1D and 2D arrays are supported."
                 )
 
