@@ -213,12 +213,11 @@ class BaseContactSensor(SensorBase):
         raise NotImplementedError(f"Create buffers is not implemented for {self.__class__.__name__}.")
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int], masks: wp.array(dtype=wp.bool) | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None):
         """Fills the buffers of the sensor data.
 
         Args:
-            env_ids: The indices of the environments to update. Defaults to None: all the environments are updated.
-            masks: The masks of the environments to update. Defaults to None: all the environments are updated.
+            env_mask: Mask of the environments to update. None: update all environments.
         """
         raise NotImplementedError(f"Update buffers is not implemented for {self.__class__.__name__}.")
 

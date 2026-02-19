@@ -25,8 +25,9 @@ def copy_from_newton_kernel(
     """
     env, sensor, f_idx = wp.tid()
 
-    if not env_mask[env]:
-        return
+    if env_mask:
+        if not env_mask[env]:
+            return
 
     # Copy total force (column 0) - only thread with f_idx == 0 does this
     if f_idx == 0:
@@ -60,8 +61,9 @@ def reset_contact_sensor_kernel(
     """
     env, sensor = wp.tid()
 
-    if not env_mask[env]:
-        return
+    if env_mask:
+        if not env_mask[env]:
+            return
 
     # Reset net forces
     net_forces_w[env, sensor] = wp.vec3f(0.0)
@@ -107,8 +109,9 @@ def update_contact_sensor_kernel(
     """
     env, sensor = wp.tid()
 
-    if not env_mask[env]:
-        return
+    if env_mask:
+        if not env_mask[env]:
+            return
 
     # Update history
     if net_forces_history:

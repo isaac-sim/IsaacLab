@@ -353,7 +353,7 @@ class ContactSensor(BaseContactSensor):
         """Fills the buffers of the sensor data.
 
         Args:
-            env_mask: Boolean mask indicating which environments to update.
+            env_mask: Mask of the environments to update. None: update all environments.
         """
         # Copy data from Newton into owned buffers (respecting env_mask)
         # Launch with 3D for coalescing: dim=(num_envs, num_sensors, max(num_filter_objects, 1))
@@ -392,6 +392,7 @@ class ContactSensor(BaseContactSensor):
         )
 
         # FIXME: Re-enable this when we have a non-physx rigid body view?
+        # (tracked in https://github.com/newton-physics/newton/issues/1489)
         # obtain the pose of the sensor origin
         # if self.cfg.track_pose:
         #    pose = self.body_physx_view.get_transforms().view(-1, self._num_sensors, 7)[env_ids]

@@ -279,14 +279,14 @@ class SensorBase(ABC):
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the sensor data for provided environment ids.
 
         This function does not perform any time-based checks and directly fills the data into the
         data container.
 
         Args:
-            env_ids: The indices of the sensors that are ready to capture.
+            env_mask: Mask of the environments to update. None (default): update all environments.
         """
         raise NotImplementedError
 
