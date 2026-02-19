@@ -255,6 +255,7 @@ def extract_isaacsim_path():
 
 
 def _generate_python_env():
+    """Generate IsaacSim related environment vars."""
     isaacsim_path = None
 
     try:
@@ -263,15 +264,18 @@ def _generate_python_env():
         isaacsim_path = None
         print_warning("Isaac Sim not found.")
 
-    env = os.environ.copy()
+    env = {}
+
     if isaacsim_path and isaacsim_path.exists():
         env["CARB_APP_PATH"] = str(isaacsim_path / "kit")
         env["EXP_PATH"] = str(isaacsim_path / "apps")
         env["ISAAC_PATH"] = str(isaacsim_path)
-        current_pythonpath = env.get("PYTHONPATH", "")
+        current_pythonpath = env.get("PYTHONPATH")
         isaacsim_pythonpath = str(isaacsim_path / "site")
         isaaclab_pythonpath = str(ISAACLAB_ROOT / "source" / "isaaclab")
-        env["PYTHONPATH"] = f"{current_pythonpath};{isaacsim_pythonpath};{isaaclab_pythonpath}"
+        env["PYTHONPATH"] = f"{isaacsim_pythonpath}{os.pathsep}{isaaclab_pythonpath}"
+        if current_pythonpath:
+            env["PYTHONPATH"] += f"{os.pathsep}{current_pythonpath}"
 
     env["RESOURCE_NAME"] = env.get("RESOURCE_NAME", "IsaacSim")
     return env
