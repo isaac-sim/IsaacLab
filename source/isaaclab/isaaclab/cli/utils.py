@@ -353,11 +353,13 @@ def determine_python_version():
         except Exception:
             pass
 
-    # We can't find the version, raise an error.
+    # We can't find the IS, show a warning and default to python 3.12 (IS 6.x).
     if isaacsim_version is None:
-        print_error("Unable to determine Isaac Sim version.")
-        raise RuntimeError("Unable to determine Isaac Sim version.")
+        python_version = "3.12"
+        print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")
+        return python_version
 
+    # We found some Isaac Sim
     if isaacsim_version.startswith("5."):
         python_version = "3.11"
     elif isaacsim_version.startswith("6."):
@@ -368,7 +370,6 @@ def determine_python_version():
         raise RuntimeError(f"Unsupported Isaac Sim version: {isaacsim_version}")
 
     print_info(f"Detected Isaac Sim {isaacsim_version} -> using python={python_version}")
-
     return python_version
 
 
