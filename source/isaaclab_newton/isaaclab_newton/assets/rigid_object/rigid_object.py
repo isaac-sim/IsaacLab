@@ -30,7 +30,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,

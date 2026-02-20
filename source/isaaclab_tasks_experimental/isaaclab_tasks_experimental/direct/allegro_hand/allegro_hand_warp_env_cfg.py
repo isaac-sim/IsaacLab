@@ -10,10 +10,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg  # , RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -57,7 +56,7 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        newton_cfg=newton_cfg,
+        physics=newton_cfg,
     )
     # robot
     robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")

@@ -20,7 +20,7 @@ from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.cloner import Cloner
 from isaaclab.cloner.utils import replicate_environment
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 
 
 class GridCloner(Cloner):

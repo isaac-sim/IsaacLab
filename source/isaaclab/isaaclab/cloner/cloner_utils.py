@@ -283,7 +283,7 @@ def newton_replicate(
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping."""
     from newton import ModelBuilder, solvers
 
-    from isaaclab.sim._impl.newton_manager import NewtonManager
+    from isaaclab.physics import NewtonManager
 
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)

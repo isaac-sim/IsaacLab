@@ -29,7 +29,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, RigidObject  # , DeformableObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
 from isaaclab.utils.version import compare_versions

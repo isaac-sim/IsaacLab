@@ -14,10 +14,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import CuboidCfg, RigidBodyMaterialCfg, SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -78,12 +77,12 @@ class SceneCfg(InteractiveSceneCfg):
             size=(0.8, 1.5, 0.04),
             articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=True, fix_root_link=True),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
             visible=False,
         ),
         actuators={},
         articulation_root_prim_path="/FixedJoint",  # Newton keys by first body path
-        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(-0.55 / 2, 0.0, 0.235 / 2), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane
@@ -260,7 +259,7 @@ class EventCfg:
     #     func=mdp.reset_root_state_uniform,
     #     mode="reset",
     #     params={
-    #         "pose_range": {"x": [-0.05, 0.05], "y": [-0.05, 0.05], "z": [0.0, 0.0]},
+    #         "pose_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [0.0, 0.0]},
     #         "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
     #         "asset_cfg": SceneEntityCfg("table"),
     #     },
@@ -450,7 +449,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
             self.curriculum.adr.params["rot_tol"] = self.rewards.success.params["rot_std"] / 2
         self.sim: SimulationCfg = SimulationCfg(
-            newton_cfg=NewtonCfg(
+            physics=NewtonCfg(
                 solver_cfg=MJWarpSolverCfg(
                     solver="newton",
                     integrator="implicitfast",

@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import isaaclab.utils.string as string_utils
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
@@ -164,7 +164,11 @@ class ManagerBase(ABC):
                     obj_ref._resolve_terms_callback(None)
 
             obj_ref = weakref.proxy(self)
-            NewtonManager.add_on_start_callback(lambda: safe_callback(obj_ref))
+
+            def callback_func(payload):
+                safe_callback(obj_ref)
+
+            PhysicsManager.register_callback(callback_func, PhysicsEvent.PHYSICS_READY, order=20)
 
         # parse config to create terms information
         if self.cfg:

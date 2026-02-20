@@ -35,7 +35,7 @@ from newton.selection import ArticulationView as NewtonArticulationView
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 from isaaclab.utils.buffers import TimestampedWarpBuffer
 from isaaclab.utils.helpers import deprecated, warn_overhead_cost
 

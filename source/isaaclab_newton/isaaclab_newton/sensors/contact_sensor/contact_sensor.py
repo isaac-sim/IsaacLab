@@ -18,8 +18,8 @@ from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.physics import NewtonManager
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.helpers import deprecated
 
 from .contact_sensor_data import ContactSensorData

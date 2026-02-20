@@ -12,9 +12,6 @@ configuring the environment instances, viewer settings, and simulation parameter
 from dataclasses import MISSING
 
 import isaaclab.envs.mdp as mdp
-
-# from isaaclab.devices.device_base import DevicesCfg
-# from isaaclab.devices.openxr import XrCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
 from isaaclab.scene import InteractiveSceneCfg

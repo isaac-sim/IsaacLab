@@ -11,9 +11,8 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -300,7 +299,7 @@ class SpotTerminationsCfg:
 @configclass
 class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=45,
                 nconmax=30,

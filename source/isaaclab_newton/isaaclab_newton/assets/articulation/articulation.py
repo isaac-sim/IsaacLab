@@ -37,7 +37,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
