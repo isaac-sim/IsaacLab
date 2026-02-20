@@ -27,12 +27,13 @@ def _install_system_deps():
     if shutil.which("cmake"):
         print_info("cmake is already installed.")
     else:
-        # Check if running as root.
-        if os.geteuid() != 0:
-            print_info("Installing system dependencies...")
+        print_info("Installing system dependencies...")
+
+        # apt-get update
         cmd = ["apt-get", "update"]
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
+        # apt-get install -y --no-install-recommends cmake build-essential
         cmd = [
             "apt-get",
             "install",
