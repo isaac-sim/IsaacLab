@@ -93,7 +93,6 @@ class OVRTXRenderer(RendererBase):
         self._data_types = dt if (dt is not MISSING and dt) else ["rgb"]
 
         self._simple_shading_mode = getattr(cfg, "simple_shading_mode", True)
-        self._use_ovrtx_cloning = getattr(cfg, "use_ovrtx_cloning", True)
         self._image_folder = getattr(cfg, "image_folder", None)
         self._image_writer: OVRTXImageWriter | None = None
         if self._image_folder:
@@ -189,19 +188,10 @@ class OVRTXRenderer(RendererBase):
 
 
     def initialize(self, stage=None, camera_prim_path=None):
-        """Initialize the OVRTX renderer with optional environment cloning.
+        """Initialize the OVRTX renderer with internal environment cloning.
 
-        Two initialization modes based on use_ovrtx_cloning flag:
-
-        Mode 1: OVRTX Internal Cloning (use_ovrtx_cloning=True, default):
-        1. Load USD file containing only base environment (env_0)
-        2. Use OvRTX clone_usd() to replicate environments (fast: O(1) or O(log N))
-        3. ~10-100x faster initialization for 50+ environments
-
-        Mode 2: Fully Cloned USD (use_ovrtx_cloning=False):
-        1. Load USD file containing all N environments (fully cloned)
-        2. No internal cloning needed
-        3. Slower but may be useful for debugging or special rendering requirements
+        Only env_0 is exported to USD; OVRTX clone_usd() replicates environments
+        for fast initialization (O(1) or O(log N) for many envs).
 
         Args:
             stage: Optional USD stage. If provided, prepared and exported for OVRTX.
@@ -216,7 +206,7 @@ class OVRTXRenderer(RendererBase):
             total_objs = set_scene_partition_attributes(stage, self._num_envs, camera_prim_name)
             print(f"   ✓ Set scene partition attributes on {self._num_envs} envs, {total_objs} objects")
             export_path = "/tmp/stage_before_ovrtx.usda"
-            export_stage_for_ovrtx(stage, export_path, self._num_envs, self._use_ovrtx_cloning)
+            export_stage_for_ovrtx(stage, export_path, self._num_envs)
             usd_scene_path = export_path
             print(f"   ✓ Exported to {export_path}")
 
@@ -250,8 +240,7 @@ class OVRTXRenderer(RendererBase):
             from pxr import Usd
             
             # Load USD file into OvRTX
-            # Note: tiled_camera.py may have filtered this to only contain env_0
-            # if use_ovrtx_cloning=True and num_envs > 1
+            # Export contains only env_0 when num_envs > 1; OVRTX clones after load
             print(f"[OVRTX] Injecting camera definitions...")
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
@@ -274,17 +263,12 @@ class OVRTXRenderer(RendererBase):
                 traceback.print_exc()
                 raise
             
-            # Clone base environment to all other environments in OvRTX (if enabled and needed)
-            if self._use_ovrtx_cloning and self._num_envs > 1:
-                print(f"[OVRTX] Using OVRTX internal cloning (use_ovrtx_cloning=True)")
+            # Clone base environment to all other environments in OvRTX when num_envs > 1
+            if self._num_envs > 1:
+                print(f"[OVRTX] Using OVRTX internal cloning")
                 self._clone_environments_in_ovrtx()
-                # Update scene partition attributes on cloned environments, objects, and cameras
                 self._update_scene_partitions_after_clone(combined_usd_path)
-            else:
-                if self._num_envs > 1:
-                    print(f"[OVRTX] Using fully cloned USD stage (use_ovrtx_cloning=False)")
-                    print(f"   ✓ All {self._num_envs} environments loaded from USD")
-            
+
             self._initialized_scene = True
             
             # Create binding for camera transforms (all environments now exist in OVRTX)

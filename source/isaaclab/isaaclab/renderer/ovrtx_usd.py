@@ -162,29 +162,22 @@ def set_scene_partition_attributes(
     return total_objects
 
 
-def export_stage_for_ovrtx(
-    stage,
-    export_path: str,
-    num_envs: int,
-    use_ovrtx_cloning: bool,
-) -> str:
-    """Export the stage to a USD file, optionally with only env_0 for OVRTX cloning.
+def export_stage_for_ovrtx(stage, export_path: str, num_envs: int) -> str:
+    """Export the stage to a USD file; when num_envs > 1, only env_0 is exported for OVRTX cloning.
 
-    If use_ovrtx_cloning and num_envs > 1, deactivates env_1..env_{num_envs-1}
-    before export and reactivates them after, so the file contains only env_0.
-    The stage is modified in place (deactivate then reactivate).
+    When num_envs > 1, deactivates env_1..env_{num_envs-1} before export and reactivates
+    them after, so the file contains only env_0. The stage is modified in place.
 
     Args:
         stage: USD stage to export.
         export_path: Path for the exported file.
         num_envs: Number of environments.
-        use_ovrtx_cloning: If True and num_envs > 1, deactivate non-base envs for export.
 
     Returns:
         export_path (same as input).
     """
     deactivated = []
-    if num_envs > 1 and use_ovrtx_cloning:
+    if num_envs > 1:
         deactivated = deactivate_cloned_envs(stage, num_envs)
     try:
         stage.Export(export_path)
