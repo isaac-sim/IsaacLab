@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import toml
 import torch
 
 import carb
@@ -130,11 +132,15 @@ class SimulationContext:
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
+        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
+        # Default visualization dt used before/without visualizer initialization.
+        physics_dt = getattr(self.cfg.physics, "dt", None)
+        self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
@@ -145,6 +151,93 @@ class SimulationContext:
         self._is_playing = False
         self._is_stopped = True
         type(self)._instance = self  # Mark as valid singleton only after successful init
+
+    def _apply_render_cfg_settings(self) -> None:
+        """Apply render preset and overrides from SimulationCfg.render."""
+        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
+        # (name subject to change) to keep quality profiles and carb mappings centralized.
+        render_cfg = getattr(self.cfg, "render", None)
+        if render_cfg is None:
+            return
+
+        # Priority:
+        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
+        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
+        if not rendering_mode:
+            rendering_mode = getattr(render_cfg, "rendering_mode", None)
+
+        if rendering_mode:
+            supported_rendering_modes = {"performance", "balanced", "quality"}
+            if rendering_mode not in supported_rendering_modes:
+                raise ValueError(
+                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
+                    f"{sorted(supported_rendering_modes)}."
+                )
+
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+            from isaaclab.utils.version import get_isaac_sim_version
+
+            if get_isaac_sim_version().major < 6:
+                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+
+            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
+            if os.path.exists(preset_filename):
+                with open(preset_filename) as file:
+                    preset_dict = toml.load(file)
+
+                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
+                    for key, value in data.items():
+                        key_path = f"{path}/{key}" if path else f"/{key}"
+                        if isinstance(value, dict):
+                            _apply_nested_carb_settings(value, key_path)
+                        else:
+                            self.set_setting(key_path.replace(".", "/"), value)
+
+                _apply_nested_carb_settings(preset_dict)
+            else:
+                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
+
+        # Friendly RenderCfg fields mapped to native carb settings.
+        field_to_carb = {
+            "enable_translucency": "/rtx/translucency/enabled",
+            "enable_reflections": "/rtx/reflections/enabled",
+            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "dlss_mode": "/rtx/post/dlss/execMode",
+            "enable_direct_lighting": "/rtx/directLighting/enabled",
+            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "enable_shadows": "/rtx/shadows/enabled",
+            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+        }
+
+        for key, value in vars(render_cfg).items():
+            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
+                continue
+            carb_key = field_to_carb.get(key)
+            if carb_key is not None:
+                self.set_setting(carb_key, value)
+
+        # Raw carb overrides have highest priority.
+        carb_settings = getattr(render_cfg, "carb_settings", None)
+        if carb_settings:
+            for key, value in carb_settings.items():
+                if "_" in key:
+                    key = "/" + key.replace("_", "/")
+                elif "." in key:
+                    key = "/" + key.replace(".", "/")
+                self.set_setting(key, value)
+
+        # Optional anti-aliasing mode handling via Replicator (best-effort).
+        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
+        if antialiasing_mode is not None:
+            try:
+                import omni.replicator.core as rep
+
+                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
+            except Exception:
+                pass
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -208,6 +301,7 @@ class SimulationContext:
         """Returns whether rendering is active (GUI, RTX sensors, or visualizers requested)."""
         return (
             self._has_gui
+            or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.get_setting("/isaaclab/visualizer"))
         )
@@ -380,21 +474,23 @@ class SimulationContext:
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
         self._visualizer_step_counter += 1
-        if self._scene_data_provider:
-            env_ids_union: list[int] = []
-            for viz in self._visualizers:
-                ids = getattr(viz, "get_visualized_env_ids", lambda: None)()
-                if ids is not None:
-                    env_ids_union.extend(ids)
-            env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-            self._scene_data_provider.update(env_ids)
+        if self._scene_data_provider is None:
+            return
+        provider = self._scene_data_provider
+        env_ids_union: list[int] = []
+        for viz in self._visualizers:
+            ids = viz.get_visualized_env_ids()
+            if ids is not None:
+                env_ids_union.extend(ids)
+        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+        provider.update(env_ids)
 
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
                 if viz.is_rendering_paused():
                     continue
-                if getattr(viz, "is_closed", False):
+                if viz.is_closed:
                     logger.info("Visualizer closed: %s", type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
@@ -403,8 +499,8 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0, state=None)
-                viz.step(dt, state=None)
+                    viz.step(0.0)
+                viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)

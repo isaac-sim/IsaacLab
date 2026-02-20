@@ -1,0 +1,21 @@
+[package]
+# Semantic Versioning is used: https://semver.org/
+version = "0.1.0"
+
+# Description
+title =  "Isaac Lab Teleop"
+description="Extension providing IsaacTeleop-based teleoperation device for Isaac Lab"
+readme  = "docs/README.md"
+repository = "https://github.com/isaac-sim/IsaacLab"
+category = "robotics"
+keywords = ["kit", "robotics", "teleoperation", "xr", "isaaclab"]
+
+[dependencies]
+"isaaclab" = {}
+
+[core]
+reloadable = false
+
+# Main python module this extension provides.
+[[python.module]]
+name = "isaaclab_teleop"
