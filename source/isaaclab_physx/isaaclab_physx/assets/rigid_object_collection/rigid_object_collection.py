@@ -178,7 +178,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
                 # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques(
+                self._instantaneous_wrench_composer.add_forces_and_torques_index(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
                     body_ids=self._ALL_BODY_INDICES,
@@ -242,7 +242,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.object_names, preserve_order)
+        obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
         return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
 
     """

@@ -181,7 +181,7 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         This quantity is the pose of the actor frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_link_pose_w.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -223,7 +223,7 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
@@ -283,7 +283,7 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the actor frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         return self.root_link_pose_w.reshape((self._num_instances, 1))
 
@@ -303,7 +303,7 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         return self.root_com_pose_w.reshape((self._num_instances, 1))
 
@@ -338,7 +338,7 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
-        The orientation is provided in (w, x, y, z) format.
+        The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # read data from simulation
@@ -482,7 +482,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation (w, x, y, z) in simulation world frame.
+        """Root link orientation (x, y, z, w) in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         This quantity is the orientation of the actor frame of the root rigid body.
@@ -518,7 +518,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_quat_w(self) -> wp.array:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame.
+        """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
@@ -554,7 +554,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
         This quantity is the orientation of the rigid bodies' actor frame relative to the world.
@@ -590,7 +590,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principal axes of inertia of all bodies in simulation world frame.
+        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
         This quantity is the orientation of the principal axes of inertia of the rigid bodies.
@@ -644,7 +644,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_quat_b(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principal axes of inertia of all of the bodies in their
+        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
 
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).

@@ -154,7 +154,7 @@ class RigidObject(BaseRigidObject):
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
                 # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques(
+                self._instantaneous_wrench_composer.add_forces_and_torques_index(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
                     body_ids=self._ALL_BODY_INDICES,
@@ -218,7 +218,7 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
             This method expects partial data.
@@ -312,7 +312,7 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
             This method expects partial data.
@@ -362,7 +362,7 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
             This method expects full data.
@@ -391,7 +391,7 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
@@ -445,7 +445,7 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
-        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
