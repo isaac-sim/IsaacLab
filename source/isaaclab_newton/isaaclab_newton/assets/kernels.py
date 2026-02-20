@@ -11,6 +11,13 @@ vec13f = wp.types.vector(length=13, dtype=wp.float32)
 Shared @wp.func helpers.
 """
 
+@wp.func
+def update_wrench_with_force_and_torque(
+    force: wp.vec3f,
+    torque: wp.vec3f,
+) -> wp.spatial_vectorf:
+    return wp.spatial_vector(force, torque, wp.float32)
+
 
 @wp.func
 def get_link_vel_from_root_com_vel_func(
@@ -1405,3 +1412,18 @@ def derive_body_acceleration_from_body_com_velocities(
     body_acc[i, j] = (body_com_vel[i, j] - prev_body_com_vel[i, j]) / dt
     # Update the previous body COM velocity
     prev_body_com_vel[i, j] = body_com_vel[i, j]
+
+@wp.kernel
+def update_wrench_array_with_force_and_torque(
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    wrench: wp.array2d(dtype=wp.spatial_vectorf),
+    env_ids: wp.array(dtype=wp.bool),
+    body_ids: wp.array(dtype=wp.bool),
+):
+    env_index, body_index = wp.tid()
+    if env_ids[env_index] and body_ids[body_index]:
+        wrench[env_index, body_index] = update_wrench_with_force_and_torque(
+            forces[env_index, body_index],
+            torques[env_index, body_index],
+        )

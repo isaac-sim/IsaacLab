@@ -252,21 +252,31 @@ class Articulation(BaseArticulation):
                     env_ids=self._ALL_INDICES,
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
+                wp.launch(
+                    shared_kernels.update_wrench_array_with_force_and_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._instantaneous_wrench_composer.composed_force,
+                        self._instantaneous_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
                 )
             else:
                 # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
+                wp.launch(
+                    shared_kernels.update_wrench_array_with_force_and_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        self._permanent_wrench_composer.composed_force,
+                        self._permanent_wrench_composer.composed_torque,
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
                 )
         self._instantaneous_wrench_composer.reset()
 
