@@ -43,6 +43,19 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.body_name = "panda_hand"
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
+        variants = {
+            "actions.arm_action": {
+                "joint_position_to_limit": mdp.JointPositionToLimitsActionCfg(
+                    asset_name="robot", joint_names=["panda_joint.*"]
+                ),
+                "relative_joint_position": mdp.RelativeJointPositionActionCfg(
+                    asset_name="robot", joint_names=["panda_joint.*"], scale=0.2
+                ),
+            }
+        }
+
+        self.variants.update(variants)
+
 
 @configclass
 class FrankaReachEnvCfg_PLAY(FrankaReachEnvCfg):
