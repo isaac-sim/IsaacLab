@@ -134,6 +134,78 @@ def _create_conda_envhooks_shell(conda_prefix: Path):
     print_debug(f"Created deactivation hook: {deactivate_hook}")
 
 
+def _write_torch_gomp_hooks_linux(conda_prefix: Path):
+    """Write Linux-only conda hooks for torch libgomp/libstdc++ LD_PRELOAD handling."""
+    if not sys.platform.startswith("linux"):
+        return
+
+    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
+    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
+    activate_d.mkdir(parents=True, exist_ok=True)
+    deactivate_d.mkdir(parents=True, exist_ok=True)
+
+    activate_hook = activate_d / "torch_gomp.sh"
+    deactivate_hook = deactivate_d / "torch_gomp_unset.sh"
+
+    activate_content = textwrap.dedent(
+        """\
+                # Resolve Torch-bundled libgomp and prepend to LD_PRELOAD (quiet + idempotent)
+                : "${_IL_PREV_LD_PRELOAD:=${LD_PRELOAD-}}"
+
+                __gomp="$($CONDA_PREFIX/bin/python - <<'PY' 2>/dev/null || true
+                import pathlib
+                try:
+                        import torch
+                        p = pathlib.Path(torch.__file__).parent / 'lib' / 'libgomp.so.1'
+                        print(p if p.exists() else "", end="")
+                except Exception:
+                        pass
+                PY
+                )"
+
+                if [ -n "$__gomp" ] && [ -r "$__gomp" ]; then
+                    case ":${LD_PRELOAD:-}:" in
+                        *":$__gomp:"*) : ;;
+                        *) export LD_PRELOAD="$__gomp${LD_PRELOAD:+:$LD_PRELOAD}";;
+                    esac
+                fi
+                unset __gomp
+
+                # WAR for Ubuntu 22.04: preload conda's libstdc++ to provide CXXABI_1.3.15
+                __libstdcxx="$CONDA_PREFIX/lib/libstdc++.so.6"
+                if [ -r "$__libstdcxx" ]; then
+                    __sys_libstdcxx=$(readlink -f /lib/x86_64-linux-gnu/libstdc++.so.6 \
+                        2>/dev/null || echo "/lib/x86_64-linux-gnu/libstdc++.so.6")
+                    if [ -r "$__sys_libstdcxx" ] \
+                        && ! strings "$__sys_libstdcxx" 2>/dev/null | grep -qE 'CXXABI_1\\.3\\.15'; then
+                        case ":${LD_PRELOAD:-}:" in
+                            *":$__libstdcxx:"*) : ;;
+                            *) export LD_PRELOAD="$__libstdcxx${LD_PRELOAD:+:$LD_PRELOAD}";;
+                        esac
+                    fi
+                    unset __sys_libstdcxx
+                fi
+                unset __libstdcxx
+                """
+    )
+
+    deactivate_content = textwrap.dedent(
+        """\
+                # restore LD_PRELOAD to pre-activation value
+                if [ -v _IL_PREV_LD_PRELOAD ]; then
+                    export LD_PRELOAD="$_IL_PREV_LD_PRELOAD"
+                    unset _IL_PREV_LD_PRELOAD
+                fi
+                """
+    )
+
+    activate_hook.write_text(activate_content, encoding="utf-8")
+    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
+
+    print_debug(f"Created torch gomp activation hook: {activate_hook}")
+    print_debug(f"Created torch gomp deactivation hook: {deactivate_hook}")
+
+
 def _create_conda_envhooks_cmdexe(conda_prefix: Path):
     """Write Windows cmd.exe conda activation/deactivation hooks."""
     activate_d = conda_prefix / "etc" / "conda" / "activate.d"
@@ -267,6 +339,7 @@ def _write_conda_env_hooks(conda_prefix: Path):
         _create_conda_envhooks_powershell(conda_prefix)
     else:
         _create_conda_envhooks_shell(conda_prefix)
+        _write_torch_gomp_hooks_linux(conda_prefix)
 
 
 def _append_hook_if_missing(script_path: Path, marker: str, hook_content: str):
