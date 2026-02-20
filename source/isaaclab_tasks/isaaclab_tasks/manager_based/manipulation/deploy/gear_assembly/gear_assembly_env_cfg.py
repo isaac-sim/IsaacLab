@@ -303,7 +303,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
                 iterations=80,
                 ls_iterations=10,
                 cone="elliptic",
-                impratio=10,
+                impratio=1000,
                 ls_parallel=True,
                 integrator="implicitfast",
                 use_mujoco_contacts=False,
