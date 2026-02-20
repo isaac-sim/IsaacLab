@@ -1353,7 +1353,7 @@ class Articulation(BaseArticulation):
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         wp.launch(
-            articulation_kernels.write_joint_limit_data_to_buffer,
+            articulation_kernels.write_joint_limit_data_to_buffer_index,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 limits,
@@ -1362,7 +1362,8 @@ class Articulation(BaseArticulation):
                 joint_ids,
             ],
             outputs=[
-                self.data._joint_pos_limits,
+                self.data._sim_bind_joint_pos_limits_lower,
+                self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
                 clamped_defaults,
@@ -1422,7 +1423,8 @@ class Articulation(BaseArticulation):
                 joint_mask,
             ],
             outputs=[
-                self.data._joint_pos_limits,
+                self.data._sim_bind_joint_pos_limits_lower,
+                self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
                 clamped_defaults,
@@ -3118,12 +3120,17 @@ class Articulation(BaseArticulation):
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
+        self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
+        self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
+        self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
+        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
+        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -3245,8 +3252,6 @@ class Articulation(BaseArticulation):
                 damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
                 armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
                 friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
-                viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
                 effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
                 velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
             )
@@ -3275,12 +3280,6 @@ class Articulation(BaseArticulation):
             self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
             self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
-            self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_viscous_friction_coefficient_to_sim_index(
-                actuator.viscous_friction, joint_ids=actuator.joint_indices
-            )
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -3297,7 +3296,7 @@ class Articulation(BaseArticulation):
                     False,
                 ],
                 outputs=[
-                    self.data._joint_stiffness,
+                    self.data._sim_bind_joint_stiffness_sim,
                 ],
                 device=self.device,
             )
@@ -3311,7 +3310,7 @@ class Articulation(BaseArticulation):
                     False,
                 ],
                 outputs=[
-                    self.data._joint_damping,
+                    self.data._sim_bind_joint_damping_sim,
                 ],
                 device=self.device,
             )
@@ -3325,7 +3324,7 @@ class Articulation(BaseArticulation):
                     False,
                 ],
                 outputs=[
-                    self.data._joint_armature,
+                    self.data._sim_bind_joint_armature,
                 ],
                 device=self.device,
             )
@@ -3339,35 +3338,7 @@ class Articulation(BaseArticulation):
                     False,
                 ],
                 outputs=[
-                    self.data._joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.dynamic_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_dynamic_friction_coeff,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.viscous_friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                    False,
-                ],
-                outputs=[
-                    self.data._joint_viscous_friction_coeff,
+                    self.data._sim_bind_joint_friction_coeff,
                 ],
                 device=self.device,
             )
@@ -3400,25 +3371,7 @@ class Articulation(BaseArticulation):
         self._spatial_tendon_names = list()
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-            joint_paths = self.root_view.dof_paths[0]
-
-            # iterate over all joints to find tendons attached to them
-            for j in range(self.num_joints):
-                usd_joint_path = joint_paths[j]
-                # check whether joint has tendons - tendon name follows the joint name it is attached to
-                joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._fixed_tendon_names.append(joint_name)
-                elif joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or joint.GetPrim().HasAPI(
-                    PhysxSchema.PhysxTendonAttachmentLeafAPI
-                ):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._spatial_tendon_names.append(joint_name)
-
-            # store the fixed tendon names
-            self._data.fixed_tendon_names = self._fixed_tendon_names
-            self._data.spatial_tendon_names = self._spatial_tendon_names
+            raise NotImplementedError("Fixed and spatial tendons are not supported yet.")
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -3562,11 +3515,7 @@ class Articulation(BaseArticulation):
         armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
         # For friction, use the individual components from data
         friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
-        dynamic_friction_coeff = wp.to_torch(self.data.joint_dynamic_friction_coeff)[0].cpu()
-        viscous_friction_coeff = wp.to_torch(self.data.joint_viscous_friction_coeff)[0].cpu()
         static_frictions = friction_coeff.tolist()
-        dynamic_frictions = dynamic_friction_coeff.tolist()
-        viscous_frictions = viscous_friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
         position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
@@ -3578,7 +3527,7 @@ class Articulation(BaseArticulation):
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
         # build field names based on Isaac Sim version
         field_names = ["Index", "Name", "Stiffness", "Damping", "Armature"]
-        field_names.extend(["Static Friction", "Dynamic Friction", "Viscous Friction"])
+        field_names.extend(["Static Friction"])
         field_names.extend(["Position Limits", "Velocity Limits", "Effort Limits"])
         joint_table.field_names = field_names
 
@@ -3587,8 +3536,6 @@ class Articulation(BaseArticulation):
         joint_table.custom_format["Damping"] = format_large_number
         joint_table.custom_format["Armature"] = format_large_number
         joint_table.custom_format["Static Friction"] = format_large_number
-        joint_table.custom_format["Dynamic Friction"] = format_large_number
-        joint_table.custom_format["Viscous Friction"] = format_large_number
         joint_table.custom_format["Position Limits"] = format_limits
         joint_table.custom_format["Velocity Limits"] = format_large_number
         joint_table.custom_format["Effort Limits"] = format_large_number
@@ -3602,7 +3549,7 @@ class Articulation(BaseArticulation):
             if get_isaac_sim_version().major < 5:
                 row_data.append(static_frictions[index])
             else:
-                row_data.extend([static_frictions[index], dynamic_frictions[index], viscous_frictions[index]])
+                row_data.extend([static_frictions[index]])
             row_data.extend([position_limits[index], velocity_limits[index], effort_limits[index]])
             # add row to table
             joint_table.add_row(row_data)
@@ -3611,91 +3558,10 @@ class Articulation(BaseArticulation):
 
         # read out all fixed tendon parameters from simulation
         if self.num_fixed_tendons > 0:
-            # -- gains
-            # Use data properties which have already been cloned and stored during initialization
-            ft_stiffnesses = wp.to_torch(self.data.fixed_tendon_stiffness)[0].cpu().tolist()
-            ft_dampings = wp.to_torch(self.data.fixed_tendon_damping)[0].cpu().tolist()
-            # -- limits
-            ft_limit_stiffnesses = wp.to_torch(self.data.fixed_tendon_limit_stiffness)[0].cpu().tolist()
-            # fixed_tendon_pos_limits is vec2f array
-            ft_limits_torch = wp.to_torch(self.data.fixed_tendon_pos_limits)[0].cpu()
-            ft_limits = [tuple(limit.tolist()) for limit in ft_limits_torch]
-            ft_rest_lengths = wp.to_torch(self.data.fixed_tendon_rest_length)[0].cpu().tolist()
-            ft_offsets = wp.to_torch(self.data.fixed_tendon_offset)[0].cpu().tolist()
-            # create table for term information
-            tendon_table = PrettyTable()
-            tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
-            tendon_table.field_names = [
-                "Index",
-                "Stiffness",
-                "Damping",
-                "Limit Stiffness",
-                "Limits",
-                "Rest Length",
-                "Offset",
-            ]
-            tendon_table.float_format = ".3"
-
-            # apply custom formatters to tendon table columns
-            tendon_table.custom_format["Stiffness"] = format_large_number
-            tendon_table.custom_format["Damping"] = format_large_number
-            tendon_table.custom_format["Limit Stiffness"] = format_large_number
-            tendon_table.custom_format["Limits"] = format_limits
-            tendon_table.custom_format["Rest Length"] = format_large_number
-            tendon_table.custom_format["Offset"] = format_large_number
-
-            # add info on each term
-            for index in range(self.num_fixed_tendons):
-                tendon_table.add_row(
-                    [
-                        index,
-                        ft_stiffnesses[index],
-                        ft_dampings[index],
-                        ft_limit_stiffnesses[index],
-                        ft_limits[index],
-                        ft_rest_lengths[index],
-                        ft_offsets[index],
-                    ]
-                )
-            # convert table to string
-            logger.info(
-                f"Simulation parameters for fixed tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
-            )
+            raise NotImplementedError("Fixed tendons are not supported yet.")
 
         if self.num_spatial_tendons > 0:
-            # -- gains
-            # Use data properties which have already been cloned and stored during initialization
-            st_stiffnesses = wp.to_torch(self.data.spatial_tendon_stiffness)[0].cpu().tolist()
-            st_dampings = wp.to_torch(self.data.spatial_tendon_damping)[0].cpu().tolist()
-            # -- limits
-            st_limit_stiffnesses = wp.to_torch(self.data.spatial_tendon_limit_stiffness)[0].cpu().tolist()
-            st_offsets = wp.to_torch(self.data.spatial_tendon_offset)[0].cpu().tolist()
-            # create table for term information
-            tendon_table = PrettyTable()
-            tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
-            tendon_table.field_names = [
-                "Index",
-                "Stiffness",
-                "Damping",
-                "Limit Stiffness",
-                "Offset",
-            ]
-            tendon_table.float_format = ".3"
-            # add info on each term
-            for index in range(self.num_spatial_tendons):
-                tendon_table.add_row(
-                    [
-                        index,
-                        st_stiffnesses[index],
-                        st_dampings[index],
-                        st_limit_stiffnesses[index],
-                        st_offsets[index],
-                    ]
-                )
-            # convert table to string
-            logger.info(
-                f"Simulation parameters for spatial tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string()
-            )
+            raise NotImplementedError("Spatial tendons are not supported yet.")
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
@@ -3824,42 +3690,6 @@ class Articulation(BaseArticulation):
             joint_ids=joint_ids,
             env_ids=env_ids,
             full_data=full_data,
-        )
-
-    def write_joint_viscous_friction_coefficient_to_sim(
-        self,
-        joint_viscous_friction_coeff: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ) -> None:
-        """Deprecated, same as :meth:`write_joint_viscous_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_viscous_friction_coefficient_to_sim' will be deprecated in a future release. "
-            "Please use 'write_joint_viscous_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
-        )
-
-    def write_joint_dynamic_friction_coefficient_to_sim(
-        self,
-        joint_dynamic_friction_coeff: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ) -> None:
-        """Deprecated, same as :meth:`write_joint_dynamic_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_dynamic_friction_coefficient_to_sim' will be deprecated in a future release. "
-            "Please use 'write_joint_dynamic_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
     def write_root_state_to_sim(

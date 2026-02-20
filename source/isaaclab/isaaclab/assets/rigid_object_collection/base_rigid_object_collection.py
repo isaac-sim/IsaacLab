@@ -764,7 +764,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_pose_to_sim(
         self,
@@ -779,7 +779,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_pose_to_sim(
         self,
@@ -794,7 +794,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_velocity_to_sim(
         self,
@@ -809,7 +809,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_velocity_to_sim(
         self,
@@ -824,7 +824,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_velocity_to_sim(
         self,
@@ -839,7 +839,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def set_masses(
         self,
@@ -853,7 +853,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
         self,
@@ -867,7 +867,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
         self,
@@ -882,7 +882,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(
         self,
@@ -970,7 +970,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_pose_to_sim(
         self,
@@ -985,7 +985,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_link_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_pose_to_sim(
         self,
@@ -1000,7 +1000,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_pose_to_sim_index(object_pose, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_velocity_to_sim(
         self,
@@ -1015,7 +1015,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_velocity_to_sim(
         self,
@@ -1030,7 +1030,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_com_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_velocity_to_sim(
         self,
@@ -1045,7 +1045,7 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_velocity_to_sim_index(object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_link_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def find_objects(
         self, name_keys: str | Sequence[str], preserve_order: bool = False

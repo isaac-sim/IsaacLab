@@ -193,7 +193,7 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, *, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
         .. caution::
@@ -201,7 +201,7 @@ class Articulation(BaseArticulation):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
@@ -362,6 +362,7 @@ class Articulation(BaseArticulation):
 
     def write_root_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -377,13 +378,14 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -399,13 +401,14 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -422,7 +425,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
+                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -459,6 +463,7 @@ class Articulation(BaseArticulation):
 
     def write_root_link_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -474,8 +479,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -483,10 +488,11 @@ class Articulation(BaseArticulation):
         else:
             env_ids = self._ALL_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, full_data=True)
 
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -494,7 +500,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expect partial data or full data.
@@ -504,7 +510,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
+                or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -548,13 +555,14 @@ class Articulation(BaseArticulation):
 
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expect full data.
@@ -564,8 +572,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -573,10 +581,11 @@ class Articulation(BaseArticulation):
         else:
             env_ids = self._ALL_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids, full_data=True)
+        self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, full_data=True)
 
     def write_root_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -593,13 +602,14 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -616,13 +626,14 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -641,7 +652,7 @@ class Articulation(BaseArticulation):
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
-                (num_instances, 6).
+                (num_instances, 6), or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -675,6 +686,7 @@ class Articulation(BaseArticulation):
 
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -691,8 +703,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -701,10 +713,11 @@ class Articulation(BaseArticulation):
             env_ids = self._ALL_INDICES
 
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -723,7 +736,7 @@ class Articulation(BaseArticulation):
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
-                (num_instances, 6).
+                (num_instances, 6), or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -764,6 +777,7 @@ class Articulation(BaseArticulation):
 
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -780,8 +794,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -789,7 +803,7 @@ class Articulation(BaseArticulation):
         else:
             env_ids = self._ALL_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids, full_data=True)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
     def write_joint_state_to_sim(
         self,
@@ -807,11 +821,12 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         # set into simulation
-        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
+        *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
@@ -829,15 +844,16 @@ class Articulation(BaseArticulation):
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all joints are used.
         """
         # set into simulation
-        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
 
     def write_joint_position_to_sim_index(
         self,
+        *,
         position: torch.Tensor,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -893,6 +909,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_to_sim_mask(
         self,
+        *,
         position: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -909,7 +926,7 @@ class Articulation(BaseArticulation):
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -921,10 +938,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_velocity_to_sim_index(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -973,6 +991,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_to_sim_mask(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -989,7 +1008,7 @@ class Articulation(BaseArticulation):
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1001,7 +1020,7 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     """
     Operations - Simulation Parameters Writers.
@@ -1009,6 +1028,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_stiffness_to_sim_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1068,6 +1088,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_stiffness_to_sim_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1084,7 +1105,7 @@ class Articulation(BaseArticulation):
         Args:
             stiffness: Joint stiffness. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -1096,10 +1117,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_stiffness_to_sim_index(stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_damping_to_sim_index(
         self,
+        *,
         damping: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1160,6 +1182,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_damping_to_sim_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1176,7 +1199,7 @@ class Articulation(BaseArticulation):
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1188,10 +1211,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.write_joint_damping_to_sim_index(damping, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_damping_to_sim_index(damping=damping, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_position_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1259,6 +1283,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1276,7 +1301,7 @@ class Articulation(BaseArticulation):
         Args:
             limits: Joint limits. Shape is (num_instances, num_joints, 2).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
@@ -1291,11 +1316,12 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_position_limit_to_sim_index(
-            limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True, warn_limit_violation=warn_limit_violation
+            limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True, warn_limit_violation=warn_limit_violation
         )
 
     def write_joint_velocity_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1359,6 +1385,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1379,7 +1406,7 @@ class Articulation(BaseArticulation):
         Args:
             limits: Joint max velocity. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1391,10 +1418,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.write_joint_velocity_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_velocity_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_effort_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1458,6 +1486,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_effort_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1477,7 +1506,7 @@ class Articulation(BaseArticulation):
         Args:
             limits: Joint torque limits. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1489,10 +1518,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.write_joint_effort_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_effort_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_armature_to_sim_index(
         self,
+        *,
         armature: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1555,6 +1585,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_armature_to_sim_mask(
         self,
+        *,
         armature: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1574,7 +1605,7 @@ class Articulation(BaseArticulation):
         Args:
             armature: Joint armature. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1586,10 +1617,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.write_joint_armature_to_sim_index(armature, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_armature_to_sim_index(armature=armature, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | wp.array | float,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
@@ -1660,6 +1692,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | wp.array,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array | None = None,
         joint_viscous_friction_coeff: torch.Tensor | wp.array | None = None,
@@ -1694,7 +1727,7 @@ class Articulation(BaseArticulation):
             joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
                 Same shape as above. If None, the viscous coefficient is not updated.
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1707,7 +1740,7 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff,
+            joint_friction_coeff=joint_friction_coeff,
             joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
             joint_viscous_friction_coeff=joint_viscous_friction_coeff,
             joint_ids=joint_ids,
@@ -1717,6 +1750,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_dynamic_friction_coefficient_to_sim_index(
         self,
+        *,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1767,6 +1801,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
+        *,
         joint_dynamic_friction_coeff: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1783,7 +1818,7 @@ class Articulation(BaseArticulation):
         Args:
             joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1796,11 +1831,12 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
         )
 
     def write_joint_viscous_friction_coefficient_to_sim_index(
         self,
+        *,
         joint_viscous_friction_coeff: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1854,6 +1890,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
+        *,
         joint_viscous_friction_coeff: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1870,7 +1907,7 @@ class Articulation(BaseArticulation):
         Args:
             joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is not None:
@@ -1883,7 +1920,7 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
         )
 
     """
@@ -1892,6 +1929,7 @@ class Articulation(BaseArticulation):
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1938,6 +1976,7 @@ class Articulation(BaseArticulation):
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1954,7 +1993,7 @@ class Articulation(BaseArticulation):
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -1966,10 +2005,11 @@ class Articulation(BaseArticulation):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1986,7 +2026,8 @@ class Articulation(BaseArticulation):
 
         Args:
             coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
-                (num_instances, num_bodies, 7) if full_data.
+                (num_instances, num_bodies, 7) if full_data, or (len(env_ids), len(body_ids)) /
+                (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
@@ -2021,6 +2062,7 @@ class Articulation(BaseArticulation):
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2035,9 +2077,9 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7) or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2049,10 +2091,11 @@ class Articulation(BaseArticulation):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2098,6 +2141,7 @@ class Articulation(BaseArticulation):
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2114,7 +2158,7 @@ class Articulation(BaseArticulation):
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
             body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2126,10 +2170,11 @@ class Articulation(BaseArticulation):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_joint_position_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2176,6 +2221,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_position_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2192,7 +2238,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint position targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2204,10 +2250,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_joint_position_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.set_joint_position_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def set_joint_velocity_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2254,6 +2301,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_velocity_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2270,7 +2318,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint velocity targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2282,10 +2330,11 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_joint_velocity_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.set_joint_velocity_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     def set_joint_effort_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2332,6 +2381,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_effort_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2348,7 +2398,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint effort targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2360,7 +2410,7 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_joint_effort_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.set_joint_effort_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
 
     """
     Operations - Tendons.
@@ -2368,6 +2418,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_stiffness_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2415,6 +2466,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_stiffness_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2435,7 +2487,7 @@ class Articulation(BaseArticulation):
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2448,11 +2500,12 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_stiffness_index(
-            stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+            stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_damping_index(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2500,6 +2553,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_damping_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2520,7 +2574,7 @@ class Articulation(BaseArticulation):
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2532,10 +2586,11 @@ class Articulation(BaseArticulation):
         else:
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_damping_index(damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        self.set_fixed_tendon_damping_index(damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2583,6 +2638,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2603,7 +2659,7 @@ class Articulation(BaseArticulation):
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2616,11 +2672,12 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_limit_stiffness_index(
-            limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+            limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_position_limit_index(
         self,
+        *,
         limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2668,6 +2725,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_position_limit_mask(
         self,
+        *,
         limit: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2688,7 +2746,7 @@ class Articulation(BaseArticulation):
         Args:
             limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2701,11 +2759,12 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_position_limit_index(
-            limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+            limit=limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_rest_length_index(
         self,
+        *,
         rest_length: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2753,6 +2812,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_rest_length_mask(
         self,
+        *,
         rest_length: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2773,7 +2833,7 @@ class Articulation(BaseArticulation):
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2786,11 +2846,12 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_rest_length_index(
-            rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+            rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_offset_index(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2838,6 +2899,7 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_offset_mask(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2858,7 +2920,7 @@ class Articulation(BaseArticulation):
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2870,10 +2932,11 @@ class Articulation(BaseArticulation):
         else:
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_offset_index(offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
+        *,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
@@ -2902,6 +2965,7 @@ class Articulation(BaseArticulation):
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
+        *,
         env_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using masks.
@@ -2911,7 +2975,7 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -2922,6 +2986,7 @@ class Articulation(BaseArticulation):
 
     def set_spatial_tendon_stiffness_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2969,6 +3034,7 @@ class Articulation(BaseArticulation):
 
     def set_spatial_tendon_stiffness_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2989,7 +3055,7 @@ class Articulation(BaseArticulation):
         Args:
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -3002,11 +3068,12 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_stiffness_index(
-            stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+            stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_spatial_tendon_damping_index(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -3054,6 +3121,7 @@ class Articulation(BaseArticulation):
 
     def set_spatial_tendon_damping_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3074,7 +3142,7 @@ class Articulation(BaseArticulation):
         Args:
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -3087,11 +3155,12 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_damping_index(
-            damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+            damping=damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_spatial_tendon_limit_stiffness_index(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -3140,6 +3209,7 @@ class Articulation(BaseArticulation):
 
     def set_spatial_tendon_limit_stiffness_mask(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3160,7 +3230,7 @@ class Articulation(BaseArticulation):
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -3173,11 +3243,12 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_limit_stiffness_index(
-            limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+            limit_stiffness=limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_spatial_tendon_offset_index(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -3225,6 +3296,7 @@ class Articulation(BaseArticulation):
 
     def set_spatial_tendon_offset_mask(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3245,7 +3317,7 @@ class Articulation(BaseArticulation):
         Args:
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -3258,11 +3330,12 @@ class Articulation(BaseArticulation):
             spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_spatial_tendon_offset_index(
-            offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
+            offset=offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def write_spatial_tendon_properties_to_sim_index(
         self,
+        *,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation using indices.
@@ -3290,6 +3363,7 @@ class Articulation(BaseArticulation):
 
     def write_spatial_tendon_properties_to_sim_mask(
         self,
+        *,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -3301,7 +3375,7 @@ class Articulation(BaseArticulation):
 
         Args:
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -3624,24 +3698,24 @@ class Articulation(BaseArticulation):
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_effort_limit_to_sim_index(limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim_index(limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(friction=actuator.friction, joint_ids=actuator.joint_indices)
             self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                actuator.dynamic_friction, joint_ids=actuator.joint_indices
+                joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices
             )
             self.write_joint_viscous_friction_coefficient_to_sim_index(
-                actuator.viscous_friction, joint_ids=actuator.joint_indices
+                joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices
             )
 
         # perform some sanity checks to ensure actuators are prepared correctly
@@ -4090,7 +4164,7 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff,
+            joint_friction_coeff=joint_friction_coeff,
             joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
             joint_viscous_friction_coeff=joint_viscous_friction_coeff,
             joint_ids=joint_ids,
@@ -4113,7 +4187,7 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
     def write_joint_dynamic_friction_coefficient_to_sim(
@@ -4131,7 +4205,7 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
     def write_root_state_to_sim(
@@ -4147,8 +4221,8 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self,
@@ -4163,8 +4237,8 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self,
@@ -4179,5 +4253,5 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)

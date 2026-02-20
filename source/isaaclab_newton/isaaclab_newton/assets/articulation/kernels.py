@@ -31,7 +31,6 @@ def compute_soft_joint_pos_limits_func(
         joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
     )
 
-
 """
 Articulation-specific warp kernels.
 """
@@ -129,7 +128,8 @@ def write_joint_limit_data_to_buffer_index(
     soft_limit_factor: wp.float32,
     env_ids: wp.array(dtype=wp.int32),
     joint_ids: wp.array(dtype=wp.int32),
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     default_joint_pos: wp.array2d(dtype=wp.float32),
     clamped_defaults: wp.array(dtype=wp.int32),
@@ -146,7 +146,9 @@ def write_joint_limit_data_to_buffer_index(
         soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
-        joint_pos_limits: Output array where joint position limits are written. Shape is
+        joint_pos_limits_lower: Output array where joint position limits lower are written. Shape is
+            (num_envs, num_joints).
+        joint_pos_limits_upper: Output array where joint position limits upper are written. Shape is
             (num_envs, num_joints).
         soft_joint_pos_limits: Output array where soft joint position limits are written.
             Shape is (num_envs, num_joints).
@@ -156,18 +158,20 @@ def write_joint_limit_data_to_buffer_index(
             positions were clamped. Non-zero if any clamping occurred. Shape is (1,).
     """
     i, j = wp.tid()
-    joint_pos_limits[env_ids[i], joint_ids[j]] = in_data[i, j]
+    joint_pos_limits_lower[env_ids[i], joint_ids[j]] = in_data[i, j][0]
+    joint_pos_limits_upper[env_ids[i], joint_ids[j]] = in_data[i, j][1]
     if (
-        default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits[env_ids[i], joint_ids[j]][0]
-    ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits[env_ids[i], joint_ids[j]][1]:
+        default_joint_pos[env_ids[i], joint_ids[j]] < joint_pos_limits_lower[env_ids[i], joint_ids[j]]
+    ) or default_joint_pos[env_ids[i], joint_ids[j]] > joint_pos_limits_upper[env_ids[i], joint_ids[j]]:
         wp.atomic_add(clamped_defaults, 0, 1)
         default_joint_pos[env_ids[i], joint_ids[j]] = wp.clamp(
             default_joint_pos[env_ids[i], joint_ids[j]],
-            joint_pos_limits[env_ids[i], joint_ids[j]][0],
-            joint_pos_limits[env_ids[i], joint_ids[j]][1],
+            joint_pos_limits_lower[env_ids[i], joint_ids[j]],
+            joint_pos_limits_upper[env_ids[i], joint_ids[j]],
         )
     soft_joint_pos_limits[env_ids[i], joint_ids[j]] = compute_soft_joint_pos_limits_func(
-        joint_pos_limits[env_ids[i], joint_ids[j]], soft_limit_factor
+        wp.vec2f(joint_pos_limits_lower[env_ids[i], joint_ids[j]], joint_pos_limits_upper[env_ids[i], joint_ids[j]]),
+        soft_limit_factor,
     )
 
 
@@ -177,7 +181,8 @@ def write_joint_limit_data_to_buffer_mask(
     soft_limit_factor: wp.float32,
     env_mask: wp.array(dtype=wp.bool),
     joint_mask: wp.array(dtype=wp.bool),
-    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
     soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
     default_joint_pos: wp.array2d(dtype=wp.float32),
     clamped_defaults: wp.array(dtype=wp.int32),
@@ -194,7 +199,9 @@ def write_joint_limit_data_to_buffer_mask(
         soft_limit_factor: Input scalar factor for computing soft limits (typically 0.0-1.0).
         env_mask: Input array of environment mask. Shape is (num_envs,).
         joint_mask: Input array of joint mask. Shape is (num_joints,).
-        joint_pos_limits: Output array where joint position limits are written. Shape is
+        joint_pos_limits_lower: Output array where joint position limits lower are written. Shape is
+            (num_envs, num_joints).
+        joint_pos_limits_upper: Output array where joint position limits upper are written. Shape is
             (num_envs, num_joints).
         soft_joint_pos_limits: Output array where soft joint position limits are written.
             Shape is (num_envs, num_joints).
@@ -205,18 +212,19 @@ def write_joint_limit_data_to_buffer_mask(
     """
     i, j = wp.tid()
     if env_mask[i] and joint_mask[j]:
-        joint_pos_limits[i, j] = in_data[i, j]
+        joint_pos_limits_lower[i, j] = in_data[i, j][0]
+        joint_pos_limits_upper[i, j] = in_data[i, j][1]
         if (
-            default_joint_pos[i, j] < joint_pos_limits[i, j][0]
-        ) or default_joint_pos[i, j] > joint_pos_limits[i, j][1]:
+            default_joint_pos[i, j] < joint_pos_limits_lower[i, j]
+        ) or default_joint_pos[i, j] > joint_pos_limits_upper[i, j]:
             wp.atomic_add(clamped_defaults, 0, 1)
             default_joint_pos[i, j] = wp.clamp(
                 default_joint_pos[i, j],
-                joint_pos_limits[i, j][0],
-                joint_pos_limits[i, j][1],
+                joint_pos_limits_lower[i, j],
+                joint_pos_limits_upper[i, j],
             )
         soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(
-            joint_pos_limits[i, j], soft_limit_factor
+            wp.vec2f(joint_pos_limits_lower[i, j], joint_pos_limits_upper[i, j]), soft_limit_factor
         )
 
 

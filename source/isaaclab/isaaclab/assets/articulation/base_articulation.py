@@ -200,7 +200,7 @@ class BaseArticulation(AssetBase):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -423,7 +423,7 @@ class BaseArticulation(AssetBase):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -449,7 +449,7 @@ class BaseArticulation(AssetBase):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -2272,7 +2272,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(
         self,
@@ -2286,7 +2286,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_com_pose_to_sim(
         self,
@@ -2300,7 +2300,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_com_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(
         self,
@@ -2314,7 +2314,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(
         self,
@@ -2328,7 +2328,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_com_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_link_velocity_to_sim(
         self,
@@ -2342,7 +2342,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_root_link_velocity_to_sim_index(root_velocity, env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     @abstractmethod
     def write_joint_state_to_sim(
@@ -2369,7 +2369,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_velocity_to_sim(
         self,
@@ -2384,7 +2384,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_stiffness_to_sim(
         self,
@@ -2399,7 +2399,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_stiffness_to_sim_index(stiffness, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_damping_to_sim(
         self,
@@ -2414,7 +2414,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_damping_to_sim_index(damping, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_damping_to_sim_index(damping=damping, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_position_limit_to_sim(
         self,
@@ -2431,7 +2431,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_position_limit_to_sim_index(
-            limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
+            limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
         )
 
     def write_joint_velocity_limit_to_sim(
@@ -2447,7 +2447,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_velocity_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_effort_limit_to_sim(
         self,
@@ -2462,7 +2462,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_effort_limit_to_sim_index(limits, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_effort_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_armature_to_sim(
         self,
@@ -2477,7 +2477,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_armature_to_sim_index(armature, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_armature_to_sim_index(armature=armature, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_friction_coefficient_to_sim(
         self,
@@ -2492,7 +2492,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_masses(
         self,
@@ -2506,7 +2506,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids)
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
         self,
@@ -2520,7 +2520,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids)
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
         self,
@@ -2535,7 +2535,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids)
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(
         self,
@@ -2570,7 +2570,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_position_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
+        self.set_joint_position_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_velocity_target(
         self,
@@ -2585,7 +2585,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_velocity_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
+        self.set_joint_velocity_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_effort_target(
         self,
@@ -2600,7 +2600,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_effort_target_index(target, joint_ids=joint_ids, env_ids=env_ids)
+        self.set_joint_effort_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_fixed_tendon_stiffness(
         self,
@@ -2615,7 +2615,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_stiffness_index(stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_stiffness_index(stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_damping(
         self,
@@ -2630,7 +2630,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_damping_index(damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_damping_index(damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_limit_stiffness(
         self,
@@ -2645,7 +2645,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_limit_stiffness_index(limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_limit_stiffness_index(limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_position_limit(
         self,
@@ -2660,7 +2660,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_position_limit_index(limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_position_limit_index(limit=limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_rest_length(
         self,
@@ -2675,7 +2675,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_rest_length_index(rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_rest_length_index(rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_offset(
         self,
@@ -2690,7 +2690,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_offset_index(offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def write_fixed_tendon_properties_to_sim(
         self,
@@ -2720,7 +2720,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_spatial_tendon_stiffness_index(stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
+        self.set_spatial_tendon_stiffness_index(stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
 
     def set_spatial_tendon_damping(
         self,
@@ -2735,7 +2735,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_spatial_tendon_damping_index(damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
+        self.set_spatial_tendon_damping_index(damping=damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
 
     def set_spatial_tendon_limit_stiffness(
         self,
@@ -2751,7 +2751,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.set_spatial_tendon_limit_stiffness_index(
-            limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
+            limit_stiffness=limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
         )
 
     def set_spatial_tendon_offset(
@@ -2767,7 +2767,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_spatial_tendon_offset_index(offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
+        self.set_spatial_tendon_offset_index(offset=offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
 
     def write_spatial_tendon_properties_to_sim(
         self,

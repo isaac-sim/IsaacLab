@@ -953,7 +953,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_com_quat_b(self) -> wp.array:
-        """Orientation (x, y, z, w) of the principle axis of inertia of all of the bodies in their respective link
+        """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their respective link
         frames.
         
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to

@@ -126,8 +126,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def default_root_pose(self) -> wp.array:
-        """Default root pose ``[pos, quat]`` in local environment frame. Shape is (num_instances, 7).
+        """Default root pose ``[pos, quat]`` in local environment frame.
 
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         The position and quaternion are of the rigid body's actor frame.
         """
         return self._default_root_pose
@@ -148,8 +149,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def default_root_vel(self) -> wp.array:
-        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 6).
+        """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame.
 
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
         The linear and angular velocities are of the rigid body's center of mass frame.
         """
         return self._default_root_vel
@@ -224,8 +226,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_pose_w(self) -> wp.array:
-        """Root link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
+        """Root link pose ``[pos, quat]`` in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         This quantity is the pose of the actor frame of the root rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
@@ -238,8 +241,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_vel_w(self) -> wp.array:
-        """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
+        """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
@@ -264,8 +268,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_pose_w(self) -> wp.array:
-        """Root center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 7).
+        """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
@@ -289,8 +294,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_vel_w(self) -> wp.array:
-        """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 6).
+        """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
@@ -384,18 +390,25 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_mass(self) -> wp.array:
-        """Mass of all bodies in the simulation world frame. Shape is (num_instances, 1, 1)."""
+        """Mass of all bodies in the simulation world frame.
+
+        Shape is (num_instances, 1, 1), dtype = wp.float32.
+        """
         return self._body_mass
 
     @property
     def body_inertia(self) -> wp.array:
-        """Inertia of all bodies in the simulation world frame. Shape is (num_instances, 1, 3, 3)."""
+        """Inertia of all bodies in the simulation world frame.
+
+        Shape is (num_instances, 1, 3, 3), dtype = wp.float32.
+        """
         return self._body_inertia
 
     @property
     def body_link_pose_w(self) -> wp.array:
-        """Body link pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
+        """Body link pose ``[pos, quat]`` in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
@@ -403,8 +416,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_vel_w(self) -> wp.array:
-        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 1, 6).
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
@@ -412,8 +426,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_pose_w(self) -> wp.array:
-        """Body center of mass pose ``[pos, quat]`` in simulation world frame. Shape is (num_instances, 1, 7).
+        """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (w, x, y, z) format.
         """
@@ -422,8 +437,8 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_com_vel_w(self) -> wp.array:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
-        Shape is (num_instances, 1, 6).
 
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
@@ -510,8 +525,8 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_com_acc_w(self) -> wp.array:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
-        Shape is (num_instances, 1, 6).
 
+        Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
@@ -525,8 +540,8 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
-        Shape is (num_instances, 1, 7).
 
+        Shape is (num_instances, 1), dtype = wp.transformf. In torch this resolves to (num_instances, 1, 7).
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (w, x, y, z) format.
         """
@@ -545,7 +560,10 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def projected_gravity_b(self) -> wp.array:
-        """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
+        """Projection of the gravity direction on base frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -559,7 +577,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def heading_w(self) -> wp.array:
-        """Yaw heading of the base frame (in radians). Shape is (num_instances,).
+        """Yaw heading of the base frame (in radians).
+
+        Shape is (num_instances,), dtype = wp.float32.
 
         .. note::
             This quantity is computed by assuming that the forward-direction of the base
@@ -578,8 +598,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_lin_vel_b(self) -> wp.array:
-        """Root link linear velocity in base frame. Shape is (num_instances, 3).
+        """Root link linear velocity in base frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
@@ -596,8 +617,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_ang_vel_b(self) -> wp.array:
-        """Root link angular velocity in base world frame. Shape is (num_instances, 3).
+        """Root link angular velocity in base frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
         rigid body's actor frame.
         """
@@ -614,8 +636,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_lin_vel_b(self) -> wp.array:
-        """Root center of mass linear velocity in base frame. Shape is (num_instances, 3).
+        """Root center of mass linear velocity in base frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
@@ -632,8 +655,9 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_ang_vel_b(self) -> wp.array:
-        """Root center of mass angular velocity in base world frame. Shape is (num_instances, 3).
+        """Root center of mass angular velocity in base frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
         rigid body's actor frame.
         """
@@ -654,144 +678,162 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_pos_w(self) -> wp.array:
-        """Root link position in simulation world frame. Shape is (num_instances, 3).
+        """Root link position in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
         return self._get_pos_from_transform(self.root_link_pose_w)
 
     @property
     def root_link_quat_w(self) -> wp.array:
-        """Root link orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root link orientation (w, x, y, z) in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         This quantity is the orientation of the actor frame of the root rigid body.
         """
         return self._get_quat_from_transform(self.root_link_pose_w)
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
-        """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root linear velocity in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
         return self._get_lin_vel_from_spatial_vector(self.root_link_vel_w)
 
     @property
     def root_link_ang_vel_w(self) -> wp.array:
-        """Root link angular velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root link angular velocity in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
         return self._get_ang_vel_from_spatial_vector(self.root_link_vel_w)
 
     @property
     def root_com_pos_w(self) -> wp.array:
-        """Root center of mass position in simulation world frame. Shape is (num_instances, 3).
+        """Root center of mass position in simulation world frame.
 
-        This quantity is the position of the actor frame of the root rigid body relative to the world.
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        This quantity is the position of the center of mass frame of the root rigid body relative to the world.
         """
         return self._get_pos_from_transform(self.root_com_pose_w)
 
     @property
     def root_com_quat_w(self) -> wp.array:
-        """Root center of mass orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
+        """Root center of mass orientation (w, x, y, z) in simulation world frame.
 
-        This quantity is the orientation of the actor frame of the root rigid body relative to the world.
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
+        This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
         """
         return self._get_quat_from_transform(self.root_com_pose_w)
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
-        """Root center of mass linear velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root center of mass linear velocity in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
         return self._get_lin_vel_from_spatial_vector(self.root_com_vel_w)
 
     @property
     def root_com_ang_vel_w(self) -> wp.array:
-        """Root center of mass angular velocity in simulation world frame. Shape is (num_instances, 3).
+        """Root center of mass angular velocity in simulation world frame.
 
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
         return self._get_ang_vel_from_spatial_vector(self.root_com_vel_w)
 
     @property
     def body_link_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Positions of all bodies in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
         return self._get_pos_from_transform(self.body_link_pose_w)
 
     @property
     def body_link_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, 1, 4).
+        """Orientation (w, x, y, z) of all bodies in simulation world frame.
 
-        This quantity is the orientation of the rigid bodies' actor frame  relative to the world.
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+        This quantity is the orientation of the rigid bodies' actor frame relative to the world.
         """
         return self._get_quat_from_transform(self.body_link_pose_w)
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear velocity of all bodies in simulation world frame.
 
-        This quantity is the linear velocity of the rigid bodies' center of mass frame relative to the world.
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+        This quantity is the linear velocity of the rigid bodies' actor frame relative to the world.
         """
         return self._get_lin_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular velocity of all bodies in simulation world frame.
 
-        This quantity is the angular velocity of the rigid bodies' center of mass frame relative to the world.
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+        This quantity is the angular velocity of the rigid bodies' actor frame relative to the world.
         """
         return self._get_ang_vel_from_spatial_vector(self.body_link_vel_w)
 
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Positions of all bodies in simulation world frame.
 
-        This quantity is the position of the rigid bodies' actor frame.
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+        This quantity is the position of the rigid bodies' center of mass frame.
         """
         return self._get_pos_from_transform(self.body_com_pose_w)
 
     @property
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all bodies in simulation world frame.
+        """Orientation (w, x, y, z) of the principal axes of inertia of all bodies in simulation world frame.
 
-        Shape is (num_instances, 1, 4). This quantity is the orientation of the rigid bodies' actor frame.
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+        This quantity is the orientation of the principal axes of inertia of the rigid bodies.
         """
         return self._get_quat_from_transform(self.body_com_pose_w)
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
-        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear velocity of all bodies in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
         return self._get_lin_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
-        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular velocity of all bodies in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
         return self._get_ang_vel_from_spatial_vector(self.body_com_vel_w)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Linear acceleration of all bodies in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
         return self._get_lin_vel_from_spatial_vector(self.body_com_acc_w)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, 1, 3).
+        """Angular acceleration of all bodies in simulation world frame.
 
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
         return self._get_ang_vel_from_spatial_vector(self.body_com_acc_w)
@@ -799,18 +841,19 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_com_pos_b(self) -> wp.array:
         """Center of mass position of all of the bodies in their respective link frames.
-        Shape is (num_instances, 1, 3).
 
-        This quantity is the center of mass location relative to its body'slink frame.
+        Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
+        This quantity is the center of mass location relative to its body's link frame.
         """
         return self._get_pos_from_transform(self.body_com_pose_b)
 
     @property
     def body_com_quat_b(self) -> wp.array:
-        """Orientation (w, x, y, z) of the principle axis of inertia of all of the bodies in their
-        respective link frames. Shape is (num_instances, 1, 4).
+        """Orientation (w, x, y, z) of the principal axes of inertia of all of the bodies in their
+        respective link frames.
 
-        This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
+        Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
+        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
         """
         return self._get_quat_from_transform(self.body_com_pose_b)
 
