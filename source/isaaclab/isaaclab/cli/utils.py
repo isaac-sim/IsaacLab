@@ -103,7 +103,7 @@ def _print_debug_env(prefix, env):
         print_debug(f"{prefix}: ENV removed: {env_removed}")
 
 
-def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, stderr=None):
+def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, stderr=None, **kwargs):
     """Run a command in a subprocess."""
 
     if cwd is None:
@@ -117,7 +117,16 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, s
     _print_debug_env("run_command()", env)
 
     try:
-        return subprocess.run(cmd, cwd=cwd, env=env, shell=shell, check=check, stdout=stdout, stderr=stderr)
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            env=env,
+            shell=shell,
+            check=check,
+            stdout=stdout,
+            stderr=stderr,
+            **kwargs,
+        )
     except subprocess.CalledProcessError as e:
         print_error(f'Command failed with code {e.returncode}: "{command_str}"')
         sys.exit(e.returncode)
@@ -193,7 +202,7 @@ def extract_python_exe():
         # Check if we can use python that is running us.
         # This handles docker or system installs.
         try:
-            result = subprocess.run([sys.executable, "-m", "pip", "list"], capture_output=True, text=True, check=False)
+            result = run_command([sys.executable, "-m", "pip", "list"], capture_output=True, text=True, check=False)
             if "isaacsim-rl" in result.stdout:
                 python_exe = sys.executable
                 print_debug(f'extract_python_exe(): Found "isaacsim-rl" module in sys.executable: "{python_exe}"')
@@ -228,11 +237,11 @@ def extract_isaacsim_path():
         # Retrieve the path importing isaac sim and getting the environment path.
         try:
             # Check if isaacsim-rl is installed.
-            result = subprocess.run([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
+            result = run_command([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
             if "isaacsim-rl" in result.stdout:
                 # Helper to print env var.
                 cmd = [python_exe, "-c", "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"]
-                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                res = run_command(cmd, capture_output=True, text=True, check=False)
                 if res.returncode == 0:
                     output = res.stdout.strip()
                     if output:
@@ -301,7 +310,7 @@ def extract_isaacsim_exe():
         # python environment, so we can directly use 'python' here.
         python_exe = sys.executable
         try:
-            result = subprocess.run([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
+            result = run_command([python_exe, "-m", "pip", "list"], capture_output=True, text=True, check=False)
             if "isaacsim-rl" in result.stdout:
                 # Isaac Sim - Python packages entry point.
                 return ["isaacsim", "isaacsim.exp.full"]
@@ -387,8 +396,9 @@ def run_python_command(
     print_debug(f'run_python_command(): CWD: "{os.getcwd()}"')
     print_debug(f'run_python_command(): CMD: "{command_str}"')
 
-    return subprocess.run(
+    return run_command(
         cmd,
+        cwd=os.getcwd(),
         env=env,
         check=check,
     )

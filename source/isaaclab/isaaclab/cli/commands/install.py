@@ -5,7 +5,6 @@
 
 import os
 import shutil
-import subprocess
 
 from ..utils import (
     ISAACLAB_ROOT,
@@ -70,7 +69,7 @@ def _ensure_cuda_torch():
     current_ver = ""
     try:
         # Run python to check torch version.
-        result = subprocess.run(
+        result = run_command(
             [
                 python_exe,
                 "-c",

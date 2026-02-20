@@ -60,13 +60,12 @@ def _patch_environment_yml(yml_path, python_version="3.12"):
 def _get_conda_prefix(env_name):
     """Get the prefix of the conda environment."""
     # Use conda run to get sys.prefix
-    try:
-        env = _sanitized_conda_env()
-        cmd = ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.prefix)"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
+    env = _sanitized_conda_env()
+    cmd = ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.prefix)"]
+    result = run_command(cmd, capture_output=True, text=True, check=False, env=env)
+    if result.returncode == 0:
         return Path(result.stdout.strip())
-    except subprocess.CalledProcessError:
-        return None
+    return None
 
 
 def _write_conda_env_hooks(conda_prefix: Path):
@@ -148,16 +147,14 @@ def command_setup_conda(env_name):
 
     # Check if pip package isaacsim-rl is installed.
     pip_package_missing = True
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    result = run_command(
+        [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode == 0:
         pip_package_missing = False  # installed
-    except subprocess.CalledProcessError:
-        pip_package_missing = True  # not installed
 
     if symlink_missing and pip_package_missing:
         print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
@@ -169,7 +166,7 @@ def command_setup_conda(env_name):
 
     # Check if the environment exists.
     conda_env = _sanitized_conda_env()
-    result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True, env=conda_env)
+    result = run_command(["conda", "env", "list"], capture_output=True, text=True, check=False, env=conda_env)
     if env_name in result.stdout:
         print_info(f"Conda environment named '{env_name}' already exists.")
         env_exists = True
@@ -242,13 +239,15 @@ def command_setup_uv(env_name):
     if not (ISAACLAB_ROOT / "_isaac_sim").is_symlink():
         # Check pip list for isaacsim-rl - simple subprocess fallback.
         try:
-            subprocess.run(
+            result = run_command(
                 [sys.executable, "-m", "pip", "show", "isaacsim-rl"],
-                check=True,
+                check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            # Installed.
+            if result.returncode == 0:
+                # Installed.
+                pass
         except Exception:
             # Not installed, symlink missing.
             if not (ISAACLAB_ROOT / "_isaac_sim").exists():
