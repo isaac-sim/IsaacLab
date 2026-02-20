@@ -512,6 +512,7 @@ class ObservationManager(ManagerBase):
 
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            # to account for the batch dimension
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
@@ -550,7 +551,7 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
-                # add term config to list to list
+                # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
@@ -604,6 +605,9 @@ class ObservationManager(ManagerBase):
                                 f" Received: {mod_cfg.func}"
                             )
 
+                        # TODO(jichuanh): improvement can be made in two ways:
+                        #                 1. modifier specific check can be done in the modifier class
+                        #                 2. general param vs function matching check can be a common utility
                         # check if term's arguments are matched by params
                         term_params = list(mod_cfg.params.keys())
                         args = inspect.signature(mod_cfg.func).parameters

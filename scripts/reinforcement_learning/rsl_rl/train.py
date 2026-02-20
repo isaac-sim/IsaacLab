@@ -64,6 +64,12 @@ parser.add_argument("--export_io_descriptors", action="store_true", default=Fals
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
+parser.add_argument(
+    "--manager_call_config",
+    type=str,
+    default=None,
+    help='Manager mode JSON only: \'{"RewardManager": 0, "ActionManager": 2, "default": 2}\'.',
+)
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
@@ -137,6 +143,8 @@ def main():
         # set the IO descriptors export flag if requested
         if isinstance(env_cfg, ManagerBasedRLEnvCfg):
             env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+            # experimental manager-based Warp env reads this runtime switch from env cfg
+            env_cfg.manager_call_config = args_cli.manager_call_config
         else:
             logger.warning(
                 "IO descriptors are only supported for manager based RL environments."

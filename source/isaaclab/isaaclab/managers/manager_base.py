@@ -359,9 +359,20 @@ class ManagerBase(ABC):
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
+        # TODO(jichuanh): This might not be reasonable here. Revisit
+        # Materialize default SceneEntityCfg kwargs (e.g. asset_cfg=SceneEntityCfg("robot")) into params.
+        # Otherwise, defaults live only in the callable signature and never get resolved/cached by the manager.
+        signature = inspect.signature(func_static)
+        for param in list(signature.parameters.values())[min_argc:]:
+            if param.default is inspect.Parameter.empty:
+                continue
+            if isinstance(param.default, SceneEntityCfg) and param.name not in term_cfg.params:
+                # Use configclass copy to avoid shared default objects.
+                term_cfg.params[param.name] = param.default.copy()
+
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
-        args = inspect.signature(func_static).parameters
+        args = signature.parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
         args = args_without_defaults + args_with_defaults
