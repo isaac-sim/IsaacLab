@@ -177,9 +177,7 @@ class ViserVisualizer(Visualizer):
             )
         return self.cfg.camera_position, self.cfg.camera_target
 
-    def _try_apply_viser_camera_view(
-        self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]
-    ) -> bool:
+    def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
         if self._viewer is None:
             return False
 
