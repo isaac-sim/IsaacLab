@@ -499,10 +499,12 @@ def test_set_rigid_object_state(num_cubes, device):
                 # perform simulation
                 for _ in range(5):
                     root_pose = torch.cat(
-                        [state_dict["root_pos_w"], state_dict["root_quat_w"]], dim=-1,
+                        [state_dict["root_pos_w"], state_dict["root_quat_w"]],
+                        dim=-1,
                     )
                     root_vel = torch.cat(
-                        [state_dict["root_lin_vel_w"], state_dict["root_ang_vel_w"]], dim=-1,
+                        [state_dict["root_lin_vel_w"], state_dict["root_ang_vel_w"]],
+                        dim=-1,
                     )
                     # reset root state
                     cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
@@ -1084,7 +1086,9 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                     cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
                 else:
                     cube_object.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_idx)
-                    cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_idx)
+                    cube_object.write_root_link_velocity_to_sim_index(
+                        root_velocity=rand_state[..., 7:], env_ids=env_idx
+                    )
 
             if state_location == "com":
                 torch.testing.assert_close(rand_state[..., :7], wp.to_torch(cube_object.data.root_com_pose_w))

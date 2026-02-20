@@ -2492,7 +2492,9 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids
+        )
 
     def set_masses(
         self,
@@ -2645,7 +2647,9 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_limit_stiffness_index(limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_limit_stiffness_index(
+            limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
 
     def set_fixed_tendon_position_limit(
         self,
@@ -2675,7 +2679,9 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_fixed_tendon_rest_length_index(rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self.set_fixed_tendon_rest_length_index(
+            rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
 
     def set_fixed_tendon_offset(
         self,
@@ -2720,7 +2726,9 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_spatial_tendon_stiffness_index(stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
+        self.set_spatial_tendon_stiffness_index(
+            stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
+        )
 
     def set_spatial_tendon_damping(
         self,

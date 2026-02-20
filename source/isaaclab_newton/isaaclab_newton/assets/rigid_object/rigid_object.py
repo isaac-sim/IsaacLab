@@ -13,16 +13,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-
 from newton.selection import ArticulationView
+from newton.solvers import SolverNotifyFlags
+
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.utils.wrench_composer import WrenchComposer
-from newton.solvers import SolverMuJoCo, SolverNotifyFlags
-from newton import Model, JointType
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -1092,9 +1091,7 @@ class RigidObject(BaseRigidObject):
         # set all existing views to None to invalidate them
         self._root_view = None
 
-    def write_root_state_to_sim(
-        self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
-    ):
+    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None):
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
         :meth:`write_root_com_velocity_to_sim_index`."""
         warnings.warn(

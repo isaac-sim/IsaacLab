@@ -31,6 +31,7 @@ def compute_soft_joint_pos_limits_func(
         joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
     )
 
+
 """
 Articulation-specific warp kernels.
 """
@@ -214,9 +215,9 @@ def write_joint_limit_data_to_buffer_mask(
     if env_mask[i] and joint_mask[j]:
         joint_pos_limits_lower[i, j] = in_data[i, j][0]
         joint_pos_limits_upper[i, j] = in_data[i, j][1]
-        if (
-            default_joint_pos[i, j] < joint_pos_limits_lower[i, j]
-        ) or default_joint_pos[i, j] > joint_pos_limits_upper[i, j]:
+        if (default_joint_pos[i, j] < joint_pos_limits_lower[i, j]) or default_joint_pos[i, j] > joint_pos_limits_upper[
+            i, j
+        ]:
             wp.atomic_add(clamped_defaults, 0, 1)
             default_joint_pos[i, j] = wp.clamp(
                 default_joint_pos[i, j],
@@ -539,6 +540,7 @@ def extract_friction_properties(
     out_friction[i, j] = friction_props[i, j, 0]
     out_dynamic_friction[i, j] = friction_props[i, j, 1]
     out_viscous_friction[i, j] = friction_props[i, j, 2]
+
 
 @wp.kernel
 def concat_joint_pos_limits_lower_and_upper(

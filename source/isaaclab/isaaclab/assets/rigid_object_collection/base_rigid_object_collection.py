@@ -1045,7 +1045,9 @@ class BaseRigidObjectCollection(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
+        self.write_body_link_velocity_to_sim_index(
+            body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids
+        )
 
     def find_objects(
         self, name_keys: str | Sequence[str], preserve_order: bool = False

@@ -462,10 +462,12 @@ def test_set_object_state(sim, num_envs, num_cubes, device, gravity_enabled):
             # perform simulation
             for _ in range(5):
                 body_pose = torch.cat(
-                    [state_dict["body_link_pos_w"], state_dict["body_link_quat_w"]], dim=-1,
+                    [state_dict["body_link_pos_w"], state_dict["body_link_quat_w"]],
+                    dim=-1,
                 )
                 body_vel = torch.cat(
-                    [state_dict["body_com_lin_vel_w"], state_dict["body_com_ang_vel_w"]], dim=-1,
+                    [state_dict["body_com_lin_vel_w"], state_dict["body_com_ang_vel_w"]],
+                    dim=-1,
                 )
                 # reset object state
                 object_collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
@@ -630,15 +632,23 @@ def test_write_object_state(sim, num_envs, num_cubes, device, with_offset, state
                 cube_object.write_body_com_pose_to_sim_index(body_poses=rand_state[..., :7])
                 cube_object.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:])
             else:
-                cube_object.write_body_com_pose_to_sim_index(body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids)
-                cube_object.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids)
+                cube_object.write_body_com_pose_to_sim_index(
+                    body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+                )
+                cube_object.write_body_com_velocity_to_sim_index(
+                    body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+                )
         elif state_location == "link":
             if i % 2 == 0:
                 cube_object.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7])
                 cube_object.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:])
             else:
-                cube_object.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids)
-                cube_object.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids)
+                cube_object.write_body_link_pose_to_sim_index(
+                    body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+                )
+                cube_object.write_body_link_velocity_to_sim_index(
+                    body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+                )
 
         if state_location == "com":
             torch.testing.assert_close(rand_state[..., :7], wp.to_torch(cube_object.data.body_com_pose_w))
@@ -813,14 +823,26 @@ def test_write_object_state_functions_data_consistency(
     )
 
     if state_location == "com":
-        cube_object.write_body_com_pose_to_sim_index(body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids)
-        cube_object.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids)
+        cube_object.write_body_com_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_com_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
     elif state_location == "link":
-        cube_object.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids)
-        cube_object.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids)
+        cube_object.write_body_link_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_link_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
     elif state_location == "root":
-        cube_object.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids)
-        cube_object.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids)
+        cube_object.write_body_link_pose_to_sim_index(
+            body_poses=rand_state[..., :7], env_ids=env_ids, body_ids=object_ids
+        )
+        cube_object.write_body_com_velocity_to_sim_index(
+            body_velocities=rand_state[..., 7:], env_ids=env_ids, body_ids=object_ids
+        )
 
     if state_location == "com":
         com_pose_w = wp.to_torch(cube_object.data.body_com_pose_w)

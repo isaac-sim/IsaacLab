@@ -738,7 +738,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         return self._default_body_state
 
-    
     @property
     def body_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""

@@ -16,12 +16,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from newton import JointType
+from newton.selection import ArticulationView
+from newton.solvers import SolverNotifyFlags
 from prettytable import PrettyTable
 
 from pxr import UsdPhysics
-from newton.selection import ArticulationView
-from newton.solvers import SolverMuJoCo, SolverNotifyFlags
-from newton import Model, JointType
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -475,7 +475,7 @@ class Articulation(BaseArticulation):
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0 # Forces a kinematic update to get the latest body link poses.
+        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
@@ -522,7 +522,7 @@ class Articulation(BaseArticulation):
         # Need to invalidate the buffer to trigger the update with the new state.
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0 # Forces a kinematic update to get the latest body link poses.
+        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
@@ -578,7 +578,7 @@ class Articulation(BaseArticulation):
         self.data._root_com_state_w.timestamp = -1.0
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0 # Forces a kinematic update to get the latest body link poses.
+        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
@@ -630,7 +630,7 @@ class Articulation(BaseArticulation):
         self.data._root_com_state_w.timestamp = -1.0
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
-        self.data._body_link_pose_w_timestamp = -1.0 # Forces a kinematic update to get the latest body link poses.
+        self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         self.data._body_com_pose_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
@@ -844,7 +844,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
@@ -914,7 +914,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
@@ -940,7 +940,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
@@ -986,7 +986,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
@@ -1032,7 +1032,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
@@ -1075,7 +1075,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
@@ -1122,7 +1122,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)).
@@ -1178,7 +1178,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Joint stiffness. Shape is (num_instances, num_joints).
@@ -1234,7 +1234,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
@@ -1291,7 +1291,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
@@ -1347,7 +1347,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
@@ -1411,7 +1411,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint limits. Shape is (num_envs, num_joints, 2).
@@ -1475,7 +1475,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint max velocity. Shape is (len(env_ids), len(joint_ids)).
@@ -1534,7 +1534,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint max velocity. Shape is (num_envs, num_joints).
@@ -1592,7 +1592,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)).
@@ -1651,7 +1651,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limits: Joint torque limits. Shape is (num_envs, num_joints).
@@ -1693,7 +1693,6 @@ class Articulation(BaseArticulation):
         # tell the physics engine that some of the joint properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
-
     def write_joint_armature_to_sim_index(
         self,
         *,
@@ -1711,7 +1710,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             armature: Joint armature. Shape is (len(env_ids), len(joint_ids)).
@@ -1770,7 +1769,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             armature: Joint armature. Shape is (num_envs, num_joints).
@@ -1827,7 +1826,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
@@ -1884,7 +1883,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
@@ -1945,7 +1944,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
@@ -1986,7 +1985,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             masses: Masses of all bodies. Shape is (num_envs, num_bodies).
@@ -2074,7 +2073,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         .. caution::
             Unlike the PhysX version of this method, this method does not set the center of mass orientation.
@@ -2116,12 +2115,12 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Set inertias of all bodies using indices.
 
-        .. note:: 
+        .. note::
             This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
@@ -2162,7 +2161,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
@@ -2207,7 +2206,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
@@ -2247,7 +2246,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             target: Joint position targets. Shape is (num_instances, num_joints).
@@ -2330,7 +2329,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             target: Joint velocity targets. Shape is (num_instances, num_joints).
@@ -2374,7 +2373,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
@@ -2414,7 +2413,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             target: Joint effort targets. Shape is (num_instances, num_joints).
@@ -2462,7 +2461,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2489,7 +2488,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
@@ -2516,7 +2515,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2543,7 +2542,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
@@ -2570,7 +2569,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2597,7 +2596,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
@@ -2624,7 +2623,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2651,7 +2650,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
@@ -2678,7 +2677,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2705,7 +2704,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
@@ -2732,7 +2731,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
@@ -2759,7 +2758,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
@@ -2777,7 +2776,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None
@@ -2795,7 +2794,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
@@ -2820,7 +2819,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -2847,7 +2846,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
@@ -2874,7 +2873,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -2901,7 +2900,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
@@ -2928,7 +2927,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -2956,7 +2955,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
@@ -2983,7 +2982,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
@@ -3010,7 +3009,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
@@ -3028,7 +3027,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -3045,7 +3044,7 @@ class Articulation(BaseArticulation):
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.  
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.

@@ -248,7 +248,6 @@ class RigidObjectData(BaseRigidObjectData):
         """
         return self._sim_bind_root_com_vel_w
 
-
     """
     Body state properties.
     """
@@ -352,10 +351,12 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        warnings.warn("In Newton, body com pose always has unit quaternion. Consider using body_com_pos_b instead."
-        "Querying this property requires appending a unit quaternion to the position which is expensive.",
-        category=UserWarning,
-        stacklevel=2)
+        warnings.warn(
+            "In Newton, body com pose always has unit quaternion. Consider using body_com_pos_b instead."
+            "Querying this property requires appending a unit quaternion to the position which is expensive.",
+            category=UserWarning,
+            stacklevel=2,
+        )
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
             wp.launch(
@@ -711,7 +712,9 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0, 0]
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[
+                :, 0, 0
+            ]
         else:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
@@ -726,7 +729,9 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[:, 0]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
+            :, 0
+        ]
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -734,21 +739,33 @@ class RigidObjectData(BaseRigidObjectData):
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning("Failed to get root com velocity. If the rigid object is fixed, this is expected."
-                "Setting root com velocity to zeros.")
-            self._sim_bind_root_com_vel_w = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-            self._sim_bind_body_com_vel_w = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+            logger.warning(
+                "Failed to get root com velocity. If the rigid object is fixed, this is expected."
+                "Setting root com velocity to zeros."
+            )
+            self._sim_bind_root_com_vel_w = wp.zeros(
+                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._sim_bind_body_com_vel_w = wp.zeros(
+                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            )
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
 
         # Initialize history for finite differencing
-        self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(SimulationManager.get_state_0()))[:, 0]
+        self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(SimulationManager.get_state_0()))[
+            :, 0
+        ]
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-        self._root_link_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._root_link_vel_w = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._root_link_vel_b = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
         self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
         self._body_link_vel_w = TimestampedBuffer(
@@ -756,8 +773,12 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._root_com_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-        self._root_com_acc_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._root_com_vel_b = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._root_com_acc_w = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
         self._body_com_acc_w = TimestampedBuffer(
             shape=(self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device
         )
@@ -794,7 +815,7 @@ class RigidObjectData(BaseRigidObjectData):
     Internal helpers.
     """
 
-    def _get_pos_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
+    def _get_pos_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
         """Generates a position array from a transform array.
 
         Args:
@@ -848,7 +869,7 @@ class RigidObjectData(BaseRigidObjectData):
                 )
         return source
 
-    def _get_quat_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
+    def _get_quat_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array.
 
         Args:
@@ -903,9 +924,9 @@ class RigidObjectData(BaseRigidObjectData):
         # Return the source array. (no-op if the array is contiguous.)
         return source
 
-    def _get_top_from_spatial_vector(self, source:wp.array | None, spatial_vector: wp.array) -> wp.array:
+    def _get_top_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
         """Gets the top part of a spatial vector array.
-        
+
         For instance the linear velocity is the top part of a velocity vector.
 
         Args:
@@ -956,11 +977,11 @@ class RigidObjectData(BaseRigidObjectData):
                         source,
                     ],
                     device=self.device,
-                )        
+                )
         # Return the source array. (no-op if the array is contiguous.)
         return source
 
-    def _get_bottom_from_spatial_vector(self, source:wp.array | None, spatial_vector: wp.array) -> wp.array:
+    def _get_bottom_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
         """Gets the bottom part of a spatial vector array.
 
         For instance the angular velocity is the bottom part of a velocity vector.

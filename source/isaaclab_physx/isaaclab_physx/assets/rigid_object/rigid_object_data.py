@@ -170,7 +170,6 @@ class RigidObjectData(BaseRigidObjectData):
             raise ValueError("The rigid object data is already primed.")
         self._default_root_vel.assign(value)
 
-
     """
     Root state properties.
     """

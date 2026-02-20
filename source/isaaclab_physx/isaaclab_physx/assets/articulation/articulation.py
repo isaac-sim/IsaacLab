@@ -36,6 +36,7 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     import omni.physics.tensors.impl.api as physx
+
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger
@@ -1116,7 +1117,9 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_stiffness_to_sim_index(
+            stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1315,7 +1318,11 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_position_limit_to_sim_index(
-            limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True, warn_limit_violation=warn_limit_violation
+            limits=limits,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=True,
+            warn_limit_violation=warn_limit_violation,
         )
 
     def write_joint_velocity_limit_to_sim_index(
@@ -1417,7 +1424,9 @@ class Articulation(BaseArticulation):
         else:
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.write_joint_velocity_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_velocity_limit_to_sim_index(
+            limits=limits, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1830,7 +1839,10 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=True,
         )
 
     def write_joint_viscous_friction_coefficient_to_sim_index(
@@ -1919,7 +1931,10 @@ class Articulation(BaseArticulation):
             joint_ids = self._ALL_JOINT_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=True,
         )
 
     """
@@ -2585,7 +2600,9 @@ class Articulation(BaseArticulation):
         else:
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_damping_index(damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        self.set_fixed_tendon_damping_index(
+            damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2931,7 +2948,9 @@ class Articulation(BaseArticulation):
         else:
             fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        self.set_fixed_tendon_offset_index(
+            offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
+        )
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
@@ -3706,10 +3725,16 @@ class Articulation(BaseArticulation):
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_effort_limit_to_sim_index(
+                limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_velocity_limit_to_sim_index(
+                limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices
+            )
             self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(
+                joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices
+            )
             self.write_joint_dynamic_friction_coefficient_to_sim_index(
                 joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices
             )
@@ -4186,7 +4211,10 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=joint_viscous_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+            joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=full_data,
         )
 
     def write_joint_dynamic_friction_coefficient_to_sim(
@@ -4204,7 +4232,10 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+            full_data=full_data,
         )
 
     def write_root_state_to_sim(

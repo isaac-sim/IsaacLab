@@ -11,6 +11,7 @@ vec13f = wp.types.vector(length=13, dtype=wp.float32)
 Shared @wp.func helpers.
 """
 
+
 @wp.func
 def update_wrench_with_force_and_torque(
     force: wp.vec3f,
@@ -499,6 +500,7 @@ def set_root_link_pose_to_sim_index(
     if root_state_w:
         root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], data[i])
 
+
 @wp.kernel
 def set_root_link_pose_to_sim_mask(
     data: wp.array(dtype=wp.transformf),
@@ -577,6 +579,7 @@ def set_root_com_pose_to_sim_index(
     if root_state_w:
         root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], root_link_pose_w[env_ids[i]])
 
+
 @wp.kernel
 def set_root_com_pose_to_sim_mask(
     data: wp.array(dtype=wp.transformf),
@@ -615,15 +618,12 @@ def set_root_com_pose_to_sim_mask(
         if root_com_state_w:
             root_com_state_w[i] = set_state_transforms_func(root_com_state_w[i], data[i])
         # Get the com pose in the link frame
-        root_link_pose_w[i] = get_com_pose_in_link_frame_func(
-            root_com_pose_w[i], body_com_pose_b[i, 0]
-        )
+        root_link_pose_w[i] = get_com_pose_in_link_frame_func(root_com_pose_w[i], body_com_pose_b[i, 0])
         if root_link_state_w:
-            root_link_state_w[i] = set_state_transforms_func(
-                root_link_state_w[i], root_link_pose_w[i]
-            )
+            root_link_state_w[i] = set_state_transforms_func(root_link_state_w[i], root_link_pose_w[i])
         if root_state_w:
             root_state_w[i] = set_state_transforms_func(root_state_w[i], root_link_pose_w[i])
+
 
 @wp.kernel
 def set_root_com_velocity_to_sim_index(
@@ -813,9 +813,7 @@ def set_root_link_velocity_to_sim_mask(
             root_link_velocity_w[i], link_pose_w[i], body_com_pose_b[i, 0]
         )
         if root_com_state_w:
-            root_com_state_w[i] = set_state_velocities_func(
-                root_com_state_w[i], root_com_velocity_w[i]
-            )
+            root_com_state_w[i] = set_state_velocities_func(root_com_state_w[i], root_com_velocity_w[i])
         if root_state_w:
             root_state_w[i] = set_state_velocities_func(root_state_w[i], root_com_velocity_w[i])
         # Make the acceleration zero to prevent reporting old values
@@ -1102,6 +1100,7 @@ def write_2d_data_to_buffer_with_indices(
     i, j = wp.tid()
     out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
 
+
 @wp.kernel
 def write_2d_data_to_buffer_with_mask(
     in_data: wp.array2d(dtype=wp.float32),
@@ -1221,6 +1220,7 @@ def write_body_com_position_to_buffer_index(
     i, j = wp.tid()
     out_data[env_ids[i], body_ids[j]] = in_data[i, j]
 
+
 @wp.kernel
 def write_body_com_position_to_buffer_mask(
     in_data: wp.array2d(dtype=wp.vec3f),
@@ -1243,11 +1243,12 @@ def write_body_com_position_to_buffer_mask(
     if env_mask[i] and body_mask[j]:
         out_data[i, j] = in_data[i, j]
 
+
 @wp.kernel
 def split_transform_to_pos_1d(
     transform: wp.array(dtype=wp.transformf),
     pos: wp.array(dtype=wp.vec3f),
-):  
+):
     """Split a 1D transform array into a position array.
 
     This kernel splits a 1D transform array into a position array.
@@ -1275,6 +1276,7 @@ def split_transform_to_quat_1d(
     """
     i = wp.tid()
     quat[i] = wp.transform_get_rotation(transform[i])
+
 
 @wp.kernel
 def split_transform_to_pos_2d(
@@ -1309,6 +1311,7 @@ def split_transform_to_quat_2d(
     i, j = wp.tid()
     quat[i, j] = wp.transform_get_rotation(transform[i, j])
 
+
 @wp.kernel
 def split_spatial_vector_to_top_1d(
     spatial_vector: wp.array(dtype=wp.spatial_vectorf),
@@ -1324,6 +1327,7 @@ def split_spatial_vector_to_top_1d(
     """
     i = wp.tid()
     top_part[i] = wp.spatial_top(spatial_vector[i])
+
 
 @wp.kernel
 def split_spatial_vector_to_bottom_1d(
@@ -1341,6 +1345,7 @@ def split_spatial_vector_to_bottom_1d(
     i = wp.tid()
     bottom_part[i] = wp.spatial_bottom(spatial_vector[i])
 
+
 @wp.kernel
 def split_spatial_vector_to_top_2d(
     spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
@@ -1357,11 +1362,12 @@ def split_spatial_vector_to_top_2d(
     i, j = wp.tid()
     top_part[i, j] = wp.spatial_top(spatial_vector[i, j])
 
+
 @wp.kernel
 def split_spatial_vector_to_bottom_2d(
     spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
     bottom_part: wp.array2d(dtype=wp.vec3f),
-):  
+):
     """Split a 2D spatial vector array into a bottom part array.
 
     This kernel splits a 2D spatial vector array into a bottom part array.
@@ -1372,6 +1378,7 @@ def split_spatial_vector_to_bottom_2d(
     """
     i, j = wp.tid()
     bottom_part[i, j] = wp.spatial_bottom(spatial_vector[i, j])
+
 
 @wp.kernel
 def make_dummy_body_com_pose_b(
@@ -1389,6 +1396,7 @@ def make_dummy_body_com_pose_b(
     i, j = wp.tid()
     # Concatenate the position and a unit quaternion
     body_com_pose_b[i, j] = wp.transformf(body_com_pos_b[i, j], wp.quatf(0.0, 0.0, 0.0, 1.0))
+
 
 @wp.kernel
 def derive_body_acceleration_from_body_com_velocities(
@@ -1412,6 +1420,7 @@ def derive_body_acceleration_from_body_com_velocities(
     body_acc[i, j] = (body_com_vel[i, j] - prev_body_com_vel[i, j]) / dt
     # Update the previous body COM velocity
     prev_body_com_vel[i, j] = body_com_vel[i, j]
+
 
 @wp.kernel
 def update_wrench_array_with_force_and_torque(

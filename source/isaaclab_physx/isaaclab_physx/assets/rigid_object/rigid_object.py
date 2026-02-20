@@ -27,8 +27,9 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
     import omni.physics.tensors.impl.api as physx
+
+    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
 # import logger
 logger = logging.getLogger(__name__)

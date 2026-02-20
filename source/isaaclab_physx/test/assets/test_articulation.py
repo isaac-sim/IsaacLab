@@ -895,7 +895,9 @@ def test_external_force_on_single_body(sim, num_articulations, device):
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=wp.to_torch(articulation.data.default_root_pose).clone())
-        articulation.write_root_velocity_to_sim_index(root_velocity=wp.to_torch(articulation.data.default_root_vel).clone())
+        articulation.write_root_velocity_to_sim_index(
+            root_velocity=wp.to_torch(articulation.data.default_root_vel).clone()
+        )
         # reset dof state
         joint_pos, joint_vel = (
             wp.to_torch(articulation.data.default_joint_pos),
@@ -912,7 +914,9 @@ def test_external_force_on_single_body(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(target=wp.to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target_index(
+                target=wp.to_torch(articulation.data.default_joint_pos).clone()
+            )
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -965,7 +969,9 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         root_pose[0, 0] = 2.5  # space them apart by 2.5m
 
         articulation.write_root_pose_to_sim_index(root_pose=root_pose)
-        articulation.write_root_velocity_to_sim_index(root_velocity=wp.to_torch(articulation.data.default_root_vel).clone())
+        articulation.write_root_velocity_to_sim_index(
+            root_velocity=wp.to_torch(articulation.data.default_root_vel).clone()
+        )
         # reset dof state
         joint_pos, joint_vel = (
             wp.to_torch(articulation.data.default_joint_pos),
@@ -1007,7 +1013,9 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(target=wp.to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target_index(
+                target=wp.to_torch(articulation.data.default_joint_pos).clone()
+            )
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1049,7 +1057,9 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=wp.to_torch(articulation.data.default_root_pose).clone())
-        articulation.write_root_velocity_to_sim_index(root_velocity=wp.to_torch(articulation.data.default_root_vel).clone())
+        articulation.write_root_velocity_to_sim_index(
+            root_velocity=wp.to_torch(articulation.data.default_root_vel).clone()
+        )
         # reset dof state
         joint_pos, joint_vel = (
             wp.to_torch(articulation.data.default_joint_pos),
@@ -1066,7 +1076,9 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(target=wp.to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target_index(
+                target=wp.to_torch(articulation.data.default_joint_pos).clone()
+            )
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1118,7 +1130,9 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     for i in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=wp.to_torch(articulation.data.default_root_pose).clone())
-        articulation.write_root_velocity_to_sim_index(root_velocity=wp.to_torch(articulation.data.default_root_vel).clone())
+        articulation.write_root_velocity_to_sim_index(
+            root_velocity=wp.to_torch(articulation.data.default_root_vel).clone()
+        )
         # reset dof state
         joint_pos, joint_vel = (
             wp.to_torch(articulation.data.default_joint_pos),
@@ -1160,7 +1174,9 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(target=wp.to_torch(articulation.data.default_joint_pos).clone())
+            articulation.set_joint_position_target_index(
+                target=wp.to_torch(articulation.data.default_joint_pos).clone()
+            )
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1876,7 +1892,9 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     articulation.set_joint_position_target_index(target=joint_pos)
     articulation.write_data_to_sim()
     for _ in range(50):
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(forces=external_force_vector_b, torques=external_torque_vector_b)
+        articulation.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=external_force_vector_b, torques=external_torque_vector_b
+        )
         articulation.write_data_to_sim()
         # perform step
         sim.step()

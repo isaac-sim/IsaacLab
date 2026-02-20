@@ -250,7 +250,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def write_body_pose_to_sim_index(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -276,7 +277,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_pose_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -305,10 +307,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = wp.nonzero(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
-        self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_velocity_to_sim_index(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -334,7 +339,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_velocity_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -365,10 +371,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = wp.nonzero(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_link_pose_to_sim_index(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -417,7 +426,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
 
     def write_body_link_pose_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -434,10 +444,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_com_pose_to_sim_index(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -489,7 +502,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
 
     def write_body_com_pose_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -509,7 +523,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
 
     def write_body_com_velocity_to_sim_index(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -560,7 +575,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
 
     def write_body_com_velocity_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -578,10 +594,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_link_velocity_to_sim_index(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -637,7 +656,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
 
     def write_body_link_velocity_to_sim_mask(
-        self, *,
+        self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
@@ -654,14 +674,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_link_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     """
     Operations - Setters.
     """
 
     def set_masses_index(
-        self, *,
+        self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -708,7 +731,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.root_view.set_masses(mass_view_order, indices=view_ids)
 
     def set_masses_mask(
-        self, *,
+        self,
+        *,
         masses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -740,7 +764,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_coms_index(
-        self, *,
+        self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -790,7 +815,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.root_view.set_coms(com_view_order, indices=view_ids)
 
     def set_coms_mask(
-        self, *,
+        self,
+        *,
         coms: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -822,7 +848,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_inertias_index(
-        self, *,
+        self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -869,7 +896,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.root_view.set_inertias(inertia_view_order, indices=view_ids)
 
     def set_inertias_mask(
-        self, *,
+        self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1250,7 +1278,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             stacklevel=2,
         )
         self.write_body_link_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )
 
     def write_body_com_state_to_sim(
         self,
@@ -1267,7 +1297,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             stacklevel=2,
         )
         self.write_body_com_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )
 
     def write_body_link_state_to_sim(
         self,
@@ -1284,4 +1316,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             stacklevel=2,
         )
         self.write_body_link_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_link_velocity_to_sim_index(body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )

@@ -327,7 +327,9 @@ class ArticulationData(BaseArticulationData):
         The limits are in the order :math:`[lower, upper]`.
         """
         if self._joint_pos_limits is None:
-            self._joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
+            self._joint_pos_limits = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
+            )
         wp.launch(
             articulation_kernels.concat_joint_pos_limits_lower_and_upper,
             dim=(self._num_instances, self._num_joints),
@@ -653,10 +655,12 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        warnings.warn("In Newton, body com pose always has unit quaternion. Consider using body_com_pos_b instead."
-        "Querying this property requires appending a unit quaternion to the position which is expensive.",
-        category=UserWarning,
-        stacklevel=2)
+        warnings.warn(
+            "In Newton, body com pose always has unit quaternion. Consider using body_com_pos_b instead."
+            "Querying this property requires appending a unit quaternion to the position which is expensive.",
+            category=UserWarning,
+            stacklevel=2,
+        )
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
             wp.launch(
@@ -763,7 +767,9 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_link_lin_vel_b is None:
-            self._root_link_lin_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
+            self._root_link_lin_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -783,7 +789,9 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_link_ang_vel_b is None:
-            self._root_link_ang_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
+            self._root_link_ang_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -803,7 +811,9 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_com_lin_vel_b is None:
-            self._root_com_lin_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
+            self._root_com_lin_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -823,7 +833,9 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_com_ang_vel_b is None:
-            self._root_com_ang_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
+            self._root_com_ang_vel_b = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+            )
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
@@ -1009,7 +1021,9 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0, 0]
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[
+                :, 0, 0
+            ]
         else:
             self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
         self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
@@ -1025,8 +1039,12 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0].reshape((self._num_instances, self._num_bodies, 9))
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[:, 0]
+        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[
+            :, 0
+        ].reshape((self._num_instances, self._num_bodies, 9))
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
+            :, 0
+        ]
         # -- joint properties
         if n_dof > 0:
             self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
@@ -1041,9 +1059,9 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
                 "joint_target_kd", SimulationManager.get_model()
             )[:, 0]
-            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", SimulationManager.get_model())[
-                :, 0
-            ]
+            self._sim_bind_joint_armature = self._root_view.get_attribute(
+                "joint_armature", SimulationManager.get_model()
+            )[:, 0]
             self._sim_bind_joint_friction_coeff = self._root_view.get_attribute(
                 "joint_friction", SimulationManager.get_model()
             )[:, 0]
@@ -1057,7 +1075,9 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             # -- joint commands (sent to the simulation)
-            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[:, 0]
+            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
+                :, 0
+            ]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_pos", SimulationManager.get_control()
             )[:, 0]
@@ -1088,27 +1108,39 @@ class ArticulationData(BaseArticulationData):
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
         self._num_bodies = self._root_view.link_count
-        self._num_fixed_tendons = 0#self._root_view.max_fixed_tendons
-        self._num_spatial_tendons = 0#self._root_view.max_spatial_tendons
+        self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
+        self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
         self._body_link_pose_w_timestamp = -1.0
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
-            logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected."
-                "Setting root com velocity to zeros.")
-            self._sim_bind_root_com_vel_w = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
-            self._sim_bind_body_com_vel_w = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
+            logger.warning(
+                "Failed to get root com velocity. If the articulation is fixed, this is expected."
+                "Setting root com velocity to zeros."
+            )
+            self._sim_bind_root_com_vel_w = wp.zeros(
+                (self._num_instances), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._sim_bind_body_com_vel_w = wp.zeros(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
         # -- default joint positions and velocities
-        self._default_joint_pos = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._default_joint_vel = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._default_joint_pos = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._default_joint_vel = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         # -- joint commands (sent to the actuator from the user)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_effort_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_effort_target = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         # -- computed joint efforts from the actuator models
         self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1120,12 +1152,20 @@ class ArticulationData(BaseArticulationData):
             self._actuator_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._actuator_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         # -- other data that are filled based on explicit actuator models
-        self._joint_dynamic_friction = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._joint_viscous_friction = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._soft_joint_vel_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_dynamic_friction = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_viscous_friction = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._soft_joint_vel_limits = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- update the soft joint position limits
-        self._soft_joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
+        self._soft_joint_pos_limits = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
+        )
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
@@ -1136,18 +1176,30 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-        self._root_link_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._root_link_vel_w = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._root_link_vel_b = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
         self._body_link_vel_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+        self._body_com_pose_b = TimestampedBuffer(
+            shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
+        )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._root_com_vel_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-        self._root_com_acc_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
-        self._body_com_pose_w = TimestampedBuffer(shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+        self._root_com_vel_b = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._root_com_acc_w = TimestampedBuffer(
+            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._body_com_pose_w = TimestampedBuffer(
+            shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
+        )
         self._body_com_acc_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
@@ -1155,7 +1207,9 @@ class ArticulationData(BaseArticulationData):
         self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
         # -- joint state
-        self._joint_acc = TimestampedBuffer(shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_acc = TimestampedBuffer(
+            shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
         # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device)
         # Empty memory pre-allocations
         self._root_link_lin_vel_b = None
@@ -1194,7 +1248,7 @@ class ArticulationData(BaseArticulationData):
     Internal helpers.
     """
 
-    def _get_pos_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
+    def _get_pos_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
         """Generates a position array from a transform array.
 
         Args:
@@ -1248,7 +1302,7 @@ class ArticulationData(BaseArticulationData):
                 )
         return source
 
-    def _get_quat_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
+    def _get_quat_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array.
 
         Args:
@@ -1303,9 +1357,9 @@ class ArticulationData(BaseArticulationData):
         # Return the source array. (no-op if the array is contiguous.)
         return source
 
-    def _get_top_from_spatial_vector(self, source:wp.array | None, spatial_vector: wp.array) -> wp.array:
+    def _get_top_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
         """Gets the top part of a spatial vector array.
-        
+
         For instance the linear velocity is the top part of a velocity vector.
 
         Args:
@@ -1356,11 +1410,11 @@ class ArticulationData(BaseArticulationData):
                         source,
                     ],
                     device=self.device,
-                )        
+                )
         # Return the source array. (no-op if the array is contiguous.)
         return source
 
-    def _get_bottom_from_spatial_vector(self, source:wp.array | None, spatial_vector: wp.array) -> wp.array:
+    def _get_bottom_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
         """Gets the bottom part of a spatial vector array.
 
         For instance the angular velocity is the bottom part of a velocity vector.
@@ -1459,7 +1513,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec13f, device=self.device)
+            self._root_link_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec13f, device=self.device
+            )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1487,7 +1543,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec13f, device=self.device)
+            self._root_com_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=wp.vec13f, device=self.device
+            )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1552,7 +1610,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._body_state_w is None:
-            self._body_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+            self._body_state_w = TimestampedBuffer(
+                (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            )
         if self._body_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_body_pose_and_vel_to_state,
@@ -1584,7 +1644,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._body_link_state_w is None:
-            self._body_link_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+            self._body_link_state_w = TimestampedBuffer(
+                (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            )
         if self._body_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_body_pose_and_vel_to_state,
@@ -1618,7 +1680,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._body_com_state_w is None:
-            self._body_com_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+            self._body_com_state_w = TimestampedBuffer(
+                (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            )
         if self._body_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_body_pose_and_vel_to_state,
