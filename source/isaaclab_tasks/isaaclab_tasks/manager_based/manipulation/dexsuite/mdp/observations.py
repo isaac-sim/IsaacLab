@@ -202,8 +202,7 @@ def fingers_contact_force_b(
     """
     # Contact sensor returns Warp arrays: force_matrix_w is (N, S, F) vec3f -> torch (N, S, F, 3)
     force_w = [
-        wp.to_torch(env.scene.sensors[name].data.force_matrix_w).sum(dim=(1, 2))
-        for name in contact_sensor_names
+        wp.to_torch(env.scene.sensors[name].data.force_matrix_w).sum(dim=(1, 2)) for name in contact_sensor_names
     ]
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
