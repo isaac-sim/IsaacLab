@@ -39,6 +39,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         width=MISSING,
         height=MISSING,
         renderer_cfg=OVRTXRendererCfg(),
+        save_rendered_data_dir=None,  # "/tmp/dexsuite_rendered",  Example to save frames for debugging
     )
 
     def __post_init__(self):

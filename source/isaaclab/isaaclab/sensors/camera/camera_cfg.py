@@ -143,3 +143,6 @@ class CameraCfg(SensorBaseCfg):
         }
 
     """
+
+    save_rendered_data_dir: str | None = None
+    """If set, save rendered data (rgb, depth, etc.) to this directory for debugging and visualization. Defaults to None."""

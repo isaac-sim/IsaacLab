@@ -18,6 +18,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.utils.rendered_data import save_rendered_data
 from isaaclab.sim.prims import XFormPrim
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
@@ -508,6 +509,21 @@ class Camera(SensorBase):
                     self._data.output[name][torch.isinf(self._data.output[name])] = (
                         0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
                     )
+
+        self._save_rendered_data()
+
+    def _save_rendered_data(self) -> None:
+        """If configured, save rendered data to disk for debugging and visualization."""
+        if not self.cfg.save_rendered_data_dir:
+            return
+        frame = int(self._frame[0].item()) if self._frame.numel() else 0
+        save_rendered_data(
+            self._data,
+            self.cfg.save_rendered_data_dir,
+            frame_index=frame,
+            save_depth_as_png=True,
+            grid_rgb=True,
+        )
 
     """
     Private Helpers
