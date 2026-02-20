@@ -20,7 +20,7 @@ from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_view import RigidObjectCollectionView
+    import omni.physics.tensors.impl.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object collection data."""
 
-    def __init__(self, root_view: RigidObjectCollectionView, num_bodies: int, device: str):
+    def __init__(self, root_view: physx.RigidBodyView, num_bodies: int, device: str):
         """Initializes the rigid object data.
 
         Args:
@@ -63,7 +63,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_view: RigidObjectCollectionView = weakref.proxy(root_view)
+        self._root_view: physx.RigidBodyView = weakref.proxy(root_view)
         self.num_instances = self._root_view.count // self.num_bodies
 
         # Set initial time stamp
@@ -175,58 +175,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             raise ValueError("The rigid object collection data is already primed.")
         self._default_body_vel.assign(value)
 
-    @property
-    def default_body_state(self) -> wp.array:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
-
-        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
-        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
-        """
-        warnings.warn(
-            "Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_body_pose and default_body_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._default_body_state is None:
-            self._default_body_state = wp.zeros(
-                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
-            )
-        wp.launch(
-            shared_kernels.concat_body_pose_and_vel_to_state,
-            dim=(self.num_instances, self.num_bodies),
-            inputs=[
-                self._default_body_pose,
-                self._default_body_vel,
-            ],
-            outputs=[
-                self._default_body_state,
-            ],
-            device=self.device,
-        )
-        return self._default_body_state
-
-    @default_body_state.setter
-    def default_body_state(self, value: torch.Tensor) -> None:
-        """Set the default body state.
-
-        Args:
-            value: The default body state. Shape is (num_instances, num_bodies, 13).
-
-        Raises:
-            ValueError: If the rigid object collection data is already primed.
-        """
-        warnings.warn(
-            "Setting the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_root_pose and default_root_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._is_primed:
-            raise ValueError("The rigid object collection data is already primed.")
-        self._default_body_pose.assign(wp.from_torch(value[:, :, :7]).view(wp.transformf))
-        self._default_body_vel.assign(wp.from_torch(value[:, :, 7:]).view(wp.spatial_vectorf))
-
     """
     Body state properties.
     """
@@ -317,84 +265,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
-
-    @property
-    def body_state_w(self) -> wp.array:
-        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
-        warnings.warn(
-            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
-            "`body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._body_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_state_w.timestamp = self._sim_timestamp
-
-        return self._body_state_w.data
-
-    @property
-    def body_link_state_w(self) -> wp.array:
-        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
-        warnings.warn(
-            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
-            "`body_link_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._body_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_link_vel_w,
-                ],
-                outputs=[
-                    self._body_link_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_link_state_w.timestamp = self._sim_timestamp
-
-        return self._body_link_state_w.data
-
-    @property
-    def body_com_state_w(self) -> wp.array:
-        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
-        warnings.warn(
-            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
-            "`body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[
-                    self.body_com_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_com_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_com_state_w.timestamp = self._sim_timestamp
-
-        return self._body_com_state_w.data
 
     @property
     def body_com_acc_w(self) -> wp.array:
@@ -832,3 +702,117 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             strides=spatial_vector.strides,
             device=self.device,
         )
+
+    """
+    Deprecated properties.
+    """
+
+    @property
+    def default_body_state(self) -> wp.array:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
+
+        The position and quaternion are of the rigid body's actor frame. Meanwhile, the linear and angular velocities
+        are of the center of mass frame. Shape is (num_instances, num_bodies, 13).
+        """
+        warnings.warn(
+            "Reading the body state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_body_pose and default_body_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_body_state is None:
+            self._default_body_state = wp.zeros(
+                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
+            )
+        wp.launch(
+            shared_kernels.concat_body_pose_and_vel_to_state,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[
+                self._default_body_pose,
+                self._default_body_vel,
+            ],
+            outputs=[
+                self._default_body_state,
+            ],
+            device=self.device,
+        )
+        return self._default_body_state
+
+    
+    @property
+    def body_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_state_w.timestamp = self._sim_timestamp
+
+        return self._body_state_w.data
+
+    @property
+    def body_link_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_link_vel_w,
+                ],
+                outputs=[
+                    self._body_link_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_link_state_w.timestamp = self._sim_timestamp
+
+        return self._body_link_state_w.data
+
+    @property
+    def body_com_state_w(self) -> wp.array:
+        """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[
+                    self.body_com_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_com_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_com_state_w.timestamp = self._sim_timestamp
+
+        return self._body_com_state_w.data

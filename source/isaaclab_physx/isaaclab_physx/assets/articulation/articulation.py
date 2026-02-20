@@ -36,7 +36,6 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     import omni.physics.tensors.impl.api as physx
-
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger

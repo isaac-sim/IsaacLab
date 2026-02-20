@@ -21,7 +21,7 @@ from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
-    from isaaclab.assets.articulation.articulation_view import ArticulationView
+    import omni.physics.tensors.impl.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: ArticulationView, device: str):
+    def __init__(self, root_view: physx.ArticulationView, device: str):
         """Initializes the articulation data.
 
         Args:
@@ -177,38 +177,6 @@ class ArticulationData(BaseArticulationData):
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
         self._default_root_vel.assign(value)
-
-    @property
-    def default_root_state(self) -> wp.array:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
-
-
-        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-        velocities are of its center of mass frame. Shape is (num_instances, 13).
-
-        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-        """
-        warnings.warn(
-            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_root_pose and default_root_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
-        wp.launch(
-            shared_kernels.concat_root_pose_and_vel_to_state,
-            dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
-            device=self.device,
-        )
-        return self._default_root_state
 
     @property
     def default_joint_pos(self) -> wp.array:
@@ -653,81 +621,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         return self._body_com_vel_w.data
-
-    @property
-    def body_state_w(self):
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
-        velocities are of the articulation links' center of mass frame.
-        """
-        if self._body_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_state_w.timestamp = self._sim_timestamp
-
-        return self._body_state_w.data
-
-    @property
-    def body_link_state_w(self):
-        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        """
-        if self._body_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_link_vel_w,
-                ],
-                outputs=[
-                    self._body_link_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_link_state_w.timestamp = self._sim_timestamp
-
-        return self._body_link_state_w.data
-
-    @property
-    def body_com_state_w(self):
-        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principal inertia.
-        """
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_com_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_com_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_com_state_w.timestamp = self._sim_timestamp
-
-        return self._body_com_state_w.data
 
     @property
     def body_com_acc_w(self):
@@ -1366,6 +1259,38 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
+    def default_root_state(self) -> wp.array:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
+
+
+        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
+        velocities are of its center of mass frame. Shape is (num_instances, 13).
+
+        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+        """
+        warnings.warn(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_root_state is None:
+            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+        wp.launch(
+            shared_kernels.concat_root_pose_and_vel_to_state,
+            dim=self._num_instances,
+            inputs=[
+                self._default_root_pose,
+                self._default_root_vel,
+            ],
+            outputs=[
+                self._default_root_state,
+            ],
+            device=self.device,
+        )
+        return self._default_root_state
+
+    @property
     def root_state_w(self) -> wp.array:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         warnings.warn(
@@ -1442,3 +1367,96 @@ class ArticulationData(BaseArticulationData):
             self._root_com_state_w.timestamp = self._sim_timestamp
 
         return self._root_com_state_w.data
+
+    @property
+    def body_state_w(self):
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
+        velocities are of the articulation links' center of mass frame.
+        """
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_state_w.timestamp = self._sim_timestamp
+
+        return self._body_state_w.data
+
+    @property
+    def body_link_state_w(self):
+        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
+        """
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_link_vel_w,
+                ],
+                outputs=[
+                    self._body_link_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_link_state_w.timestamp = self._sim_timestamp
+
+        return self._body_link_state_w.data
+
+    @property
+    def body_com_state_w(self):
+        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
+        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
+        principal inertia.
+        """
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_com_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_com_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_com_state_w.timestamp = self._sim_timestamp
+
+        return self._body_com_state_w.data
