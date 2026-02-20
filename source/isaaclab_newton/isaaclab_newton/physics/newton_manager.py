@@ -58,9 +58,10 @@ class NewtonManager(PhysicsManager):
     _model: Model = None
     _solver: SolverBase = None
     _solver_type: str = "mujoco_warp"
+    _use_single_state: bool | None = None
+    """Use only one state for both input and output for solver stepping. Requires solver support."""
     _state_0: State = None
     _state_1: State = None
-    _state_temp: State = None
     _control: Control = None
 
     # Physics settings
@@ -68,7 +69,7 @@ class NewtonManager(PhysicsManager):
     _up_axis: str = "Z"
 
     # Collision and contacts
-    _contacts: Contacts = None
+    _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
@@ -181,9 +182,9 @@ class NewtonManager(PhysicsManager):
         cls._builder = None
         cls._model = None
         cls._solver = None
+        cls._use_single_state = None
         cls._state_0 = None
         cls._state_1 = None
-        cls._state_temp = None
         cls._control = None
         cls._contacts = None
         cls._needs_collision_pipeline = False
@@ -236,12 +237,8 @@ class NewtonManager(PhysicsManager):
 
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
-        cls._state_temp = cls._model.state()
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
-
-        # Initialize empty contacts - will be replaced in initialize_solver() if collision pipeline is needed
-        cls._contacts = Contacts(0, 0)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -280,20 +277,21 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline.from_model(
+                cls._collision_pipeline = CollisionPipeline(
                     cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT
                 )
-            cls._contacts = cls._model.collide(cls._state_0, collision_pipeline=cls._collision_pipeline)
+            if cls._contacts is None:
+                cls._contacts = cls._collision_pipeline.contacts()
+
         elif cls._solver is not None and isinstance(cls._solver, SolverMuJoCo):
             # MuJoCo contacts mode: create properly sized Contacts object
             # The solver's update_contacts() will populate this from MuJoCo data
-            naconmax = cls._solver.mjw_data.naconmax
-            requested_attributes = {"force"} if cls._report_contacts else set()
+            rigid_contact_max = cls._solver.get_max_contact_count()
             cls._contacts = Contacts(
-                rigid_contact_max=naconmax,
+                rigid_contact_max=rigid_contact_max,
                 soft_contact_max=0,
                 device=PhysicsManager._device,
-                requested_attributes=requested_attributes,
+                requested_attributes=cls._model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -326,10 +324,14 @@ class NewtonManager(PhysicsManager):
             cls._solver_type = cfg_dict.pop("solver_type", "mujoco_warp")
 
             if cls._solver_type == "mujoco_warp":
+                # SolverMuJoCo does not require distinct input & output states
+                cls._use_single_state = True
                 cls._solver = SolverMuJoCo(cls._model, **cfg_dict)
             elif cls._solver_type == "xpbd":
+                cls._use_single_state = False
                 cls._solver = SolverXPBD(cls._model, **cfg_dict)
             elif cls._solver_type == "featherstone":
+                cls._use_single_state = False
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
@@ -366,38 +368,31 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _simulate(cls) -> None:
         """Run one simulation step with substeps."""
-        state_0_dict = cls._state_0.__dict__
-        state_1_dict = cls._state_1.__dict__
-        state_temp_dict = cls._state_temp.__dict__
-        contacts = None
 
-        # MJWarp computes its own collisions
+        # MJWarp can use its internal collision pipeline.
         if cls._needs_collision_pipeline:
-            contacts = cls._model.collide(cls._state_0, collision_pipeline=cls._collision_pipeline)
-            # Update class-level contacts for sensor evaluation
-            cls._contacts = contacts
+            cls._collision_pipeline.collide(cls._state_0, cls._contacts)
+            contacts = cls._contacts
+        else:
+            contacts = None
 
-        if cls._num_substeps % 2 == 0:
-            for _ in range(cls._num_substeps):
-                cls._solver.step(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
-                cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+        def step_fn(state_0, state_1):
+            cls._solver.step(state_0, state_1, cls._control, contacts, cls._solver_dt)
+
+        if cls._use_single_state:
+            for i in range(cls._num_substeps):
+                step_fn(cls._state_0, cls._state_0)
                 cls._state_0.clear_forces()
         else:
-            for i in range(cls._num_substeps):
-                cls._solver.step(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
+            cfg = PhysicsManager._cfg
+            need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
 
-                cfg = PhysicsManager._cfg
-                if i < cls._num_substeps - 1 or (cfg is None or not cfg.use_cuda_graph):  # type: ignore[union-attr]
+            for i in range(cls._num_substeps):
+                step_fn(cls._state_0, cls._state_1)
+                if need_copy_on_last_substep and i == cls._num_substeps - 1:
+                    cls._state_0.assign(cls._state_1)
+                else:
                     cls._state_0, cls._state_1 = cls._state_1, cls._state_0
-                elif cfg is not None and cfg.use_cuda_graph:  # type: ignore[union-attr]
-                    # Swap states by copying arrays for CUDA graph compatibility
-                    for key, value in state_0_dict.items():
-                        if isinstance(value, wp.array):  # type: ignore[arg-type]
-                            if key not in state_temp_dict:
-                                state_temp_dict[key] = wp.empty_like(value)
-                            state_temp_dict[key].assign(value)
-                            state_0_dict[key].assign(state_1_dict[key])
-                            state_1_dict[key].assign(state_temp_dict[key])
                 cls._state_0.clear_forces()
 
         # Populate contacts for contact sensors
