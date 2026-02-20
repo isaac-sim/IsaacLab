@@ -13,11 +13,13 @@ import torch
 import warp as wp
 
 import isaaclab.sim as isaaclab_sim
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveScene
     from isaaclab.sensors import SensorBase
+
+    from ..sim.scene_data_providers import SceneDataProvider
 
 
 class RenderData:
@@ -51,15 +53,15 @@ class RenderData:
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for output_name, tensor_data in output_data.items():
             if output_name == RenderData.OutputNames.RGBA:
-                self.outputs.color_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
             elif output_name == RenderData.OutputNames.ALBEDO:
-                self.outputs.albedo_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
             elif output_name == RenderData.OutputNames.DEPTH:
-                self.outputs.depth_image = self.__from_torch(tensor_data, dtype=wp.float32)
+                self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
             elif output_name == RenderData.OutputNames.NORMALS:
-                self.outputs.normals_image = self.__from_torch(tensor_data, dtype=wp.vec3f)
+                self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
             elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
-                self.outputs.instance_segmentation_image = self.__from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
             elif output_name == RenderData.OutputNames.RGB:
                 pass
             else:
@@ -85,7 +87,7 @@ class RenderData:
 
         self.camera_transforms = wp.empty((1, self.render_context.num_worlds), dtype=wp.transformf)
         wp.launch(
-            RenderData.__update_transforms,
+            RenderData._update_transforms,
             self.render_context.num_worlds,
             [positions, converted_orientations, self.camera_transforms],
         )
@@ -98,7 +100,7 @@ class RenderData:
                 self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
 
-    def __from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
+    def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
         torch_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
@@ -117,7 +119,7 @@ class RenderData:
         )
 
     @wp.kernel
-    def __update_transforms(
+    def _update_transforms(
         positions: wp.array(dtype=wp.vec3f),
         orientations: wp.array(dtype=wp.quatf),
         output: wp.array(dtype=wp.transformf, ndim=2),
@@ -129,26 +131,9 @@ class RenderData:
 class NewtonWarpRenderer:
     RenderData = RenderData
 
-    def __init__(self, scene: InteractiveScene):
-        assert scene is not None, "NewtonWarpRenderer needs an InteractiveScene to initialize!"
-
-        self.scene = scene
-
-        builder = newton.ModelBuilder()
-        builder.add_usd(isaaclab_sim.get_current_stage(), ignore_paths=[r"/World/envs/.*"])
-        for world_id in range(self.scene.num_envs):
-            builder.begin_world()
-            for name, articulation in self.scene.articulations.items():
-                path = articulation.cfg.prim_path.replace(".*", str(world_id))
-                builder.add_usd(isaaclab_sim.get_current_stage(), root_path=path)
-            builder.end_world()
-
-        self.newton_model = builder.finalize()
-        self.newton_state = self.newton_model.state()
-
-        self.physx_to_newton_body_mapping: dict[str, wp.array(dtype=wp.int32, ndim=2)] = {}
-
-        self.newton_sensor = newton.sensors.SensorTiledCamera(self.newton_model)
+    def __init__(self):
+        self.scene_data_provider = self._create_scene_data_provider()
+        self.newton_sensor = newton.sensors.SensorTiledCamera(self.scene_data_provider.get_newton_model())
 
     def create_render_data(self, sensor: SensorBase) -> RenderData:
         return RenderData(self.newton_sensor.render_context, sensor)
@@ -157,20 +142,7 @@ class NewtonWarpRenderer:
         render_data.set_outputs(output_data)
 
     def update_transforms(self):
-        self.__update_mapping()
-        for name, articulation in self.scene.articulations.items():
-            if mapping := self.physx_to_newton_body_mapping.get(name):
-                wp.launch(
-                    NewtonWarpRenderer.__update_transforms,
-                    mapping.shape,
-                    [
-                        mapping,
-                        self.newton_model.body_world,
-                        articulation.data.body_pos_w,
-                        articulation.data.body_quat_w,
-                        self.newton_state.body_q,
-                    ],
-                )
+        self.scene_data_provider.update()
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -179,7 +151,7 @@ class NewtonWarpRenderer:
 
     def render(self, render_data: RenderData):
         self.newton_sensor.render(
-            self.newton_state,
+            self.scene_data_provider.get_newton_state(),
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -195,34 +167,15 @@ class NewtonWarpRenderer:
             if image_data.ptr != output_data.data_ptr():
                 wp.copy(wp.from_torch(output_data), image_data)
 
-    def __update_mapping(self):
-        if self.physx_to_newton_body_mapping:
-            return
+    def _create_scene_data_provider(self) -> SceneDataProvider:
+        sim = SimulationContext.instance()
 
-        self.physx_to_newton_body_mapping.clear()
-        for name, articulation in self.scene.articulations.items():
-            articulation_mapping = []
-            for prim in isaaclab_sim.find_matching_prims(articulation.cfg.prim_path):
-                body_indices = []
-                for body_name in articulation.body_names:
-                    prim_path = prim.GetPath().AppendChild(body_name).pathString
-                    body_indices.append(self.newton_model.body_key.index(prim_path))
-                articulation_mapping.append(body_indices)
-            self.physx_to_newton_body_mapping[name] = wp.array(articulation_mapping, dtype=wp.int32)
+        if sim._scene_data_provider is not None:
+            return sim._scene_data_provider
 
-    @wp.kernel(enable_backward=False)
-    def __update_transforms(
-        mapping: wp.array(dtype=wp.int32, ndim=2),
-        newton_body_world: wp.array(dtype=wp.int32),
-        physx_pos: wp.array(dtype=wp.vec3f, ndim=2),
-        physx_quat: wp.array(dtype=wp.quatf, ndim=2),
-        out_transform: wp.array(dtype=wp.transformf),
-    ):
-        physx_world_id, physx_body_id = wp.tid()
+        from ..sim.scene_data_providers import PhysxSceneDataProvider
+        from ..visualizers import VisualizerCfg
 
-        newton_body_index = mapping[physx_world_id, physx_body_id]
-        newton_world_id = newton_body_world[newton_body_index]
-
-        out_transform[newton_body_index] = wp.transformf(
-            physx_pos[newton_world_id, physx_body_id], physx_quat[newton_world_id, physx_body_id]
-        )
+        visualizer_cfg = VisualizerCfg(visualizer_type="newton")
+        scene_data_provider = PhysxSceneDataProvider([visualizer_cfg], isaaclab_sim.get_current_stage(), sim)
+        return scene_data_provider

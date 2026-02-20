@@ -15,24 +15,24 @@ if TYPE_CHECKING:
 
 class Renderer:
     def __init__(self):
-        pass
+        raise NotImplementedError
 
     def create_render_data(self, sensor: SensorBase) -> Any:
-        return None
+        raise NotImplementedError
 
     def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]):
-        pass
+        raise NotImplementedError
 
     def update_transforms(self):
-        pass
+        raise NotImplementedError
 
     def update_camera(
         self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
     ):
-        pass
+        raise NotImplementedError
 
     def render(self, render_data: Any):
-        pass
+        raise NotImplementedError
 
     def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor):
-        pass
+        raise NotImplementedError
