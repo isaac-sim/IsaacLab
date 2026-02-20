@@ -143,6 +143,9 @@ class ArticulationData(BaseArticulationData):
         - Returns ``all_mask`` when both ids and mask are None (or ids is slice(None)).
         - If ids are provided and mask is None, this populates ``scratch_mask`` in-place using Warp kernels.
         - Torch inputs are supported for compatibility, but are generally not CUDA-graph-capture friendly.
+        - Not re-entrant: ``scratch_mask`` is shared. Safe under single-stream CUDA execution
+          (kernel launches serialize on the same stream), but callers must not hold a reference
+          to the returned mask across a second ``_resolve_1d_mask`` call with different ids.
         """
         # Fast path: explicit mask provided.
         if mask is not None:

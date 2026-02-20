@@ -487,7 +487,14 @@ class ManagerBasedEnvWarp:
         # ids provided as python sequence (already normalized to list above)
         if len(env_ids) == 0:
             return self.ENV_MASK
-        raise ValueError(f"Unsupported env_ids type: {type(env_ids)}")
+        ids_wp = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        wp.launch(
+            kernel=_generate_env_mask_from_ids_int32,
+            dim=ids_wp.shape[0],
+            inputs=[self.ENV_MASK, ids_wp],
+            device=self.device,
+        )
+        return self.ENV_MASK
 
     @property
     def get_IO_descriptors(self):
