@@ -29,10 +29,8 @@ class RendererBase(ABC):
 
         # TODO: share the same renderer for different cameras/rendering jobs.
 
-    def initialize(self):
-        """Initialize the renderer."""
-        # Step 1: Initialize the corresponding output data type
-        # Step 2: initialize output buffers
+    def initialize(self, stage=None, camera_prim_path=None):
+        """Initialize the renderer. Subclasses use stage and camera_prim_path as needed (e.g. USD-based renderers)."""
         raise NotImplementedError("initialize() is not implemented.")
 
     def step(self):
@@ -42,6 +40,15 @@ class RendererBase(ABC):
     def reset(self):
         """Reset the renderer."""
         raise NotImplementedError("reset() is not implemented.")
+
+    def render(
+        self,
+        camera_positions,
+        camera_orientations,
+        intrinsic_matrices,
+    ) -> None:
+        """Render the scene. Used by e.g. TiledCamera to update output buffers."""
+        raise NotImplementedError("render() is not implemented.")
 
     def _initialize_output(self):
         """Initialize the output of the renderer."""

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -22,7 +23,7 @@ from .camera import Camera
 if TYPE_CHECKING:
     from .tiled_camera_cfg import TiledCameraCfg
 
-from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
+from isaaclab.renderer import get_renderer_class
 
 
 class TiledCamera(Camera):
@@ -151,19 +152,26 @@ class TiledCamera(Camera):
                 f" the number of environments ({self._num_envs})."
             )
 
-        if self.cfg.renderer_type == "newton_warp":
-            renderer_cfg = NewtonWarpRendererCfg(
-                width=self.cfg.width, height=self.cfg.height, num_cameras=self._view.count, num_envs=self._num_envs
-            )
-            # Lazy-load the renderer class
-            renderer_cls = get_renderer_class("newton_warp")
-            if renderer_cls is None:
-                raise RuntimeError(f"Failed to load renderer class for type '{self.cfg.renderer_type}'.")
-            self._renderer = renderer_cls(renderer_cfg)
-            self._renderer.initialize()
+        # TODO: Why do we need those parameters in two different places?
+        #       Renderer initialization should be done outside of the camera and done at the end of scene creation.
+        renderer_cfg = replace(
+            self.cfg.renderer_cfg,
+            width=self.cfg.width,
+            height=self.cfg.height,
+            num_cameras=self._view.count,
+            num_envs=self._num_envs,
+            data_types=self.cfg.data_types,
+        )
+        renderer_cls = get_renderer_class(renderer_cfg)
+        self._renderer = renderer_cls(renderer_cfg)
+        self._renderer.initialize(stage=self.stage, camera_prim_path=self.cfg.prim_path)
 
-        else:
-            raise ValueError(f"Renderer type '{self.cfg.renderer_type}' is not supported.")
+        # Recreate view if initialize made changes to the stage
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
+        if self._view.count != self._num_envs:
+            raise RuntimeError(
+                f"View count mismatch after renderer init: {self._view.count} != {self._num_envs}"
+            )
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
@@ -197,6 +205,8 @@ class TiledCamera(Camera):
 
         for data_type, output_buffer in self._renderer.get_output().items():
             self._data.output[data_type] = wp.to_torch(output_buffer)
+
+        self._save_rendered_data()
 
     """
     Private Helpers
