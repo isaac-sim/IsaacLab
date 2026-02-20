@@ -39,15 +39,17 @@ def _colorize(label, color, stream):
     """Colorize a label, if the stream supports colors."""
 
     if os.environ.get("NO_COLOR"):
-        return False
+        return f"{label}"
+
     if os.environ.get("TERM") == "dumb":
-        return False
+        return f"{label}"
+
     color_supported = hasattr(stream, "isatty") and stream.isatty()
 
-    if color_supported:
+    if not color_supported:
+        return f"{label}"
+    else:
         return f"{color}{label}{_ANSI_COLOR_RESET}"
-
-    return label
 
 
 def print_info(message, stream=sys.stdout):
