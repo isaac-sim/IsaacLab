@@ -10,17 +10,12 @@ How it fits together
 - **ovrtx_renderer.py** (this file): Orchestrates the pipeline. Owns the OVRTX Renderer,
   USD loading/cloning, camera and object bindings, and output buffers. Each frame it:
   updates camera/object transforms (using kernels), steps the renderer, then extracts
-  tiles from the tiled framebuffer (kernels) and optionally writes images (image writer).
+  tiles from the tiled framebuffer (kernels).
 
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels and DEVICE constant. Provides
   create_camera_transforms_kernel, extract_tile_from_tiled_buffer_kernel,
   extract_depth_tile_from_tiled_buffer_kernel, sync_newton_transforms_kernel, and
   normalize_depth_to_uint8(). No OVRTX or renderer state.
-
-- **ovrtx_image_writer.py**: When cfg.image_folder is set, the renderer creates an
-  OVRTXImageWriter and passes it numpy arrays (from wp.to_torch(...).cpu().numpy()).
-  The writer handles RGBA/depth and per-env vs tiled filenames; it uses
-  normalize_depth_to_uint8 from the kernels module for depth visualization.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, Render scope string building,
   inject_cameras_into_usd (read USD, append Render scope, write temp file), and
@@ -42,7 +37,6 @@ from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
-from .ovrtx_image_writer import OVRTXImageWriter
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     DEVICE,
@@ -93,13 +87,6 @@ class OVRTXRenderer(RendererBase):
         self._data_types = dt if (dt is not MISSING and dt) else ["rgb"]
 
         self._simple_shading_mode = getattr(cfg, "simple_shading_mode", True)
-        self._image_folder = getattr(cfg, "image_folder", None)
-        self._image_writer: OVRTXImageWriter | None = None
-        if self._image_folder:
-            self._image_writer = OVRTXImageWriter(
-                self._image_folder, self._num_envs, self._num_cols, self._num_rows
-            )
-            print(f"[OVRTX] Images will be saved to: {self._image_folder}")
 
     def _clone_environments_in_ovrtx(self):
         """Clone base environment (env_0) to all other environments using OvRTX.
@@ -427,9 +414,6 @@ class OVRTXRenderer(RendererBase):
                 ],
                 device=DEVICE,
             )
-            if self._image_writer:
-                data_np = wp.to_torch(self._output_data_buffers[buffer_key][env_idx]).cpu().numpy()
-                self._image_writer.save_rgba(data_np, env_idx, self._frame_counter, suffix)
 
     def _extract_depth_tiles(self, tiled_depth_data: wp.array) -> None:
         """Extract per-env depth tiles and populate all depth-type buffers; save depth images."""
@@ -451,9 +435,6 @@ class OVRTXRenderer(RendererBase):
                         ],
                         device=DEVICE,
                     )
-            if self._image_writer and "depth" in self._output_data_buffers:
-                depth_np = wp.to_torch(self._output_data_buffers["depth"][env_idx]).cpu().numpy()
-                self._image_writer.save_depth(depth_np, env_idx, self._frame_counter)
 
     def _process_render_frame(self, frame) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into buffers."""
@@ -462,10 +443,6 @@ class OVRTXRenderer(RendererBase):
         if rgb_render_var and "rgba" in self._output_data_buffers:
             with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
                 tiled_data = wp.from_dlpack(mapping.tensor)
-                if self._image_writer:
-                    self._image_writer.save_tiled_rgba(
-                        wp.to_torch(tiled_data).cpu().numpy(), self._frame_counter, "rgb"
-                    )
                 self._extract_rgba_tiles(tiled_data, "rgba", suffix="rgb")
 
         # Depth
@@ -478,10 +455,6 @@ class OVRTXRenderer(RendererBase):
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
-                if self._image_writer:
-                    self._image_writer.save_tiled_depth(
-                        wp.to_torch(tiled_depth_data).cpu().numpy(), self._frame_counter
-                    )
                 self._extract_depth_tiles(tiled_depth_data)
             break
 
@@ -489,12 +462,6 @@ class OVRTXRenderer(RendererBase):
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in self._output_data_buffers:
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
-                if self._image_writer:
-                    self._image_writer.save_tiled_rgba(
-                        wp.to_torch(tiled_albedo_data).cpu().numpy(),
-                        self._frame_counter,
-                        "albedo",
-                    )
                 self._extract_rgba_tiles(tiled_albedo_data, "albedo", suffix="albedo")
 
         # Semantic segmentation
@@ -508,12 +475,6 @@ class OVRTXRenderer(RendererBase):
                         h, w = semantic_torch.shape
                         semantic_uint8 = semantic_uint8.reshape(h, w, 4)
                     tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
-                if self._image_writer:
-                    self._image_writer.save_tiled_rgba(
-                        wp.to_torch(tiled_semantic_data).cpu().numpy(),
-                        self._frame_counter,
-                        "semantic",
-                    )
                 self._extract_rgba_tiles(
                     tiled_semantic_data, "semantic_segmentation", suffix="semantic"
                 )
