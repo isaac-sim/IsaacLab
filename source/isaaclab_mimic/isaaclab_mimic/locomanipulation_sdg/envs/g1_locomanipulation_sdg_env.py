@@ -169,8 +169,8 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
             base_pose=base_pose,
             object_pose=object_pose,
             fixture_pose=torch.tensor(
-                [0.0, 0.55, -0.3, 1.0, 0.0, 0.0, 0.0], device=base_pose.device
-            ),  # Table pose is not recorded for this env.
+                [0.0, 0.55, -0.3, 0.0, 0.0, 0.0, 1.0], device=base_pose.device
+            ),  # Table pose is not recorded for this env. Quaternion in XYZW format (identity).
         )
 
         return data

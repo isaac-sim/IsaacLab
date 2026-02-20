@@ -117,6 +117,10 @@ import gymnasium as gym
 import torch
 
 import isaaclab.sim as sim_utils
+import omni.kit
+
+from isaaclab.utils.math import convert_quat
+
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
@@ -285,7 +289,8 @@ def setup_navigation_scene(
         parent=env.get_end_fixture(),
     )
     base_goal_approach = RelativePose(
-        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], device=env.device), parent=base_goal
+        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=env.device),
+        parent=base_goal,
     )
 
     # Plan navigation path
@@ -742,6 +747,7 @@ if __name__ == "__main__":
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
+        is_legacy_quat_format = input_dataset_file_handler.is_legacy_quaternion_format()
 
         for i in range(args_cli.num_runs):
             if args_cli.demo is None:
@@ -750,6 +756,14 @@ if __name__ == "__main__":
                 demo = args_cli.demo
 
             input_episode_data = input_dataset_file_handler.load_episode(demo, args_cli.device)
+
+            # Convert action quaternions from legacy WXYZ to XYZW format if needed.
+            # load_episode() auto-converts root_pose state keys, but not action data.
+            # The action format is: [left_pos(3), left_quat(4), right_pos(3), right_quat(4), joints(14)]
+            if is_legacy_quat_format and input_episode_data is not None and "actions" in input_episode_data.data:
+                actions = input_episode_data.data["actions"]
+                actions[:, 3:7] = convert_quat(actions[:, 3:7], to="xyzw")  # left hand quat
+                actions[:, 10:14] = convert_quat(actions[:, 10:14], to="xyzw")  # right hand quat
 
             replay(
                 env=env,
