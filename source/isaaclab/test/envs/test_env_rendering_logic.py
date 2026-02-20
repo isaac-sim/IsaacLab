@@ -49,7 +49,9 @@ def create_manager_based_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -66,7 +68,9 @@ def create_manager_based_rl_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -87,7 +91,9 @@ def create_direct_rl_env(render_interval: int):
         action_space: int = 0
         observation_space: int = 0
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):

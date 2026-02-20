@@ -138,7 +138,6 @@ class SimulationContext:
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
         self._visualizer_step_counter = 0
-        self._training_iteration: int | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -423,17 +422,6 @@ class SimulationContext:
                 return float(viz_dt)
         return self._viz_dt
 
-    def set_training_iteration(self, iteration: int | None) -> None:
-        """Set current training iteration exposed to visualizers."""
-        if iteration is None:
-            self._training_iteration = None
-            return
-        self._training_iteration = int(iteration)
-
-    def get_training_iteration(self) -> int | None:
-        """Get current training iteration exposed to visualizers."""
-        return self._training_iteration
-
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view on all visualizers that support it."""
         for viz in self._visualizers:
@@ -500,7 +488,6 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
-                viz.set_training_iteration(self._training_iteration)
                 if viz.is_rendering_paused():
                     continue
                 if viz.is_closed:

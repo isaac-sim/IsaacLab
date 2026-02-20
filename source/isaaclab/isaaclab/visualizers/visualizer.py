@@ -63,13 +63,6 @@ class Visualizer(ABC):
         """Check if training is paused by visualizer controls."""
         return False
 
-    def set_training_iteration(self, iteration: int | None) -> None:
-        """Provide the current training iteration to the visualizer.
-
-        Backends that do not need this can keep the default no-op behavior.
-        """
-        pass
-
     def is_rendering_paused(self) -> bool:
         """Check if rendering is paused by visualizer controls."""
         return False

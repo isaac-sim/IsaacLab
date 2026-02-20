@@ -64,5 +64,3 @@ def get_visualizer_class(name: str) -> type[Visualizer] | None:
 
         warnings.warn(f"Failed to load visualizer '{name}': {exc}", ImportWarning)
         return None
-
-
