@@ -34,9 +34,5 @@ class SensorBaseCfg:
     update_period: float = 0.0
     """Update period of the sensor buffers (in seconds). Defaults to 0.0 (update every step)."""
 
-    history_length: int = 0
-    """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
-    the current data is stored (no history)."""
-
     debug_vis: bool = False
     """Whether to visualize the sensor. Defaults to False."""

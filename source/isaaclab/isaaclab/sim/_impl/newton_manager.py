@@ -43,10 +43,11 @@ class NewtonManager:
     _dt: float = 1.0 / 200.0
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
+    _use_single_state: bool | None = None
+    """Use only one state for both input and output for solver stepping. Requires solver support."""
     _solver = None
     _state_0: State = None
     _state_1: State = None
-    _state_temp: State = None
     _control: Control = None
     _on_init_callbacks: dict = {}
     _on_start_callbacks: dict = {}
@@ -74,9 +75,9 @@ class NewtonManager:
         NewtonManager._builder = None
         NewtonManager._model = None
         NewtonManager._solver = None
+        NewtonManager._use_single_state = None
         NewtonManager._state_0 = None
         NewtonManager._state_1 = None
-        NewtonManager._state_temp = None
         NewtonManager._control = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
@@ -151,13 +152,12 @@ class NewtonManager:
             NewtonManager._model = NewtonManager._builder.finalize(device=NewtonManager._device)
             NewtonManager._model.set_gravity(NewtonManager._gravity_vector)
             NewtonManager._model.num_envs = NewtonManager._num_envs
+
         NewtonManager._state_0 = NewtonManager._model.state()
         NewtonManager._state_1 = NewtonManager._model.state()
-        NewtonManager._state_temp = NewtonManager._model.state()
         NewtonManager._control = NewtonManager._model.control()
         NewtonManager.forward_kinematics()
-        # Initialize empty contacts - will be replaced in initialize_solver() if collision pipeline is needed
-        NewtonManager._contacts = Contacts(0, 0)
+
         print("[INFO] Running on start callbacks")
         for priority in sorted(NewtonManager._on_start_callbacks.keys()):
             for callback in NewtonManager._on_start_callbacks[priority]:
@@ -198,22 +198,21 @@ class NewtonManager:
         if NewtonManager._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if NewtonManager._collision_pipeline is None:
-                NewtonManager._collision_pipeline = CollisionPipeline.from_model(
+                NewtonManager._collision_pipeline = CollisionPipeline(
                     NewtonManager._model, broad_phase_mode=BroadPhaseMode.EXPLICIT
                 )
-            NewtonManager._contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
-            )
+            if NewtonManager._contacts is None:
+                NewtonManager._contacts = NewtonManager._collision_pipeline.contacts()
+
         elif NewtonManager._solver is not None and isinstance(NewtonManager._solver, SolverMuJoCo):
             # MuJoCo contacts mode: create properly sized Contacts object
             # The solver's update_contacts() will populate this from MuJoCo data
-            naconmax = NewtonManager._solver.mjw_data.naconmax
-            requested_attributes = {"force"} if NewtonManager._report_contacts else set()
+            rigid_contact_max = NewtonManager._solver.get_max_contact_count()
             NewtonManager._contacts = Contacts(
-                rigid_contact_max=naconmax,
+                rigid_contact_max=rigid_contact_max,
                 soft_contact_max=0,
                 device=NewtonManager._device,
-                requested_attributes=requested_attributes,
+                requested_attributes=NewtonManager._model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -268,62 +267,39 @@ class NewtonManager:
         may need to explicitly compute the collisions. This function also aggregates the contacts and evaluates the
         contact sensors. Finally, it performs the state swapping for Newton.
         """
-        state_0_dict = NewtonManager._state_0.__dict__
-        state_1_dict = NewtonManager._state_1.__dict__
-        state_temp_dict = NewtonManager._state_temp.__dict__
-        contacts = None
 
-        # MJWarp computes its own collisions.
-        if NewtonManager._needs_collision_pipeline:
-            contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
-            )
-            # Update class-level contacts for sensor evaluation
-            NewtonManager._contacts = contacts
-
-        if NewtonManager._num_substeps % 2 == 0:
-            for i in range(NewtonManager._num_substeps):
-                NewtonManager._solver.step(
-                    NewtonManager._state_0,
-                    NewtonManager._state_1,
-                    NewtonManager._control,
-                    contacts,
-                    NewtonManager._solver_dt,
-                )
-                NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-                NewtonManager._state_0.clear_forces()
+        # MJWarp can use its internal collision pipeline.
+        if cls._needs_collision_pipeline:
+            cls._collision_pipeline.collide(cls._state_0, cls._contacts)
+            contacts = cls._contacts
         else:
-            for i in range(NewtonManager._num_substeps):
-                NewtonManager._solver.step(
-                    NewtonManager._state_0,
-                    NewtonManager._state_1,
-                    NewtonManager._control,
-                    contacts,
-                    NewtonManager._solver_dt,
-                )
+            contacts = None
 
-                # FIXME: Ask Lukasz help to deal with non-even number of substeps. This should not be needed.
-                if i < NewtonManager._num_substeps - 1 or not NewtonManager._cfg.use_cuda_graph:
-                    # we can just swap the state references
-                    NewtonManager._state_0, NewtonManager._state_1 = NewtonManager._state_1, NewtonManager._state_0
-                elif NewtonManager._cfg.use_cuda_graph:
-                    # swap states by actually copying the state arrays to make sure the graph capture works
-                    for key, value in state_0_dict.items():
-                        if isinstance(value, wp.array):
-                            if key not in state_temp_dict:
-                                state_temp_dict[key] = wp.empty_like(value)
-                            state_temp_dict[key].assign(value)
-                            state_0_dict[key].assign(state_1_dict[key])
-                            state_1_dict[key].assign(state_temp_dict[key])
-                NewtonManager._state_0.clear_forces()
+        def step_fn(state_0, state_1):
+            cls._solver.step(state_0, state_1, cls._control, contacts, cls._solver_dt)
+
+        if cls._use_single_state:
+            for i in range(cls._num_substeps):
+                step_fn(cls._state_0, cls._state_0)
+                cls._state_0.clear_forces()
+        else:
+            need_copy_on_last_substep = cls._cfg.use_cuda_graph and cls._num_substeps % 2 == 1
+
+            for i in range(cls._num_substeps):
+                step_fn(cls._state_0, cls._state_1)
+                if need_copy_on_last_substep and i == cls._num_substeps - 1:
+                    cls._state_0.assign(cls._state_1)
+                else:
+                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+                cls._state_0.clear_forces()
 
         # Transfer contact forces from solver to Newton contacts for sensor evaluation
-        if NewtonManager._report_contacts:
+        if cls._report_contacts:
             # For newton_contacts (unified pipeline): use locally computed contacts
             # For mujoco_contacts: use class-level _contacts, solver populates it from MuJoCo data
-            eval_contacts = contacts if contacts is not None else NewtonManager._contacts
-            NewtonManager._solver.update_contacts(eval_contacts, NewtonManager._state_0)
-            for sensor in NewtonManager._newton_contact_sensors.values():
+            eval_contacts = contacts if contacts is not None else cls._contacts
+            cls._solver.update_contacts(eval_contacts, cls._state_0)
+            for sensor in cls._newton_contact_sensors.values():
                 sensor.eval(eval_contacts)
 
     @classmethod
@@ -420,10 +396,14 @@ class NewtonManager:
         NewtonManager._solver_type = solver_cfg.pop("solver_type")
 
         if NewtonManager._solver_type == "mujoco_warp":
+            # SolverMuJoCo does not require distinct input & output states
+            cls._use_single_state = True
             return SolverMuJoCo(model, **solver_cfg)
         elif NewtonManager._solver_type == "xpbd":
+            cls._use_single_state = False
             return SolverXPBD(model, **solver_cfg)
         elif NewtonManager._solver_type == "featherstone":
+            cls._use_single_state = False
             return SolverFeatherstone(model, **solver_cfg)
         else:
             raise ValueError(f"Invalid solver type: {NewtonManager._solver_type}")
