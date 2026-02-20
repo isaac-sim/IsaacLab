@@ -19,7 +19,7 @@ from isaaclab.utils.math import normalize
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_view import ArticulationView
@@ -739,7 +739,7 @@ class ArticulationData(BaseArticulationData):
                 device=self.device,
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    NewtonManager.get_dt(),
+                    SimulationManager.get_dt(),
                     self._previous_body_com_vel,
                 ],
                 outputs=[
@@ -1124,60 +1124,60 @@ class ArticulationData(BaseArticulationData):
 
         # -- root properties
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0, 0]
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0, 0]
         else:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
-        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
+            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
+        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(SimulationManager.get_state_0())
         if self._sim_bind_root_com_vel_w is not None:
             if self._root_view.is_fixed_base:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
             else:
                 self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())[:, 0]
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(NewtonManager.get_state_0())[:, 0]
-        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(NewtonManager.get_state_0())
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[:, 0]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[:, 0]
+        self._sim_bind_body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", NewtonManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", NewtonManager.get_model())[:, 0].reshape((self._num_instances, self._num_bodies, 9))
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", NewtonManager.get_state_0())[:, 0]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
+        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0].reshape((self._num_instances, self._num_bodies, 9))
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[:, 0]
         # -- joint properties
         if n_dof > 0:
             self._sim_bind_joint_pos_limits_lower = self._root_view.get_attribute(
-                "joint_limit_lower", NewtonManager.get_model()
+                "joint_limit_lower", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_pos_limits_upper = self._root_view.get_attribute(
-                "joint_limit_upper", NewtonManager.get_model()
+                "joint_limit_upper", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_stiffness_sim = self._root_view.get_attribute(
-                "joint_target_ke", NewtonManager.get_model()
+                "joint_target_ke", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_damping_sim = self._root_view.get_attribute(
-                "joint_target_kd", NewtonManager.get_model()
+                "joint_target_kd", SimulationManager.get_model()
             )[:, 0]
-            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", NewtonManager.get_model())[
+            self._sim_bind_joint_armature = self._root_view.get_attribute("joint_armature", SimulationManager.get_model())[
                 :, 0
             ]
             self._sim_bind_joint_friction_coeff = self._root_view.get_attribute(
-                "joint_friction", NewtonManager.get_model()
+                "joint_friction", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_vel_limits_sim = self._root_view.get_attribute(
-                "joint_velocity_limit", NewtonManager.get_model()
+                "joint_velocity_limit", SimulationManager.get_model()
             )[:, 0]
             self._sim_bind_joint_effort_limits_sim = self._root_view.get_attribute(
-                "joint_effort_limit", NewtonManager.get_model()
+                "joint_effort_limit", SimulationManager.get_model()
             )[:, 0]
             # -- joint states
-            self._sim_bind_joint_pos = self._root_view.get_dof_positions(NewtonManager.get_state_0())[:, 0]
-            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(NewtonManager.get_state_0())[:, 0]
+            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             # -- joint commands (sent to the simulation)
-            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", NewtonManager.get_control())[:, 0]
+            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[:, 0]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
-                "joint_target_pos", NewtonManager.get_control()
+                "joint_target_pos", SimulationManager.get_control()
             )[:, 0]
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
-                "joint_target_vel", NewtonManager.get_control()
+                "joint_target_vel", SimulationManager.get_control()
             )[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
@@ -1209,21 +1209,21 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
-        if self._root_view.get_root_velocities(NewtonManager.get_state_0()) is not None:
+        if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is not None:
             if self._root_view.is_fixed_base:
                 self._previous_root_com_vel = wp.clone(
-                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                    self._root_view.get_root_velocities(SimulationManager.get_state_0())
                 )[:, 0, 0]
             else:
                 self._previous_root_com_vel = wp.clone(
-                    self._root_view.get_root_velocities(NewtonManager.get_state_0())
+                    self._root_view.get_root_velocities(SimulationManager.get_state_0())
                 )[:, 0]
         else:
             logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected.")
-            self._previous_root_com_vel = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+            self._previous_root_com_vel = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
             logger.warning("Setting root com velocity to zeros.")
-            self._sim_bind_root_com_vel_w = wp.zeros((n_view), dtype=wp.spatial_vectorf, device=self.device)
-            self._sim_bind_body_com_vel_w = wp.zeros((n_view, n_link), dtype=wp.spatial_vectorf, device=self.device)
+            self._sim_bind_root_com_vel_w = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
+            self._sim_bind_body_com_vel_w = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
@@ -1242,19 +1242,19 @@ class ArticulationData(BaseArticulationData):
             self._actuator_stiffness = wp.clone(self._sim_bind_joint_stiffness_sim)
             self._actuator_damping = wp.clone(self._sim_bind_joint_damping_sim)
         else:
-            self._actuator_stiffness = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
-            self._actuator_damping = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
+            self._actuator_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._actuator_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         # -- other data that are filled based on explicit actuator models
-        self._joint_dynamic_friction = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
-        self._joint_viscous_friction = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
-        self._soft_joint_vel_limits = wp.zeros((n_view, n_dof), dtype=wp.float32, device=self.device)
-        self._gear_ratio = wp.ones((n_view, n_dof), dtype=wp.float32, device=self.device)
+        self._joint_dynamic_friction = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._joint_viscous_friction = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._soft_joint_vel_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         # -- update the soft joint position limits
-        self._soft_joint_pos_limits = wp.zeros((n_view, n_dof), dtype=wp.vec2f, device=self.device)
+        self._soft_joint_pos_limits = wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
-            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(NewtonManager.get_state_0()))
+            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(SimulationManager.get_state_0()))
         else:
             self._previous_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
@@ -1281,7 +1281,7 @@ class ArticulationData(BaseArticulationData):
         self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
         # -- joint state
         self._joint_acc = TimestampedBuffer(shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(shape=(n_view, n_dof), dtype=wp.spatial_vectorf, device=self.device)
+        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device)
         # Empty memory pre-allocations
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None

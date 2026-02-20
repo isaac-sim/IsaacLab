@@ -20,6 +20,8 @@ from prettytable import PrettyTable
 
 from pxr import PhysxSchema, UsdPhysics
 from newton.selection import ArticulationView
+from newton.solvers import SolverMuJoCo, SolverNotifyFlags
+from newton import Model, JointType
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -31,7 +33,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_newton.physics import PhysxManager as SimulationManager
+from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .articulation_data import ArticulationData
 
@@ -374,6 +376,7 @@ class Articulation(BaseArticulation):
 
     def write_root_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -385,7 +388,7 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for yo!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
@@ -396,6 +399,7 @@ class Articulation(BaseArticulation):
 
     def write_root_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -407,17 +411,18 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -429,11 +434,11 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -464,6 +469,7 @@ class Articulation(BaseArticulation):
 
     def write_root_link_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -475,12 +481,12 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -510,6 +516,7 @@ class Articulation(BaseArticulation):
 
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -522,11 +529,11 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -565,6 +572,7 @@ class Articulation(BaseArticulation):
 
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -577,12 +585,12 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -616,6 +624,7 @@ class Articulation(BaseArticulation):
 
     def write_root_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -628,7 +637,7 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
@@ -639,6 +648,7 @@ class Articulation(BaseArticulation):
 
     def write_root_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -651,17 +661,18 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -674,12 +685,11 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or
-                (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -708,6 +718,7 @@ class Articulation(BaseArticulation):
 
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -720,12 +731,12 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -752,6 +763,7 @@ class Articulation(BaseArticulation):
 
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -764,12 +776,11 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6) or
-                (num_instances, 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -805,6 +816,7 @@ class Articulation(BaseArticulation):
 
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -817,12 +829,12 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -855,6 +867,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_state_to_sim(
         self,
+        *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -874,6 +887,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_state_to_sim_mask(
         self,
+        *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
@@ -885,14 +899,14 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all indices are used.
-            joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
         """
         # set into simulation
         self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
@@ -900,10 +914,10 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_to_sim_index(
         self,
+        *,
         position: torch.Tensor,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ):
         """Write joint positions over selected environment indices into the simulation.
 
@@ -911,14 +925,13 @@ class Articulation(BaseArticulation):
             This method expect partial data or full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -947,6 +960,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_to_sim_mask(
         self,
+        *,
         position: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -957,13 +971,13 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -992,6 +1006,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_to_sim_index(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1002,7 +1017,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1034,6 +1049,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_to_sim_mask(
         self,
+        *,
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1044,13 +1060,13 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1080,6 +1096,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_stiffness_to_sim_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1090,7 +1107,7 @@ class Articulation(BaseArticulation):
             This method expect partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1131,10 +1148,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1145,13 +1163,13 @@ class Articulation(BaseArticulation):
             This method expect full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             stiffness: Joint stiffness. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1186,10 +1204,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_damping_to_sim_index(
         self,
+        *,
         damping: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1200,7 +1219,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1242,10 +1261,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_damping_to_sim_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1256,13 +1276,13 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1297,7 +1317,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_index(
         self,
@@ -1312,7 +1332,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1360,7 +1380,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1375,13 +1395,13 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limits: Joint limits. Shape is (num_envs, num_joints, 2).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
@@ -1420,7 +1440,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -1438,7 +1458,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1479,7 +1499,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1497,13 +1517,13 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limits: Joint max velocity. Shape is (num_envs, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1538,7 +1558,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1555,7 +1575,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1597,7 +1617,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1614,13 +1634,13 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limits: Joint torque limits. Shape is (num_envs, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1655,11 +1675,12 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
 
     def write_joint_armature_to_sim_index(
         self,
+        *,
         armature: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1673,7 +1694,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1714,10 +1735,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_armature_to_sim_mask(
         self,
+        *,
         armature: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1731,13 +1753,13 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             armature: Joint armature. Shape is (num_envs, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         # resolve masks
         if env_mask is None:
@@ -1773,10 +1795,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1787,7 +1810,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1829,10 +1852,11 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
+        *,
         joint_friction_coeff: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1843,7 +1867,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1885,7 +1909,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     """
     Operations - Setters.
@@ -1893,6 +1917,7 @@ class Articulation(BaseArticulation):
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1903,7 +1928,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1929,10 +1954,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1943,7 +1969,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -1970,10 +1996,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1984,7 +2011,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
         .. caution::
@@ -2015,10 +2042,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2029,7 +2057,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         .. caution::
@@ -2061,10 +2089,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2075,7 +2104,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -2101,10 +2130,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2115,7 +2145,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -2142,10 +2172,11 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        NewtonManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_joint_position_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -2159,7 +2190,7 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -2188,6 +2219,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_position_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2198,7 +2230,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Pick the one that works for you!
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
@@ -2227,10 +2259,10 @@ class Articulation(BaseArticulation):
 
     def set_joint_velocity_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set joint velocity targets into internal buffers using indices.
 
@@ -2238,18 +2270,16 @@ class Articulation(BaseArticulation):
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
-                if full_data.
+            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -2262,7 +2292,6 @@ class Articulation(BaseArticulation):
                 target,
                 env_ids,
                 joint_ids,
-                full_data,
             ],
             outputs=[
                 self.data._joint_vel_target,
@@ -2273,6 +2302,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_velocity_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2280,35 +2310,43 @@ class Articulation(BaseArticulation):
         """Set joint velocity targets into internal buffers using masks.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             target: Joint velocity targets. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if joint_mask is not None:
-            joint_ids = wp.nonzero(joint_mask)
-        else:
-            joint_ids = self._ALL_JOINT_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_joint_velocity_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._ALL_JOINT_MASK
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                target,
+                env_mask,
+                joint_mask,
+            ],
+            outputs=[
+                self.data._joint_vel_target,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the targets to the simulation.
 
     def set_joint_effort_target_index(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set joint efforts into internal buffers using indices.
 
@@ -2316,18 +2354,16 @@ class Articulation(BaseArticulation):
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints)
-                if full_data.
+            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -2340,7 +2376,6 @@ class Articulation(BaseArticulation):
                 target,
                 env_ids,
                 joint_ids,
-                full_data,
             ],
             outputs=[
                 self.data._joint_effort_target,
@@ -2351,6 +2386,7 @@ class Articulation(BaseArticulation):
 
     def set_joint_effort_target_mask(
         self,
+        *,
         target: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2361,25 +2397,32 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             target: Joint effort targets. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all joints are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if joint_mask is not None:
-            joint_ids = wp.nonzero(joint_mask)
-        else:
-            joint_ids = self._ALL_JOINT_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_joint_effort_target_index(target, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        if env_mask is None:
+            env_mask = self._ALL_ENV_MASK
+        if joint_mask is None:
+            joint_mask = self._ALL_JOINT_MASK
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                target,
+                env_mask,
+                joint_mask,
+            ],
+            outputs=[
+                self.data._joint_effort_target,
+            ],
+            device=self.device,
+        )
+        # Only updates internal buffers, does not apply the targets to the simulation.
 
     """
     Operations - Tendons.
@@ -2387,10 +2430,10 @@ class Articulation(BaseArticulation):
 
     def set_fixed_tendon_stiffness_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using indices.
 
@@ -2399,41 +2442,22 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                stiffness,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_stiffness,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the stiffness to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_stiffness_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2448,34 +2472,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_stiffness_index(
-            stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_fixed_tendon_damping_index(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon damping into internal buffers using indices.
 
@@ -2484,41 +2496,22 @@ class Articulation(BaseArticulation):
         function.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                damping,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_damping,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the damping to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_damping_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2533,32 +2526,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_damping_index(damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        raise NotImplementedError()
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon limit stiffness into internal buffers using indices.
 
@@ -2567,41 +2550,22 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                limit_stiffness,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_limit_stiffness,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the limit stiffness to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2616,34 +2580,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_limit_stiffness_index(
-            limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_fixed_tendon_position_limit_index(
         self,
+        *,
         limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon position limit into internal buffers using indices.
 
@@ -2652,41 +2604,22 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                limit,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_pos_limits,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the position limit to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_position_limit_mask(
         self,
+        *,
         limit: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2701,34 +2634,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_position_limit_index(
-            limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_fixed_tendon_rest_length_index(
         self,
+        *,
         rest_length: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon rest length into internal buffers using indices.
 
@@ -2737,41 +2658,22 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                rest_length,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_rest_length,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the rest length to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_rest_length_mask(
         self,
+        *,
         rest_length: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2786,34 +2688,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_rest_length_index(
-            rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_fixed_tendon_offset_index(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon offset into internal buffers using indices.
 
@@ -2825,38 +2715,19 @@ class Articulation(BaseArticulation):
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-            inputs=[
-                offset,
-                env_ids,
-                fixed_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._fixed_tendon_offset,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the offset to the simulation.
+        raise NotImplementedError()
 
     def set_fixed_tendon_offset_mask(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -2871,80 +2742,56 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if fixed_tendon_mask is not None:
-            fixed_tendon_ids = wp.nonzero(fixed_tendon_mask)
-        else:
-            fixed_tendon_ids = self._ALL_FIXED_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_offset_index(offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True)
+        raise NotImplementedError()
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
+        *,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             fixed_tendon_ids: The fixed tendon indices to write the properties for. Defaults to None
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        # Write fixed tendon properties to the simulation.
-        self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness,
-            self.data.fixed_tendon_damping,
-            self.data.fixed_tendon_limit_stiffness,
-            self.data.fixed_tendon_pos_limits,
-            self.data.fixed_tendon_rest_length,
-            self.data.fixed_tendon_offset,
-            indices=env_ids,
-        )
+        raise NotImplementedError()
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
+        *,
         env_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using masks.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
+        raise NotImplementedError()
 
     def set_spatial_tendon_stiffness_index(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set spatial tendon stiffness into internal buffers using indices.
 
@@ -2953,41 +2800,22 @@ class Articulation(BaseArticulation):
         :meth:`write_spatial_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
-                (num_instances, num_spatial_tendons) if full_data.
+            stiffness: Spatial tendon stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
             spatial_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-            inputs=[
-                stiffness,
-                env_ids,
-                spatial_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._spatial_tendon_stiffness,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the stiffness to the simulation.
+        raise NotImplementedError()
 
     def set_spatial_tendon_stiffness_mask(
         self,
+        *,
         stiffness: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3002,34 +2830,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if spatial_tendon_mask is not None:
-            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
-        else:
-            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_spatial_tendon_stiffness_index(
-            stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_spatial_tendon_damping_index(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set spatial tendon damping into internal buffers using indices.
 
@@ -3038,41 +2854,22 @@ class Articulation(BaseArticulation):
         :meth:`write_spatial_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)) or
-                (num_instances, num_spatial_tendons) if full_data.
+            damping: Spatial tendon damping. Shape is (len(env_ids), len(spatial_tendon_ids)).
             spatial_tendon_ids: The tendon indices to set the damping for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-            inputs=[
-                damping,
-                env_ids,
-                spatial_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._spatial_tendon_damping,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the damping to the simulation.
+        raise NotImplementedError()
 
     def set_spatial_tendon_damping_mask(
         self,
+        *,
         damping: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3087,34 +2884,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if spatial_tendon_mask is not None:
-            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
-        else:
-            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_spatial_tendon_damping_index(
-            damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_spatial_tendon_limit_stiffness_index(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set spatial tendon limit stiffness into internal buffers using indices.
 
@@ -3123,42 +2908,23 @@ class Articulation(BaseArticulation):
         :meth:`write_spatial_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)) or
-                (num_instances, num_spatial_tendons) if full_data.
+            limit_stiffness: Spatial tendon limit stiffness. Shape is (len(env_ids), len(spatial_tendon_ids)).
             spatial_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None
                 (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-            inputs=[
-                limit_stiffness,
-                env_ids,
-                spatial_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._spatial_tendon_limit_stiffness,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the limit stiffness to the simulation.
+        raise NotImplementedError()
 
     def set_spatial_tendon_limit_stiffness_mask(
         self,
+        *,
         limit_stiffness: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3173,34 +2939,22 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if spatial_tendon_mask is not None:
-            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
-        else:
-            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_spatial_tendon_limit_stiffness_index(
-            limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def set_spatial_tendon_offset_index(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set spatial tendon offset into internal buffers using indices.
 
@@ -3209,41 +2963,22 @@ class Articulation(BaseArticulation):
         :meth:`write_spatial_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
-            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)) or
-                (num_instances, num_spatial_tendons) if full_data.
+            offset: Spatial tendon offset. Shape is (len(env_ids), len(spatial_tendon_ids)).
             spatial_tendon_ids: The tendon indices to set the offset for. Defaults to None (all spatial tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], spatial_tendon_ids.shape[0]),
-            inputs=[
-                offset,
-                env_ids,
-                spatial_tendon_ids,
-                full_data,
-            ],
-            outputs=[
-                self.data._spatial_tendon_offset,
-            ],
-            device=self.device,
-        )
-        # Only updates internal buffers, does not apply the offset to the simulation.
+        raise NotImplementedError()
 
     def set_spatial_tendon_offset_mask(
         self,
+        *,
         offset: torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -3258,77 +2993,49 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        if spatial_tendon_mask is not None:
-            spatial_tendon_ids = wp.nonzero(spatial_tendon_mask)
-        else:
-            spatial_tendon_ids = self._ALL_SPATIAL_TENDON_INDICES
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_spatial_tendon_offset_index(
-            offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        raise NotImplementedError()
 
     def write_spatial_tendon_properties_to_sim_index(
         self,
+        *,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation using indices.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve indices
-        if (env_ids is None) or (env_ids == slice(None)):
-            env_ids = self._ALL_INDICES
-        elif isinstance(env_ids, list):
-            env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
-        # Write spatial tendon properties to the simulation.
-        self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness,
-            self.data.spatial_tendon_damping,
-            self.data.spatial_tendon_limit_stiffness,
-            self.data.spatial_tendon_offset,
-            indices=env_ids,
-        )
+        raise NotImplementedError()
 
     def write_spatial_tendon_properties_to_sim_mask(
         self,
+        *,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation using masks.
 
         .. tip::
-            For maximum performance we recommend using the mask method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.  
 
         Args:
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
-        # Resolve masks.
-        if env_mask is not None:
-            env_ids = wp.nonzero(env_mask)
-        else:
-            env_ids = self._ALL_INDICES
-        # Write spatial tendon properties to the simulation.
-        self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
+        raise NotImplementedError()
 
     """
     Internal helper.
@@ -3375,11 +3082,12 @@ class Articulation(BaseArticulation):
             root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
 
         # -- articulation
-        self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
-
-        # check if the articulation was created
-        if self.root_view._backend is None:
-            raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
+        self._root_view = ArticulationView(
+            SimulationManager.get_model(),
+            root_prim_path_expr.replace(".*", "*"),
+            verbose=False,
+            exclude_joint_types=[JointType.FREE, JointType.FIXED],
+        )
 
         # log information about the articulation
         logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
