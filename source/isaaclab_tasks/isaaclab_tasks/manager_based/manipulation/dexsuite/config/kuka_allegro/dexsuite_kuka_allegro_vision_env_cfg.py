@@ -9,6 +9,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.renderer import NewtonWarpRendererCfg, OVRTXRendererCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -37,7 +38,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type="ov_rtx",
+        renderer_cfg=OVRTXRendererCfg(image_folder="/tmp/ovrtx"),
     )
 
     def __post_init__(self):
@@ -82,7 +83,7 @@ class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type="newton_warp",
+        renderer_cfg=NewtonWarpRendererCfg(),
         update_latest_camera_pose=True,
     )
 

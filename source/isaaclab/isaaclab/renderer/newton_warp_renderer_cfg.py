@@ -13,3 +13,6 @@ from .renderer_cfg import RendererCfg
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
+
+    renderer_type: str = "newton_warp"
+    """Type identifier for Newton Warp renderer."""

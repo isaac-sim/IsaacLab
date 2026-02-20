@@ -154,8 +154,8 @@ class Camera(SensorBase):
             f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
-            f"\tnumber of sensors : {self._view.count}"
-            f"\trenderer type : {self.cfg.renderer_type}"
+            f"\tnumber of sensors : {self._view.count}\n"
+            f"\trenderer type : {getattr(self.cfg, 'renderer_cfg', None) and getattr(self.cfg.renderer_cfg, 'renderer_type', None) or getattr(self.cfg, 'renderer_type', 'n/a')}"
         )
 
     """

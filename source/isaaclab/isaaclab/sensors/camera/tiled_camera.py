@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -22,7 +23,7 @@ from .camera import Camera
 if TYPE_CHECKING:
     from .tiled_camera_cfg import TiledCameraCfg
 
-from isaaclab.renderer import NewtonWarpRendererCfg, OVRTXRendererCfg, get_renderer_class
+from isaaclab.renderer import get_renderer_class
 
 
 class TiledCamera(Camera):
@@ -151,46 +152,26 @@ class TiledCamera(Camera):
                 f" the number of environments ({self._num_envs})."
             )
 
-        if self.cfg.renderer_type == "newton_warp":
-            renderer_cfg = NewtonWarpRendererCfg(
-                width=self.cfg.width, height=self.cfg.height, num_cameras=self._view.count, num_envs=self._num_envs
+        # TODO: Why do we need those parameters in two different places?
+        #       Renderer initialization should be done outside of the camera and done at the end of scene creation.
+        renderer_cfg = replace(
+            self.cfg.renderer_cfg,
+            width=self.cfg.width,
+            height=self.cfg.height,
+            num_cameras=self._view.count,
+            num_envs=self._num_envs,
+            data_types=self.cfg.data_types,
+        )
+        renderer_cls = get_renderer_class(renderer_cfg)
+        self._renderer = renderer_cls(renderer_cfg)
+        self._renderer.initialize(stage=self.stage, camera_prim_path=self.cfg.prim_path)
+
+        # Recreate view if initialize made changes to the stage
+        self._view = XFormPrim(self.cfg.prim_path, device=self._device)
+        if self._view.count != self._num_envs:
+            raise RuntimeError(
+                f"View count mismatch after renderer init: {self._view.count} != {self._num_envs}"
             )
-            # Lazy-load the renderer class
-            renderer_cls = get_renderer_class("newton_warp")
-            if renderer_cls is None:
-                raise RuntimeError(f"Failed to load renderer class for type '{self.cfg.renderer_type}'.")
-            self._renderer = renderer_cls(renderer_cfg)
-            self._renderer.initialize()
-        elif self.cfg.renderer_type == "ov_rtx":
-            renderer_cfg = OVRTXRendererCfg(
-                width=self.cfg.width, height=self.cfg.height, num_cameras=self._view.count, num_envs=self._num_envs,
-                data_types=self.cfg.data_types
-                #, simple_shading_mode=False
-                , image_folder="/tmp/ovrtx"
-                , use_ovrtx_cloning=True  # Default: use OVRTX internal cloning for faster initialization
-            )
-            # Lazy-load the renderer class
-            renderer_cls = get_renderer_class("ov_rtx")
-            if renderer_cls is None:
-                raise RuntimeError(f"Failed to load renderer class for type '{self.cfg.renderer_type}'.")
-            self._renderer = renderer_cls(renderer_cfg)
-
-            # Scene preparation (partition attributes, export) is done inside the renderer
-            camera_prim_name = self.cfg.prim_path.split("/")[-1]
-            self._renderer.initialize(stage=self.stage, camera_prim_name=camera_prim_name)
-
-            # Refresh view after OVRTX cloning (stage was deactivated then reactivated)
-            if self._num_envs > 1 and renderer_cfg.use_ovrtx_cloning:
-                self._view = XFormPrim(self.cfg.prim_path, device=self._device)
-                if self._view.count != self._num_envs:
-                    raise RuntimeError(
-                        f"View count mismatch after OVRTX init: {self._view.count} != {self._num_envs}"
-                    )
-
-            print("   ✓ Renderer initialized")
-
-        else:
-            raise ValueError(f"Renderer type '{self.cfg.renderer_type}' is not supported.")
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)

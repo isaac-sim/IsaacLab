@@ -64,8 +64,8 @@ class NewtonWarpRenderer(RendererBase):
     def __init__(self, cfg: NewtonWarpRendererCfg):
         super().__init__(cfg)
 
-    def initialize(self):
-        """Initialize the renderer."""
+    def initialize(self, stage=None, camera_prim_path=None):
+        """Initialize the renderer. stage and camera_prim_path are unused."""
         self._model = NewtonManager.get_model()
 
         self._tiled_camera_sensor = SensorTiledCamera(
