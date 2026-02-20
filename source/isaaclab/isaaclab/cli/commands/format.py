@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import os
 import subprocess
 
 from ..utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
@@ -14,14 +13,7 @@ def command_format():
     python_exe = extract_python_exe()
 
     def _run_pre_commit():
-        run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], env=env, cwd=ISAACLAB_ROOT)
-
-    # Reset the python path to avoid conflicts with pre-commit.
-    # This is needed because the pre-commit hooks are installed in a
-    # separate virtual environment and it uses the system python to run the hooks.
-    env = os.environ.copy()
-    if env.get("CONDA_DEFAULT_ENV") or env.get("VIRTUAL_ENV"):
-        env["PYTHONPATH"] = ""
+        run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], cwd=ISAACLAB_ROOT)
 
     # Check if pre-commit is installed.
 

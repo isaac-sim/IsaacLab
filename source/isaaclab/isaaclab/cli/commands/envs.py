@@ -68,8 +68,8 @@ def _get_conda_prefix(env_name):
     return None
 
 
-def _write_conda_env_hooks(conda_prefix: Path):
-    """Write conda activation/deactivation hooks for Isaac Lab environment variables."""
+def _create_conda_envhooks_shell(conda_prefix: Path):
+    """Write Linux/Mac conda activation/deactivation hooks for Isaac Lab environment variables."""
     activate_d = conda_prefix / "etc" / "conda" / "activate.d"
     deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
     activate_d.mkdir(parents=True, exist_ok=True)
@@ -132,6 +132,141 @@ def _write_conda_env_hooks(conda_prefix: Path):
 
     print_debug(f"Created activation hook: {activate_hook}")
     print_debug(f"Created deactivation hook: {deactivate_hook}")
+
+
+def _create_conda_envhooks_cmdexe(conda_prefix: Path):
+    """Write Windows cmd.exe conda activation/deactivation hooks."""
+    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
+    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
+    activate_d.mkdir(parents=True, exist_ok=True)
+    deactivate_d.mkdir(parents=True, exist_ok=True)
+
+    activate_hook = activate_d / "setenv.bat"
+    deactivate_hook = deactivate_d / "unsetenv.bat"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.bat"
+
+    activate_content = textwrap.dedent(
+        f"""\
+        @echo off
+
+        REM for Isaac Lab
+        if not defined _IL_PREV_PYTHONPATH set "_IL_PREV_PYTHONPATH=%PYTHONPATH%"
+        if not defined _IL_PREV_PATH set "_IL_PREV_PATH=%PATH%"
+        set "ISAACLAB_PATH={ISAACLAB_ROOT}"
+        doskey isaaclab={ISAACLAB_ROOT / "isaaclab.bat"} $*
+
+        REM show icon if not running headless
+        set "RESOURCE_NAME=IsaacSim"
+
+        REM for Isaac Sim
+        if exist "{isaacsim_setup_conda_env_script}" call "{isaacsim_setup_conda_env_script}"
+        """
+    )
+
+    deactivate_content = textwrap.dedent(
+        """\
+        @echo off
+
+        REM for Isaac Lab
+        set "ISAACLAB_PATH="
+        doskey isaaclab=
+
+        REM restore paths
+        if defined _IL_PREV_PYTHONPATH (
+            set "PYTHONPATH=%_IL_PREV_PYTHONPATH%"
+            set "_IL_PREV_PYTHONPATH="
+        )
+        if defined _IL_PREV_PATH (
+            set "PATH=%_IL_PREV_PATH%"
+            set "_IL_PREV_PATH="
+        )
+
+        REM for Isaac Sim
+        set "RESOURCE_NAME="
+        set "CARB_APP_PATH="
+        set "EXP_PATH="
+        set "ISAAC_PATH="
+        """
+    )
+
+    activate_hook.write_text(activate_content, encoding="utf-8")
+    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
+
+    print_debug(f"Created cmd activation hook: {activate_hook}")
+    print_debug(f"Created cmd deactivation hook: {deactivate_hook}")
+
+
+def _create_conda_envhooks_powershell(conda_prefix: Path):
+    """Write Windows PowerShell conda activation/deactivation hooks."""
+    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
+    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
+    activate_d.mkdir(parents=True, exist_ok=True)
+    deactivate_d.mkdir(parents=True, exist_ok=True)
+
+    activate_hook = activate_d / "setenv.ps1"
+    deactivate_hook = deactivate_d / "unsetenv.ps1"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.ps1"
+
+    activate_content = textwrap.dedent(
+        f"""\
+        # for Isaac Lab
+        if (-not (Test-Path Env:_IL_PREV_PYTHONPATH)) {{
+            $Env:_IL_PREV_PYTHONPATH = $Env:PYTHONPATH
+        }}
+        if (-not (Test-Path Env:_IL_PREV_PATH)) {{
+            $Env:_IL_PREV_PATH = $Env:PATH
+        }}
+        $Env:ISAACLAB_PATH = "{ISAACLAB_ROOT}"
+        Set-Alias -Scope Global isaaclab "{ISAACLAB_ROOT / "isaaclab.bat"}" -Force
+
+        # show icon if not running headless
+        $Env:RESOURCE_NAME = "IsaacSim"
+
+        # for Isaac Sim
+        if (Test-Path "{isaacsim_setup_conda_env_script}") {{
+            . "{isaacsim_setup_conda_env_script}"
+        }}
+        """
+    )
+
+    deactivate_content = textwrap.dedent(
+        """\
+        # for Isaac Lab
+        Remove-Item Alias:isaaclab -ErrorAction SilentlyContinue
+        Remove-Item Env:ISAACLAB_PATH -ErrorAction SilentlyContinue
+
+        # restore paths
+        if (Test-Path Env:_IL_PREV_PYTHONPATH) {
+            $Env:PYTHONPATH = $Env:_IL_PREV_PYTHONPATH
+            Remove-Item Env:_IL_PREV_PYTHONPATH -ErrorAction SilentlyContinue
+        }
+        if (Test-Path Env:_IL_PREV_PATH) {
+            $Env:PATH = $Env:_IL_PREV_PATH
+            Remove-Item Env:_IL_PREV_PATH -ErrorAction SilentlyContinue
+        }
+
+        # for Isaac Sim
+        Remove-Item Env:RESOURCE_NAME -ErrorAction SilentlyContinue
+        Remove-Item Env:CARB_APP_PATH -ErrorAction SilentlyContinue
+        Remove-Item Env:EXP_PATH -ErrorAction SilentlyContinue
+        Remove-Item Env:ISAAC_PATH -ErrorAction SilentlyContinue
+        """
+    )
+
+    activate_hook.write_text(activate_content, encoding="utf-8")
+    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
+
+    print_debug(f"Created PowerShell activation hook: {activate_hook}")
+    print_debug(f"Created PowerShell deactivation hook: {deactivate_hook}")
+
+
+def _write_conda_env_hooks(conda_prefix: Path):
+    """Write conda activation/deactivation hooks for current platform shell(s)."""
+    if is_windows():
+        _create_conda_envhooks_cmdexe(conda_prefix)
+        _create_conda_envhooks_powershell(conda_prefix)
+    else:
+        _create_conda_envhooks_shell(conda_prefix)
 
 
 def command_setup_conda(env_name):
