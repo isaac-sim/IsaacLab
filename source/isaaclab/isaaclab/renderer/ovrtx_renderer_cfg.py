@@ -29,11 +29,3 @@ class OVRTXRendererCfg(RendererCfg):
     This provides faster, simpler rendering suitable for many vision-based tasks.
     Set to False to use full RTX path-traced rendering with LdrColor.
     """
-    
-    image_folder: str | None = None
-    """Optional output directory for saving rendered images.
-    
-    When set, all rendered images (RGB, depth, albedo, semantic segmentation) will be
-    saved to this directory. If None, no images will be saved to disk.
-    Default: None (no image saving).
-    """

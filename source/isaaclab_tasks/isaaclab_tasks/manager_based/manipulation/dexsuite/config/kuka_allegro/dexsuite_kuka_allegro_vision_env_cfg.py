@@ -38,7 +38,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_cfg=OVRTXRendererCfg(image_folder="/tmp/ovrtx"),
+        renderer_cfg=OVRTXRendererCfg(),
     )
 
     def __post_init__(self):
