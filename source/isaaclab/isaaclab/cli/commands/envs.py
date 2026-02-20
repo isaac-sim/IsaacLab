@@ -465,8 +465,8 @@ def command_setup_conda(env_name):
 
     # Check if the environment exists.
     conda_env = _sanitized_conda_env()
-    result = run_command(["conda", "env", "list"], capture_output=True, text=True, check=False, env=conda_env)
-    if env_name in result.stdout:
+    result = run_command(["conda", "env", "list", "--json"], capture_output=True, text=True, check=False, env=conda_env)
+    if '"' + env_name + '"' in result.stdout:
         print_info(f"Conda environment named '{env_name}' already exists.")
         env_exists = True
     else:
