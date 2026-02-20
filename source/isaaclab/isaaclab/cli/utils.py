@@ -147,45 +147,44 @@ def extract_python_exe(allow_isaacsim_python: bool = True):
 
     python_exe = None
 
-    # Try conda python.
-    conda_prefix = os.environ.get("CONDA_PREFIX")
-    if conda_prefix:
-        print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
-        # Use conda python.
-        if is_windows():
-            python_exe = Path(conda_prefix) / "python.exe"
-        else:
-            python_exe = Path(conda_prefix) / "bin" / "python"
-            if not python_exe.exists():
-                python_exe = Path(conda_prefix) / "bin" / "python3"
-    else:
-        print_debug("extract_python_exe(): No CONDA_PREFIX found.")
-
     # Try uv virtual environment python.
+    venv_prefix = os.environ.get("VIRTUAL_ENV")
+    if venv_prefix:
+        print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
+        if is_windows():
+            python_exe = Path(venv_prefix) / "Scripts" / "python.exe"
+        else:
+            python_exe = Path(venv_prefix) / "bin" / "python"
+            if not python_exe.exists():
+                python_exe = Path(venv_prefix) / "bin" / "python3"
+    else:
+        print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
+
+    # Try conda python.
     if not python_exe or not Path(python_exe).exists():
         if python_exe:
             print_debug(
-                f'extract_python_exe(): Conda python "{python_exe}" not found, '
-                "trying to find virtual environment python."
+                f'extract_python_exe(): Venv python "{python_exe}" does not exist, '
+                "trying to find conda python..."
             )
 
-        venv_prefix = os.environ.get("VIRTUAL_ENV")
-        if venv_prefix:
-            print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
+        conda_prefix = os.environ.get("CONDA_PREFIX")
+        if conda_prefix:
+            print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
             if is_windows():
-                python_exe = Path(venv_prefix) / "Scripts" / "python.exe"
+                python_exe = Path(conda_prefix) / "python.exe"
             else:
-                python_exe = Path(venv_prefix) / "bin" / "python"
+                python_exe = Path(conda_prefix) / "bin" / "python"
                 if not python_exe.exists():
-                    python_exe = Path(venv_prefix) / "bin" / "python3"
+                    python_exe = Path(conda_prefix) / "bin" / "python3"
         else:
-            print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
+            print_debug("extract_python_exe(): No CONDA_PREFIX found.")
 
     # Try kit python.
     if allow_isaacsim_python and (not python_exe or not Path(python_exe).exists()):
         if python_exe:
             print_debug(
-                f'extract_python_exe(): Virtual env python "{python_exe}" does not exist, trying to find Kit python...'
+                f'extract_python_exe(): Venv python "{python_exe}" does not exist, trying to find Kit python...'
             )
 
         if is_windows():
