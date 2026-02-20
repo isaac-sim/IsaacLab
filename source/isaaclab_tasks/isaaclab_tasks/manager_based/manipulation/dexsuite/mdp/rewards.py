@@ -54,11 +54,11 @@ def contacts(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor:
     index_contact_sensor: ContactSensor = env.scene.sensors["index_link_3_object_s"]
     middle_contact_sensor: ContactSensor = env.scene.sensors["middle_link_3_object_s"]
     ring_contact_sensor: ContactSensor = env.scene.sensors["ring_link_3_object_s"]
-    # check if contact force is above threshold
-    thumb_contact = thumb_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
-    index_contact = index_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
-    middle_contact = middle_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
-    ring_contact = ring_contact_sensor.data.force_matrix_w.view(env.num_envs, 3)
+    # check if contact force is above threshold (contact sensor returns Warp arrays: convert and sum to (N, 3))
+    thumb_contact = wp.to_torch(thumb_contact_sensor.data.force_matrix_w).sum(dim=(1, 2))
+    index_contact = wp.to_torch(index_contact_sensor.data.force_matrix_w).sum(dim=(1, 2))
+    middle_contact = wp.to_torch(middle_contact_sensor.data.force_matrix_w).sum(dim=(1, 2))
+    ring_contact = wp.to_torch(ring_contact_sensor.data.force_matrix_w).sum(dim=(1, 2))
 
     thumb_contact_mag = torch.norm(thumb_contact, dim=-1)
     index_contact_mag = torch.norm(index_contact, dim=-1)
