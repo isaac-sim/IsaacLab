@@ -13,14 +13,16 @@ env.scene then picks resolution/renderer/camera type for that task.
 
 Scene variant convention (local / self-learning use):
 
-  env.scene = "<width>x<height><renderer_tag>_<camera_tag>"
+  Neutral key + override (pass env.scene=... before the override):
+    env.scene = "<width>x<height><camera_tag>"   e.g. 64x64rgb, 64x64depth
+    env.scene.base_camera.renderer_type = rtx | warp_renderer
+    Default renderer for neutral keys is rtx. train.py sorts CLI so env.scene= comes first.
 
-  - width, height: resolution (e.g. 64, 128, 256).
-  - renderer_tag: "rtx" → RTX rendering, "warp" → Warp rendering (TiledCameraCfg used for both).
-  - camera_tag: "rgb" | "depth" | "albedo" (maps to rgb, distance_to_image_plane, diffuse_albedo).
-
-  Examples: 64x64rtx_rgb, 128x128warp_depth. For tests without Isaac Sim, use
-  scene_variant_keys.parse_scene_key() and scene_variant_keys.get_scene_variant_keys().
+  Workflow: You do not need to wire renderer_type inside the config classes. Hydra merges
+  env.scene.base_camera.renderer_type=... into the composed config; train.py then calls
+  env_cfg.from_dict(hydra_env_cfg["env"]), which recursively updates env_cfg (including
+  env_cfg.scene.base_camera.renderer_type) from that merged dict. So the value reaches
+  TiledCameraCfg without any extra logic in KukaAllegroSingleTiledCameraSceneCfg.
 """
 
 from dataclasses import MISSING
@@ -165,12 +167,29 @@ def _build_scene_variants(scene_cls: type) -> dict:
     return out
 
 
+def _build_neutral_scene_variants(scene_cls: type) -> dict:
+    """Build neutral scene variants: key = <width>x<height><camera_tag> (e.g. 64x64rgb, 64x64depth).
+
+    Renderer defaults to rtx; override with env.scene.base_camera.renderer_type=rtx|warp_renderer.
+    Pass env.scene=... before env.scene.base_camera.renderer_type=... on the CLI.
+    """
+    out = {}
+    for key in _svk.get_neutral_scene_variant_keys():
+        parsed = _svk.parse_neutral_scene_key(key)
+        if parsed is None:
+            continue
+        out[key] = _scene_cfg_from_parsed(parsed, scene_cls, sa)
+    return out
+
+
 # Re-export for callers that import from this module (e.g. tests using full env)
 parse_scene_key = _svk.parse_scene_key
 
 
 single_camera_variants = _build_scene_variants(KukaAllegroSingleTiledCameraSceneCfg)
+single_camera_variants.update(_build_neutral_scene_variants(KukaAllegroSingleTiledCameraSceneCfg))
 duo_camera_variants = _build_scene_variants(KukaAllegroDuoTiledCameraSceneCfg)
+duo_camera_variants.update(_build_neutral_scene_variants(KukaAllegroDuoTiledCameraSceneCfg))
 
 
 @configclass

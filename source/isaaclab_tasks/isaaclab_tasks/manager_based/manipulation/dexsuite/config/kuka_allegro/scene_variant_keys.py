@@ -14,6 +14,8 @@ import re
 
 # Convention: <width>x<height><renderer_tag>_<camera_tag> (TiledCameraCfg used regardless; rtx/warp = backend)
 SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(rtx|warp)_(rgb|depth|albedo)$")
+# Neutral keys: <width>x<height><camera_tag> (renderer set via env.scene.base_camera.renderer_type=...)
+NEUTRAL_SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(rgb|depth|albedo)$")
 RENDERER_TAG_TO_TYPE = {"rtx": "rtx", "warp": "warp_renderer"}
 CAMERA_TAG_TO_TYPE = {"rgb": "rgb", "depth": "distance_to_image_plane", "albedo": "diffuse_albedo"}
 
@@ -26,6 +28,9 @@ RENDERER_CAMERA_COMBO = (
     ("warp", "rgb"),
     ("warp", "albedo"),
 )
+# For neutral keys: (camera_tag,) only; renderer_type is default "rtx", override via CLI
+NEUTRAL_CAMERA_COMBO = ("rgb", "depth", "albedo")
+DEFAULT_NEUTRAL_RENDERER_TYPE = "rtx"
 
 
 def parse_scene_key(scene_key: str) -> dict | None:
@@ -49,10 +54,40 @@ def parse_scene_key(scene_key: str) -> dict | None:
     }
 
 
+def parse_neutral_scene_key(scene_key: str) -> dict | None:
+    """Parse neutral env.scene value (no renderer in key): <width>x<height><camera_tag>.
+
+    E.g. 64x64rgb, 64x64depth -> width, height, camera_type; renderer_type defaults to rtx
+    and can be overridden with env.scene.base_camera.renderer_type=rtx|warp_renderer.
+
+    Returns:
+        Dict with keys width, height, renderer_type (default), camera_type, or None if invalid.
+    """
+    m = NEUTRAL_SCENE_KEY_PATTERN.match(scene_key.strip())
+    if not m:
+        return None
+    w, h, camera_tag = m.groups()
+    return {
+        "width": int(w),
+        "height": int(h),
+        "renderer_type": DEFAULT_NEUTRAL_RENDERER_TYPE,
+        "camera_type": CAMERA_TAG_TO_TYPE[camera_tag],
+    }
+
+
 def get_scene_variant_keys() -> set:
     """Return the set of all variant keys (same as single_camera_variants keys)."""
     out = set()
     for (w, h) in RESOLUTIONS:
         for renderer_tag, camera_tag in RENDERER_CAMERA_COMBO:
             out.add(f"{w}x{h}{renderer_tag}_{camera_tag}")
+    return out
+
+
+def get_neutral_scene_variant_keys() -> set:
+    """Return the set of neutral variant keys (64x64rgb, 64x64depth, etc.)."""
+    out = set()
+    for (w, h) in RESOLUTIONS:
+        for camera_tag in NEUTRAL_CAMERA_COMBO:
+            out.add(f"{w}x{h}{camera_tag}")
     return out

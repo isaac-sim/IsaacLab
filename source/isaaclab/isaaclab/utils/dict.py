@@ -145,8 +145,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 # update function name
                 value = string_to_callable(value)
 
-            # -- 4) simple scalar / explicit None ---------------------
-            elif value is None or isinstance(value, type(obj_mem)):
+            # -- 4) simple scalar / explicit None / filling optional (obj_mem is None) ----
+            elif value is None or obj_mem is None or isinstance(value, type(obj_mem)):
                 pass
 
             # -- 5) type mismatch → abort -----------------------------

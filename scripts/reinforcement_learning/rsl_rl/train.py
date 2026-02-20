@@ -49,9 +49,15 @@ args_cli, hydra_args = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# env.scene= is passed via hydra_args (e.g. env.scene=64x64rtx_rgb or env.scene=64x64warp_rgb);
-# the chosen variant dictates the renderer (rtx -> RTX, warp -> Warp).
-sys.argv = [sys.argv[0]] + hydra_args
+# env.scene= and optional env.scene.base_camera.renderer_type= are passed via hydra_args.
+# Ensure env.scene=... is applied before nested overrides (e.g. env.scene.base_camera.renderer_type=...)
+# so that the scene variant is selected first, then the renderer override is merged.
+def _hydra_arg_priority(arg: str) -> tuple[int, str]:
+    key = arg.split("=", 1)[0].strip()
+    return (0 if key == "env.scene" else 1, arg)
+
+hydra_args_sorted = sorted(hydra_args, key=_hydra_arg_priority)
+sys.argv = [sys.argv[0]] + hydra_args_sorted
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)

@@ -176,7 +176,9 @@ def resolve_hydra_group_runtime_override(
         for key, choice in choices.items():
             node = var[key][choice]
             setattr_nested(cfg, key, node)
-            setattr_nested(hydra_cfg[sec], key, node.to_dict() if hasattr(node, "to_dict") else node)
+            # Do not overwrite hydra_cfg[sec][key]: Hydra already composed the variant with
+            # overrides (e.g. env.scene.base_camera.renderer_type=warp_renderer). Keeping the
+            # composed value ensures from_dict() later applies those overrides to the config object.
         delattr_nested(cfg, vrnt)
         delattr_nested(hydra_cfg, f"{sec}.variants")
 
