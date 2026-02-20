@@ -35,7 +35,7 @@ def command_new(new_args):
 
     print_info("Installing template dependencies...")
     reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-    run_python_command("-m", ["pip", "install", "-q", "-r", str(reqs)])
+    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True)
 
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
