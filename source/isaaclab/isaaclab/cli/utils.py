@@ -31,7 +31,7 @@ def is_windows():
 
 def is_arm():
     """Check if the architecture is ARM (likely Mac)."""
-    machine = platform.system().lower()
+    machine = platform.machine().lower()
     return "aarch64" in machine or "arm64" in machine
 
 
