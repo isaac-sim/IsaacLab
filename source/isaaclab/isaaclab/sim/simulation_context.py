@@ -155,6 +155,8 @@ class SimulationContext:
 
     def _apply_render_cfg_settings(self) -> None:
         """Apply render preset and overrides from SimulationCfg.render."""
+        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
+        # (name subject to change) to keep quality profiles and carb mappings centralized.
         render_cfg = getattr(self.cfg, "render", None)
         if render_cfg is None:
             return
@@ -357,13 +359,7 @@ class SimulationContext:
 
         cli_requested = self._get_cli_visualizer_types()
         if not visualizer_cfgs:
-            if cli_requested:
-                return self._create_default_visualizer_configs(cli_requested)
-            # Backwards compatibility: when rendering is enabled and no explicit visualizer
-            # is configured, use the default Kit visualizer.
-            if self.is_rendering:
-                return [KitVisualizerCfg()]
-            return []
+            return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
 
         if not cli_requested:
             return visualizer_cfgs

@@ -220,12 +220,14 @@ class RerunVisualizer(Visualizer):
         self._rerun_address = f"rerun+http://127.0.0.1:{self.cfg.grpc_port}/proxy"
 
     def _create_viewer(self, record_to_rrd: str | None, metadata: dict | None = None, reset_time: bool = True) -> None:
+        # For file recordings, force historical timelines so playback in the RRD works as expected.
+        keep_historical_data = self.cfg.keep_historical_data or (record_to_rrd is not None)
         self._viewer = NewtonViewerRerun(
             app_id=self.cfg.app_id,
             address=self._rerun_address,
             web_port=self.cfg.web_port,
             grpc_port=self.cfg.grpc_port,
-            keep_historical_data=self.cfg.keep_historical_data,
+            keep_historical_data=keep_historical_data,
             keep_scalar_history=self.cfg.keep_scalar_history,
             record_to_rrd=record_to_rrd,
             metadata=metadata or {},
@@ -244,11 +246,7 @@ class RerunVisualizer(Visualizer):
         if finalize_rrd and finalized_path:
             if os.path.exists(finalized_path):
                 size = os.path.getsize(finalized_path)
-                logger.info(
-                    "[RerunVisualizer] Recording saved: %s (%s bytes)",
-                    finalized_path,
-                    size,
-                )
+                logger.info("[RerunVisualizer] Recording saved: %s (%s bytes)", finalized_path, size)
             else:
                 logger.warning("[RerunVisualizer] Recording file not found: %s", finalized_path)
         self._viewer = None
@@ -309,11 +307,6 @@ class RerunVisualizer(Visualizer):
         self._recreate_viewer_with_recording(str(next_path))
         self._active_recording_start_iteration = self._training_iteration
         self._active_recording_start_sim_time_s = self._sim_time
-        logger.info(
-            "[RerunVisualizer] Recording window started at iteration %s -> %s",
-            self._active_recording_start_iteration,
-            self._active_record_path,
-        )
 
     def _maybe_stop_periodic_recording_window(self) -> None:
         if not self._is_periodic_recording_enabled() or self._active_record_path is None:
@@ -328,12 +321,10 @@ class RerunVisualizer(Visualizer):
         if self._sim_time - self._active_recording_start_sim_time_s < float(window_len_s):
             return
 
-        finished_path = self._active_record_path
         self._recreate_viewer_with_recording(None)
         self._active_recording_start_iteration = None
         self._active_recording_start_sim_time_s = None
         self._enforce_recording_retention()
-        logger.info("[RerunVisualizer] Recording window finished: %s", finished_path)
 
     def _recreate_viewer_with_recording(self, record_to_rrd: str | None) -> None:
         previous_record_path = self._active_record_path
