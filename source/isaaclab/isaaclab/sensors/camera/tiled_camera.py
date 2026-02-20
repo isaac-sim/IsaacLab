@@ -206,6 +206,8 @@ class TiledCamera(Camera):
         for data_type, output_buffer in self._renderer.get_output().items():
             self._data.output[data_type] = wp.to_torch(output_buffer)
 
+        self._save_rendered_data()
+
     """
     Private Helpers
     """

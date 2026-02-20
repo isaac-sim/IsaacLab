@@ -16,6 +16,7 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.array import TensorData, convert_to_torch
+from isaaclab.utils.rendered_data import save_rendered_data  # noqa: F401
 
 """
 Depth <-> Pointcloud conversions.
