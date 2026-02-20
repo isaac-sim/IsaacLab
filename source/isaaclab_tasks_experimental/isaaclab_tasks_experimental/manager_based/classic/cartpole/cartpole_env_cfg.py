@@ -5,7 +5,6 @@
 
 import math
 
-import isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp as mdp
 from isaaclab_experimental.managers import ObservationTermCfg as ObsTerm
 from isaaclab_experimental.managers import RewardTermCfg as RewTerm
 from isaaclab_experimental.managers import SceneEntityCfg
@@ -21,6 +20,8 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
 from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
+
+import isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp as mdp
 
 ##
 # Pre-defined configs
@@ -160,14 +161,6 @@ class TerminationsCfg:
 @configclass
 class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
-
-    sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                nconmax=5,
-            ),
-        )
-    )
 
     # Scene settings
     scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, clone_in_fabric=True)

@@ -74,7 +74,7 @@ def _resample_time_left_and_increment_counter(
     if mask[env_id]:
         s = rng_state[env_id]
         time_left[env_id] = wp.randf(s, lower, upper)
-        rng_state[env_id] = s + wp.uint32(1)
+        rng_state[env_id] = s
         counter[env_id] = counter[env_id] + 1
 
 
