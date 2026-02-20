@@ -13,8 +13,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import NewtonManager
 from isaaclab.utils.math import normalize, quat_from_angle_axis
 
 from ..sensor_base import SensorBase
@@ -284,7 +283,7 @@ class FrameTransformer(SensorBase):
         source_frame_prim_path = self.cfg.prim_path
         frame_found = False
         body_name = source_frame_prim_path.rsplit("/", 1)[-1]
-        for view_id, view in enumerate(NewtonManager.get_views()):
+        for view_id, view in enumerate(NewtonManager.get_physics_sim_view()):
             for body_id, view_body_name in enumerate(view.body_names):
                 if body_name == view_body_name:
                     self._warp_source_body_id = body_id
@@ -347,7 +346,7 @@ class FrameTransformer(SensorBase):
             frame_found = False
             # Go through all the views to find the requested bodies
             body_name = prim_path.rsplit("/", 1)[-1]
-            for view_id, view in enumerate(NewtonManager.get_views()):
+            for view_id, view in enumerate(NewtonManager.get_physics_sim_view()):
                 # Get the body names from the view
                 view_body_names = view.body_names
                 for body_id, view_body_name in enumerate(view_body_names):
@@ -436,7 +435,7 @@ class FrameTransformer(SensorBase):
         # Bind with Newton:
         self._warp_views = {}
         for key in self._warp_view_body_id:
-            view = NewtonManager._views[key].get_link_transforms(NewtonManager.get_state_0())[:, 0]
+            view = NewtonManager.get_physics_sim_view()[key].get_link_transforms(NewtonManager.get_state_0())[:, 0]
             if len(view.shape) == 1:
                 view = view.reshape((-1, 1))
             self._warp_views[key] = view

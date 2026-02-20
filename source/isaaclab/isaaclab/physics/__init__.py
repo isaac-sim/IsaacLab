@@ -8,13 +8,14 @@
 # from .physx_manager import PhysxManager, IsaacEvents
 # from .physx_manager_cfg import PhysxManagerCfg
 from .newton_manager import NewtonManager
-from .newton_manager_cfg import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg, XPBOSolverCfg
+from .newton_manager_cfg import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg, XPBDSolverCfg
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
 from .physics_manager_cfg import PhysicsCfg
 
 __all__ = [
     "PhysicsManager",
     "PhysicsEvent",
+    "PhysicsCfg",
     "CallbackHandle",
     "PhysicsManagerCfg",
     # "PhysxManager",
@@ -25,6 +26,6 @@ __all__ = [
     "NewtonCfg",
     "NewtonSolverCfg",
     "MJWarpSolverCfg",
-    "XPBOSolverCfg",
+    "XPBDSolverCfg",
     "FeatherstoneSolverCfg",
 ]

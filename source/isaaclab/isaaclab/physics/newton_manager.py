@@ -87,6 +87,9 @@ class NewtonManager(PhysicsManager):
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
+    # Views list for assets to register their views
+    _views: list = []
+
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the manager with simulation context.
@@ -157,8 +160,16 @@ class NewtonManager(PhysicsManager):
         super().close()
 
     @classmethod
-    def get_physics_sim_view(cls):
-        """Get the physics simulation view (not applicable for Newton)."""
+    def get_physics_sim_view(cls) -> list:
+        """Get the list of registered views.
+
+        Assets can append their views to this list, and sensors can access them.
+        Returns a list that callers can append to.
+
+        Returns:
+            List of registered views (e.g., NewtonArticulationView instances).
+        """
+        return cls._views
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -185,6 +196,7 @@ class NewtonManager(PhysicsManager):
         cls._usdrt_stage = None
         cls._up_axis = "Z"
         cls._model_changes = set()
+        cls._views = []
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:

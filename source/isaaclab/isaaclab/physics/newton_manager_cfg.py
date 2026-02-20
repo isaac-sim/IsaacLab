@@ -63,7 +63,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Solver type. Can be "cg" or "newton", or their corresponding MuJoCo integer constants."""
 
     integrator: str = "euler"
-    """Integrator type. Can be "euler", "rk4", or "implicit", or their corresponding MuJoCo integer constants."""
+    """Integrator type. Can be "euler", "rk4", or "implicitfast", or their corresponding MuJoCo integer constants."""
 
     use_mujoco_cpu: bool = False
     """Whether to use the pure MuJoCo backend instead of `mujoco_warp`."""
