@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -35,8 +35,8 @@ class RendererCfg:
     num_cameras: int = 1
     """Number of cameras to use for rendering. Defaults to 1."""
 
-    data_types: list[str] = MISSING
-    """List of data types to use for rendering."""
+    data_types: list[str] = field(default_factory=list)
+    """List of data types to use for rendering. Overridden by the camera at runtime when used with TiledCameraCfg."""
 
     def get_renderer_type(self) -> str:
         """Get the type identifier of the renderer."""
@@ -66,9 +66,4 @@ class RendererCfg:
         """Create a renderer instance from this config."""
         from . import get_renderer_class
 
-        renderer_class = get_renderer_class(self.renderer_type)
-
-        if renderer_class is None:
-            raise ValueError(f"Renderer type '{self.renderer_type}' is not registered.")
-
-        return renderer_class(self)
+        return get_renderer_class(self)(self)

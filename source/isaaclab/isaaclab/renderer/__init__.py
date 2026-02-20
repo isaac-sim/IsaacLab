@@ -45,8 +45,8 @@ if TYPE_CHECKING:
 
     # from .kit_app_renderer import KitAppRenderer
 
-# Global registry for renderer types (lazy-loaded)
-_RENDERER_REGISTRY: dict[str, Any] = {}
+# Cache renderer class by config class (lazy-loaded)
+_RENDERER_REGISTRY: dict[type[RendererCfg], type[RendererBase]] = {}
 
 __all__ = [
     "RendererBase",
@@ -59,41 +59,27 @@ __all__ = [
 ]
 
 
-# Register only selected renderers to reduce unnecessary imports
-def get_renderer_class(name: str) -> type[RendererBase] | None:
-    """Get a renderer class by name (lazy-loaded).
-    Renderer classes are imported only when requested to avoid loading
-    unnecessary dependencies.
-    Args:
-        name: Renderer type name (e.g., 'newton_warp', 'ov_rtx', 'kit_app').
-    Returns:
-        Renderer class if found, None otherwise.
-    Example:
-        >>> renderer_cls = get_renderer_class('newton_warp')
-        >>> if renderer_cls:
-        >>>     renderer = renderer_cls(cfg)
+def get_renderer_class(cfg: RendererCfg) -> type[RendererBase]:
+    """Get the renderer class for the given config instance (lazy-loaded).
+
+    Dispatch is by config type (isinstance); no string lookup. Each config class
+    (e.g. OVRTXRendererCfg, NewtonWarpRendererCfg) maps to its renderer implementation.
+
+    Raises:
+        ValueError: If the config type is not registered.
+        ImportError: If the renderer module fails to load.
     """
-    # Check if already loaded
-    if name in _RENDERER_REGISTRY:
-        return _RENDERER_REGISTRY[name]
+    cfg_type = type(cfg)
+    if cfg_type in _RENDERER_REGISTRY:
+        return _RENDERER_REGISTRY[cfg_type]
+    if isinstance(cfg, NewtonWarpRendererCfg):
+        from .newton_warp_renderer import NewtonWarpRenderer
 
-    # Lazy-load visualizer on first access
-    try:
-        if name == "newton_warp":
-            from .newton_warp_renderer import NewtonWarpRenderer
+        _RENDERER_REGISTRY[NewtonWarpRendererCfg] = NewtonWarpRenderer
+        return NewtonWarpRenderer
+    if isinstance(cfg, OVRTXRendererCfg):
+        from .ovrtx_renderer import OVRTXRenderer
 
-            _RENDERER_REGISTRY["newton_warp"] = NewtonWarpRenderer
-            return NewtonWarpRenderer
-        elif name == "ov_rtx":
-            from .ovrtx_renderer import OVRTXRenderer
-
-            _RENDERER_REGISTRY["ov_rtx"] = OVRTXRenderer
-            return OVRTXRenderer
-        else:
-            return None
-    except ImportError as e:
-        # Log import error but don't crash - renderer just won't be available
-        import warnings
-
-        warnings.warn(f"Failed to load renderer '{name}': {e}", ImportWarning)
-        return None
+        _RENDERER_REGISTRY[OVRTXRendererCfg] = OVRTXRenderer
+        return OVRTXRenderer
+    raise ValueError(f"No renderer registered for config type '{cfg_type.__name__}'.")

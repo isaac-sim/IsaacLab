@@ -188,36 +188,28 @@ class OVRTXRenderer(RendererBase):
             traceback.print_exc()
 
 
-    def initialize(
-        self,
-        usd_scene_path: str | None = None,
-        stage=None,
-        camera_prim_name: str = "Camera",
-    ):
+    def initialize(self, stage=None, camera_prim_path=None):
         """Initialize the OVRTX renderer with optional environment cloning.
-        
+
         Two initialization modes based on use_ovrtx_cloning flag:
-        
+
         Mode 1: OVRTX Internal Cloning (use_ovrtx_cloning=True, default):
         1. Load USD file containing only base environment (env_0)
         2. Use OvRTX clone_usd() to replicate environments (fast: O(1) or O(log N))
         3. ~10-100x faster initialization for 50+ environments
-        
+
         Mode 2: Fully Cloned USD (use_ovrtx_cloning=False):
         1. Load USD file containing all N environments (fully cloned)
         2. No internal cloning needed
         3. Slower but may be useful for debugging or special rendering requirements
-        
+
         Args:
-            usd_scene_path: Optional path to USD scene to load. If stage is also
-                provided, this is ignored and the stage is prepared and exported first.
-            stage: Optional USD stage. If provided, scene partition attributes are set,
-                the stage is exported (with envs deactivated for cloning if applicable),
-                and that path is used for loading. Caller may need to refresh views
-                after initialize() when use_ovrtx_cloning is True (stage is reactivated).
-            camera_prim_name: Name of the camera prim under each env (e.g. "Camera").
-                Used only when stage is provided.
+            stage: Optional USD stage. If provided, prepared and exported for OVRTX.
+            camera_prim_path: Full path pattern for the camera (e.g. "/World/envs/env_.*/Camera").
+                The camera name under each env is derived from the last path segment.
         """
+        camera_prim_name = (camera_prim_path or "").strip().split("/")[-1] or "Camera"
+        usd_scene_path = None
         # If stage provided, prepare and export it (partition attributes + optional deactivate for cloning)
         if stage is not None:
             print(f"[OVRTX] Preparing stage for export ({self._num_envs} envs, camera_prim={camera_prim_name!r})...")
@@ -313,7 +305,7 @@ class OVRTXRenderer(RendererBase):
             self._setup_object_bindings()
         else:
             pass  # No USD scene: cameras as root layer not implemented
-    
+
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics.
         

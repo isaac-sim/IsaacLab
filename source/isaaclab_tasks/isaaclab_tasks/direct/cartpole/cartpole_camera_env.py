@@ -16,6 +16,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
+from isaaclab.renderer import NewtonWarpRendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from isaaclab.sim import SimulationCfg
@@ -49,7 +50,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         ),
         width=100,
         height=100,
-        renderer_type="newton_warp",
+        renderer_cfg=NewtonWarpRendererCfg(),
     )
     write_image_to_file = False
 
@@ -89,7 +90,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
         ),
         width=100,
         height=100,
-        renderer_type="newton_warp",
+        renderer_cfg=NewtonWarpRendererCfg(),
     )
 
     # spaces
