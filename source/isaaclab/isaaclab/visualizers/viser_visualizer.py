@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from newton.viewer import ViewerViser
@@ -20,6 +21,28 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.sim.scene_data_providers import SceneDataProvider
+
+
+def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
+    """Skip viser's runtime frontend rebuild when a bundled build is present.
+
+    Newer viser versions may try to rebuild the client if source timestamps are newer
+    than the packaged build directory, which requires ``nodeenv`` at runtime.
+    For Isaac Lab usage, we prefer the prebuilt static assets shipped with the package.
+    """
+
+    try:
+        import viser
+        import viser._client_autobuild as client_autobuild
+    except Exception:
+        return
+
+    client_root = Path(viser.__file__).resolve().parent / "client"
+    has_bundled_build = (client_root / "build" / "index.html").exists()
+    if not has_bundled_build:
+        return
+
+    client_autobuild.ensure_client_is_built = lambda: None
 
 
 class NewtonViewerViser(ViewerViser):
@@ -34,6 +57,7 @@ class NewtonViewerViser(ViewerViser):
         record_to_viser: str | None = None,
         metadata: dict | None = None,
     ):
+        _disable_viser_runtime_client_rebuild_if_bundled()
         super().__init__(
             port=port,
             label=label,
@@ -51,7 +75,7 @@ class ViserVisualizer(Visualizer):
         super().__init__(cfg)
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
-        self._model = None
+        self._model: Any | None = None
         self._state = None
         self._is_initialized = False
         self._sim_time = 0.0
@@ -138,6 +162,9 @@ class ViserVisualizer(Visualizer):
         return False
 
     def _create_viewer(self, record_to_viser: str | None, metadata: dict | None = None) -> None:
+        if self._model is None:
+            raise RuntimeError("Viser visualizer requires a Newton model.")
+
         self._viewer = NewtonViewerViser(
             port=self.cfg.port,
             label=self.cfg.label,
