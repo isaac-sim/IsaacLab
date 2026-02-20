@@ -9,6 +9,7 @@ from isaaclab_experimental.managers import ObservationTermCfg as ObsTerm
 from isaaclab_experimental.managers import RewardTermCfg as RewTerm
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers import TerminationTermCfg as DoneTerm
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -17,8 +18,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp as mdp
@@ -173,7 +172,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=5,
                 nconmax=3,
@@ -181,7 +180,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
                 cone="pyramidal",
                 impratio=1,
                 ls_parallel=True,
-                integrator="implicit",
+                integrator="implicitfast",
             ),
             num_substeps=1,
             debug_mode=False,

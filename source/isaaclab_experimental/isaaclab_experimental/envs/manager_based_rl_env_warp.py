@@ -244,7 +244,9 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
+            "/isaaclab/render/rtx_sensors"
+        )
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -361,7 +363,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 self._reset_idx(env_ids=reset_env_ids, env_mask=self.reset_mask_wp)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -451,19 +453,20 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.has_rtx_sensors() and not recompute:
+        if not self.sim.settings.get("/isaaclab/render/rtx_sensors") and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+            if not (has_gui or offscreen_render):
                 raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
-                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
-                    " If running headless, make sure --enable_cameras is set."
+                    f"Cannot render '{self.render_mode}' when the simulation render mode does not support"
+                    " rendering. Please set the simulation render mode to 'PARTIAL_RENDERING' or"
+                    " 'FULL_RENDERING'. If running headless, make sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):
@@ -585,7 +588,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self._manager_call_switch.call_stage(
                 stage="Scene_reset",
                 stable_calls=[{"fn": self.scene.reset, "args": (env_ids,)}],
-                warp_calls=[{"fn": self.scene.reset, "kwargs": {"mask": env_mask}}],
+                warp_calls=[{"fn": self.scene.reset, "kwargs": {"env_mask": env_mask}}],
             )
 
         if "reset" in self.event_manager.available_modes:
