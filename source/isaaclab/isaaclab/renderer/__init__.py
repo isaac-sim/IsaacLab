@@ -20,8 +20,6 @@ and configs can create renderers via the `create_renderer()` factory method.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
 # Import config classes (no circular dependency)
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
@@ -36,15 +34,6 @@ from .renderer_cfg import RendererCfg
 
 # from .kit_app_renderer_cfg import KitAppRendererCfg
 
-
-if TYPE_CHECKING:
-    from typing import Type
-
-    from .newton_warp_renderer import NewtonWarpRenderer
-    from .ovrtx_renderer import OVRTXRenderer
-
-    # from .kit_app_renderer import KitAppRenderer
-
 # Cache renderer class by config class (lazy-loaded)
 _RENDERER_REGISTRY: dict[type[RendererCfg], type[RendererBase]] = {}
 
@@ -52,9 +41,8 @@ __all__ = [
     "RendererBase",
     "RendererCfg",
     "NewtonWarpRendererCfg",
-    "NewtonWarpRenderer",
     "OVRTXRendererCfg",
-    "OVRTXRenderer",
+    "KitAppRendererCfg",
     "get_renderer_class",
 ]
 
