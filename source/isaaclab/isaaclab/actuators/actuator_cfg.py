@@ -162,6 +162,19 @@ class ActuatorBaseCfg:
     """The viscous friction coefficient of the joints in the group. Defaults to None.
     """
 
+    gravity_compensation: bool | None = None
+    """Whether to enable MuJoCo actuator gravity compensation for the joints in this group. Defaults to None.
+
+    When ``True``, writes the ``mjc:actuatorgravcomp`` USD attribute (boolean) on matching joint prims
+    before Newton builds its model. The Newton/MuJoCo solver routes gravity compensation forces
+    through the actuator force path (``qfrc_actuator``) rather than passive forces (``qfrc_passive``)
+    for those joints.
+
+    Note:
+        This requires bodies linked to those joints to also have gravity compensation enabled
+        (e.g., via ``RigidBodyPropertiesCfg.disable_gravity=True``) and for Newton's MjSpec
+        builder to set ``ngravcomp > 0`` at compile time.
+    """
 
 """
 Implicit Actuator Models.

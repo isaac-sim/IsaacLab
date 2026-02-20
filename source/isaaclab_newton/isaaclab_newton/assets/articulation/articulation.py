@@ -132,6 +132,39 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        self._write_actuator_gravity_comp_to_usd()
+
+    def _write_actuator_gravity_comp_to_usd(self) -> None:
+        """Write ``mjc:actuatorgravcomp = True`` to joint USD prims for actuators with gravity_compensation=True.
+
+        Must be called after spawning (joint prims exist) but before ``sim.reset()``
+        so Newton reads the attribute during ``instantiate_builder_from_stage()``.
+        """
+        import re
+
+        gc_actuators = {
+            name: cfg
+            for name, cfg in self.cfg.actuators.items()
+            if getattr(cfg, "gravity_compensation", None)
+        }
+        if not gc_actuators:
+            return
+
+        _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint", "PhysicsSphericalJoint", "PhysicsD6Joint"}
+
+        for artic_prim_path in sim_utils.find_matching_prims(self.cfg.prim_path):
+            joint_prims = sim_utils.get_all_matching_child_prims(
+                artic_prim_path,
+                predicate=lambda prim: prim.GetTypeName() in _JOINT_TYPES,
+            )
+            for joint_prim in joint_prims:
+                joint_name = joint_prim.GetName()
+                for actuator_cfg in gc_actuators.values():
+                    if any(re.fullmatch(expr, joint_name) for expr in actuator_cfg.joint_names_expr):
+                        sim_utils.safe_set_attribute_on_usd_prim(
+                            joint_prim, "mjc:actuatorgravcomp", True, camel_case=False
+                        )
+                        break
 
     """
     Properties
