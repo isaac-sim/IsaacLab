@@ -28,7 +28,7 @@ INSTALL_REQUIRES = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict==4.0.1",
+    "flatdict==4.0.0",
     # newton
     "mujoco>=3.5.0",
     "mujoco-warp>=3.5.0",
