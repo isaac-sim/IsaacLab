@@ -173,7 +173,8 @@ class ViserVisualizer(Visualizer):
             record_to_viser=record_to_viser,
             metadata=metadata or {},
         )
-        self._viewer.set_model(self._model)
+        max_worlds = self.cfg.max_worlds
+        self._viewer.set_model(self._model, max_worlds=None if max_worlds in (None, 0) else max_worlds)
         self._set_viser_camera_view(self._resolve_initial_camera_pose())
         self._sim_time = 0.0
 
