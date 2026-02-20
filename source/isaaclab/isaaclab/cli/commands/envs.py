@@ -269,6 +269,97 @@ def _write_conda_env_hooks(conda_prefix: Path):
         _create_conda_envhooks_shell(conda_prefix)
 
 
+def _append_hook_if_missing(script_path: Path, marker: str, hook_content: str):
+    """Append hook content to a script once, guarded by a marker."""
+    if not script_path.exists():
+        print_warning(f"Activation script not found, skipping hook injection: {script_path}")
+        return
+
+    content = script_path.read_text(encoding="utf-8")
+    if marker in content:
+        print_debug(f"Hook already present in: {script_path}")
+        return
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+    content += hook_content
+    script_path.write_text(content, encoding="utf-8")
+    print_debug(f"Injected hook into: {script_path}")
+
+
+def _create_uv_envhooks_shell(env_path: Path):
+    """Inject Bash activation hook for uv environments."""
+    activate_script = env_path / "bin" / "activate"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh"
+
+    hook_content = textwrap.dedent(
+        f"""\
+        # >>> Isaac Lab hook >>>
+        export ISAACLAB_PATH="{ISAACLAB_ROOT}"
+        alias isaaclab="{ISAACLAB_ROOT / "isaaclab.sh"}"
+        export RESOURCE_NAME="IsaacSim"
+
+        if [ -f "{isaacsim_setup_conda_env_script}" ]; then
+            . "{isaacsim_setup_conda_env_script}"
+        fi
+        # <<< Isaac Lab hook <<<
+        """
+    )
+
+    _append_hook_if_missing(activate_script, "# >>> Isaac Lab hook >>>", hook_content)
+
+
+def _create_uv_envhooks_cmdexe(env_path: Path):
+    """Inject cmd.exe activation hook for uv environments."""
+    activate_script = env_path / "Scripts" / "activate.bat"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.bat"
+
+    hook_content = textwrap.dedent(
+        f"""\
+        REM >>> Isaac Lab hook >>>
+        set "ISAACLAB_PATH={ISAACLAB_ROOT}"
+        doskey isaaclab={ISAACLAB_ROOT / "isaaclab.bat"} $*
+        set "RESOURCE_NAME=IsaacSim"
+
+        if exist "{isaacsim_setup_conda_env_script}" call "{isaacsim_setup_conda_env_script}"
+        REM <<< Isaac Lab hook <<<
+        """
+    )
+
+    _append_hook_if_missing(activate_script, "REM >>> Isaac Lab hook >>>", hook_content)
+
+
+def _create_uv_envhooks_powershell(env_path: Path):
+    """Inject PowerShell activation hook for uv environments."""
+    activate_script = env_path / "Scripts" / "Activate.ps1"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.ps1"
+
+    hook_content = textwrap.dedent(
+        f"""\
+        # >>> Isaac Lab hook >>>
+        $Env:ISAACLAB_PATH = "{ISAACLAB_ROOT}"
+        Set-Alias -Scope Global isaaclab "{ISAACLAB_ROOT / "isaaclab.bat"}" -Force
+        $Env:RESOURCE_NAME = "IsaacSim"
+
+        if (Test-Path "{isaacsim_setup_conda_env_script}") {{
+            . "{isaacsim_setup_conda_env_script}"
+        }}
+        # <<< Isaac Lab hook <<<
+        """
+    )
+
+    _append_hook_if_missing(activate_script, "# >>> Isaac Lab hook >>>", hook_content)
+
+
+def _write_uv_env_hooks(env_path: Path):
+    """Write uv activation hooks for current platform shell(s)."""
+    if is_windows():
+        _create_uv_envhooks_cmdexe(env_path)
+        _create_uv_envhooks_powershell(env_path)
+    else:
+        _create_uv_envhooks_shell(env_path)
+
+
 def command_setup_conda(env_name):
     """Setup conda environment for Isaac Lab"""
 
@@ -401,19 +492,24 @@ def command_setup_uv(env_name):
     # Check if the environment exists.
     if not env_path.exists():
         print_info(f"Creating uv environment named '{env_name}'...")
-        run_command(["uv", "venv", "--clear", "--python", py_ver, str(env_path)])
+        run_command(["uv", "venv", "--clear", "--seed", "--python", py_ver, str(env_path)])
     else:
         print_info(f"uv environment '{env_name}' already exists.")
+
+    # Setup Isaac Lab and Isaac Sim environment variables through uv activation hooks.
+    _write_uv_env_hooks(env_path)
+
+    print_info("Added environment hooks to uv activation scripts.")
 
     print_info(f"Created uv environment named '{env_name}'.\n")
     if is_windows():
         print(f"\t\t1. To activate the environment, run:                {env_name}\\Scripts\\activate")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")
         print("\t\t3. To perform formatting, run:                      isaaclab.bat -f")
-        print(f"\t\t4. To deactivate the environment, run:              {env_name}\\Scripts\\deactivate")
+        print("\t\t4. To deactivate the environment, run:              deactivate")
     else:
-        print(f"\t\t1. To activate the environment, run:                {env_name}/Scripts/activate")
+        print(f"\t\t1. To activate the environment, run:                source {env_name}/bin/activate")
         print("\t\t2. To install Isaac Lab extensions, run:            ./isaaclab.sh -i")
         print("\t\t3. To perform formatting, run:                      ./isaaclab.sh -f")
-        print(f"\t\t4. To deactivate the environment, run:              {env_name}/Scripts/deactivate")
+        print("\t\t4. To deactivate the environment, run:              deactivate")
     print("\n")
