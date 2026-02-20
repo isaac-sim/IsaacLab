@@ -455,7 +455,7 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    disable_gravity=True,
+                    disable_gravity=False,
                     max_depenetration_velocity=5.0,
                     linear_damping=0.0,
                     angular_damping=0.0,
@@ -559,7 +559,7 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=UR10e_CFG.spawn.replace(
                 rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                    disable_gravity=True,
+                    disable_gravity=False,
                     max_depenetration_velocity=5.0,
                     linear_damping=0.0,
                     angular_damping=0.0,

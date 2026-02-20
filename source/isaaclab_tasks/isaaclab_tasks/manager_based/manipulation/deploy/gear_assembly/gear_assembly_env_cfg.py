@@ -116,7 +116,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.5), rot=(0.0, 0.0, 0.70711, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     factory_gear_large = RigidObjectCfg(
@@ -140,7 +140,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
             mass_props=sim_utils.MassPropertiesCfg(mass=None),
             collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.5), rot=(0.0, 0.0, 0.70711, 0.70711)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-1.0200, 0.2100, -0.1), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
 
     # robots
@@ -315,10 +315,11 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
             sdf_max_resolution=128,
             sdf_narrow_band_range=(-0.01, 0.01),
             sdf_contact_margin=0.01,
-            sdf_shape_patterns=[".*[Gg]ear.*"],
+            sdf_shape_patterns=[".*[Gg]ear.*", ".*pad.*", ".*driver.*", ".*follower.*", ".*coupler.*", ".*spring_link.*"],
             hydroelastic_cfg=HydroelasticCfg(
                 k_hydro=1e10,
-                shape_patterns=[".*[Gg]ear.*"],
+                shape_patterns=[".*[Gg]ear.*", ".*pad.*", ".*driver.*", ".*follower.*", ".*coupler.*", ".*spring_link.*"],
+                buffer_mult_iso=2,
             ),
         )
     )
