@@ -64,7 +64,7 @@ class TiledCamera(Camera):
     - ``"instance_segmentation_fast"``: The instance segmentation data.
     - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
-    When ``renderer_type == "newton_warp"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
+    When ``renderer_type == "warp_renderer"`` (see :class:`~.tiled_camera_cfg.TiledCameraCfg`), rendering uses the
     Newton Warp backend: PhysX runs simulation and Newton/Warp perform ray tracing; PhysX→Newton
     state sync runs before each render. The combined sync+render is timed as ``newton_warp_sync_plus_render``.
 
@@ -199,11 +199,11 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # Initialize renderer based on renderer_type (None or "rtx" -> RTX; "newton_warp" -> Newton Warp)
+        # Initialize renderer based on renderer_type (None or "rtx" -> RTX; "warp_renderer" -> Warp)
         _renderer_type = self.cfg.renderer_type if self.cfg.renderer_type is not None else "rtx"
-        if _renderer_type == "newton_warp":
+        if _renderer_type == "warp_renderer":
             logger.info(
-                "TiledCamera %s: using renderer backend newton_warp (from cfg.renderer_type=%s)",
+                "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_type=%s)",
                 self.cfg.prim_path,
                 self.cfg.renderer_type,
             )
@@ -224,7 +224,7 @@ class TiledCamera(Camera):
                 num_envs=self._num_envs,
                 data_types=self.cfg.data_types,
             )
-            renderer_cls = get_renderer_class("newton_warp")
+            renderer_cls = get_renderer_class(_renderer_type)
             if renderer_cls is None:
                 raise RuntimeError("Failed to load Newton Warp renderer class.")
             self._renderer = renderer_cls(renderer_cfg)

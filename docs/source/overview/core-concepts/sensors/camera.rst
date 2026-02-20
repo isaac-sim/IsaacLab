@@ -26,7 +26,7 @@ Isaac Lab provides tiled rendering APIs for RGB, depth, along with other annotat
 Renderer backends
 ~~~~~~~~~~~~~~~~~
 
-By default, tiled cameras use **Omniverse RTX** (Replicator annotators). You can optionally use the **Newton Warp** backend for Warp-based ray tracing while keeping PhysX for simulation: set :attr:`~sensors.TiledCameraCfg.renderer_type` to ``"newton_warp"`` in the camera config. With Newton Warp, PhysX rigid-body state is synced to a Newton model each frame before rendering; the combined sync and render step is reported in the training script's timing summary as ``newton_warp_sync_plus_render`` when using the RSL-RL train script with ``--renderer_backend warp_renderer``. For how to set up and run with the Warp renderer, see :ref:`physx-warp-training`.
+By default, tiled cameras use **Omniverse RTX** (Replicator annotators). You can optionally use the **Newton Warp** backend for Warp-based ray tracing while keeping PhysX for simulation: set :attr:`~sensors.TiledCameraCfg.renderer_type` to ``"warp_renderer"`` in the camera config. With Newton Warp, PhysX rigid-body state is synced to a Newton model each frame before rendering; the combined sync and render step is reported in the training script's timing summary as ``newton_warp_sync_plus_render`` when using the RSL-RL train script with ``--renderer_backend warp_renderer``. For how to set up and run with the Warp renderer, see :ref:`physx-warp-training`.
 
 .. code-block:: python
 

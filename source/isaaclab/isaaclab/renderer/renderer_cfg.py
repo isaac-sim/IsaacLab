@@ -21,7 +21,7 @@ class RendererCfg:
     """Configuration for a renderer."""
 
     renderer_type: str = "base"
-    """Type Identifier (e.g., 'newton_warp', 'ov_rtx', 'kit_app')."""
+    """Type Identifier (e.g., 'warp_renderer', 'ov_rtx', 'kit_app')."""
 
     height: int = 1024
     """Height of the renderer. Defaults to 1024."""

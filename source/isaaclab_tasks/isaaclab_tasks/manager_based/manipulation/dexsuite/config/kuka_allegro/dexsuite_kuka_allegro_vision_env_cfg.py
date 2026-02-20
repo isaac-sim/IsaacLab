@@ -16,10 +16,10 @@ Scene variant convention (local / self-learning use):
   env.scene = "<width>x<height><renderer_tag>_<camera_tag>"
 
   - width, height: resolution (e.g. 64, 128, 256).
-  - renderer_tag: "tiled" → RTX rendering, "newton" → Newton Warp rendering.
+  - renderer_tag: "rtx" → RTX rendering, "warp" → Warp rendering (TiledCameraCfg used for both).
   - camera_tag: "rgb" | "depth" | "albedo" (maps to rgb, distance_to_image_plane, diffuse_albedo).
 
-  Examples: 64x64tiled_rgb, 128x128newton_depth. For tests without Isaac Sim, use
+  Examples: 64x64rtx_rgb, 128x128warp_depth. For tests without Isaac Sim, use
   scene_variant_keys.parse_scene_key() and scene_variant_keys.get_scene_variant_keys().
 """
 
@@ -51,7 +51,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
     camera_type: str = "rgb"
     width: int = 64
     height: int = 64
-    renderer_type: str = "rtx"  # "rtx" for RTX rendering, "newton_warp" for Warp ray tracing
+    renderer_type: str = "rtx"  # "rtx" for RTX rendering, "warp_renderer" for Warp ray tracing
 
     base_camera = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
@@ -72,7 +72,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.data_types = [self.camera_type]
         self.base_camera.width = self.width
         self.base_camera.height = self.height
-        # Set renderer type: "rtx" means None (default RTX), "newton_warp" passes through
+        # Set renderer type: "rtx" means None (default RTX), "warp_renderer" passes through
         self.base_camera.renderer_type = None if self.renderer_type == "rtx" else self.renderer_type
         del self.camera_type
         del self.width

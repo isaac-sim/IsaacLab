@@ -6,10 +6,10 @@
 """Train an RL agent with RSL-RL.
 
 This script is the main entry point for RSL-RL training. The renderer backend is chosen by
-``env.scene=``: use a tiled variant (e.g. ``64x64tiled_rgb``) for RTX or a newton variant
-(e.g. ``64x64newton_rgb``) for Warp. When using Warp, the end-of-run timing summary includes
-timers such as ``newton_warp_sync_plus_render`` and ``newton_warp_render_full``.
-Launch Isaac Sim first (see AppLauncher below).
+``env.scene=``: use an RTX variant (e.g. ``64x64rtx_rgb``) or a warp variant
+(e.g. ``64x64warp_rgb``) for Warp. TiledCameraCfg is used for both. When using Warp, the
+end-of-run timing summary includes timers such as ``newton_warp_sync_plus_render`` and
+``newton_warp_render_full``. Launch Isaac Sim first (see AppLauncher below).
 """
 
 import argparse
@@ -49,8 +49,8 @@ args_cli, hydra_args = parser.parse_known_args()
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# env.scene= is passed via hydra_args (e.g. env.scene=64x64tiled_rgb or env.scene=64x64newton_rgb);
-# the chosen variant dictates the renderer (tiled -> RTX, newton -> Warp).
+# env.scene= is passed via hydra_args (e.g. env.scene=64x64rtx_rgb or env.scene=64x64warp_rgb);
+# the chosen variant dictates the renderer (rtx -> RTX, warp -> Warp).
 sys.argv = [sys.argv[0]] + hydra_args
 
 # launch omniverse app
@@ -226,7 +226,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 
     # Print average sim/render timing when available; also written to run_artifacts/<timestamp>/timing_summary.txt.
-    # Newton Warp timers (newton_warp_sync_plus_render, etc.) only appear when using the Newton Warp renderer.
+    # Warp renderer timers (newton_warp_sync_plus_render, etc.) only appear when using the warp_renderer backend.
     try:
         timers = [
             ("simulate", "Sim (physics step)"),

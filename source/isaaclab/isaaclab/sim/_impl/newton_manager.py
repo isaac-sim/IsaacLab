@@ -6,7 +6,7 @@
 """Newton Manager for PhysX to Newton Warp model conversion.
 
 This module lives in ``isaaclab.sim._impl`` and is used only when the Newton Warp renderer
-is enabled (e.g. ``TiledCameraCfg(renderer_type="newton_warp", ...)``). It creates a Newton
+is enabled (e.g. ``TiledCameraCfg(renderer_type="warp_renderer", ...)``). It creates a Newton
 model for rendering purposes while PhysX handles physics simulation, building the model
 from the USD stage and synchronizing rigid body states from PhysX each frame.
 """

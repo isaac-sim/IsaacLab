@@ -65,13 +65,13 @@ def get_renderer_class(name: str) -> type[RendererBase] | None:
     unnecessary dependencies.
 
     Args:
-        name: Renderer type name (e.g., 'newton_warp', 'ov_rtx', 'kit_app').
+        name: Renderer type name (e.g., 'warp_renderer', 'ov_rtx', 'kit_app').
 
     Returns:
         Renderer class if found, None otherwise.
 
     Example:
-        >>> renderer_cls = get_renderer_class('newton_warp')
+        >>> renderer_cls = get_renderer_class('warp_renderer')
         >>> if renderer_cls:
         >>>     renderer = renderer_cls(cfg)
     """
@@ -81,10 +81,11 @@ def get_renderer_class(name: str) -> type[RendererBase] | None:
 
     # Lazy-load visualizer on first access
     try:
-        if name == "newton_warp":
+        if name in ("newton_warp", "warp_renderer"):
             from .newton_warp_renderer import NewtonWarpRenderer
 
             _RENDERER_REGISTRY["newton_warp"] = NewtonWarpRenderer
+            _RENDERER_REGISTRY["warp_renderer"] = NewtonWarpRenderer
             return NewtonWarpRenderer
         elif name == "ov_rtx":
             from .ov_rtx_renderer import OVRTXRenderer

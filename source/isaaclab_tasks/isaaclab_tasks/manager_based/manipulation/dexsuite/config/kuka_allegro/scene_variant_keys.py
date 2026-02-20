@@ -12,19 +12,19 @@ to build actual scene configs.
 
 import re
 
-# Convention: <width>x<height><renderer_tag>_<camera_tag>
-SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(tiled|newton)_(rgb|depth|albedo)$")
-RENDERER_TAG_TO_TYPE = {"tiled": "rtx", "newton": "newton_warp"}
+# Convention: <width>x<height><renderer_tag>_<camera_tag> (TiledCameraCfg used regardless; rtx/warp = backend)
+SCENE_KEY_PATTERN = re.compile(r"^(\d+)x(\d+)(rtx|warp)_(rgb|depth|albedo)$")
+RENDERER_TAG_TO_TYPE = {"rtx": "rtx", "warp": "warp_renderer"}
 CAMERA_TAG_TO_TYPE = {"rgb": "rgb", "depth": "distance_to_image_plane", "albedo": "diffuse_albedo"}
 
 RESOLUTIONS = ((64, 64), (128, 128), (256, 256))
 RENDERER_CAMERA_COMBO = (
-    ("tiled", "depth"),
-    ("tiled", "rgb"),
-    ("tiled", "albedo"),
-    ("newton", "depth"),
-    ("newton", "rgb"),
-    ("newton", "albedo"),
+    ("rtx", "depth"),
+    ("rtx", "rgb"),
+    ("rtx", "albedo"),
+    ("warp", "depth"),
+    ("warp", "rgb"),
+    ("warp", "albedo"),
 )
 
 
@@ -32,7 +32,7 @@ def parse_scene_key(scene_key: str) -> dict | None:
     """Parse env.scene value into width, height, renderer_type, camera_type.
 
     Convention: <width>x<height><renderer_tag>_<camera_tag>
-    E.g. 64x64tiled_rgb -> width=64, height=64, renderer_type=rtx, camera_type=rgb.
+    E.g. 64x64rtx_rgb or 64x64warp_rgb -> width=64, height=64, renderer_type=rtx or warp_renderer, camera_type=rgb.
 
     Returns:
         Dict with keys width, height, renderer_type, camera_type, or None if invalid.

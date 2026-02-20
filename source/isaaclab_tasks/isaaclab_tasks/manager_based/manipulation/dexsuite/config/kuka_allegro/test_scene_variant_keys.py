@@ -11,13 +11,13 @@ Run from the kuka_allegro config directory (so only scene_variant_keys is loaded
 
   cd .../dexsuite/config/kuka_allegro && python -c "
   from scene_variant_keys import parse_scene_key, get_scene_variant_keys
-  p = parse_scene_key('64x64tiled_rgb')
+  p = parse_scene_key('64x64rtx_rgb')
   assert p == {'width': 64, 'height': 64, 'renderer_type': 'rtx', 'camera_type': 'rgb'}, p
-  p2 = parse_scene_key('128x128newton_depth')
-  assert p2 == {'width': 128, 'height': 128, 'renderer_type': 'newton_warp', 'camera_type': 'distance_to_image_plane'}, p2
+  p2 = parse_scene_key('128x128warp_depth')
+  assert p2 == {'width': 128, 'height': 128, 'renderer_type': 'warp_renderer', 'camera_type': 'distance_to_image_plane'}, p2
   assert parse_scene_key('invalid') is None
   keys = get_scene_variant_keys()
-  assert '64x64tiled_rgb' in keys and '64x64newton_rgb' in keys and '256x256newton_albedo' in keys
+  assert '64x64rtx_rgb' in keys and '64x64warp_rgb' in keys and '256x256warp_albedo' in keys
   print('parse_scene_key and get_scene_variant_keys OK')
   "
 """
@@ -29,20 +29,20 @@ if __name__ == "__main__":
     from scene_variant_keys import get_scene_variant_keys, parse_scene_key
 
     # parsing
-    p = parse_scene_key("64x64tiled_rgb")
+    p = parse_scene_key("64x64rtx_rgb")
     assert p == {"width": 64, "height": 64, "renderer_type": "rtx", "camera_type": "rgb"}, p
-    p2 = parse_scene_key("128x128newton_depth")
+    p2 = parse_scene_key("128x128warp_depth")
     assert p2 == {
         "width": 128,
         "height": 128,
-        "renderer_type": "newton_warp",
+        "renderer_type": "warp_renderer",
         "camera_type": "distance_to_image_plane",
     }, p2
     assert parse_scene_key("invalid") is None
     # variant keys (same set as single_camera_variants.keys())
     keys = get_scene_variant_keys()
-    assert "64x64tiled_rgb" in keys
-    assert "64x64newton_rgb" in keys
-    assert "256x256newton_albedo" in keys
+    assert "64x64rtx_rgb" in keys
+    assert "64x64warp_rgb" in keys
+    assert "256x256warp_albedo" in keys
     print("parse_scene_key and get_scene_variant_keys OK")
     sys.exit(0)

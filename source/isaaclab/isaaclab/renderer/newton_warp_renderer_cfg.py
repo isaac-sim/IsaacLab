@@ -14,9 +14,9 @@ from .renderer_cfg import RendererCfg
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for the Newton Warp renderer.
 
-    Use with ``TiledCameraCfg(renderer_type="newton_warp", ...)`` for Warp-based ray tracing
+    Use with ``TiledCameraCfg(renderer_type="warp_renderer", ...)`` for Warp-based ray tracing
     alongside PhysX simulation. Requires the ``newton`` package.
     """
 
-    renderer_type: str = "newton_warp"
+    renderer_type: str = "warp_renderer"
     """Type identifier for the Newton Warp renderer."""

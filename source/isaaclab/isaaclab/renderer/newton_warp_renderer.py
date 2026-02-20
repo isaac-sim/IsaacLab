@@ -5,7 +5,7 @@
 
 """Newton Warp renderer: Warp-based ray tracing using a Newton model.
 
-Used when ``TiledCameraCfg(renderer_type="newton_warp", ...)``. PhysX runs simulation;
+Used when ``TiledCameraCfg(renderer_type="warp_renderer", ...)``. PhysX runs simulation;
 state is synced from PhysX into the Newton model before each render via
 :class:`~isaaclab.sim._impl.newton_manager.NewtonManager`.
 """
@@ -258,7 +258,7 @@ class NewtonWarpRenderer(RendererBase):
         """
         if self._render_call_count == 0:
             logger.info(
-                "NewtonWarpRenderer.render() called (first time); backend confirmed newton_warp.",
+                "NewtonWarpRenderer.render() called (first time); backend confirmed warp_renderer.",
             )
         num_envs = camera_positions.shape[0]
 

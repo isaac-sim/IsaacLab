@@ -9,27 +9,27 @@ Run with: pytest source/isaaclab/test/sensors/test_tiled_camera_renderer_backend
 (from repo root, with Isaac Lab env active). The contract tests run without Isaac Sim;
 the TiledCameraCfg default test requires the full env (imports isaaclab.sensors.camera).
 
-Renderer is dictated by env.scene=: tiled variants (e.g. 64x64tiled_rgb) use RTX,
-newton variants (e.g. 64x64newton_rgb) use Warp. train.py does not set --renderer_backend.
+Renderer is dictated by env.scene=: RTX variants (e.g. 64x64rtx_rgb) use RTX,
+warp variants (e.g. 64x64warp_rgb) use Warp. train.py does not set --renderer_backend.
 """
 
 import pytest
 
 # env.scene variant names that select each backend (task defines these in scene variants)
-ENV_SCENE_RTX = "64x64tiled_rgb"
-ENV_SCENE_WARP = "64x64newton_rgb"
+ENV_SCENE_RTX = "64x64rtx_rgb"
+ENV_SCENE_WARP = "64x64warp_rgb"
 
 
 class TestEnvSceneVariantContract:
     """Enforce env.scene= variant names for RTX vs Warp (no Isaac Sim required)."""
 
-    def test_tiled_variant_is_rtx(self):
-        """Tiled variant name (64x64tiled_rgb) selects RTX backend."""
-        assert "tiled" in ENV_SCENE_RTX
+    def test_rtx_variant_is_rtx(self):
+        """RTX variant name (64x64rtx_rgb) selects RTX backend."""
+        assert "rtx" in ENV_SCENE_RTX
 
-    def test_newton_variant_is_warp(self):
-        """Newton variant name (64x64newton_rgb) selects Warp backend."""
-        assert "newton" in ENV_SCENE_WARP
+    def test_warp_variant_is_warp(self):
+        """Warp variant name (64x64warp_rgb) selects Warp backend."""
+        assert "warp" in ENV_SCENE_WARP
 
 
 class TestTiledCameraCfgDefault:
