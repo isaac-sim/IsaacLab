@@ -60,6 +60,8 @@ class OVRTXRenderer(RendererBase):
     providing ray-traced rendering capabilities for Isaac Lab environments.
     """
 
+    cfg: OVRTXRendererCfg
+
     _renderer: Renderer | None = None
     _usd_handles: list | None = None
     _camera_binding = None
@@ -83,10 +85,8 @@ class OVRTXRenderer(RendererBase):
         self._tiled_height = self._num_rows * self._height
         
         # Store data types from config (handle MISSING from configclass)
-        dt = getattr(cfg, "data_types", MISSING)
+        dt = getattr(self.cfg, "data_types", MISSING)
         self._data_types = dt if (dt is not MISSING and dt) else ["rgb"]
-
-        self._simple_shading_mode = getattr(cfg, "simple_shading_mode", True)
 
     def _clone_environments_in_ovrtx(self):
         """Clone base environment (env_0) to all other environments using OvRTX.
@@ -201,15 +201,8 @@ class OVRTXRenderer(RendererBase):
         from pxr import Usd
         print(f"[OVRTX] USD Version: {Usd.GetVersion()}")
         print(f"[OVRTX] USD Module: {Usd.__file__}")
-        
         print("Creating OVRTX renderer...")
-        
-        # Add simple shading mode configuration if enabled
-        if self._simple_shading_mode:
-            print(f"[OVRTX] Simple shading mode ENABLED")
-        else:
-            print(f"[OVRTX] Simple shading mode DISABLED (using full RTX path tracing)")
-        
+
         # Create renderer config with proper parameters
         OVRTX_CONFIG = RendererConfig(
             log_file_path="/tmp/ovrtx_renderer.log",
@@ -231,11 +224,7 @@ class OVRTXRenderer(RendererBase):
             print(f"[OVRTX] Injecting camera definitions...")
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
-                self._num_envs,
-                self._tiled_width,
-                self._tiled_height,
-                self._data_types,
-                self._simple_shading_mode,
+                self.cfg,
             )
             self._render_product_paths.append(render_product_path)
             

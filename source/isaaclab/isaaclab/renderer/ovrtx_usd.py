@@ -5,10 +5,15 @@
 
 """USD manipulation for OVRTX: Render scope building, camera injection, and stage prim activation."""
 
+import math
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd
+
+if TYPE_CHECKING:
+    from .ovrtx_renderer_cfg import OVRTXRendererCfg
 
 
 def get_render_var_config(
@@ -69,30 +74,40 @@ def Scope "Render"
 '''
 
 
+def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]:
+    """Compute tiled width and height from env count and per-env resolution (same as TiledCamera)."""
+    num_cols = math.ceil(math.sqrt(num_envs))
+    num_rows = math.ceil(num_envs / num_cols)
+    return num_cols * width, num_rows * height
+
+
 def inject_cameras_into_usd(
     usd_scene_path: str,
-    num_envs: int,
-    tiled_width: int,
-    tiled_height: int,
-    data_types: list[str],
-    simple_shading_mode: bool,
+    cfg: "OVRTXRendererCfg",
 ) -> tuple[str, str]:
     """Inject camera and render product definitions into an existing USD file.
 
     Reads the USD file, appends a Render scope (cameras + RenderProduct + Vars),
-    writes to a temp file, and returns (path_to_combined_usd, render_product_path).
+    writes to a temp file in cfg.temp_usd_dir, and returns (path_to_combined_usd, render_product_path).
     """
     with open(usd_scene_path, "r") as f:
         original_usd = f.read()
 
-    camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
+    data_types = cfg.data_types if cfg.data_types else ["rgb"]
+    tiled_width, tiled_height = _tiled_resolution(cfg.num_envs, cfg.width, cfg.height)
+
+    camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(cfg.num_envs)]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
     render_var_path, render_var_name, source_name = get_render_var_config(
-        data_types, simple_shading_mode
+        data_types, cfg.simple_shading_mode
     )
     print(f"  Rendering mode: {render_var_name}")
+    if cfg.simple_shading_mode:
+        print("[OVRTX] Simple shading mode ENABLED")
+    else:
+        print("[OVRTX] Simple shading mode DISABLED (using full RTX path tracing)")
 
     camera_content = build_render_scope_usd(
         camera_paths,
@@ -105,9 +120,9 @@ def inject_cameras_into_usd(
     )
     combined_usd = original_usd.rstrip() + "\n\n" + camera_content
 
-    Path("/tmp/ovrtx_test").mkdir(parents=True, exist_ok=True)
+    Path(cfg.temp_usd_dir).mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".usda", delete=False, dir="/tmp/ovrtx_test"
+        mode="w", suffix=cfg.temp_usd_suffix, delete=False, dir=cfg.temp_usd_dir
     ) as f:
         f.write(combined_usd)
         temp_path = f.name

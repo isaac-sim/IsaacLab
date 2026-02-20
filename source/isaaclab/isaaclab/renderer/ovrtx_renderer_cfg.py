@@ -29,3 +29,11 @@ class OVRTXRendererCfg(RendererCfg):
     This provides faster, simpler rendering suitable for many vision-based tasks.
     Set to False to use full RTX path-traced rendering with LdrColor.
     """
+
+    temp_usd_dir: str = "/tmp/ovrtx_test"
+    """Directory for temporary combined USD files (scene + injected cameras).
+    Used by the OVRTX renderer when building the render scope; must be writable.
+    """
+
+    temp_usd_suffix: str = ".usda"
+    """File suffix for temporary combined USD files (e.g. '.usda' or '.usdc')."""
