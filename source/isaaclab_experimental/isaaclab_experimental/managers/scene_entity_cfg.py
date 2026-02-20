@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.assets import Articulation
+from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _SceneEntityCfg
 from isaaclab.scene import InteractiveScene
 
@@ -37,7 +37,7 @@ class SceneEntityCfg(_SceneEntityCfg):
 
         # Build a Warp joint mask for articulations only.
         entity = scene[self.name]
-        if not isinstance(entity, Articulation):
+        if not isinstance(entity, BaseArticulation):
             return
 
         # Pre-allocate a full-length mask (all True for default selection).
