@@ -3,182 +3,59 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OVRTX Renderer implementation."""
+"""OVRTX Renderer implementation.
+
+How it fits together
+--------------------
+- **ovrtx_renderer.py** (this file): Orchestrates the pipeline. Owns the OVRTX Renderer,
+  USD loading/cloning, camera and object bindings, and output buffers. Each frame it:
+  updates camera/object transforms (using kernels), steps the renderer, then extracts
+  tiles from the tiled framebuffer (kernels) and optionally writes images (image writer).
+
+- **ovrtx_renderer_kernels.py**: Warp GPU kernels and DEVICE constant. Provides
+  create_camera_transforms_kernel, extract_tile_from_tiled_buffer_kernel,
+  extract_depth_tile_from_tiled_buffer_kernel, sync_newton_transforms_kernel, and
+  normalize_depth_to_uint8(). No OVRTX or renderer state.
+
+- **ovrtx_image_writer.py**: When cfg.image_folder is set, the renderer creates an
+  OVRTXImageWriter and passes it numpy arrays (from wp.to_torch(...).cpu().numpy()).
+  The writer handles RGBA/depth and per-env vs tiled filenames; it uses
+  normalize_depth_to_uint8 from the kernels module for depth visualization.
+
+- **ovrtx_usd.py**: USD helpers for OVRTX: render var config, Render scope string building,
+  inject_cameras_into_usd (read USD, append Render scope, write temp file), and
+  deactivate_cloned_envs / reactivate_prims for stage prim visibility.
+"""
 
 import math
 import os
 from dataclasses import MISSING
-from pathlib import Path
 
-import numpy as np
 import torch
 import warp as wp
-from PIL import Image
 
 # Set environment variables for OVRTX
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
-from ovrtx import Renderer, RendererConfig
+from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
+from .ovrtx_image_writer import OVRTXImageWriter
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
+from .ovrtx_renderer_kernels import (
+    DEVICE,
+    create_camera_transforms_kernel,
+    extract_depth_tile_from_tiled_buffer_kernel,
+    extract_tile_from_tiled_buffer_kernel,
+    sync_newton_transforms_kernel,
+)
+from .ovrtx_usd import (
+    export_stage_for_ovrtx,
+    inject_cameras_into_usd,
+    set_scene_partition_attributes,
+)
 from .renderer import RendererBase
-
-
-@wp.kernel
-def _create_camera_transforms_kernel(
-    positions: wp.array(dtype=wp.vec3),  # type: ignore
-    orientations: wp.array(dtype=wp.quatf),  # type: ignore
-    transforms: wp.array(dtype=wp.mat44d),  # type: ignore
-):
-    """Kernel to create camera transforms from positions and orientations.
-
-    Args:
-        positions: Array of camera positions, shape (num_cameras,)
-        orientations: Array of camera orientations, shape (num_cameras,)
-        transforms: Output array of camera transforms, shape (num_cameras,)
-    """
-    i = wp.tid()
-    # Convert warp quaternion to rotation matrix and combine with translation
-    pos = positions[i]
-    quat = orientations[i]
-    
-    # Quaternion to rotation matrix (3x3)
-    qx, qy, qz, qw = quat[0], quat[1], quat[2], quat[3]
-
-    # Row 0
-    r00 = 1.0 - 2.0 * (qy * qy + qz * qz)
-    r01 = 2.0 * (qx * qy - qw * qz)
-    r02 = 2.0 * (qx * qz + qw * qy)
-    
-    # Row 1
-    r10 = 2.0 * (qx * qy + qw * qz)
-    r11 = 1.0 - 2.0 * (qx * qx + qz * qz)
-    r12 = 2.0 * (qy * qz - qw * qx)
-    
-    # Row 2
-    r20 = 2.0 * (qx * qz - qw * qy)
-    r21 = 2.0 * (qy * qz + qw * qx)
-    r22 = 1.0 - 2.0 * (qx * qx + qy * qy)
-    
-    # Build 4x4 homogeneous transform matrix
-    # IMPORTANT: Matrix is stored in COLUMN-MAJOR order for OVRTX
-    # So we transpose the rotation part: columns become rows
-    _0 = wp.float64(0.0)
-    _1 = wp.float64(1.0)
-    # Note: Type issues with warp vec3 indexing are expected
-    transforms[i] = wp.mat44d(  # type: ignore
-        wp.float64(r00), wp.float64(r10), wp.float64(r20), _0,
-        wp.float64(r01), wp.float64(r11), wp.float64(r21), _0,
-        wp.float64(r02), wp.float64(r12), wp.float64(r22), _0,
-        wp.float64(float(pos[0])), wp.float64(float(pos[1])), wp.float64(float(pos[2])), _1
-    )
-
-
-@wp.kernel
-def _extract_tile_from_tiled_buffer_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore (tiled_height, tiled_width, 4)
-    tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore (height, width, 4)
-    tile_x: int,
-    tile_y: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract a single tile from a tiled buffer.
-    
-    Args:
-        tiled_buffer: Input tiled buffer, shape (tiled_height, tiled_width, 4)
-        tile_buffer: Output buffer for single tile, shape (tile_height, tile_width, 4)
-        tile_x: Tile position in x (horizontal)
-        tile_y: Tile position in y (vertical)
-        tile_width: Width of each tile
-        tile_height: Height of each tile
-    """
-    y, x = wp.tid()
-    
-    # Calculate source position in tiled buffer
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    
-    # Copy RGBA channels
-    tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    tile_buffer[y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    tile_buffer[y, x, 2] = tiled_buffer[src_y, src_x, 2]
-    tile_buffer[y, x, 3] = tiled_buffer[src_y, src_x, 3]
-
-
-@wp.kernel
-def _extract_depth_tile_from_tiled_buffer_kernel(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=2),  # type: ignore (tiled_height, tiled_width)
-    tile_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore (height, width, 1)
-    tile_x: int,
-    tile_y: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract a single depth tile from a tiled depth buffer.
-    
-    Args:
-        tiled_buffer: Input tiled depth buffer, shape (tiled_height, tiled_width)
-        tile_buffer: Output buffer for single tile, shape (tile_height, tile_width, 1)
-        tile_x: Tile position in x (horizontal)
-        tile_y: Tile position in y (vertical)
-        tile_width: Width of each tile
-        tile_height: Height of each tile
-    """
-    y, x = wp.tid()
-    
-    # Calculate source position in tiled buffer
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    
-    # Copy depth value
-    tile_buffer[y, x, 0] = tiled_buffer[src_y, src_x]
-
-
-@wp.kernel
-def _sync_newton_transforms_kernel(
-    ovrtx_transforms: wp.array(dtype=wp.mat44d),  # type: ignore
-    newton_body_indices: wp.array(dtype=wp.int32),  # type: ignore
-    newton_body_q: wp.array(dtype=wp.transformf),  # type: ignore
-):
-    """Kernel to sync Newton physics transforms to OVRTX render transforms.
-    
-    Converts Newton's wp.transformf (position + quaternion) to OVRTX's wp.mat44d
-    (4x4 column-major matrix) for each object in the scene.
-    
-    Args:
-        ovrtx_transforms: Output array of OVRTX transforms, shape (num_objects,)
-        newton_body_indices: Newton body indices for each object, shape (num_objects,)
-        newton_body_q: Newton body transforms from state.body_q, shape (num_bodies,)
-    """
-    i = wp.tid()
-    body_idx = newton_body_indices[i]
-    transform = newton_body_q[body_idx]
-    
-    # Use warp's built-in conversion and transpose for column-major format
-    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
-
-
-_DEVICE = "cuda:0"
-
-
-def _normalize_depth_to_uint8(depth_np: np.ndarray) -> tuple[np.ndarray, float | None, float | None]:
-    """Normalize depth array to uint8 [0, 255] for visualization; invalid (inf/nan) -> 0.
-    Returns (normalized_uint8, depth_min, depth_max); min/max are None if no valid pixels.
-    """
-    depth_valid = np.isfinite(depth_np)
-    depth_min = depth_max = None
-    if np.any(depth_valid):
-        depth_min = float(depth_np[depth_valid].min())
-        depth_max = float(depth_np[depth_valid].max())
-    depth_normalized = np.zeros_like(depth_np, dtype=np.uint8)
-    if depth_min is not None and depth_max is not None and depth_max > depth_min:
-        depth_normalized[depth_valid] = (
-            (depth_np[depth_valid] - depth_min) / (depth_max - depth_min) * 255
-        ).astype(np.uint8)
-    return depth_normalized, depth_min, depth_max
 
 
 class OVRTXRenderer(RendererBase):
@@ -217,53 +94,13 @@ class OVRTXRenderer(RendererBase):
         self._simple_shading_mode = getattr(cfg, "simple_shading_mode", True)
         self._use_ovrtx_cloning = getattr(cfg, "use_ovrtx_cloning", True)
         self._image_folder = getattr(cfg, "image_folder", None)
+        self._image_writer: OVRTXImageWriter | None = None
         if self._image_folder:
-            # Create the output directory if it doesn't exist
-            Path(self._image_folder).mkdir(parents=True, exist_ok=True)
+            self._image_writer = OVRTXImageWriter(
+                self._image_folder, self._num_envs, self._num_cols, self._num_rows
+            )
             print(f"[OVRTX] Images will be saved to: {self._image_folder}")
 
-    def _deactivate_cloned_envs(self, stage) -> list:
-        """Deactivate all cloned environments (env_1 onwards) to exclude from export.
-        
-        This optimization dramatically speeds up OvRTX initialization by exporting
-        only the base environment (env_0), then using OvRTX's clone_usd() to replicate it.
-        
-        Args:
-            stage: USD Stage containing environments
-            
-        Returns:
-            List of deactivated prims (for reactivation later)
-        """
-        from pxr import Usd
-        
-        deactivated = []
-        print(f"[OVRTX OPTIMIZE] Deactivating {self._num_envs - 1} cloned environments...")
-        
-        for env_idx in range(1, self._num_envs):  # Start from env_1
-            env_path = f"/World/envs/env_{env_idx}"
-            prim = stage.GetPrimAtPath(env_path)
-            if prim.IsValid() and prim.IsActive():
-                prim.SetActive(False)
-                deactivated.append(prim)
-                if env_idx <= 3 or env_idx == self._num_envs - 1:
-                    print(f"  Deactivated: {env_path}")
-        
-        if self._num_envs > 5:
-            print(f"  ... (deactivated {len(deactivated)} environments total)")
-        
-        return deactivated
-    
-    def _reactivate_prims(self, prims: list):
-        """Reactivate previously deactivated prims.
-        
-        Args:
-            prims: List of prims to reactivate
-        """
-        print(f"[OVRTX OPTIMIZE] Reactivating {len(prims)} environments...")
-        for prim in prims:
-            if prim.IsValid():
-                prim.SetActive(True)
-    
     def _clone_environments_in_ovrtx(self):
         """Clone base environment (env_0) to all other environments using OvRTX.
         
@@ -316,8 +153,8 @@ class OVRTXRenderer(RendererBase):
             env_partition_binding = self._renderer.bind_attribute(
                 prim_paths=env_prim_paths,
                 attribute_name="primvars:omni:scenePartition",
-                semantic="token_string",
-                prim_mode="must_exist",
+                semantic=Semantic.TOKEN_STRING,
+                prim_mode=PrimMode.EXISTING_ONLY,
             )
             
             if env_partition_binding is not None:
@@ -333,8 +170,8 @@ class OVRTXRenderer(RendererBase):
             cam_partition_binding = self._renderer.bind_attribute(
                 prim_paths=camera_prim_paths,
                 attribute_name="omni:scenePartition",
-                semantic="token_string",
-                prim_mode="must_exist",
+                semantic=Semantic.TOKEN_STRING,
+                prim_mode=PrimMode.EXISTING_ONLY,
             )
             
             if cam_partition_binding is not None:
@@ -351,7 +188,12 @@ class OVRTXRenderer(RendererBase):
             traceback.print_exc()
 
 
-    def initialize(self, usd_scene_path: str | None = None):
+    def initialize(
+        self,
+        usd_scene_path: str | None = None,
+        stage=None,
+        camera_prim_name: str = "Camera",
+    ):
         """Initialize the OVRTX renderer with optional environment cloning.
         
         Two initialization modes based on use_ovrtx_cloning flag:
@@ -366,13 +208,26 @@ class OVRTXRenderer(RendererBase):
         2. No internal cloning needed
         3. Slower but may be useful for debugging or special rendering requirements
         
-        The Isaac Sim stage is never modified - this only affects the exported USD.
-        
         Args:
-            usd_scene_path: Optional path to USD scene to load as root layer.
-                           If provided, cameras will be injected into this file.
-                           If not provided, cameras are created as the root layer.
+            usd_scene_path: Optional path to USD scene to load. If stage is also
+                provided, this is ignored and the stage is prepared and exported first.
+            stage: Optional USD stage. If provided, scene partition attributes are set,
+                the stage is exported (with envs deactivated for cloning if applicable),
+                and that path is used for loading. Caller may need to refresh views
+                after initialize() when use_ovrtx_cloning is True (stage is reactivated).
+            camera_prim_name: Name of the camera prim under each env (e.g. "Camera").
+                Used only when stage is provided.
         """
+        # If stage provided, prepare and export it (partition attributes + optional deactivate for cloning)
+        if stage is not None:
+            print(f"[OVRTX] Preparing stage for export ({self._num_envs} envs, camera_prim={camera_prim_name!r})...")
+            total_objs = set_scene_partition_attributes(stage, self._num_envs, camera_prim_name)
+            print(f"   ✓ Set scene partition attributes on {self._num_envs} envs, {total_objs} objects")
+            export_path = "/tmp/stage_before_ovrtx.usda"
+            export_stage_for_ovrtx(stage, export_path, self._num_envs, self._use_ovrtx_cloning)
+            usd_scene_path = export_path
+            print(f"   ✓ Exported to {export_path}")
+
         # Log USD version info for debugging
         from pxr import Usd
         print(f"[OVRTX] USD Version: {Usd.GetVersion()}")
@@ -406,7 +261,15 @@ class OVRTXRenderer(RendererBase):
             # Note: tiled_camera.py may have filtered this to only contain env_0
             # if use_ovrtx_cloning=True and num_envs > 1
             print(f"[OVRTX] Injecting camera definitions...")
-            combined_usd_path = self._inject_cameras_into_usd(usd_scene_path)
+            combined_usd_path, render_product_path = inject_cameras_into_usd(
+                usd_scene_path,
+                self._num_envs,
+                self._tiled_width,
+                self._tiled_height,
+                self._data_types,
+                self._simple_shading_mode,
+            )
+            self._render_product_paths.append(render_product_path)
             
             print(f"[OVRTX] Loading USD into OvRTX...")
             try:
@@ -437,8 +300,8 @@ class OVRTXRenderer(RendererBase):
             self._camera_binding = self._renderer.bind_attribute(
                 prim_paths=camera_paths,
                 attribute_name="omni:xform",
-                semantic="transform_4x4",
-                prim_mode="must_exist",
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.EXISTING_ONLY,
             )
             
             if self._camera_binding is not None:
@@ -450,123 +313,6 @@ class OVRTXRenderer(RendererBase):
             self._setup_object_bindings()
         else:
             pass  # No USD scene: cameras as root layer not implemented
-    
-    def _inject_cameras_into_usd(self, usd_scene_path: str) -> str:
-        """Inject camera and render product definitions into an existing USD file.
-        
-        Args:
-            usd_scene_path: Path to the USD scene file
-            
-        Returns:
-            Path to the combined USD file with cameras injected
-        """
-        import tempfile
-        
-        # Read the original USD
-        with open(usd_scene_path, 'r') as f:
-            original_usd = f.read()
-        
-        # Generate camera USD content (as a top-level Render scope)
-        camera_parts = []
-        camera_parts.append('\ndef Scope "Render"\n{\n')
-        
-        # Collect all camera paths
-        camera_paths = [f"/World/envs/env_{env_idx}/Camera" for env_idx in range(self._num_envs)]
-        
-        # Create a SINGLE RenderProduct that references all cameras
-        render_product_name = "RenderProduct"
-        render_product_path = f"/Render/{render_product_name}"
-        self._render_product_paths.append(render_product_path)
-        
-        # Build the camera relationship list: rel camera = [<path1>, <path2>, ...]
-        camera_rel_list = ", ".join([f"<{path}>" for path in camera_paths])
-        
-        # Determine which RenderVar to use based on requested data types
-        # Priority: depth > albedo/semantic > rgb (to optimize rendering performance)
-        use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in self._data_types)
-        use_albedo = "albedo" in self._data_types
-        use_semantic = "semantic_segmentation" in self._data_types
-        use_rgb = any(dt in ["rgb", "rgba"] for dt in self._data_types)
-        
-        # Determine the primary render mode based on requested data types
-        # Note: For now, we support single RenderVar. Multiple RenderVars would require orderedVars
-        if use_depth and not (use_rgb or use_albedo or use_semantic):
-            render_var_path = "/Render/Vars/depth"
-            render_var_name = "depth"
-            print(f"  Rendering mode: depth only")
-        elif use_albedo and not (use_rgb or use_semantic):
-            render_var_path = "/Render/Vars/albedo"
-            render_var_name = "albedo"
-            print(f"  Rendering mode: albedo only")
-        elif use_semantic and not (use_rgb or use_albedo):
-            render_var_path = "/Render/Vars/semantic"
-            render_var_name = "semantic"
-            print(f"  Rendering mode: semantic segmentation only")
-        else:
-            # Use SimpleShadingSD in simple shading mode, LdrColor otherwise
-            if self._simple_shading_mode:
-                render_var_path = "/Render/Vars/SimpleShading"
-                render_var_name = "SimpleShading"
-                print(f"  Rendering mode: RGB/RGBA (simple shading)")
-            else:
-                render_var_path = "/Render/Vars/LdrColor"
-                render_var_name = "LdrColor"
-                print(f"  Rendering mode: RGB/RGBA (full RTX)")
-        
-        camera_parts.append(f'''
-    def RenderProduct "{render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
-    ) {{
-        rel camera = [{camera_rel_list}]
-        token omni:rtx:background:source:type = "domeLight"
-        token omni:rtx:rendermode = "RealTimePathTracing"
-        token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
-        rel orderedVars = <{render_var_path}>
-        uniform int2 resolution = ({self._tiled_width}, {self._tiled_height})
-    }}
-''')
-        
-        # Add only the RenderVar that's actually being used
-        # Determine sourceName based on render_var_name
-        # These sourceNames correspond to the AOV (Arbitrary Output Variable) names in the renderer
-        if render_var_name == "depth":
-            source_name = "DistanceToImagePlaneSD"
-        elif render_var_name == "SimpleShading":
-            source_name = "SimpleShadingSD"
-        elif render_var_name == "LdrColor":
-            source_name = "LdrColor"
-        elif render_var_name == "albedo":
-            source_name = "DiffuseAlbedoSD"
-        elif render_var_name == "semantic":
-            source_name = "SemanticSegmentationSD"
-        else:
-            source_name = render_var_name  # Fallback
-        
-        camera_parts.append(f'''
-    def "Vars"
-    {{
-        def RenderVar "{render_var_name}"
-        {{
-            uniform string sourceName = "{source_name}"
-        }}
-    }}
-''')
-        
-        camera_parts.append('}\n')
-        camera_content = ''.join(camera_parts)
-        
-        # Simply append the Render scope to the end of the file
-        # This is safe since USD files are declarative
-        combined_usd = original_usd.rstrip() + '\n\n' + camera_content
-        
-        # Save to temp file
-        Path("/tmp/ovrtx_test").mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.usda', delete=False, dir='/tmp/ovrtx_test') as f:
-            f.write(combined_usd)
-            temp_path = f.name
-        
-        print(f"   Created combined USD: {temp_path}")
-        return temp_path
     
     def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics.
@@ -605,14 +351,14 @@ class OVRTXRenderer(RendererBase):
             self._object_binding = self._renderer.bind_attribute(
                 prim_paths=object_paths,
                 attribute_name="omni:xform",
-                semantic="transform_4x4",
-                prim_mode="must_exist",
+                semantic=Semantic.XFORM_MAT4x4,
+                prim_mode=PrimMode.EXISTING_ONLY,
             )
             
             if self._object_binding is not None:
                 print(f"  ✓ Object binding created successfully")
                 # Store Newton body indices for later lookup
-                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=_DEVICE)
+                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=DEVICE)
             else:
                 print(f"  ✗ WARNING: Object binding is None!")
                 
@@ -652,7 +398,7 @@ class OVRTXRenderer(RendererBase):
         # RGBA/RGB buffers (shared)
         if any(dt in ["rgba", "rgb"] for dt in self._data_types):
             self._output_data_buffers["rgba"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=_DEVICE
+                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
             )
             # Create RGB view that references the same underlying array as RGBA, but only first 3 channels
             self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
@@ -660,29 +406,29 @@ class OVRTXRenderer(RendererBase):
         # Albedo buffer (4-channel RGBA format, similar to rgb/rgba)
         if "albedo" in self._data_types:
             self._output_data_buffers["albedo"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=_DEVICE
+                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
             )
         
         # Semantic segmentation buffer (4-channel RGBA format for colorized output)
         if "semantic_segmentation" in self._data_types:
             self._output_data_buffers["semantic_segmentation"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=_DEVICE
+                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
             )
         
         # Depth buffers (note: "depth" is an alias for "distance_to_image_plane")
         if "depth" in self._data_types:
             self._output_data_buffers["depth"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=_DEVICE
+                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
             )
         
         if "distance_to_image_plane" in self._data_types:
             self._output_data_buffers["distance_to_image_plane"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=_DEVICE
+                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
             )
         
         if "distance_to_camera" in self._data_types:
             self._output_data_buffers["distance_to_camera"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=_DEVICE
+                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
             )
 
     def _extract_rgba_tiles(
@@ -693,7 +439,7 @@ class OVRTXRenderer(RendererBase):
             tile_x = env_idx % self._num_cols
             tile_y = env_idx // self._num_cols
             wp.launch(
-                kernel=_extract_tile_from_tiled_buffer_kernel,
+                kernel=extract_tile_from_tiled_buffer_kernel,
                 dim=(self._height, self._width),
                 inputs=[
                     tiled_data,
@@ -703,11 +449,11 @@ class OVRTXRenderer(RendererBase):
                     self._width,
                     self._height,
                 ],
-                device=_DEVICE,
+                device=DEVICE,
             )
-            self._save_image_to_disk(
-                self._output_data_buffers[buffer_key][env_idx], env_idx, suffix=suffix
-            )
+            if self._image_writer:
+                data_np = wp.to_torch(self._output_data_buffers[buffer_key][env_idx]).cpu().numpy()
+                self._image_writer.save_rgba(data_np, env_idx, self._frame_counter, suffix)
 
     def _extract_depth_tiles(self, tiled_depth_data: wp.array) -> None:
         """Extract per-env depth tiles and populate all depth-type buffers; save depth images."""
@@ -717,7 +463,7 @@ class OVRTXRenderer(RendererBase):
             for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
                 if depth_type in self._output_data_buffers:
                     wp.launch(
-                        kernel=_extract_depth_tile_from_tiled_buffer_kernel,
+                        kernel=extract_depth_tile_from_tiled_buffer_kernel,
                         dim=(self._height, self._width),
                         inputs=[
                             tiled_depth_data,
@@ -727,11 +473,73 @@ class OVRTXRenderer(RendererBase):
                             self._width,
                             self._height,
                         ],
-                        device=_DEVICE,
+                        device=DEVICE,
                     )
-            if "depth" in self._output_data_buffers:
-                self._save_depth_image_to_disk(
-                    self._output_data_buffers["depth"][env_idx], env_idx
+            if self._image_writer and "depth" in self._output_data_buffers:
+                depth_np = wp.to_torch(self._output_data_buffers["depth"][env_idx]).cpu().numpy()
+                self._image_writer.save_depth(depth_np, env_idx, self._frame_counter)
+
+    def _process_render_frame(self, frame) -> None:
+        """Extract RGB, depth, albedo, and semantic from a single render frame into buffers."""
+        # RGB/RGBA
+        rgb_render_var = "SimpleShadingSD" if "SimpleShadingSD" in frame.render_vars else "LdrColor" if "LdrColor" in frame.render_vars else None
+        if rgb_render_var and "rgba" in self._output_data_buffers:
+            with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
+                tiled_data = wp.from_dlpack(mapping.tensor)
+                if self._image_writer:
+                    self._image_writer.save_tiled_rgba(
+                        wp.to_torch(tiled_data).cpu().numpy(), self._frame_counter, "rgb"
+                    )
+                self._extract_rgba_tiles(tiled_data, "rgba", suffix="rgb")
+
+        # Depth
+        for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
+            if depth_var not in frame.render_vars:
+                continue
+            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
+                tiled_depth_data = wp.from_dlpack(mapping.tensor)
+                if tiled_depth_data.dtype == wp.uint32:
+                    tiled_depth_data = wp.from_torch(
+                        wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
+                    )
+                if self._image_writer:
+                    self._image_writer.save_tiled_depth(
+                        wp.to_torch(tiled_depth_data).cpu().numpy(), self._frame_counter
+                    )
+                self._extract_depth_tiles(tiled_depth_data)
+            break
+
+        # Albedo
+        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in self._output_data_buffers:
+            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
+                tiled_albedo_data = wp.from_dlpack(mapping.tensor)
+                if self._image_writer:
+                    self._image_writer.save_tiled_rgba(
+                        wp.to_torch(tiled_albedo_data).cpu().numpy(),
+                        self._frame_counter,
+                        "albedo",
+                    )
+                self._extract_rgba_tiles(tiled_albedo_data, "albedo", suffix="albedo")
+
+        # Semantic segmentation
+        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in self._output_data_buffers:
+            with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
+                tiled_semantic_data = wp.from_dlpack(mapping.tensor)
+                if tiled_semantic_data.dtype == wp.uint32:
+                    semantic_torch = wp.to_torch(tiled_semantic_data)
+                    semantic_uint8 = semantic_torch.view(torch.uint8)
+                    if semantic_torch.dim() == 2:
+                        h, w = semantic_torch.shape
+                        semantic_uint8 = semantic_uint8.reshape(h, w, 4)
+                    tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
+                if self._image_writer:
+                    self._image_writer.save_tiled_rgba(
+                        wp.to_torch(tiled_semantic_data).cpu().numpy(),
+                        self._frame_counter,
+                        "semantic",
+                    )
+                self._extract_rgba_tiles(
+                    tiled_semantic_data, "semantic_segmentation", suffix="semantic"
                 )
 
     def render(self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor):
@@ -763,19 +571,19 @@ class OVRTXRenderer(RendererBase):
         camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
         
         # Create camera transforms array
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=_DEVICE)
+        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         
         # Launch kernel to populate transforms
         wp.launch(
-            kernel=_create_camera_transforms_kernel,
+            kernel=create_camera_transforms_kernel,
             dim=num_envs,
             inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=_DEVICE,
+            device=DEVICE,
         )
         
         # Update camera transforms in the scene using the binding
         if self._camera_binding is not None:
-            with self._camera_binding.map(device="cuda", device_id=0) as attr_mapping:
+            with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
                 # Unmap will commit the changes
@@ -783,90 +591,20 @@ class OVRTXRenderer(RendererBase):
         # Update object transforms from Newton physics
         self._update_object_transforms()
         
-        # Step the renderer to produce frames (single RenderProduct, tiled output)
+        # Step the renderer and process the tiled frame
         if self._renderer is not None and len(self._render_product_paths) > 0:
             try:
-                # Render using the single render product
-                render_product_set = set(self._render_product_paths)
-                
                 products = self._renderer.step(
-                    render_products=render_product_set,
+                    render_products=set(self._render_product_paths),
                     delta_time=1.0 / 60.0,
                 )
-
-                # Extract rendered images from the single render product
-                # The product should contain a single tiled frame
                 product_path = self._render_product_paths[0]
-                if product_path in products:
-                    product = products[product_path]
-                    
-                    if len(product.frames) > 0:
-                        frame = product.frames[0]
-
-                        # Extract RGB/RGBA
-                        rgb_render_var = None
-                        if "SimpleShadingSD" in frame.render_vars:
-                            rgb_render_var = "SimpleShadingSD"
-                        elif "LdrColor" in frame.render_vars:
-                            rgb_render_var = "LdrColor"
-                        
-                        if rgb_render_var and "rgba" in self._output_data_buffers:
-                            with frame.render_vars[rgb_render_var].map(device="cuda") as mapping:
-                                tiled_data = wp.from_dlpack(mapping.tensor)
-                                self._save_tiled_image_to_disk(tiled_data, suffix="rgb")
-                                self._extract_rgba_tiles(tiled_data, "rgba", suffix="rgb")
-                        
-                        # Extract depth if available
-                        # Check for depth render vars by their sourceName (DistanceToImagePlaneSD or DepthSD)
-                        depth_source_names = ["DistanceToImagePlaneSD", "DepthSD"]
-                        depth_var_found = None
-                        for source_name in depth_source_names:
-                            if source_name in frame.render_vars:
-                                depth_var_found = source_name
-                                break
-                        
-                        if depth_var_found:
-                            with frame.render_vars[depth_var_found].map(device="cuda") as mapping:
-                                tiled_depth_data = wp.from_dlpack(mapping.tensor)
-
-                                if tiled_depth_data.dtype == wp.uint32:
-                                    depth_torch = wp.to_torch(tiled_depth_data)
-                                    tiled_depth_data = wp.from_torch(
-                                        depth_torch.view(torch.float32), dtype=wp.float32
-                                    )
-
-                                self._save_tiled_depth_image_to_disk(tiled_depth_data)
-                                self._extract_depth_tiles(tiled_depth_data)
-                        
-                        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in self._output_data_buffers:
-                            with frame.render_vars["DiffuseAlbedoSD"].map(device="cuda") as mapping:
-                                tiled_albedo_data = wp.from_dlpack(mapping.tensor)
-                                self._save_tiled_image_to_disk(tiled_albedo_data, suffix="albedo")
-                                self._extract_rgba_tiles(tiled_albedo_data, "albedo", suffix="albedo")
-                        
-                        # Extract semantic segmentation if available
-                        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in self._output_data_buffers:
-                            with frame.render_vars["SemanticSegmentationSD"].map(device="cuda") as mapping:
-                                tiled_semantic_data = wp.from_dlpack(mapping.tensor)
-
-                                if tiled_semantic_data.dtype == wp.uint32:
-                                    semantic_torch = wp.to_torch(tiled_semantic_data)
-                                    semantic_uint8_torch = semantic_torch.view(torch.uint8)
-                                    if len(semantic_torch.shape) == 2:
-                                        h, w = semantic_torch.shape
-                                        semantic_uint8_torch = semantic_uint8_torch.reshape(h, w, 4)
-                                    tiled_semantic_data = wp.from_torch(semantic_uint8_torch, dtype=wp.uint8)
-
-                                self._save_tiled_image_to_disk(tiled_semantic_data, suffix="semantic")
-                                self._extract_rgba_tiles(
-                                    tiled_semantic_data, "semantic_segmentation", suffix="semantic"
-                                )
-
+                if product_path in products and len(products[product_path].frames) > 0:
+                    self._process_render_frame(products[product_path].frames[0])
             except Exception as e:
                 print(f"Warning: OVRTX rendering failed: {e}")
                 import traceback
                 traceback.print_exc()
-                # Keep the output buffers as-is (zeros from initialization)
 
     def _update_object_transforms(self):
         """Update object transforms from Newton physics state to OVRTX.
@@ -886,15 +624,15 @@ class OVRTXRenderer(RendererBase):
                 return
             
             # Map OVRTX transforms and update from Newton
-            with self._object_binding.map(device="cuda", device_id=0) as attr_mapping:
+            with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
                 ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 
                 # Launch kernel to sync transforms
                 wp.launch(
-                    kernel=_sync_newton_transforms_kernel,
+                    kernel=sync_newton_transforms_kernel,
                     dim=len(self._object_newton_indices),
                     inputs=[ovrtx_transforms, self._object_newton_indices, newton_state.body_q],
-                    device=_DEVICE,
+                    device=DEVICE,
                 )
                 # Unmap will commit the changes
                 
@@ -902,158 +640,6 @@ class OVRTXRenderer(RendererBase):
             # Silently fail to avoid spamming console
             if self._frame_counter == 1:
                 print(f"[OVRTX] Warning: Failed to update object transforms: {e}")
-
-    def _save_image_to_disk(self, rendered_data_wp: wp.array, env_idx: int, suffix: str = ""):
-        """Save rendered image to disk.
-        
-        Args:
-            rendered_data_wp: Warp array containing RGBA data, shape (height, width, 4)
-            env_idx: Environment index for filename
-            suffix: Optional suffix to add to filename (e.g., "albedo", "semantic", "rgb")
-        """
-        # Only save if image_folder is configured
-        if not self._image_folder:
-            return
-            
-        try:
-            # Convert warp array to torch tensor, then to numpy
-            rendered_data_torch = wp.to_torch(rendered_data_wp)
-            rendered_data_np = rendered_data_torch.cpu().numpy()
-            
-            # Convert from float [0, 1] to uint8 [0, 255]
-            if rendered_data_np.dtype in [np.float32, np.float64]:
-                rendered_data_np = (rendered_data_np * 255).astype(np.uint8)
-            
-            # Use the configured image folder
-            output_dir = Path(self._image_folder)
-            
-            # Save as PNG
-            # rendered_data_np is shape (height, width, 4) for RGBA
-            if len(rendered_data_np.shape) == 3 and rendered_data_np.shape[2] == 4:
-                # RGBA image
-                image = Image.fromarray(rendered_data_np, mode='RGBA')
-            elif len(rendered_data_np.shape) == 3 and rendered_data_np.shape[2] == 3:
-                # RGB image
-                image = Image.fromarray(rendered_data_np, mode='RGB')
-            elif len(rendered_data_np.shape) == 2:
-                # Grayscale image
-                image = Image.fromarray(rendered_data_np, mode='L')
-            else:
-                print(f"Warning: Unexpected image shape {rendered_data_np.shape}, cannot save")
-                return
-            
-            # Save with frame, environment index, and suffix in filename
-            if suffix:
-                output_path = output_dir / f"{suffix}_frame_{self._frame_counter:06d}_env_{env_idx:04d}.png"
-            else:
-                output_path = output_dir / f"frame_{self._frame_counter:06d}_env_{env_idx:04d}.png"
-            image.save(output_path)
-            
-            # Only print for first environment and first few frames to avoid spam
-            if env_idx == 0 and self._frame_counter <= 5:
-                print(f"[OVRTX] Saved rendered image: {output_path}")
-                
-        except Exception as e:
-            print(f"Warning: Failed to save image for env {env_idx}: {e}")
-    
-    def _save_depth_image_to_disk(self, depth_data_wp: wp.array, env_idx: int):
-        """Save depth image to disk as grayscale PNG (normalized).
-        
-        Args:
-            depth_data_wp: Warp array containing depth data, shape (height, width, 1)
-            env_idx: Environment index for filename
-        """
-        # Only save if image_folder is configured
-        if not self._image_folder:
-            return
-            
-        try:
-            # Convert warp array to torch tensor, then to numpy
-            depth_data_torch = wp.to_torch(depth_data_wp)
-            depth_data_np = depth_data_torch.cpu().numpy()
-            
-            if len(depth_data_np.shape) == 3 and depth_data_np.shape[2] == 1:
-                depth_data_np = depth_data_np[:, :, 0]
-
-            depth_normalized, depth_min, depth_max = _normalize_depth_to_uint8(depth_data_np)
-            output_dir = Path(self._image_folder)
-            image = Image.fromarray(depth_normalized, mode="L")
-            output_path = output_dir / f"depth_frame_{self._frame_counter:06d}_env_{env_idx:04d}.png"
-            image.save(output_path)
-            if env_idx == 0 and self._frame_counter <= 5 and depth_min is not None and depth_max is not None:
-                print(f"[OVRTX] Saved depth image: {output_path} (range: {depth_min:.3f} to {depth_max:.3f})")
-                
-        except Exception as e:
-            print(f"Warning: Failed to save depth image for env {env_idx}: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def _save_tiled_image_to_disk(self, tiled_data_wp: wp.array, suffix: str = ""):
-        """Save tiled image (all environments in a grid) to disk.
-        
-        Args:
-            tiled_data_wp: Warp array containing tiled RGBA data, shape (tiled_height, tiled_width, 4)
-            suffix: Optional suffix to add to filename (e.g., "albedo", "semantic", "rgb")
-        """
-        # Only save if image_folder is configured
-        if not self._image_folder:
-            return
-            
-        try:
-            # Convert warp array to torch tensor, then to numpy
-            tiled_data_torch = wp.to_torch(tiled_data_wp)
-            tiled_data_np = tiled_data_torch.cpu().numpy()
-            
-            # Convert from float [0, 1] to uint8 [0, 255]
-            if tiled_data_np.dtype in [np.float32, np.float64]:
-                tiled_data_np = (tiled_data_np * 255).astype(np.uint8)
-            
-            # Use the configured image folder
-            output_dir = Path(self._image_folder)
-            
-            # Save as PNG
-            image = Image.fromarray(tiled_data_np, mode='RGBA')
-            if suffix:
-                output_path = output_dir / f"{suffix}_frame_{self._frame_counter:06d}_tiled.png"
-            else:
-                output_path = output_dir / f"frame_{self._frame_counter:06d}_tiled.png"
-            image.save(output_path)
-            
-            # Print only for first few frames
-            if self._frame_counter <= 5:
-                print(f"[OVRTX] Saved tiled {suffix + ' ' if suffix else ''}image ({self._num_envs} envs in {self._num_cols}x{self._num_rows} grid): {output_path}")
-                
-        except Exception as e:
-            print(f"Warning: Failed to save tiled image: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _save_tiled_depth_image_to_disk(self, tiled_depth_data_wp: wp.array):
-        """Save tiled depth image (all environments in a grid) to disk.
-        
-        Args:
-            tiled_depth_data_wp: Warp array containing tiled depth data, shape (tiled_height, tiled_width)
-        """
-        # Only save if image_folder is configured
-        if not self._image_folder:
-            return
-            
-        try:
-            # Convert warp array to torch tensor, then to numpy
-            tiled_depth_torch = wp.to_torch(tiled_depth_data_wp)
-            tiled_depth_np = tiled_depth_torch.cpu().numpy()
-            depth_normalized, depth_min, depth_max = _normalize_depth_to_uint8(tiled_depth_np)
-            output_dir = Path(self._image_folder)
-            image = Image.fromarray(depth_normalized, mode="L")
-            output_path = output_dir / f"depth_frame_{self._frame_counter:06d}_tiled.png"
-            image.save(output_path)
-            if self._frame_counter <= 5 and depth_min is not None and depth_max is not None:
-                print(f"[OVRTX] Saved tiled depth image ({self._num_envs} envs in {self._num_cols}x{self._num_rows} grid): {output_path} (range: {depth_min:.3f} to {depth_max:.3f})")
-                
-        except Exception as e:
-            print(f"Warning: Failed to save tiled depth image: {e}")
-            import traceback
-            traceback.print_exc()
 
     def step(self):
         """Step the renderer."""
