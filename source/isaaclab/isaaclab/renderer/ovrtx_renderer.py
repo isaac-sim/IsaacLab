@@ -31,6 +31,7 @@ import math
 import os
 from dataclasses import MISSING
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -158,10 +159,9 @@ class OVRTXRenderer(RendererBase):
             )
             
             if env_partition_binding is not None:
-                # Create warp array with token strings
-                # Note: OvRTX expects string tokens as a specific format
-                partition_array = wp.array(partition_tokens, dtype=str, device="cpu")
-                self._renderer.write_attribute(env_partition_binding, partition_array, sync=True)
+                # Use numpy for token strings
+                partition_array = np.array(partition_tokens, dtype="U32")
+                self._renderer.write_attribute(env_partition_binding, tensor=partition_array)
                 print(f"  ✓ Written primvars:omni:scenePartition to {self._num_envs} environments")
             else:
                 print(f"  ⚠ Warning: Failed to bind primvars:omni:scenePartition on environments")
@@ -175,9 +175,9 @@ class OVRTXRenderer(RendererBase):
             )
             
             if cam_partition_binding is not None:
-                # Reuse the same partition tokens for cameras
-                cam_partition_array = wp.array(partition_tokens, dtype=str, device="cpu")
-                self._renderer.write_attribute(cam_partition_binding, cam_partition_array, sync=True)
+                # Reuse the same partition tokens for cameras (numpy, Warp has no string arrays)
+                cam_partition_array = np.array(partition_tokens, dtype="U32")
+                self._renderer.write_attribute(cam_partition_binding, tensor=cam_partition_array)
                 print(f"  ✓ Written omni:scenePartition to {self._num_envs} cameras")
             else:
                 print(f"  ⚠ Warning: Failed to bind omni:scenePartition on cameras")
