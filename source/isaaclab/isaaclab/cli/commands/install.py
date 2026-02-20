@@ -143,7 +143,6 @@ def _install_isaaclab_extensions():
                     "-m",
                     "pip",
                     "install",
-                    "--prefer-binary",
                     "--editable",
                     str(item),
                 ]
@@ -166,14 +165,12 @@ def _install_extra_frameworks(framework_name="all"):
     print_info(f"Installing rl-framework: {framework_name}")
 
     # Install the learning frameworks specified.
-    # Using --prefer-binary as per script.
     run_command(
         [
             python_exe,
             "-m",
             "pip",
             "install",
-            "--prefer-binary",
             "-e",
             f"{ISAACLAB_ROOT}/source/isaaclab_rl{extras}",
         ]
@@ -184,7 +181,6 @@ def _install_extra_frameworks(framework_name="all"):
             "-m",
             "pip",
             "install",
-            "--prefer-binary",
             "-e",
             f"{ISAACLAB_ROOT}/source/isaaclab_mimic{extras}",
         ]
