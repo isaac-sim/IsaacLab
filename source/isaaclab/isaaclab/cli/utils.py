@@ -132,10 +132,17 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, s
         sys.exit(e.returncode)
 
 
-def extract_python_exe():
+def extract_python_exe(allow_isaacsim_python: bool = True):
     """
     Find the Python executable to use.
+
+    Args:
+        allow_isaacsim_python:
+        Allows to disable IsaacSim bundled Python fallback here to avoid recursion.
+        This happens in CI or fresh environments where neither CONDA_PREFIX nor
+        VIRTUAL_ENV is set and the default symlink path does not exist.
     """
+
     python_exe = None
 
     # Try conda python.
@@ -173,7 +180,7 @@ def extract_python_exe():
             print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
 
     # Try kit python.
-    if not python_exe or not Path(python_exe).exists():
+    if allow_isaacsim_python and (not python_exe or not Path(python_exe).exists()):
         if python_exe:
             print_debug(
                 f'extract_python_exe(): Virtual env python "{python_exe}" does not exist, trying to find Kit python...'
@@ -233,7 +240,7 @@ def extract_isaacsim_path():
     # If above path is not available, try to find the path using python.
     if not isaacsim_path.exists():
         # Use the python executable to get the path.
-        python_exe = extract_python_exe()
+        python_exe = extract_python_exe(allow_isaacsim_python=False)
         # Retrieve the path importing isaac sim and getting the environment path.
         try:
             # Check if isaacsim-rl is installed.
