@@ -11,6 +11,7 @@ import torch
 
 import pytest
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, PhysicsEvent
 from newton import ModelBuilder
 
 import isaaclab.sim as sim_utils
@@ -20,7 +21,6 @@ from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuato
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, PhysicsEvent
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.utils.stage import get_current_stage

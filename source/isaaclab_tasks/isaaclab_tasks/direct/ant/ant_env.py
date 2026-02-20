@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab_assets.robots.ant import ANT_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg

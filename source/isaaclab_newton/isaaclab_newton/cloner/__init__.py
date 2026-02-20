@@ -2,3 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+from .newton_replicate import newton_replicate
+
+__all__ = ["newton_replicate"]

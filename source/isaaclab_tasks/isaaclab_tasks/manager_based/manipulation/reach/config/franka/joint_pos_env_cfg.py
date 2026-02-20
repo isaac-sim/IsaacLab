@@ -5,7 +5,8 @@
 
 import math
 
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
@@ -40,7 +41,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             ),
             num_substeps=1,
             debug_mode=False,
-        )
+        ),
     )
 
     def __post_init__(self):

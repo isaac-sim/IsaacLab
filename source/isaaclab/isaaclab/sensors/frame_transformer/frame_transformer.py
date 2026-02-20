@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,10 +10,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
-from isaaclab.physics import NewtonManager
 from isaaclab.utils.math import normalize, quat_from_angle_axis
 
 from ..sensor_base import SensorBase

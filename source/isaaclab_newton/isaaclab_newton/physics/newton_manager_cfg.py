@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
 from .newton_manager import NewtonManager
-from .physics_manager_cfg import PhysicsCfg
 
 if TYPE_CHECKING:
-    from .physics_manager import PhysicsManager
+    from isaaclab.physics import PhysicsManager
 
 
 @configclass

@@ -29,6 +29,7 @@ from isaaclab_newton.kernels import (
     update_wrench_array_with_torque,
     vec13f,
 )
+from isaaclab_newton.physics import NewtonManager
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
 from newton.solvers import SolverMuJoCo, SolverNotifyFlags
@@ -37,7 +38,6 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.physics import NewtonManager
 from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,

@@ -21,6 +21,7 @@ import torch
 from typing import TYPE_CHECKING, Literal
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 from newton.solvers import SolverNotifyFlags
 from pxr import Gf, Sdf, UsdGeom, Vt
 
@@ -29,7 +30,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, RigidObject  # , DeformableObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.physics import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
 from isaaclab.utils.version import compare_versions

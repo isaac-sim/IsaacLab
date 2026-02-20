@@ -17,10 +17,9 @@ from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, M
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
-
-from .physics_manager import PhysicsEvent, PhysicsManager
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext

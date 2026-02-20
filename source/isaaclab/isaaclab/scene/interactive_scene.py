@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import warp as wp
+from isaaclab_newton.cloner import newton_replicate
 from pxr import Sdf
 
 import isaaclab.sim as sim_utils
@@ -129,6 +130,7 @@ class InteractiveScene:
             clone_regex=self.env_regex_ns,
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
+            physics_clone_fn=newton_replicate,
         )
 
         # create source prim
@@ -178,7 +180,7 @@ class InteractiveScene:
 
             if not copy_from_source:
                 # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
-                cloner.newton_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
+                self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, positions=self._default_env_origins)
             cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):

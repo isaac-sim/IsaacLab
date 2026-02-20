@@ -4,13 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg  # , RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg

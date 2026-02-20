@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 

@@ -20,10 +20,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.newton_manager import NewtonManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.warp.utils import make_mask_from_torch_ids
 

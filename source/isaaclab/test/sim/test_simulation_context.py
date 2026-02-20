@@ -15,10 +15,10 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 
 import pytest
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim.utils.prims as prim_utils
 import isaaclab.sim.utils.stage as stage_utils
-from isaaclab.physics import NewtonManager
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 

@@ -10,13 +10,13 @@ import torch
 from collections.abc import Sequence
 
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane

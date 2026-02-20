@@ -13,12 +13,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 from newton.sensors import MatchKind
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.physics import NewtonManager
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
 from isaaclab.utils.helpers import deprecated
 

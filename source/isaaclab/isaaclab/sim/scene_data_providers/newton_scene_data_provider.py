@@ -29,7 +29,7 @@ class NewtonSceneDataProvider:
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model from NewtonManager."""
-        from isaaclab.physics.newton_manager import NewtonManager
+        from isaaclab_newton.physics import NewtonManager
 
         return NewtonManager.get_model()
 
@@ -43,7 +43,7 @@ class NewtonSceneDataProvider:
         Returns:
             The current Newton state (state_0) from NewtonManager.
         """
-        from isaaclab.physics.newton_manager import NewtonManager
+        from isaaclab_newton.physics import NewtonManager
 
         # For now, return state_0 (current state) for all environments
         # TODO: Implement env_ids filtering if needed

@@ -13,13 +13,13 @@ from typing import Literal
 import pytest
 import warp as wp
 from flaky import flaky
+from isaaclab_newton.physics import NewtonManager, PhysicsEvent
 from newton import ModelBuilder
 from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.physics import NewtonManager, PhysicsEvent
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.spawners import materials
