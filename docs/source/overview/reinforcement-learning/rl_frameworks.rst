@@ -12,12 +12,13 @@ The supported libraries are:
 - `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__
 - `RL-Games <https://github.com/Denys88/rl_games>`__
 - `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
+- `RLinf <https://github.com/RLinf/RLinf>`__ (for VLA model fine-tuning)
 
 Feature Comparison
 ------------------
 
 .. list-table::
-   :widths: 20 20 20 20 20
+   :widths: 16 16 16 16 16 20
    :header-rows: 1
 
    * - Feature
@@ -25,45 +26,60 @@ Feature Comparison
      - RSL RL
      - SKRL
      - Stable Baselines3
+     - RLinf
    * - Algorithms Included
      - PPO, SAC, A2C
      - PPO, Distillation
      - `Extensive List <https://skrl.readthedocs.io/en/latest/#agents>`__
      - `Extensive List <https://github.com/DLR-RM/stable-baselines3?tab=readme-ov-file#implemented-algorithms>`__
+     - PPO, Actor-Critic, SAC
    * - Vectorized Training
      - Yes
      - Yes
      - Yes
      - No
+     - Yes
    * - Distributed Training
      - Yes
      - Yes
      - Yes
      - No
+     - Yes (Ray + FSDP)
    * - ML Frameworks Supported
      - PyTorch
      - PyTorch
      - PyTorch, JAX
      - PyTorch
+     - PyTorch
+   * - VLA Model Support
+     - No
+     - No
+     - No
+     - No
+     - GR00T, OpenVLA
    * - Multi-Agent Support
      - PPO
      - PPO
      - PPO + Multi-Agent algorithms
      - External projects support
+     - No
    * - Documentation
      - Low
      - Low
      - Comprehensive
      - Extensive
+     - Low
    * - Community Support
      - Small Community
      - Small Community
      - Small Community
      - Large Community
+     - Small Community
    * - Available Examples in Isaac Lab
      - Large
      - Large
      - Large
+     - Small
      - Small
 
 

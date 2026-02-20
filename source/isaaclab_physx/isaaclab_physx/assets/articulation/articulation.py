@@ -3531,30 +3531,6 @@ class Articulation(BaseArticulation):
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
-            # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
-            self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_viscous_friction_coefficient_to_sim_index(
-                actuator.viscous_friction, joint_ids=actuator.joint_indices
-            )
-
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
             joint_ids = actuator.joint_indices
@@ -3643,6 +3619,29 @@ class Articulation(BaseArticulation):
                     self.data._joint_viscous_friction_coeff,
                 ],
                 device=self.device,
+            )
+            # set the passed gains and limits into the simulation
+            if isinstance(actuator, ImplicitActuator):
+                self._has_implicit_actuators = True
+                # the gains and limits are set into the simulation since actuator model is implicit
+                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
+            else:
+                # the gains and limits are processed by the actuator model
+                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+
+            # Set common properties into the simulation
+            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_dynamic_friction_coefficient_to_sim_index(
+                actuator.dynamic_friction, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                actuator.viscous_friction, joint_ids=actuator.joint_indices
             )
 
         # perform some sanity checks to ensure actuators are prepared correctly

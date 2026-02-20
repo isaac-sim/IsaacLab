@@ -1,13 +1,13 @@
 Changelog
 ---------
 
-0.3.1 (2026-02-13)
+0.4.1 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed a bug in the :meth:`~isaaclab_physx.assets.Articulation.write_data_to_sim` method where the joint properties were not being set correctly.
+* Fixed a bug in :meth:~isaaclab_physx.assets.Articulation.process_actuators_cfg where explicit actuator joints could receive non-zero PhysX stiffness/damping, causing double PD control.
 
 
 0.4.0 (2026-02-13)
