@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 import re
 import shutil
 import subprocess
@@ -18,6 +19,25 @@ from ..utils import (
     print_warning,
     run_command,
 )
+
+
+def _sanitized_conda_env():
+    """
+    Return an environment safe for invoking conda after Isaac Sim has added a bunch of env vars.
+    Otherwise if there were different python version in the system vs IS python,
+    it causes conda to fail with 'SRE mismatch error' due to incompatible python
+    stdlib/runtime mix.
+    """
+    env = dict(os.environ)
+
+    # Prevent mixed Python stdlib/runtime when the CLI is launched from Isaac Sim's bundled Python.
+    for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        env.pop(key, None)
+
+    # Isaac Sim injects Kit shared libraries that can interfere with conda's Py runtime.
+    env.pop("LD_LIBRARY_PATH", None)
+
+    return env
 
 
 def _patch_environment_yml(yml_path, python_version="3.12"):
@@ -39,8 +59,9 @@ def _get_conda_prefix(env_name):
     """Get the prefix of the conda environment."""
     # Use conda run to get sys.prefix
     try:
+        env = _sanitized_conda_env()
         cmd = ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.prefix)"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
         return Path(result.stdout.strip())
     except subprocess.CalledProcessError:
         return None
@@ -79,7 +100,8 @@ def command_setup_conda(env_name):
         )
 
     # Check if the environment exists.
-    result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True)
+    conda_env = _sanitized_conda_env()
+    result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True, env=conda_env)
     if env_name in result.stdout:
         print_info(f"Conda environment named '{env_name}' already exists.")
         env_exists = True
@@ -104,7 +126,7 @@ def command_setup_conda(env_name):
             f.write(patched_content)
 
         try:
-            run_command(["conda", "env", "create", "-y", "--file", str(temp_yml), "-n", env_name])
+            run_command(["conda", "env", "create", "-y", "--file", str(temp_yml), "-n", env_name], env=conda_env)
         finally:
             if temp_yml.exists():
                 temp_yml.unlink()
