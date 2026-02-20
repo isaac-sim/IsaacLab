@@ -197,10 +197,6 @@ class OVRTXRenderer(RendererBase):
             usd_scene_path = export_path
             print(f"   ✓ Exported to {export_path}")
 
-        # Log USD version info for debugging
-        from pxr import Usd
-        print(f"[OVRTX] USD Version: {Usd.GetVersion()}")
-        print(f"[OVRTX] USD Module: {Usd.__file__}")
         print("Creating OVRTX renderer...")
 
         # Create renderer config with proper parameters
@@ -217,8 +213,6 @@ class OVRTXRenderer(RendererBase):
         
         # If a USD scene is provided, load and optionally clone
         if usd_scene_path is not None:
-            from pxr import Usd
-            
             # Load USD file into OvRTX
             # Export contains only env_0 when num_envs > 1; OVRTX clones after load
             print(f"[OVRTX] Injecting camera definitions...")
