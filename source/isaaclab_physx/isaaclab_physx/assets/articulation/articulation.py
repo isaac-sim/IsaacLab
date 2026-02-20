@@ -3710,7 +3710,7 @@ class Articulation(BaseArticulation):
             self.write_joint_effort_limit_to_sim_index(limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_velocity_limit_to_sim_index(limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
             self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(friction=actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices)
             self.write_joint_dynamic_friction_coefficient_to_sim_index(
                 joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices
             )
