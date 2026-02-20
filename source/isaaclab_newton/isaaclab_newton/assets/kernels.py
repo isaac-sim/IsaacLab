@@ -1365,3 +1365,43 @@ def split_spatial_vector_to_bottom_2d(
     """
     i, j = wp.tid()
     bottom_part[i, j] = wp.spatial_bottom(spatial_vector[i, j])
+
+@wp.kernel
+def make_dummy_body_com_pose_b(
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    body_com_pose_b: wp.array2d(dtype=wp.transformf),
+):
+    """Make a dummy body COM pose in body frame.
+
+    This kernel makes a dummy body COM pose in body frame.
+
+    Args:
+        body_com_pos_b: Input array of body COM positions in body frame. Shape is (num_envs, num_bodies).
+        body_com_pose_b: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    # Concatenate the position and a unit quaternion
+    body_com_pose_b[i, j] = wp.transformf(body_com_pos_b[i, j], wp.quatf(0.0, 0.0, 0.0, 1.0))
+
+@wp.kernel
+def derive_body_acceleration_from_body_com_velocities(
+    body_com_vel: wp.array2d(dtype=wp.spatial_vectorf),
+    dt: wp.float32,
+    prev_body_com_vel: wp.array2d(dtype=wp.spatial_vectorf),
+    body_acc: wp.array2d(dtype=wp.spatial_vectorf),
+):
+    """Derive body acceleration from body COM velocities.
+
+    This kernel derives body acceleration from body COM velocities using finite differencing.
+
+    Args:
+        body_com_vel: Input array of body COM velocities. Shape is (num_envs, num_bodies).
+        dt: Input time step (scalar) used for finite differencing.
+        prev_body_com_vel: Input/output array of previous body COM velocities. Shape is (num_envs, num_bodies).
+        body_acc: Output array where body accelerations are written. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    # Compute the acceleration
+    body_acc[i, j] = (body_com_vel[i, j] - prev_body_com_vel[i, j]) / dt
+    # Update the previous body COM velocity
+    prev_body_com_vel[i, j] = body_com_vel[i, j]

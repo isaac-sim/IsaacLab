@@ -18,7 +18,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from pxr import PhysxSchema, UsdPhysics
+from pxr import UsdPhysics
 from newton.selection import ArticulationView
 from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 from newton import Model, JointType
@@ -38,8 +38,6 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
-
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger
@@ -97,7 +95,7 @@ class Articulation(BaseArticulation):
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
-    __backend_name__: str = "physx"
+    __backend_name__: str = "newton"
     """The name of the backend for the articulation."""
 
     actuators: dict
@@ -246,20 +244,26 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                self._instantaneous_wrench_composer.add_raw_buffers_from(self._permanent_wrench_composer)
-                self._instantaneous_wrench_composer.compose_to_body_frame()
+                # Compose instantaneous wrench with permanent wrench
+                self._instantaneous_wrench_composer.add_forces_and_torques_index(
+                    forces=self._permanent_wrench_composer.composed_force,
+                    torques=self._permanent_wrench_composer.composed_torque,
+                    body_ids=self._ALL_BODY_INDICES,
+                    env_ids=self._ALL_INDICES,
+                )
+                # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.out_force_b.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.out_torque_b.flatten().view(wp.float32),
+                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
                 )
             else:
-                self._permanent_wrench_composer.compose_to_body_frame()
+                # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.out_force_b.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.out_torque_b.flatten().view(wp.float32),
+                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
+                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -3656,16 +3660,6 @@ class Articulation(BaseArticulation):
     """
     Deprecated methods.
     """
-
-    @property
-    def root_physx_view(self) -> physx.RigidBodyView:
-        """Deprecated property. Please use :attr:`root_view` instead."""
-        warnings.warn(
-            "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.root_view
 
     def write_joint_friction_coefficient_to_sim(
         self,

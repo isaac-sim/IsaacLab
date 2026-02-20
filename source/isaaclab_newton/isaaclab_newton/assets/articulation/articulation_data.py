@@ -10,7 +10,6 @@ import weakref
 from typing import TYPE_CHECKING
 
 import torch
-from torch._prims_common import is_contiguous
 import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -22,7 +21,7 @@ from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
-    from isaaclab.assets.articulation.articulation_view import ArticulationView
+    from newton.selection import ArticulationView
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -66,10 +65,8 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp = 0.0
         self._is_primed = False
 
-        # obtain global simulation view
-        self._ = SimulationManager.get_physics_sim_view()
-        gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
+        gravity = wp.to_torch(SimulationManager.get_model().gravity)[0]
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
         gravity_dir = gravity_dir.repeat(self._root_view.count, 1)
@@ -181,38 +178,6 @@ class ArticulationData(BaseArticulationData):
         if self.is_primed:
             raise ValueError("The articulation data is already primed.")
         self._default_root_vel.assign(value)
-
-    @property
-    def default_root_state(self) -> wp.array:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
-
-
-        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
-        velocities are of its center of mass frame. Shape is (num_instances, 13).
-
-        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
-        """
-        warnings.warn(
-            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_root_pose and default_root_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
-        wp.launch(
-            shared_kernels.concat_root_pose_and_vel_to_state,
-            dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
-            device=self.device,
-        )
-        return self._default_root_state
 
     @property
     def default_joint_pos(self) -> wp.array:
@@ -580,6 +545,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Need to force the kinematic update to get the latest body link poses.
         if self._body_link_pose_w_timestamp < self._sim_timestamp:
+            # FIXME: Check what this will look like in newton
             self._physics_sim_view.update_articulations_kinematic()
         return self._sim_bind_body_link_pose_w
 
@@ -645,87 +611,6 @@ class ArticulationData(BaseArticulationData):
         return self._sim_bind_body_com_vel_w
 
     @property
-    def body_state_w(self):
-        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
-        velocities are of the articulation links's center of mass frame.
-        """
-        if self._body_state_w is None:
-            self._body_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
-        if self._body_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_state_w.timestamp = self._sim_timestamp
-
-        return self._body_state_w.data
-
-    @property
-    def body_link_state_w(self):
-        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
-        """
-        if self._body_link_state_w is None:
-            self._body_link_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
-        if self._body_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w,
-                    self.body_link_vel_w,
-                ],
-                outputs=[
-                    self._body_link_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_link_state_w.timestamp = self._sim_timestamp
-
-        return self._body_link_state_w.data
-
-    @property
-    def body_com_state_w(self):
-        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13).
-
-        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
-        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
-        principle inertia.
-        """
-        if self._body_com_state_w is None:
-            self._body_com_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
-        if self._body_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
-                shared_kernels.concat_body_pose_and_vel_to_state,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_com_pose_w,
-                    self.body_com_vel_w,
-                ],
-                outputs=[
-                    self._body_com_state_w.data,
-                ],
-                device=self.device,
-            )
-            self._body_com_state_w.timestamp = self._sim_timestamp
-
-        return self._body_com_state_w.data
-
-    @property
     def body_com_acc_w(self):
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
         Shape is (num_instances, num_bodies, 6).
@@ -734,7 +619,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             wp.launch(
-                articulation_kernels.derive_body_acceleration_from_body_com_velocities,
+                shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self._num_instances, self._num_bodies),
                 device=self.device,
                 inputs=[
@@ -763,7 +648,7 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_com_pose_b(self) -> wp.array:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
-        Shape is (num_instances, 1, 7).
+        Shape is (num_instances, num_bodies, 7).
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
@@ -775,7 +660,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
             wp.launch(
-                articulation_kernels.make_dummy_body_com_pose_b,
+                shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[
                     self.body_com_pos_b,
@@ -960,7 +845,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        return self._get_pos_from_transform(self.root_link_pose_w)
+        return self._get_pos_from_transform(self._root_link_pos_w, self.root_link_pose_w)
 
     @property
     def root_link_quat_w(self) -> wp.array:
@@ -968,7 +853,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        return self._get_quat_from_transform(self.root_link_pose_w)
+        return self._get_quat_from_transform(self._root_link_quat_w, self.root_link_pose_w)
 
     @property
     def root_link_lin_vel_w(self) -> wp.array:
@@ -976,7 +861,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        return self._get_top_from_spatial_vector(self.root_link_vel_w)
+        return self._get_top_from_spatial_vector(self._root_link_lin_vel_w, self.root_link_vel_w)
 
     @property
     def root_link_ang_vel_w(self) -> wp.array:
@@ -984,7 +869,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        return self._get_bottom_from_spatial_vector(self.root_link_vel_w)
+        return self._get_bottom_from_spatial_vector(self._root_link_ang_vel_w, self.root_link_vel_w)
 
     @property
     def root_com_pos_w(self) -> wp.array:
@@ -992,7 +877,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        return self._get_pos_from_transform(self.root_com_pose_w)
+        return self._get_pos_from_transform(self._root_com_pos_w, self.root_com_pose_w)
 
     @property
     def root_com_quat_w(self) -> wp.array:
@@ -1000,7 +885,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the actor frame of the root rigid body relative to the world.
         """
-        return self._get_quat_from_transform(self.root_com_pose_w)
+        return self._get_quat_from_transform(self._root_com_quat_w, self.root_com_pose_w)
 
     @property
     def root_com_lin_vel_w(self) -> wp.array:
@@ -1008,7 +893,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        return self._get_top_from_spatial_vector(self.root_com_vel_w)
+        return self._get_top_from_spatial_vector(self._root_com_lin_vel_w, self.root_com_vel_w)
 
     @property
     def root_com_ang_vel_w(self) -> wp.array:
@@ -1016,7 +901,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        return self._get_bottom_from_spatial_vector(self.root_com_vel_w)
+        return self._get_bottom_from_spatial_vector(self._root_com_ang_vel_w, self.root_com_vel_w)
 
     @property
     def body_link_pos_w(self) -> wp.array:
@@ -1024,7 +909,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        return self._get_pos_from_transform(self.body_link_pose_w)
+        return self._get_pos_from_transform(self._body_link_pos_w, self.body_link_pose_w)
 
     @property
     def body_link_quat_w(self) -> wp.array:
@@ -1032,7 +917,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        return self._get_quat_from_transform(self.body_link_pose_w)
+        return self._get_quat_from_transform(self._body_link_quat_w, self.body_link_pose_w)
 
     @property
     def body_link_lin_vel_w(self) -> wp.array:
@@ -1040,7 +925,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        return self._get_top_from_spatial_vector(self.body_link_vel_w)
+        return self._get_top_from_spatial_vector(self._body_link_lin_vel_w, self.body_link_vel_w)
 
     @property
     def body_link_ang_vel_w(self) -> wp.array:
@@ -1048,7 +933,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
         """
-        return self._get_bottom_from_spatial_vector(self.body_link_vel_w)
+        return self._get_bottom_from_spatial_vector(self._body_link_ang_vel_w, self.body_link_vel_w)
 
     @property
     def body_com_pos_w(self) -> wp.array:
@@ -1056,7 +941,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame.
         """
-        return self._get_pos_from_transform(self.body_com_pose_w)
+        return self._get_pos_from_transform(self._body_com_pos_w, self.body_com_pose_w)
 
     @property
     def body_com_quat_w(self) -> wp.array:
@@ -1065,7 +950,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the articulation bodies' actor frame.
         """
-        return self._get_quat_from_transform(self.body_com_pose_w)
+        return self._get_quat_from_transform(self._body_com_quat_w, self.body_com_pose_w)
 
     @property
     def body_com_lin_vel_w(self) -> wp.array:
@@ -1073,7 +958,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        return self._get_top_from_spatial_vector(self.body_com_vel_w)
+        return self._get_top_from_spatial_vector(self._body_com_lin_vel_w, self.body_com_vel_w)
 
     @property
     def body_com_ang_vel_w(self) -> wp.array:
@@ -1081,7 +966,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        return self._get_bottom_from_spatial_vector(self.body_com_vel_w)
+        return self._get_bottom_from_spatial_vector(self._body_com_ang_vel_w, self.body_com_vel_w)
 
     @property
     def body_com_lin_acc_w(self) -> wp.array:
@@ -1089,7 +974,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        return self._get_top_from_spatial_vector(self.body_com_acc_w)
+        return self._get_top_from_spatial_vector(self._body_com_lin_acc_w, self.body_com_acc_w)
 
     @property
     def body_com_ang_acc_w(self) -> wp.array:
@@ -1097,7 +982,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        return self._get_bottom_from_spatial_vector(self.body_com_acc_w)
+        return self._get_bottom_from_spatial_vector(self._body_com_ang_acc_w, self.body_com_acc_w)
 
     @property
     def body_com_quat_b(self) -> wp.array:
@@ -1106,7 +991,7 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
         """
-        return self._get_quat_from_transform(self.body_com_pose_b)
+        return self._get_quat_from_transform(self._body_com_quat_b, self.body_com_pose_b)
 
     def _create_simulation_bindings(self) -> None:
         """Create simulation bindings for the root data.
@@ -1209,19 +1094,9 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
-        if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is not None:
-            if self._root_view.is_fixed_base:
-                self._previous_root_com_vel = wp.clone(
-                    self._root_view.get_root_velocities(SimulationManager.get_state_0())
-                )[:, 0, 0]
-            else:
-                self._previous_root_com_vel = wp.clone(
-                    self._root_view.get_root_velocities(SimulationManager.get_state_0())
-                )[:, 0]
-        else:
-            logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected.")
-            self._previous_root_com_vel = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
-            logger.warning("Setting root com velocity to zeros.")
+        if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
+            logger.warning("Failed to get root com velocity. If the articulation is fixed, this is expected."
+                "Setting root com velocity to zeros.")
             self._sim_bind_root_com_vel_w = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
             self._sim_bind_body_com_vel_w = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         # -- default root pose and velocity
@@ -1319,14 +1194,14 @@ class ArticulationData(BaseArticulationData):
     Internal helpers.
     """
 
-    def _get_pos_from_transform(self, source, transform: wp.array) -> wp.array:
+    def _get_pos_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
         """Generates a position array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: The transform array. Shape is (N) dtype=wp.transformf.
 
         Returns:
-            The position array. Shape is (N, 3).
+            The position array. Shape is (N) dtype=wp.vec3f.
         """
         # Check if we already created the lazy buffer.
         if source is None:
@@ -1373,14 +1248,14 @@ class ArticulationData(BaseArticulationData):
                 )
         return source
 
-    def _get_quat_from_transform(self, source, transform: wp.array) -> wp.array:
+    def _get_quat_from_transform(self, source:wp.array | None, transform: wp.array) -> wp.array:
         """Generates a quaternion array from a transform array.
 
         Args:
-            transform: The transform array. Shape is (N, 7).
+            transform: The transform array. Shape is (N) dtype=wp.transformf.
 
         Returns:
-            The quaternion array. Shape is (N, 4).
+            The quaternion array. Shape is (N) dtype=wp.quatf.
         """
         # Check if we already created the lazy buffer.
         if source is None:
@@ -1434,10 +1309,10 @@ class ArticulationData(BaseArticulationData):
         For instance the linear velocity is the top part of a velocity vector.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
 
         Returns:
-            The top part of the spatial vector array. Shape is (N, 3).
+            The top part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
         """
         # Check if we already created the lazy buffer.
         if source is None:
@@ -1491,10 +1366,10 @@ class ArticulationData(BaseArticulationData):
         For instance the angular velocity is the bottom part of a velocity vector.
 
         Args:
-            spatial_vector: The spatial vector array. Shape is (N, 6).
+            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
 
         Returns:
-            The bottom part of the spatial vector array. Shape is (N, 3).
+            The bottom part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
         """
         # Check if we already created the lazy buffer.
         if source is None:
@@ -1629,3 +1504,134 @@ class ArticulationData(BaseArticulationData):
             self._root_com_state_w.timestamp = self._sim_timestamp
 
         return self._root_com_state_w.data
+
+    @property
+    def default_root_state(self) -> wp.array:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
+
+
+        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
+        velocities are of its center of mass frame. Shape is (num_instances, 13).
+
+        This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
+        """
+        warnings.warn(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_root_state is None:
+            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+        wp.launch(
+            shared_kernels.concat_root_pose_and_vel_to_state,
+            dim=self._num_instances,
+            inputs=[
+                self._default_root_pose,
+                self._default_root_vel,
+            ],
+            outputs=[
+                self._default_root_state,
+            ],
+            device=self.device,
+        )
+        return self._default_root_state
+
+    @property
+    def body_state_w(self):
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position and quaternion are of all the articulation links' actor frame. Meanwhile, the linear and angular
+        velocities are of the articulation links's center of mass frame.
+        """
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_state_w is None:
+            self._body_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+        if self._body_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_state_w.timestamp = self._sim_timestamp
+
+        return self._body_state_w.data
+
+    @property
+    def body_link_state_w(self):
+        """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's link frame relative to the world.
+        """
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_link_state_w is None:
+            self._body_link_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+        if self._body_link_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_link_pose_w,
+                    self.body_link_vel_w,
+                ],
+                outputs=[
+                    self._body_link_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_link_state_w.timestamp = self._sim_timestamp
+
+        return self._body_link_state_w.data
+
+    @property
+    def body_com_state_w(self):
+        """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13).
+
+        The position, quaternion, and linear/angular velocity are of the body's center of mass frame relative to the
+        world. Center of mass frame is assumed to be the same orientation as the link rather than the orientation of the
+        principle inertia.
+        """
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._body_com_state_w is None:
+            self._body_com_state_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f)
+        if self._body_com_state_w.timestamp < self._sim_timestamp:
+            wp.launch(
+                shared_kernels.concat_body_pose_and_vel_to_state,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self.body_com_pose_w,
+                    self.body_com_vel_w,
+                ],
+                outputs=[
+                    self._body_com_state_w.data,
+                ],
+                device=self.device,
+            )
+            self._body_com_state_w.timestamp = self._sim_timestamp
+
+        return self._body_com_state_w.data
