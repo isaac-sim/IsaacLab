@@ -277,9 +277,7 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(
-                    cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT
-                )
+                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase_mode=BroadPhaseMode.EXPLICIT)
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
