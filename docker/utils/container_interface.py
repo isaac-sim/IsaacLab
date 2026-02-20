@@ -68,8 +68,11 @@ class ContainerInterface:
             # insert a hyphen before the suffix if a suffix is given
             self.suffix = f"-{suffix}"
 
-        self.container_name = f"isaac-lab-{self.profile}{self.suffix}"
-        self.image_name = f"isaac-lab-{self.profile}{self.suffix}:latest"
+        # set names for easier reference
+        self.base_service_name = "isaac-lab-base"
+        self.service_name = f"isaac-lab-{self.profile}"
+        self.container_name = f"{self.service_name}{self.suffix}"
+        self.image_name = f"{self.service_name}{self.suffix}:latest"
 
         # keep the environment variables from the current environment,
         # except make sure that the docker name suffix is set from the script
@@ -80,6 +83,26 @@ class ContainerInterface:
         self._resolve_image_extension(yamls, envs)
         # load the environment variables from the .env files
         self._parse_dot_vars()
+
+    def print_info(self):
+        """Print the container interface information."""
+        print("=" * 60)
+        print(f"{'DOCKER CONTAINER INFO':^60}")  # Centered title
+        print("=" * 60)
+
+        print(f"{'Profile:':25} {self.profile}")
+        print(f"{'Suffix:':25} {self.suffix}")
+        print(f"{'Service Name:':25} {self.service_name}")
+        print(f"{'Image Name:':25} {self.image_name}")
+        print(f"{'Container Name:':25} {self.container_name}")
+
+        print("-" * 60)
+        print(f"{'Docker Compose Arguments':^60}")
+        print("-" * 60)
+        print(f"{'YAMLs:':25} {' '.join(self.add_yamls)}")
+        print(f"{'Profiles:':25} {' '.join(self.add_profiles)}")
+        print(f"{'Env Files:':25} {' '.join(self.add_env_files)}")
+        print("=" * 60)
 
     """
     Operations.
@@ -107,6 +130,33 @@ class ContainerInterface:
         """
         result = subprocess.run(["docker", "image", "inspect", self.image_name], capture_output=True, text=True)
         return result.returncode == 0
+
+    def build(self):
+        """Build the Docker image."""
+        print("[INFO] Building the docker image for the profile 'base'...\n")
+        # build the image for the base profile
+        cmd = (
+            ["docker", "compose"]
+            + ["--file", "docker-compose.yaml"]
+            + ["--profile", "base"]
+            + ["--env-file", ".env.base"]
+            + ["build", self.base_service_name]
+        )
+        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+        print("[INFO] Finished building the docker image for the profile 'base'.\n")
+
+        # build the image for the profile
+        if self.profile != "base":
+            print(f"[INFO] Building the docker image for the profile '{self.profile}'...\n")
+            cmd = (
+                ["docker", "compose"]
+                + self.add_yamls
+                + self.add_profiles
+                + self.add_env_files
+                + ["build", self.service_name]
+            )
+            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+            print(f"[INFO] Finished building the docker image for the profile '{self.profile}'.\n")
 
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
