@@ -246,7 +246,7 @@ def test_set_nodal_state(sim, num_cubes):
                     ],
                     dim=-1,
                 )
-                cube_object.write_nodal_state_to_sim(nodal_state)
+                cube_object.write_nodal_state_to_sim_index(nodal_state)
 
                 torch.testing.assert_close(
                     wp.to_torch(cube_object.data.nodal_state_w), nodal_state, rtol=1e-5, atol=1e-5
@@ -295,7 +295,7 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
             else:
                 torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
-            cube_object.write_nodal_state_to_sim(nodal_state)
+            cube_object.write_nodal_state_to_sim_index(nodal_state)
             cube_object.reset()
 
             for _ in range(50):
@@ -318,7 +318,7 @@ def test_set_kinematic_targets(sim, num_cubes):
     nodal_kinematic_targets = wp.to_torch(cube_object.root_view.get_sim_kinematic_targets()).clone()
 
     for _ in range(5):
-        cube_object.write_nodal_state_to_sim(wp.to_torch(cube_object.data.default_nodal_state_w))
+        cube_object.write_nodal_state_to_sim_index(wp.to_torch(cube_object.data.default_nodal_state_w))
 
         default_root_pos = wp.to_torch(cube_object.data.default_nodal_state_w).mean(dim=1)
 
@@ -327,7 +327,7 @@ def test_set_kinematic_targets(sim, num_cubes):
         nodal_kinematic_targets[1:, :, 3] = 1.0
         nodal_kinematic_targets[0, :, 3] = 0.0
         nodal_kinematic_targets[0, :, :3] = wp.to_torch(cube_object.data.default_nodal_state_w)[0, :, :3]
-        cube_object.write_nodal_kinematic_target_to_sim(
+        cube_object.write_nodal_kinematic_target_to_sim_index(
             nodal_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
         )
 
