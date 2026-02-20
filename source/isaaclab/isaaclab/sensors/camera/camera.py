@@ -54,6 +54,7 @@ class Camera(SensorBase):
     - ``"distance_to_camera"``: An image containing the distance to camera optical center.
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"depth"``: The same as ``"distance_to_image_plane"``.
+    - ``"depth_new"``: A depth image from the Depth AOV.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
     - ``"semantic_segmentation"``: The semantic segmentation data.
@@ -477,8 +478,15 @@ class Camera(SensorBase):
                 else:
                     device_name = "cpu"
 
+                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                # once it's exposed, we can remove this
+                if name == "depth_new":
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="Depth", output_data_type=np.float32, output_channels=1
+                    )
+
                 # Map special cases to their corresponding annotator names
-                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane"}
+                special_cases = {"rgba": "rgb", "depth": "distance_to_image_plane", "depth_new": "Depth"}
                 # Get the annotator name, falling back to the original name if not a special case
                 annotator_name = special_cases.get(name, name)
                 # Create the annotator node
@@ -524,9 +532,11 @@ class Camera(SensorBase):
                 #       are within the clipping range for all the annotators.
                 if name == "distance_to_camera":
                     self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+                if name == "depth_new":
+                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
                 # apply defined clipping behavior
                 if (
-                    name == "distance_to_camera" or name == "distance_to_image_plane"
+                    name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth_new"
                 ) and self.cfg.depth_clipping_behavior != "none":
                     self._data.output[name][torch.isinf(self._data.output[name])] = (
                         0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
@@ -654,9 +664,11 @@ class Camera(SensorBase):
             #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
             if name == "distance_to_camera":
                 self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
+            if name == "depth_new":
+                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
             # clip the data if needed
             if (
-                name == "distance_to_camera" or name == "distance_to_image_plane"
+                name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth_new"
             ) and self.cfg.depth_clipping_behavior != "none":
                 self._data.output[name][torch.isinf(self._data.output[name])] = (
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
@@ -697,7 +709,7 @@ class Camera(SensorBase):
             else:
                 data = data.view(height, width, 1)
         # make sure buffer dimensions are consistent as (H, W, C)
-        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
+        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth" or name == "depth_new":
             data = data.view(height, width, 1)
         # we only return the RGB channels from the RGBA output if rgb is required
         # normals return (x, y, z) in first 3 channels, 4th channel is unused
