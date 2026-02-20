@@ -237,6 +237,19 @@ class AppLauncher:
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
+          - ``rerun``: Use Rerun visualizer.
+          - ``newton``: Use Newton visualizer.
+          - ``viser``: Use Viser visualizer.
+          - ``kit``: Use Omniverse Kit visualizer.
+          - Multiple visualizers can be specified: ``--visualizer rerun newton viser``
+          - If not specified (default), NO visualizers will be initialized and headless mode is auto-enabled.
+
+          Note: If visualizer configs are not defined in the simulation config, default configs will be
+          automatically created with all default parameters.
+          If --headless is specified, it takes precedence and NO visualizers will be initialized.
+          When kit visualizer is specified, the app will launch in non-headless mode automatically.
+          When only non-GUI visualizers (rerun, newton, viser) are specified, headless mode is auto-enabled.
+
         * ``visualizer_max_worlds`` (int | None): Optional global override for the maximum number of worlds
           rendered in Newton-based visualizers (newton, rerun, viser). If omitted, each visualizer uses its
           config default. Use ``0`` to render all worlds.
