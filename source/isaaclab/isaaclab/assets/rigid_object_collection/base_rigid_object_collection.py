@@ -125,7 +125,7 @@ class BaseRigidObjectCollection(AssetBase):
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -177,6 +177,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -193,7 +194,8 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
+            body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7)
+                or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -202,6 +204,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -218,15 +221,17 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_body_link_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -243,7 +248,8 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body link poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
+            body_poses: Body link poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7)
+                or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -252,6 +258,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_link_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -268,15 +275,17 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_body_com_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -284,7 +293,7 @@ class BaseRigidObjectCollection(AssetBase):
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -294,7 +303,8 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body center of mass poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
+            body_poses: Body center of mass poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7)
+                or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -303,6 +313,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_com_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -310,7 +321,7 @@ class BaseRigidObjectCollection(AssetBase):
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -320,15 +331,17 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_body_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -348,7 +361,8 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_velocities: Body velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
+            body_velocities: Body velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6)
+                or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -357,6 +371,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -376,15 +391,17 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_velocities: Body velocities in simulation frame. Shape is (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_velocities: Body velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
+                or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_body_com_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -405,7 +422,7 @@ class BaseRigidObjectCollection(AssetBase):
 
         Args:
             body_velocities: Body center of mass velocities in simulation frame. Shape is
-                (len(env_ids), len(body_ids), 6).
+                (len(env_ids), len(body_ids), 6) or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -414,6 +431,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_com_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -434,15 +452,16 @@ class BaseRigidObjectCollection(AssetBase):
 
         Args:
             body_velocities: Body center of mass velocities in simulation frame. Shape is
-                (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+                (num_instances, num_bodies, 6) or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def write_body_link_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: slice | torch.Tensor | None = None,
@@ -462,7 +481,8 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_velocities: Body link velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6).
+            body_velocities: Body link velocities in simulation frame. Shape is (len(env_ids), len(body_ids), 6)
+                or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -471,6 +491,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def write_body_link_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -490,9 +511,10 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
+                or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
@@ -503,6 +525,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -526,6 +549,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -541,14 +565,15 @@ class BaseRigidObjectCollection(AssetBase):
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -573,6 +598,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -587,15 +613,17 @@ class BaseRigidObjectCollection(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
+                or (num_instances, num_bodies) with dtype wp.vec3f.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 
     @abstractmethod
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -619,6 +647,7 @@ class BaseRigidObjectCollection(AssetBase):
     @abstractmethod
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
@@ -634,8 +663,8 @@ class BaseRigidObjectCollection(AssetBase):
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
         """
         raise NotImplementedError()
 

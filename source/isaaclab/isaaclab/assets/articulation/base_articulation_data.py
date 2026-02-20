@@ -422,7 +422,7 @@ class BaseArticulationData(ABC):
     def root_link_pose_w(self) -> wp.array:
         """Root link pose ``[pos, quat]`` in simulation world frame.
         
-        Shape is (num_instances, 7), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
 
         This quantity is the pose of the articulation root's actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -433,8 +433,8 @@ class BaseArticulationData(ABC):
     @abstractmethod
     def root_link_vel_w(self) -> wp.array:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
-        
-        Shape is (num_instances, 6), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
+
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
@@ -445,8 +445,8 @@ class BaseArticulationData(ABC):
     @abstractmethod
     def root_com_pose_w(self) -> wp.array:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
-        
-        Shape is (num_instances, 7), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
 
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
@@ -457,8 +457,8 @@ class BaseArticulationData(ABC):
     @abstractmethod
     def root_com_vel_w(self) -> wp.array:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
-        
-        Shape is (num_instances, 6), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
+
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the articulation root's center of mass frame
         relative to the world.
@@ -499,7 +499,7 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def body_inertia(self) -> wp.array:
-        """Flattned body inertia in the world frame.
+        """Flattened body inertia in the world frame.
         
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
@@ -685,7 +685,7 @@ class BaseArticulationData(ABC):
         
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's actor frame with respect to the
+        This quantity is the linear velocity of the articulation root's actor frame with respect to
         its actor frame.
         """
         raise NotImplementedError
@@ -693,11 +693,11 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_link_ang_vel_b(self) -> wp.array:
-        """Root link angular velocity in base world frame.
-        
+        """Root link angular velocity in base frame.
+
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's actor frame with respect to the
+        This quantity is the angular velocity of the articulation root's actor frame with respect to
         its actor frame.
         """
         raise NotImplementedError
@@ -709,7 +709,7 @@ class BaseArticulationData(ABC):
         
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's center of mass frame with respect to the
+        This quantity is the linear velocity of the articulation root's center of mass frame with respect to
         its actor frame.
         """
         raise NotImplementedError
@@ -717,11 +717,11 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     def root_com_ang_vel_b(self) -> wp.array:
-        """Root center of mass angular velocity in base world frame.
-        
+        """Root center of mass angular velocity in base frame.
+
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
+        This quantity is the angular velocity of the articulation root's center of mass frame with respect to
         its actor frame.
         """
         raise NotImplementedError
@@ -781,7 +781,7 @@ class BaseArticulationData(ABC):
         
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the position of the actor frame of the root rigid body relative to the world.
+        This quantity is the position of the center of mass frame of the root rigid body relative to the world.
         """
         raise NotImplementedError
 
@@ -789,10 +789,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     def root_com_quat_w(self) -> wp.array:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
-        
+
         Shape is (num_instances), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
 
-        This quantity is the orientation of the actor frame of the root rigid body relative to the world.
+        This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
         """
         raise NotImplementedError
 
@@ -850,7 +850,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
 
-        This quantity is the linear velocity of the articulation bodies' center of mass frame relative to the world.
+        This quantity is the linear velocity of the articulation bodies' actor frame relative to the world.
         """
         raise NotImplementedError
 
@@ -858,11 +858,11 @@ class BaseArticulationData(ABC):
     @abstractmethod
     def body_link_ang_vel_w(self) -> wp.array:
         """Angular velocity of all bodies in simulation world frame.
-        
+
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
 
-        This quantity is the angular velocity of the articulation bodies' center of mass frame relative to the world.
+        This quantity is the angular velocity of the articulation bodies' actor frame relative to the world.
         """
         raise NotImplementedError
 
@@ -874,19 +874,19 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
 
-        This quantity is the position of the articulation bodies' actor frame.
+        This quantity is the position of the articulation bodies' center of mass frame.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def body_com_quat_w(self) -> wp.array:
-        """Orientation (x, y, z, w) of the principle axis of inertia of all bodies in simulation world frame.
-        
+        """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
+
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
 
-        This quantity is the orientation of the articulation bodies' actor frame.
+        This quantity is the orientation of the principal axes of inertia of the articulation bodies.
         """
         raise NotImplementedError
 
@@ -946,7 +946,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
 
-        This quantity is the center of mass location relative to its body'slink frame.
+        This quantity is the center of mass location relative to its body's link frame.
         """
         raise NotImplementedError
 
@@ -959,7 +959,7 @@ class BaseArticulationData(ABC):
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
 
-        This quantity is the orientation of the principles axes of inertia relative to its body's link frame.
+        This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
         """
         raise NotImplementedError
 

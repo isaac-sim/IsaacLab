@@ -325,14 +325,15 @@ class BaseArticulation(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend looking at the actual implementation of the method in the backend.
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -349,15 +350,16 @@ class BaseArticulation(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend looking at the actual implementation of the method in the backend.
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -373,14 +375,15 @@ class BaseArticulation(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend looking at the actual implementation of the method in the backend.
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -397,14 +400,15 @@ class BaseArticulation(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend looking at the actual implementation of the method in the backend.
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
@@ -429,7 +433,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -454,7 +459,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
@@ -481,7 +487,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -508,7 +515,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
@@ -535,7 +543,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -562,7 +571,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
@@ -589,7 +599,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
@@ -616,7 +627,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
@@ -836,7 +848,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
+            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2) or (len(env_ids), len(joint_ids)) with
+                dtype wp.vec2f.
             joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the limits for. Defaults to None (all instances).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
@@ -863,7 +876,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            limits: Joint limits. Shape is (num_instances, num_joints, 2).
+            limits: Joint limits. Shape is (num_instances, num_joints, 2) or (num_instances, num_joints) with dtype
+                wp.vec2f.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
@@ -1161,7 +1175,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3)
+                or (len(env_ids), len(body_ids)) with dtype wp.vec3f.
             body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass positions for. Defaults to None
                 (all instances).
@@ -1186,7 +1201,8 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3).
+            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
+                or (num_instances, num_bodies) with dtype wp.vec3f.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).
         """
