@@ -7,7 +7,9 @@
 
 Migrated from PhysX to Newton. Key changes:
 - Replaced ``factory_control`` dependency with ``ik_utils``
-- Data access returns Warp arrays -> ``wp.to_torch()`` for torch operations
+- Newton's data layer returns Warp arrays, which don't support advanced indexing
+  or standard torch math ops. We convert to torch via ``wp.to_torch()`` wherever
+  we need slicing, stacking, or arithmetic.
 - ``default_root_state`` -> ``default_root_pose`` + ``default_root_vel`` (split on Newton)
 - All quaternion operations use XYZW convention (isaaclab.utils.math)
 """
