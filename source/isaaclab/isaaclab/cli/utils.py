@@ -382,15 +382,10 @@ def run_python_command(
     cmd.append(str(script_or_module))
     cmd.extend(args)
 
-    if env is None:
-        env = os.environ.copy()
-        env.update(_generate_python_env())
-
     command_str = " ".join(str(part) for part in cmd)
 
     print_debug(f'run_python_command(): CWD: "{os.getcwd()}"')
     print_debug(f'run_python_command(): CMD: "{command_str}"')
-    _print_debug_env("run_python_command()", env)
 
     return subprocess.run(
         cmd,

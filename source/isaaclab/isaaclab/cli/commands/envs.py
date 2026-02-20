@@ -8,12 +8,14 @@ import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 from ..utils import (
     ISAACLAB_ROOT,
     determine_python_version,
     is_windows,
+    print_debug,
     print_error,
     print_info,
     print_warning,
@@ -65,6 +67,72 @@ def _get_conda_prefix(env_name):
         return Path(result.stdout.strip())
     except subprocess.CalledProcessError:
         return None
+
+
+def _write_conda_env_hooks(conda_prefix: Path):
+    """Write conda activation/deactivation hooks for Isaac Lab environment variables."""
+    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
+    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
+    activate_d.mkdir(parents=True, exist_ok=True)
+    deactivate_d.mkdir(parents=True, exist_ok=True)
+
+    activate_hook = activate_d / "setenv.sh"
+    deactivate_hook = deactivate_d / "unsetenv.sh"
+    isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh"
+
+    activate_content = textwrap.dedent(
+        f"""\
+        #!/usr/bin/env bash
+
+        # for Isaac Lab
+        : "${{_IL_PREV_PYTHONPATH:=${{PYTHONPATH-}}}}"
+        : "${{_IL_PREV_LD_LIBRARY_PATH:=${{LD_LIBRARY_PATH-}}}}"
+        export ISAACLAB_PATH="{ISAACLAB_ROOT}"
+        alias isaaclab="{ISAACLAB_ROOT / "isaaclab.sh"}"
+
+        # show icon if not running headless
+        export RESOURCE_NAME="IsaacSim"
+
+        # for Isaac Sim
+        if [ -f "{isaacsim_setup_conda_env_script}" ]; then
+            source "{isaacsim_setup_conda_env_script}"
+        fi
+        """
+    )
+
+    deactivate_content = textwrap.dedent(
+        f"""\
+        #!/usr/bin/env bash
+
+        # for Isaac Lab
+        unalias isaaclab &>/dev/null
+        unset ISAACLAB_PATH
+
+        # restore paths
+        if [ -v _IL_PREV_PYTHONPATH ]; then
+            export PYTHONPATH="$_IL_PREV_PYTHONPATH"
+            unset _IL_PREV_PYTHONPATH
+        fi
+        if [ -v _IL_PREV_LD_LIBRARY_PATH ]; then
+            export LD_LIBRARY_PATH="$_IL_PREV_LD_LIBRARY_PATH"
+            unset _IL_PREV_LD_LIBRARY_PATH
+        fi
+
+        # for Isaac Sim
+        unset RESOURCE_NAME
+        if [ -f "{isaacsim_setup_conda_env_script}" ]; then
+            unset CARB_APP_PATH
+            unset EXP_PATH
+            unset ISAAC_PATH
+        fi
+        """
+    )
+
+    activate_hook.write_text(activate_content, encoding="utf-8")
+    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
+
+    print_debug(f"Created activation hook: {activate_hook}")
+    print_debug(f"Created deactivation hook: {deactivate_hook}")
 
 
 def command_setup_conda(env_name):
@@ -137,13 +205,11 @@ def command_setup_conda(env_name):
         print_error(f"Could not determine prefix for env {env_name}")
         return
 
-    # Setup directories to load Isaac Sim variables.
-    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
-    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
-    activate_d.mkdir(parents=True, exist_ok=True)
-    deactivate_d.mkdir(parents=True, exist_ok=True)
+    # Setup Isaac Lab and Isaac Sim environment variables through conda hooks.
+    _write_conda_env_hooks(conda_prefix)
 
     if not is_windows():
+        print_info("Added 'isaaclab' alias and environment hooks to conda activation scripts.")
         print_info(f"Created conda environment named '{env_name}'.\n")
         print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
         print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.sh -i")
