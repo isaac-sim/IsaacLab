@@ -69,14 +69,12 @@ class OVRTXRenderer(RendererBase):
     _object_newton_indices: wp.array | None = None  # Newton body indices for objects
     _render_product_paths: list[str] = []
     _initialized_scene = False
-    _frame_counter: int = 0  # Track frame number for image filenames
 
     def __init__(self, cfg: OVRTXRendererCfg):
         super().__init__(cfg)
         self._usd_handles = []
         self._render_product_paths = []
-        self._frame_counter = 0
-        
+
         # Calculate tiled dimensions properly (not a square grid)
         # Use same logic as TiledCamera._tiling_grid_shape()
         self._num_cols = math.ceil(math.sqrt(self._num_envs))
@@ -474,8 +472,7 @@ class OVRTXRenderer(RendererBase):
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. This should not happen - scene setup should occur in initialize()")
         
-        # Increment frame counter
-        self._frame_counter += 1
+
         
         num_envs = camera_positions.shape[0]
         
@@ -557,9 +554,7 @@ class OVRTXRenderer(RendererBase):
                 # Unmap will commit the changes
                 
         except Exception as e:
-            # Silently fail to avoid spamming console
-            if self._frame_counter == 1:
-                print(f"[OVRTX] Warning: Failed to update object transforms: {e}")
+            print(f"[OVRTX] Warning: Failed to update object transforms: {e}")
 
     def step(self):
         """Step the renderer."""
