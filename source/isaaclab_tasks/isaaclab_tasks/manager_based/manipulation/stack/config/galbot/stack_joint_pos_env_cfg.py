@@ -4,13 +4,20 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import logging
+
 from isaaclab_physx.assets import SurfaceGripperCfg
 
+try:
+    import isaacteleop  # noqa: F401  -- pipeline builders need isaacteleop at runtime
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.device_base import DeviceBase
-from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
-from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -32,6 +39,82 @@ from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import Observ
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.galbot import GALBOT_ONE_CHARLIE_CFG  # isort: skip
+
+
+def _build_se3_abs_gripper_pipeline(hand_side="left"):
+    """Build an IsaacTeleop Se3Abs + Gripper pipeline for single-arm manipulator teleoperation.
+
+    Creates a Se3AbsRetargeter for end-effector absolute pose tracking and
+    a GripperRetargeter for pinch-based gripper control from hand tracking data.
+    All outputs are flattened into a single 8D action tensor via TensorReorderer.
+    """
+    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource, HandsSource
+    from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
+    from isaacteleop.retargeting_engine.retargeters import (
+        GripperRetargeter,
+        GripperRetargeterConfig,
+        Se3AbsRetargeter,
+        Se3RetargeterConfig,
+        TensorReorderer,
+    )
+    from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
+
+    controllers = ControllersSource(name="controllers")
+    hands = HandsSource(name="hands")
+    transform_input = ValueInput("world_T_anchor", TransformMatrix())
+    transformed_hands = hands.transformed(transform_input.output(ValueInput.VALUE))
+
+    hand_key = HandsSource.LEFT if hand_side == "left" else HandsSource.RIGHT
+
+    # SE3 Absolute Pose Retargeter
+    se3_cfg = Se3RetargeterConfig(
+        input_device=hand_key,
+        zero_out_xy_rotation=True,
+        use_wrist_rotation=False,
+        use_wrist_position=True,
+        target_offset_roll=0.0,
+        target_offset_pitch=0.0,
+        target_offset_yaw=0.0,
+    )
+    se3 = Se3AbsRetargeter(se3_cfg, name="ee_pose")
+    connected_se3 = se3.connect({hand_key: transformed_hands.output(hand_key)})
+
+    # Gripper Retargeter (pinch-based)
+    gripper_cfg = GripperRetargeterConfig(hand_side=hand_side)
+    gripper = GripperRetargeter(gripper_cfg, name="gripper")
+    controller_key = ControllersSource.LEFT if hand_side == "left" else ControllersSource.RIGHT
+    connected_gripper = gripper.connect(
+        {
+            f"hand_{hand_side}": hands.output(hand_key),
+            f"controller_{hand_side}": controllers.output(controller_key),
+        }
+    )
+
+    # TensorReorderer: flatten into an 8D action tensor [ee_pose(7), gripper(1)]
+    ee_elements = ["pos_x", "pos_y", "pos_z", "quat_x", "quat_y", "quat_z", "quat_w"]
+    gripper_elements = ["gripper_cmd"]
+
+    reorderer = TensorReorderer(
+        input_config={
+            "ee_pose": ee_elements,
+            "gripper": gripper_elements,
+        },
+        output_order=ee_elements + gripper_elements,
+        name="action_reorderer",
+        input_types={
+            "ee_pose": "array",
+            "gripper": "scalar",
+        },
+    )
+    connected_reorderer = reorderer.connect(
+        {
+            "ee_pose": connected_se3.output("ee_pose"),
+            "gripper": connected_gripper.output("gripper_command"),
+        }
+    )
+
+    pipeline = OutputCombiner({"action": connected_reorderer.output("output")})
+    return pipeline
 
 
 @configclass
@@ -250,26 +333,14 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
             ],
         )
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3AbsRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_LEFT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
+        # IsaacTeleop-based teleoperation pipeline (left hand)
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_se3_abs_gripper_pipeline(hand_side="left")
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
 
 
 @configclass
@@ -305,23 +376,11 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
 
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3AbsRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
+        # IsaacTeleop-based teleoperation pipeline (right hand)
+        if _TELEOP_AVAILABLE:
+            pipeline = _build_se3_abs_gripper_pipeline(hand_side="right")
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

@@ -7,7 +7,14 @@
 
 Supports multiple input devices (e.g., keyboard, spacemouse, gamepad) and devices
 configured within the environment (including OpenXR-based hand tracking or motion
-controllers)."""
+controllers).
+
+This script supports two teleoperation stacks:
+1. Native Isaac Lab teleop stack (via teleop_devices in env_cfg)
+2. IsaacTeleop-based stack (via isaac_teleop in env_cfg)
+
+The script automatically detects which stack to use based on the environment config.
+"""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -27,6 +34,7 @@ parser.add_argument(
         "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
         " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
         " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+        " If env_cfg has isaac_teleop configured, this argument is ignored and IsaacTeleop stack is used."
     ),
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -63,6 +71,8 @@ import logging
 
 import gymnasium as gym
 import torch
+
+import omni.usd
 
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
@@ -108,7 +118,10 @@ def main() -> None:
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
-    if args_cli.xr:
+    # Check if IsaacTeleop is configured in the environment
+    use_isaac_teleop = hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
+
+    if use_isaac_teleop or args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
 
@@ -178,18 +191,28 @@ def main() -> None:
         "RESET": reset_recording_instance,
     }
 
-    # For hand tracking devices, add additional callbacks
-    if args_cli.xr:
-        # Default to inactive for hand tracking
-        teleoperation_active = False
+    # For XR devices (hand tracking or IsaacTeleop), default to inactive
+    if use_isaac_teleop or args_cli.xr:
+        teleoperation_active = env_cfg.isaac_teleop.teleoperation_active_default if use_isaac_teleop else False
     else:
         # Always active for other devices
         teleoperation_active = True
 
-    # Create teleop device from config if present, otherwise create manually
+    # Create teleop device based on configuration
     teleop_interface = None
+
     try:
-        if hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
+        if use_isaac_teleop:
+            from isaaclab_teleop import create_isaac_teleop_device
+
+            teleop_interface = create_isaac_teleop_device(
+                env_cfg.isaac_teleop,
+                sim_device=args_cli.device,
+                callbacks=teleoperation_callbacks,
+            )
+
+        elif hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
+            # Use native Isaac Lab teleop stack
             teleop_interface = create_teleop_device(
                 args_cli.teleop_device, env_cfg.teleop_devices.devices, teleoperation_callbacks
             )
@@ -238,37 +261,53 @@ def main() -> None:
 
     print(f"Using teleop device: {teleop_interface}")
 
-    # reset environment
-    env.reset()
-    teleop_interface.reset()
+    def run_loop():
+        """Inner function to run the teleop loop with access to nonlocal variables."""
+        nonlocal should_reset_recording_instance, teleoperation_active
 
-    print("Teleoperation started. Press 'R' to reset the environment.")
+        # reset environment
+        env.reset()
+        teleop_interface.reset()
 
-    # simulate environment
-    while simulation_app.is_running():
-        try:
-            # run everything in inference mode
-            with torch.inference_mode():
-                # get device command
-                action = teleop_interface.advance()
+        stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
+        print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
 
-                # Only apply teleop commands when active
-                if teleoperation_active:
-                    # process actions
-                    actions = action.repeat(env.num_envs, 1)
-                    # apply actions
-                    env.step(actions)
-                else:
-                    env.sim.render()
+        # simulate environment
+        while simulation_app.is_running():
+            try:
+                # run everything in inference mode
+                with torch.inference_mode():
+                    # get device command
+                    action = teleop_interface.advance()
 
-                if should_reset_recording_instance:
-                    env.reset()
-                    teleop_interface.reset()
-                    should_reset_recording_instance = False
-                    print("Environment reset complete")
-        except Exception as e:
-            logger.error(f"Error during simulation step: {e}")
-            break
+                    # action is None when IsaacTeleop session hasn't started yet
+                    # (e.g. waiting for user to click "Start AR")
+                    if action is None:
+                        env.sim.render()
+                    elif teleoperation_active:
+                        # process actions
+                        actions = action.repeat(env.num_envs, 1)
+                        # apply actions
+                        env.step(actions)
+                    else:
+                        env.sim.render()
+
+                    if should_reset_recording_instance:
+                        env.reset()
+                        teleop_interface.reset()
+                        should_reset_recording_instance = False
+                        print("Environment reset complete")
+            except Exception as e:
+                logger.error(f"Error during simulation step: {e}")
+                break
+
+    # Run the teleoperation loop
+    # IsaacTeleop requires a context manager, native devices don't
+    if use_isaac_teleop:
+        with teleop_interface:
+            run_loop()
+    else:
+        run_loop()
 
     # close the simulator
     env.close()
@@ -278,5 +317,9 @@ def main() -> None:
 if __name__ == "__main__":
     # run the main function
     main()
+    # Close the USD stage and pump the event loop so the viewport widget
+    # processes the closure before the app teardown destroys it.
+    omni.usd.get_context().close_stage()
+    simulation_app.update()
     # close sim app
     simulation_app.close()

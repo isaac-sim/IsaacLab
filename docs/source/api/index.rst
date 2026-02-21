@@ -97,6 +97,18 @@ It includes the following modules:
 
    utils
 
+isaaclab_teleop extension
+-------------------------
+
+The following modules are available in the ``isaaclab_teleop`` extension:
+
+.. currentmodule:: isaaclab_teleop
+
+.. toctree::
+   :maxdepth: 2
+
+   lab_teleop/isaaclab_teleop
+
 isaaclab_physx extension
 ------------------------
 
