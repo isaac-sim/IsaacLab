@@ -722,6 +722,10 @@ To generate the locomanipulation dataset, use the following command:
        --num_runs 1 \
        --lift_step 60 \
        --navigate_step 130 \
+       --grasp_left_hand_relative_to object \
+       --grasp_right_hand_relative_to base \
+       --lift_left_hand_relative_to base \
+       --lift_right_hand_relative_to object \
        --enable_pinocchio \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
        --enable_cameras
