@@ -7,26 +7,25 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-import toml
 import torch
 
 import carb
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
+from isaaclab.renderer.rendering_quality_presets import get_kit_rendering_preset
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage_in_memory
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
-from .simulation_cfg import SimulationCfg
+from .simulation_cfg import RenderingQualityCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
@@ -132,11 +131,12 @@ class SimulationContext:
         self._physics = self.cfg.physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
-        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: SceneDataProvider | None = None
         self._visualizers: list[Visualizer] = []
+        # Runtime cache of applied per-visualizer rendering quality profile names.
+        self._visualizer_quality_keys: dict[int, str | None] = {}
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -152,92 +152,119 @@ class SimulationContext:
         self._is_stopped = True
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_render_cfg_settings(self) -> None:
-        """Apply render preset and overrides from SimulationCfg.render."""
-        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
-        # (name subject to change) to keep quality profiles and carb mappings centralized.
-        render_cfg = getattr(self.cfg, "render", None)
-        if render_cfg is None:
-            return
+    def _apply_kit_rendering_preset(self, preset_name: str) -> None:
+        preset = get_kit_rendering_preset(preset_name)
+        for key, value in preset.items():
+            self.set_setting(key, value)
 
-        # Priority:
-        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
-        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = getattr(render_cfg, "rendering_mode", None)
+    def _apply_kit_rendering_quality_cfg(self, quality_cfg: RenderingQualityCfg) -> None:
+        if quality_cfg.kit_rendering_preset:
+            self._apply_kit_rendering_preset(quality_cfg.kit_rendering_preset)
 
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
-
-                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested_carb_settings(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested_carb_settings(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
-
-        # Friendly RenderCfg fields mapped to native carb settings.
         field_to_carb = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+            "kit_enable_translucency": "/rtx/translucency/enabled",
+            "kit_enable_reflections": "/rtx/reflections/enabled",
+            "kit_enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+            "kit_enable_dlssg": "/rtx-transient/dlssg/enabled",
+            "kit_enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+            "kit_dlss_mode": "/rtx/post/dlss/execMode",
+            "kit_enable_direct_lighting": "/rtx/directLighting/enabled",
+            "kit_samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+            "kit_enable_shadows": "/rtx/shadows/enabled",
+            "kit_enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+            "kit_dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
         }
-
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
-                continue
-            carb_key = field_to_carb.get(key)
-            if carb_key is not None:
+        for field_name, carb_key in field_to_carb.items():
+            value = getattr(quality_cfg, field_name, None)
+            if value is not None:
+                # Apply after preset so explicit fields override preset and USD-authored defaults.
                 self.set_setting(carb_key, value)
 
-        # Raw carb overrides have highest priority.
-        carb_settings = getattr(render_cfg, "carb_settings", None)
-        if carb_settings:
-            for key, value in carb_settings.items():
-                if "_" in key:
-                    key = "/" + key.replace("_", "/")
-                elif "." in key:
-                    key = "/" + key.replace(".", "/")
-                self.set_setting(key, value)
-
-        # Optional anti-aliasing mode handling via Replicator (best-effort).
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
+        if quality_cfg.kit_antialiasing_mode is not None:
             try:
                 import omni.replicator.core as rep
 
-                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
+                rep.settings.set_render_rtx_realtime(antialiasing=quality_cfg.kit_antialiasing_mode)
             except Exception:
                 pass
+
+    def _apply_newton_quality_cfg_to_visualizer_cfg(self, visualizer_cfg: Any, quality_cfg: RenderingQualityCfg) -> None:
+        override_fields = {
+            "newton_enable_shadows": "enable_shadows",
+            "newton_enable_sky": "enable_sky",
+            "newton_enable_wireframe": "enable_wireframe",
+            "newton_sky_upper_color": "sky_upper_color",
+            "newton_sky_lower_color": "sky_lower_color",
+            "newton_light_color": "light_color",
+        }
+        for quality_field, viz_field in override_fields.items():
+            value = getattr(quality_cfg, quality_field, None)
+            if value is not None and hasattr(visualizer_cfg, viz_field):
+                setattr(visualizer_cfg, viz_field, value)
+
+    def _resolve_rendering_quality_name_for_visualizer_cfg(self, visualizer_cfg: Any) -> str | None:
+        cli_quality_explicit = bool(self.get_setting("/isaaclab/rendering/rendering_quality/explicit"))
+        cli_quality = self.get_setting("/isaaclab/rendering/rendering_quality")
+        if cli_quality_explicit:
+            return cli_quality if cli_quality else None
+        quality_name = getattr(visualizer_cfg, "rendering_quality", None)
+        return quality_name if quality_name else None
+
+    def _resolve_rendering_quality_cfg(self, quality_name: str | None) -> RenderingQualityCfg | None:
+        if not quality_name:
+            return None
+        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
+        quality_cfg = quality_cfgs.get(quality_name)
+        if quality_cfg is None:
+            logger.warning(
+                "[SimulationContext] Rendering quality '%s' not found in SimulationCfg.rendering_quality_cfgs.",
+                quality_name,
+            )
+            return None
+        return quality_cfg
+
+    def _apply_quality_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
+        quality_name = self._resolve_rendering_quality_name_for_visualizer_cfg(visualizer_cfg)
+        quality_cfg = self._resolve_rendering_quality_cfg(quality_name)
+        if quality_cfg is None:
+            return
+        if getattr(visualizer_cfg, "visualizer_type", None) == "kit":
+            self._apply_kit_rendering_quality_cfg(quality_cfg)
+        elif getattr(visualizer_cfg, "visualizer_type", None) == "newton":
+            self._apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg, quality_cfg)
+
+    def _apply_runtime_quality_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
+        quality_name = self._resolve_rendering_quality_name_for_visualizer_cfg(viz.cfg)
+        viz_id = id(viz)
+        if not force and self._visualizer_quality_keys.get(viz_id) == quality_name:
+            return
+        quality_cfg = self._resolve_rendering_quality_cfg(quality_name)
+        if quality_cfg is None:
+            self._visualizer_quality_keys[viz_id] = quality_name
+            return
+
+        viz_type = getattr(viz.cfg, "visualizer_type", None)
+        if viz_type == "kit":
+            self._apply_kit_rendering_quality_cfg(quality_cfg)
+        elif viz_type == "newton":
+            self._apply_newton_quality_cfg_to_visualizer_cfg(viz.cfg, quality_cfg)
+            viewer = getattr(viz, "_viewer", None)
+            if viewer is not None and hasattr(viewer, "renderer"):
+                if quality_cfg.newton_enable_shadows is not None:
+                    viewer.renderer.draw_shadows = quality_cfg.newton_enable_shadows
+                if quality_cfg.newton_enable_sky is not None:
+                    viewer.renderer.draw_sky = quality_cfg.newton_enable_sky
+                if quality_cfg.newton_enable_wireframe is not None:
+                    viewer.renderer.draw_wireframe = quality_cfg.newton_enable_wireframe
+                if quality_cfg.newton_sky_upper_color is not None:
+                    viewer.renderer.sky_upper = quality_cfg.newton_sky_upper_color
+                if quality_cfg.newton_sky_lower_color is not None:
+                    viewer.renderer.sky_lower = quality_cfg.newton_sky_lower_color
+                if quality_cfg.newton_light_color is not None:
+                    viewer.renderer._light_color = quality_cfg.newton_light_color
+
+        # Store last applied quality key so runtime hot swapping can be detected per visualizer.
+        self._visualizer_quality_keys[viz_id] = quality_name
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -338,11 +365,24 @@ class SimulationContext:
         parts = [p.strip() for p in requested.split(",") if p.strip()]
         return [v for part in parts for v in part.split() if v]
 
+    def _is_cli_visualizer_explicit(self) -> bool:
+        """Return whether --visualizer/--viz was explicitly provided."""
+        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
+
+    def _is_cli_visualizer_disable_all(self) -> bool:
+        """Return whether CLI explicitly disabled all visualizers."""
+        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
+
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
+        if self._is_cli_visualizer_disable_all():
+            return []
+        if self._is_cli_visualizer_explicit():
+            return self._get_cli_visualizer_types()
+
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
-            return self._get_cli_visualizer_types()
+            return []
 
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
@@ -357,11 +397,17 @@ class SimulationContext:
             )
 
         cli_requested = self._get_cli_visualizer_types()
+        cli_explicit = self._is_cli_visualizer_explicit()
+        cli_disable_all = self._is_cli_visualizer_disable_all()
+
+        if cli_disable_all:
+            return []
+
+        if not cli_explicit:
+            return visualizer_cfgs
+
         if not visualizer_cfgs:
             return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
-
-        if not cli_requested:
-            return visualizer_cfgs
 
         # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
         cli_requested_set = set(cli_requested)
@@ -396,8 +442,10 @@ class SimulationContext:
 
         for cfg in visualizer_cfgs:
             try:
+                self._apply_quality_profile_to_visualizer_cfg(cfg)
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
+                self._apply_runtime_quality_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
                 logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
@@ -488,6 +536,7 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                self._apply_runtime_quality_profile_to_visualizer(viz)
                 if viz.is_rendering_paused():
                     continue
                 if viz.is_closed:
@@ -507,6 +556,7 @@ class SimulationContext:
 
         for viz in visualizers_to_remove:
             try:
+                self._visualizer_quality_keys.pop(id(viz), None)
                 viz.close()
                 self._visualizers.remove(viz)
                 logger.info("Removed visualizer: %s", type(viz).__name__)
@@ -569,6 +619,7 @@ class SimulationContext:
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
+                cls._instance._visualizer_quality_keys.pop(id(viz), None)
                 viz.close()
             cls._instance._visualizers.clear()
             if cls._instance._scene_data_provider is not None:

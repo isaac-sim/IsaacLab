@@ -60,18 +60,18 @@ Launch visualizers from the command line with ``--visualizer``:
 .. code-block:: bash
 
     # Launch all visualizers
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer omniverse newton rerun
+    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer kit newton rerun
 
     # Launch just newton visualizer
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --visualizer newton
 
 
-If ``--headless`` is given, no visualizers will be launched.
+If ``--visualizer none`` is given, no visualizers will be launched.
 
 .. note::
 
-    The ``--headless`` argument may be deprecated in future versions to avoid confusion with the ``--visualizer``
-    argument. For now, ``--headless`` takes precedence and disables all visualizers.
+    The ``--headless`` CLI argument is deprecated. Use ``--visualizer none`` to explicitly disable all visualizers.
+    If no ``--visualizer`` argument is provided, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
 
 
 Configuration
@@ -84,11 +84,11 @@ You can also configure custom visualizers in the code by defining new ``Visualiz
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab.visualizers import NewtonVisualizerCfg, OVVisualizerCfg, RerunVisualizerCfg
+    from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg
 
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
-            OVVisualizerCfg(
+            KitVisualizerCfg(
                 viewport_name="Visualizer Viewport",
                 create_viewport=True,
                 dock_position="SAME",
@@ -114,7 +114,7 @@ You can also configure custom visualizers in the code by defining new ``Visualiz
 Visualizer Backends
 -------------------
 
-Omniverse Visualizer
+Kit Visualizer
 ~~~~~~~~~~~~~~~~~~~~
 
 **Main Features:**
@@ -128,9 +128,9 @@ Omniverse Visualizer
 
 .. code-block:: python
 
-    from isaaclab.visualizers import OVVisualizerCfg
+    from isaaclab.visualizers import KitVisualizerCfg
 
-    visualizer_cfg = OVVisualizerCfg(
+    visualizer_cfg = KitVisualizerCfg(
         # Viewport settings
         viewport_name="Visualizer Viewport",      # Viewport window name
         create_viewport=True,                     # Create new viewport vs. use existing

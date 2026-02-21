@@ -61,7 +61,8 @@ def setup_test_environment():
         "--output_file",
         DATASETS_DOWNLOAD_DIR + "/annotated_dataset.hdf5",
         "--auto",
-        "--headless",
+        "--visualizer",
+        "none",
     ]
     print(config_command)
 
@@ -123,7 +124,8 @@ def test_generate_dataset(setup_test_environment):
         DATASETS_DOWNLOAD_DIR + "/generated_dataset.hdf5",
         "--generation_num_trials",
         "1",
-        "--headless",
+        "--visualizer",
+        "none",
     ]
 
     # Call the script and capture output
