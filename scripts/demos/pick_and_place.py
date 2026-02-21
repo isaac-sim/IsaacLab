@@ -26,6 +26,7 @@ simulation_app = app_launcher.app
 from collections.abc import Sequence
 
 import torch
+import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import carb
@@ -140,8 +141,8 @@ class PickAndPlaceEnv(DirectRLEnv):
         self._z_dof_idx, _ = self.pick_and_place.find_joints(self.cfg.z_dof_name)
 
         # joints info
-        self.joint_pos = self.pick_and_place.data.joint_pos
-        self.joint_vel = self.pick_and_place.data.joint_vel
+        self.joint_pos = wp.to_torch(self.pick_and_place.data.joint_pos)
+        self.joint_vel = wp.to_torch(self.pick_and_place.data.joint_vel)
 
         # Buffers
         self.go_to_cube = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -237,10 +238,14 @@ class PickAndPlaceEnv(DirectRLEnv):
         # Process each environment independently
         if self.go_to_cube.any():
             # Effort based proportional controller to track the cube position
-            head_pos_x = self.pick_and_place.data.joint_pos[self.go_to_cube, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos[self.go_to_cube, self._y_dof_idx[0]]
-            cube_pos_x = self.cube.data.root_pos_w[self.go_to_cube, 0] - self.scene.env_origins[self.go_to_cube, 0]
-            cube_pos_y = self.cube.data.root_pos_w[self.go_to_cube, 1] - self.scene.env_origins[self.go_to_cube, 1]
+            head_pos_x = wp.to_torch(self.pick_and_place.data.joint_pos)[self.go_to_cube, self._x_dof_idx[0]]
+            head_pos_y = wp.to_torch(self.pick_and_place.data.joint_pos)[self.go_to_cube, self._y_dof_idx[0]]
+            cube_pos_x = (
+                wp.to_torch(self.cube.data.root_pos_w)[self.go_to_cube, 0] - self.scene.env_origins[self.go_to_cube, 0]
+            )
+            cube_pos_y = (
+                wp.to_torch(self.cube.data.root_pos_w)[self.go_to_cube, 1] - self.scene.env_origins[self.go_to_cube, 1]
+            )
             d_cube_robot_x = cube_pos_x - head_pos_x
             d_cube_robot_y = cube_pos_y - head_pos_y
             self.instant_controls[self.go_to_cube] = torch.stack(
@@ -248,8 +253,8 @@ class PickAndPlaceEnv(DirectRLEnv):
             )
         if self.go_to_target.any():
             # Effort based proportional controller to track the target position
-            head_pos_x = self.pick_and_place.data.joint_pos[self.go_to_target, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos[self.go_to_target, self._y_dof_idx[0]]
+            head_pos_x = wp.to_torch(self.pick_and_place.data.joint_pos)[self.go_to_target, self._x_dof_idx[0]]
+            head_pos_y = wp.to_torch(self.pick_and_place.data.joint_pos)[self.go_to_target, self._y_dof_idx[0]]
             target_pos_x = self.target_pos[self.go_to_target, 0]
             target_pos_y = self.target_pos[self.go_to_target, 1]
             d_target_robot_x = target_pos_x - head_pos_x
@@ -273,7 +278,7 @@ class PickAndPlaceEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         # Get the observations
-        gripper_state = self.gripper.state.clone()
+        gripper_state = wp.to_torch(self.gripper.state).clone()
         obs = torch.cat(
             (
                 self.joint_pos[:, self._x_dof_idx[0]].unsqueeze(dim=1),
@@ -297,20 +302,21 @@ class PickAndPlaceEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         # Dones
-        self.joint_pos = self.pick_and_place.data.joint_pos
-        self.joint_vel = self.pick_and_place.data.joint_vel
+        self.joint_pos = wp.to_torch(self.pick_and_place.data.joint_pos)
+        self.joint_vel = wp.to_torch(self.pick_and_place.data.joint_vel)
         # Check for time out
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         # Check if the cube reached the target
-        cube_to_target_x_dist = self.cube.data.root_pos_w[:, 0] - self.target_pos[:, 0] - self.scene.env_origins[:, 0]
-        cube_to_target_y_dist = self.cube.data.root_pos_w[:, 1] - self.target_pos[:, 1] - self.scene.env_origins[:, 1]
-        cube_to_target_z_dist = self.cube.data.root_pos_w[:, 2] - self.target_pos[:, 2] - self.scene.env_origins[:, 2]
+        cube_root_pos_w = wp.to_torch(self.cube.data.root_pos_w)
+        cube_to_target_x_dist = cube_root_pos_w[:, 0] - self.target_pos[:, 0] - self.scene.env_origins[:, 0]
+        cube_to_target_y_dist = cube_root_pos_w[:, 1] - self.target_pos[:, 1] - self.scene.env_origins[:, 1]
+        cube_to_target_z_dist = cube_root_pos_w[:, 2] - self.target_pos[:, 2] - self.scene.env_origins[:, 2]
         cube_to_target_distance = torch.linalg.norm(
             torch.stack((cube_to_target_x_dist, cube_to_target_y_dist, cube_to_target_z_dist), dim=1), dim=1
         )
         self.target_reached = cube_to_target_distance < 0.3
         # Check if the cube is out of bounds (that is outside of the picking area)
-        cube_to_origin_xy_diff = self.cube.data.root_pos_w[:, :2] - self.scene.env_origins[:, :2]
+        cube_to_origin_xy_diff = cube_root_pos_w[:, :2] - self.scene.env_origins[:, :2]
         cube_to_origin_x_dist = torch.abs(cube_to_origin_xy_diff[:, 0])
         cube_to_origin_y_dist = torch.abs(cube_to_origin_xy_diff[:, 1])
         self.cube_out_of_bounds = (cube_to_origin_x_dist > 2.5) | (cube_to_origin_y_dist > 2.5)

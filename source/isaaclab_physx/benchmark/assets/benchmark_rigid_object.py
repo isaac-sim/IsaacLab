@@ -65,10 +65,11 @@ from isaacsim.core.simulation_manager import SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
+
 from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject
 from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
 from isaaclab_physx.test.benchmark import make_tensor_env_ids
-from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyView
+from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.test.benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunner, MethodBenchmarkRunnerConfig
@@ -86,7 +87,7 @@ def create_test_rigid_object(
     num_instances: int = 2,
     num_bodies: int = 1,
     device: str = "cuda:0",
-) -> tuple[RigidObject, MockRigidBodyView, MagicMock]:
+) -> tuple[RigidObject, MockRigidBodyViewWarp, MagicMock]:
     """Create a test RigidObject instance with mocked dependencies."""
     rigid_object = object.__new__(RigidObject)
 
@@ -95,11 +96,12 @@ def create_test_rigid_object(
     )
 
     # Create PhysX mock view
-    mock_view = MockRigidBodyView(
+    mock_view = MockRigidBodyViewWarp(
         count=num_instances,
         device=device,
     )
     mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
 
     # Set up attributes required before _create_buffers
     object.__setattr__(rigid_object, "_root_view", mock_view)

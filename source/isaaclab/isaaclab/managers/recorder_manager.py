@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from prettytable import PrettyTable
 
 from isaaclab.utils import configclass
@@ -329,6 +330,8 @@ class RecorderManager(ManagerBase):
 
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
+                if isinstance(sub_value, wp.array):
+                    sub_value = wp.to_torch(sub_value)
                 self.add_to_episodes(f"{key}/{sub_key}", sub_value, env_ids)
             return
 
@@ -336,6 +339,8 @@ class RecorderManager(ManagerBase):
             if env_id not in self._episodes:
                 self._episodes[env_id] = EpisodeData()
                 self._episodes[env_id].env_id = env_id
+            if isinstance(value, wp.array):
+                value = wp.to_torch(value)
             self._episodes[env_id].add(key, value[value_index])
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):

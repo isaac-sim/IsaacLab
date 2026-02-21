@@ -5,6 +5,7 @@
 
 import numpy as np
 import torch
+import warp as wp
 
 from isaaclab.utils import math as torch_utils
 
@@ -30,20 +31,22 @@ def wrap_yaw(angle):
 
 def set_friction(asset, value, num_envs):
     """Update material properties for a given asset."""
-    materials = asset.root_view.get_material_properties()
+    materials = wp.to_torch(asset.root_view.get_material_properties())
     materials[..., 0] = value  # Static friction.
     materials[..., 1] = value  # Dynamic friction.
     env_ids = torch.arange(num_envs, device="cpu")
-    asset.root_view.set_material_properties(materials, env_ids)
+    asset.root_view.set_material_properties(
+        wp.from_torch(materials.contiguous()), wp.from_torch(env_ids.to(torch.int32))
+    )
 
 
 def set_body_inertias(robot, num_envs):
     """Note: this is to account for the asset_options.armature parameter in IGE."""
-    inertias = robot.root_view.get_inertias()
+    inertias = wp.to_torch(robot.root_view.get_inertias())
     offset = torch.zeros_like(inertias)
     offset[:, :, [0, 4, 8]] += 0.01
     new_inertias = inertias + offset
-    robot.root_view.set_inertias(new_inertias, torch.arange(num_envs))
+    robot.root_view.set_inertias(wp.from_torch(new_inertias), wp.from_torch(torch.arange(num_envs, dtype=torch.int32)))
 
 
 def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):

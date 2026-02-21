@@ -29,7 +29,9 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet<2",
+    "pyglet>=2.1.6",
+    "mujoco>=3.5",
+    "mujoco-warp>=3.5",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -47,6 +49,15 @@ INSTALL_REQUIRES = [
     "flatdict==4.0.0",
     "flaky",
     "packaging",
+    # visualizers
+    "newton @ git+https://github.com/newton-physics/newton.git@d435c418b6510f628fbb613736e2cfa4ad7968f3",
+    "imgui-bundle>=1.92.5",
+    "rerun-sdk>=0.29.0",
+    # usd utilities
+    "usd-core>=25.5",
+    "usd-exchange>=2.2",
+    # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
+    "typing_extensions>=4.14.0",
 ]
 
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers

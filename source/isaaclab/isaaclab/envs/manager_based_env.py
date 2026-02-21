@@ -357,7 +357,7 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -418,7 +418,7 @@ class ManagerBasedEnv:
         """
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)

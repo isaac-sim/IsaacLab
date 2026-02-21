@@ -10,14 +10,29 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
+import numpy as np
 import torch
+import warp as wp
+
+try:
+    from isaaclab.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
+except (ImportError, ModuleNotFoundError):
+    # Direct import bypassing isaaclab.sensors.__init__.py (which needs omni)
+    import importlib.util
+    from pathlib import Path
+
+    _file = Path(__file__).resolve().parents[3] / "sensors" / "frame_transformer" / "base_frame_transformer_data.py"
+    _spec = importlib.util.spec_from_file_location("_base_frame_transformer_data", str(_file))
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    BaseFrameTransformerData = _mod.BaseFrameTransformerData
 
 
-class MockFrameTransformerData:
+class MockFrameTransformerData(BaseFrameTransformerData):
     """Mock data container for frame transformer sensor.
 
     This class mimics the interface of BaseFrameTransformerData for testing purposes.
-    All tensor properties return zero tensors with correct shapes if not explicitly set.
+    All tensor properties return zero warp arrays with correct shapes if not explicitly set.
     """
 
     def __init__(
@@ -38,15 +53,15 @@ class MockFrameTransformerData:
         self._num_instances = num_instances
         self._num_target_frames = num_target_frames
         self._target_frame_names = target_frame_names or [f"frame_{i}" for i in range(num_target_frames)]
-        self._device = device
+        self.device = device
 
         # Internal storage for mock data
-        self._source_pos_w: torch.Tensor | None = None
-        self._source_quat_w: torch.Tensor | None = None
-        self._target_pos_w: torch.Tensor | None = None
-        self._target_quat_w: torch.Tensor | None = None
-        self._target_pos_source: torch.Tensor | None = None
-        self._target_quat_source: torch.Tensor | None = None
+        self._source_pos_w: wp.array | None = None
+        self._source_quat_w: wp.array | None = None
+        self._target_pos_w: wp.array | None = None
+        self._target_quat_w: wp.array | None = None
+        self._target_pos_source: wp.array | None = None
+        self._target_quat_source: wp.array | None = None
 
     # -- Properties --
 
@@ -56,93 +71,106 @@ class MockFrameTransformerData:
         return self._target_frame_names
 
     @property
-    def source_pos_w(self) -> torch.Tensor:
+    def source_pos_w(self) -> wp.array:
         """Position of source frame in world frame. Shape: (N, 3)."""
         if self._source_pos_w is None:
-            return torch.zeros(self._num_instances, 3, device=self._device)
+            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._source_pos_w
 
     @property
-    def source_quat_w(self) -> torch.Tensor:
+    def source_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of source frame in world frame. Shape: (N, 4)."""
         if self._source_quat_w is None:
-            quat = torch.zeros(self._num_instances, 4, device=self._device)
-            quat[:, 0] = 1.0
-            return quat
+            quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
+            quat_np[:, 0] = 1.0
+            return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._source_quat_w
 
     @property
-    def source_pose_w(self) -> torch.Tensor:
+    def source_pose_w(self) -> wp.array:
         """Pose of source frame in world frame. Shape: (N, 7)."""
-        return torch.cat([self.source_pos_w, self.source_quat_w], dim=-1)
+        pos_t = wp.to_torch(self.source_pos_w)
+        quat_t = wp.to_torch(self.source_quat_w)
+        pose_t = torch.cat([pos_t, quat_t], dim=-1)
+        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
 
     @property
-    def target_pos_w(self) -> torch.Tensor:
+    def target_pos_w(self) -> wp.array:
         """Position of target frames in world frame. Shape: (N, M, 3)."""
         if self._target_pos_w is None:
-            return torch.zeros(self._num_instances, self._num_target_frames, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._num_target_frames, 3), dtype=wp.float32, device=self.device
+            )
         return self._target_pos_w
 
     @property
-    def target_quat_w(self) -> torch.Tensor:
+    def target_quat_w(self) -> wp.array:
         """Orientation (w, x, y, z) of target frames in world frame. Shape: (N, M, 4)."""
         if self._target_quat_w is None:
-            quat = torch.zeros(self._num_instances, self._num_target_frames, 4, device=self._device)
-            quat[..., 0] = 1.0
-            return quat
+            quat_np = np.zeros((self._num_instances, self._num_target_frames, 4), dtype=np.float32)
+            quat_np[..., 0] = 1.0
+            return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._target_quat_w
 
     @property
-    def target_pose_w(self) -> torch.Tensor:
+    def target_pose_w(self) -> wp.array:
         """Pose of target frames in world frame. Shape: (N, M, 7)."""
-        return torch.cat([self.target_pos_w, self.target_quat_w], dim=-1)
+        pos_t = wp.to_torch(self.target_pos_w)
+        quat_t = wp.to_torch(self.target_quat_w)
+        pose_t = torch.cat([pos_t, quat_t], dim=-1)
+        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
 
     @property
-    def target_pos_source(self) -> torch.Tensor:
+    def target_pos_source(self) -> wp.array:
         """Position of target frames relative to source frame. Shape: (N, M, 3)."""
         if self._target_pos_source is None:
-            return torch.zeros(self._num_instances, self._num_target_frames, 3, device=self._device)
+            return wp.zeros(
+                shape=(self._num_instances, self._num_target_frames, 3), dtype=wp.float32, device=self.device
+            )
         return self._target_pos_source
 
     @property
-    def target_quat_source(self) -> torch.Tensor:
+    def target_quat_source(self) -> wp.array:
         """Orientation (w, x, y, z) of target frames relative to source frame. Shape: (N, M, 4)."""
         if self._target_quat_source is None:
-            quat = torch.zeros(self._num_instances, self._num_target_frames, 4, device=self._device)
-            quat[..., 0] = 1.0
-            return quat
+            quat_np = np.zeros((self._num_instances, self._num_target_frames, 4), dtype=np.float32)
+            quat_np[..., 0] = 1.0
+            return wp.array(quat_np, dtype=wp.float32, device=self.device)
         return self._target_quat_source
 
     @property
-    def target_pose_source(self) -> torch.Tensor:
+    def target_pose_source(self) -> wp.array:
         """Pose of target frames relative to source frame. Shape: (N, M, 7)."""
-        return torch.cat([self.target_pos_source, self.target_quat_source], dim=-1)
+        pos_t = wp.to_torch(self.target_pos_source)
+        quat_t = wp.to_torch(self.target_quat_source)
+        pose_t = torch.cat([pos_t, quat_t], dim=-1)
+        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
 
     # -- Setters --
 
     def set_source_pos_w(self, value: torch.Tensor) -> None:
         """Set source position in world frame."""
-        self._source_pos_w = value.to(self._device)
+        self._source_pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_source_quat_w(self, value: torch.Tensor) -> None:
         """Set source orientation in world frame."""
-        self._source_quat_w = value.to(self._device)
+        self._source_quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_target_pos_w(self, value: torch.Tensor) -> None:
         """Set target positions in world frame."""
-        self._target_pos_w = value.to(self._device)
+        self._target_pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_target_quat_w(self, value: torch.Tensor) -> None:
         """Set target orientations in world frame."""
-        self._target_quat_w = value.to(self._device)
+        self._target_quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_target_pos_source(self, value: torch.Tensor) -> None:
         """Set target positions relative to source."""
-        self._target_pos_source = value.to(self._device)
+        self._target_pos_source = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_target_quat_source(self, value: torch.Tensor) -> None:
         """Set target orientations relative to source."""
-        self._target_quat_source = value.to(self._device)
+        self._target_quat_source = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_mock_data(
         self,

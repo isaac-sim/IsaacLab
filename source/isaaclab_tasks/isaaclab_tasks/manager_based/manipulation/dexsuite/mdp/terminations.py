@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -38,7 +39,7 @@ def out_of_bound(
     range_list = [in_bound_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
     ranges = torch.tensor(range_list, device=env.device)
 
-    object_pos_local = object.data.root_pos_w - env.scene.env_origins
+    object_pos_local = wp.to_torch(object.data.root_pos_w) - env.scene.env_origins
     outside_bounds = ((object_pos_local < ranges[:, 0]) | (object_pos_local > ranges[:, 1])).any(dim=1)
     return outside_bounds
 
@@ -47,4 +48,6 @@ def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sce
     """Terminating environment when violation of velocity limits detects, this usually indicates unstable physics caused
     by very bad, or aggressive action"""
     robot: Articulation = env.scene[asset_cfg.name]
-    return (robot.data.joint_vel.abs() > (robot.data.joint_vel_limits * 2)).any(dim=1)
+    joint_vel = wp.to_torch(robot.data.joint_vel)
+    joint_vel_limits = wp.to_torch(robot.data.joint_vel_limits)
+    return (joint_vel.abs() > (joint_vel_limits * 2)).any(dim=1)

@@ -37,6 +37,8 @@ simulation_app = app_launcher.app
 
 import random
 
+import warp as wp
+
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -238,30 +240,33 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # object
-            root_state = rigid_object.data.default_root_state.clone()
+            root_state = wp.to_torch(rigid_object.data.default_root_state).clone()
             root_state[:, :3] += scene.env_origins
             rigid_object.write_root_pose_to_sim(root_state[:, :7])
             rigid_object.write_root_velocity_to_sim(root_state[:, 7:])
             # object collection
-            object_state = rigid_object_collection.data.default_object_state.clone()
+            object_state = wp.to_torch(rigid_object_collection.data.default_object_state).clone()
             object_state[..., :3] += scene.env_origins.unsqueeze(1)
             rigid_object_collection.write_object_link_pose_to_sim(object_state[..., :7])
             rigid_object_collection.write_object_com_velocity_to_sim(object_state[..., 7:])
             # robot
             # -- root state
-            root_state = robot.data.default_root_state.clone()
+            root_state = wp.to_torch(robot.data.default_root_state).clone()
             root_state[:, :3] += scene.env_origins
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
             # -- joint state
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                wp.to_torch(robot.data.default_joint_pos).clone(),
+                wp.to_torch(robot.data.default_joint_vel).clone(),
+            )
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting scene state...")
 
         # Apply action to robot
-        robot.set_joint_position_target(robot.data.default_joint_pos)
+        robot.set_joint_position_target(wp.to_torch(robot.data.default_joint_pos))
         # Write data to sim
         scene.write_data_to_sim()
         # Perform step

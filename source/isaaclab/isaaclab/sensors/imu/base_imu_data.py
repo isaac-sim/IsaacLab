@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import torch
+import warp as wp
 
 
 class BaseImuData(ABC):
@@ -21,48 +21,48 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    def pose_w(self) -> torch.Tensor:
+    def pose_w(self) -> wp.array:
         """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in xyzw order."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def pos_w(self) -> torch.Tensor:
+    def pos_w(self) -> wp.array:
         """Position of the sensor origin in world frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def quat_w(self) -> torch.Tensor:
+    def quat_w(self) -> wp.array:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame. Shape is (N, 4)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> torch.Tensor:
+    def projected_gravity_b(self) -> wp.array:
         """Gravity direction unit vector projected on the imu frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def lin_vel_b(self) -> torch.Tensor:
+    def lin_vel_b(self) -> wp.array:
         """IMU frame linear velocity relative to the world expressed in IMU frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def ang_vel_b(self) -> torch.Tensor:
+    def ang_vel_b(self) -> wp.array:
         """IMU frame angular velocity relative to the world expressed in IMU frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def lin_acc_b(self) -> torch.Tensor:
+    def lin_acc_b(self) -> wp.array:
         """IMU frame linear acceleration relative to the world expressed in IMU frame. Shape is (N, 3)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def ang_acc_b(self) -> torch.Tensor:
+    def ang_acc_b(self) -> wp.array:
         """IMU frame angular acceleration relative to the world expressed in IMU frame. Shape is (N, 3)."""
         raise NotImplementedError

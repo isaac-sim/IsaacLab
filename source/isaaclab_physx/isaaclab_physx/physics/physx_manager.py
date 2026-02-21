@@ -592,7 +592,7 @@ class PhysxManager(PhysicsManager):
             return
 
         # Create tensor views
-        cls._view = omni.physics.tensors.create_simulation_view("torch", stage_id=stage_id)
+        cls._view = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
         cls._view_warp = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
 
         if cls._view:

@@ -244,11 +244,11 @@ class UR10eGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.end_effector_body_name = "wrist_3_link"  # End effector body name for IK and termination checks
         self.num_arm_joints = 6  # Number of arm joints (excluding gripper)
         self.grasp_rot_offset = [
-            0.0,
             math.sqrt(2) / 2,
             math.sqrt(2) / 2,
             0.0,
-        ]  # Rotation offset for grasp pose (quaternion [w, x, y, z])
+            0.0,
+        ]  # Rotation offset for grasp pose (quaternion [x, y, z, w])
         self.gripper_joint_setter_func = None  # Gripper-specific joint setter function (set in subclass)
 
         # Gear orientation termination thresholds (in degrees)

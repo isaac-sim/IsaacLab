@@ -1,0 +1,23 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+retargeting:
+  finger_tip_link_names:
+  - thumb_tip
+  - index_tip
+  - middle_tip
+  low_pass_alpha: 0.2
+  scaling_factor: 1.0
+  target_joint_names:
+  - right_hand_thumb_0_joint
+  - right_hand_thumb_1_joint
+  - right_hand_thumb_2_joint
+  - right_hand_middle_0_joint
+  - right_hand_middle_1_joint
+  - right_hand_index_0_joint
+  - right_hand_index_1_joint
+  type: DexPilot
+  urdf_path: /tmp/G1_right_hand.urdf
+  wrist_link_name: base_link
