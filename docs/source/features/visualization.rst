@@ -103,7 +103,7 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
 
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
-            KitVisualizerCfg(
+            OVVisualizerCfg(
                 viewport_name="Visualizer Viewport",
                 create_viewport=True,
                 dock_position="SAME",
@@ -176,7 +176,7 @@ For the migration-focused summary and deprecation context, see
 Visualizer Backends
 -------------------
 
-Kit Visualizer
+Omniverse Visualizer
 ~~~~~~~~~~~~~~~~~~~~
 
 **Main Features:**
@@ -192,7 +192,7 @@ Kit Visualizer
 
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    visualizer_cfg = KitVisualizerCfg(
+    visualizer_cfg = OVVisualizerCfg(
         # Viewport settings
         viewport_name="Visualizer Viewport",      # Viewport window name
         create_viewport=True,                     # Create new viewport vs. use existing

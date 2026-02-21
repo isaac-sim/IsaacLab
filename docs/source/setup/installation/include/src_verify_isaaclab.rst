@@ -55,7 +55,7 @@ Train a robot!
 ~~~~~~~~~~~~~~
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
-We recommend adding ``--visualizer none`` for faster training.
+We recommend adding ``--headless`` for faster training.
 
 .. tab-set::
    :sync-group: os
@@ -65,14 +65,14 @@ We recommend adding ``--visualizer none`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --visualizer none
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --visualizer none
+         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 
 ... Or a robot dog!
 
@@ -84,14 +84,14 @@ We recommend adding ``--visualizer none`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --visualizer none
+         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --visualizer none
+         isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
 Take a look at our :ref:`how-to` guides like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.

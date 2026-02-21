@@ -518,21 +518,8 @@ class SimulationContext:
         """Return ``True`` when CLI requested ``--viz none`` semantics."""
         return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
 
-    def _is_cli_visualizer_explicit(self) -> bool:
-        """Return whether --visualizer/--viz was explicitly provided."""
-        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
-
-    def _is_cli_visualizer_disable_all(self) -> bool:
-        """Return whether CLI explicitly disabled all visualizers."""
-        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
-
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
-        if self._is_cli_visualizer_disable_all():
-            return []
-        if self._is_cli_visualizer_explicit():
-            return self._get_cli_visualizer_types()
-
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
             return []
