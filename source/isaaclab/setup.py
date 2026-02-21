@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     # visualizers
-    "newton @ git+https://github.com/newton-physics/newton.git@d435c418b6510f628fbb613736e2cfa4ad7968f3",
+    "newton @ git+https://github.com/newton-physics/newton.git@35657fc",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
     # usd utilities

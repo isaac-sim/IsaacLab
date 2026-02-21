@@ -84,10 +84,10 @@ class RenderData:
             orientations, origin="world", target="opengl"
         )
 
-        self.camera_transforms = wp.empty((1, self.render_context.num_worlds), dtype=wp.transformf)
+        self.camera_transforms = wp.empty((1, self.render_context.world_count), dtype=wp.transformf)
         wp.launch(
             RenderData._update_transforms,
-            self.render_context.num_worlds,
+            self.render_context.world_count,
             [positions, converted_orientations, self.camera_transforms],
         )
 
@@ -105,14 +105,14 @@ class RenderData:
             return wp.array(
                 ptr=torch_array.ptr,
                 dtype=dtype,
-                shape=(self.render_context.num_worlds, self.num_cameras, self.height, self.width),
+                shape=(self.render_context.world_count, self.num_cameras, self.height, self.width),
                 device=torch_array.device,
                 copy=False,
             )
 
         print("NewtonWarpRenderer - torch output array is non-contiguous")
         return wp.zeros(
-            (self.render_context.num_worlds, self.num_cameras, self.height, self.width),
+            (self.render_context.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
             device=torch_array.device,
         )

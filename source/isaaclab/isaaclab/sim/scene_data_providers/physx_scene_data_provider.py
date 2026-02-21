@@ -152,8 +152,8 @@ class PhysxSceneDataProvider:
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_key)
-            self._articulation_paths = list(self._newton_model.articulation_key)
+            self._rigid_body_paths = list(self._newton_model.body_label)
+            self._articulation_paths = list(self._newton_model.articulation_label)
 
             self._xform_views.clear()
             self._view_body_index_map = {}
