@@ -453,7 +453,9 @@ class PhysxManager(PhysicsManager):
             settings.set_bool("/physics/suppressReadback", True)
             PhysicsManager._device = f"cuda:{device_id}"
         else:
-            settings.set_int("/physics/cudaDevice", -1)
+            # NOTE: Do NOT set cudaDevice=-1 here. The old SimulationManager.set_device("cpu")
+            # had this line explicitly commented out. Setting it can interfere with PhysX CPU
+            # initialization in edge cases where the default device is already in use.
             settings.set_bool("/physics/suppressReadback", False)
             PhysicsManager._device = "cpu"
 
@@ -570,13 +572,22 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
-        # Attach stage to PhysX BEFORE loading/starting - critical for GPU pipeline
-        cls._physx_sim.attach_stage(stage_id)
+        is_gpu = "cuda" in PhysicsManager.get_device()
 
-        # warmup physx
+        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
+        # For CPU, the old SimulationManager never called attach_stage() explicitly.
+        # Calling attach_stage() + force_load_physics_from_usd() together causes a
+        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
+        # causing objects to fall through surfaces non-deterministically.
+        if is_gpu:
+            cls._physx_sim.attach_stage(stage_id)
+
+        # Warm-up PhysX: use simulate/fetch_results to match old SimulationManager.initialize_physics().
+        # Avoid IPhysx.update_simulation() for warmup - it can skip CPU contact-setup paths
+        # and leaves contact manifolds incomplete for CPU simulation.
         cls._physx.force_load_physics_from_usd()
         cls._physx.start_simulation()
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
+        cls._physx_sim.simulate(cls.get_physics_dt(), 0.0)
         cls._physx_sim.fetch_results()
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
@@ -593,8 +604,10 @@ class PhysxManager(PhysicsManager):
         if cls._view_warp:
             cls._view_warp.set_subspace_roots("/")
 
-        # Final update after view creation
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
+        # Second warmup step after view creation (matches old SimulationManager.initialize_physics).
+        # Must include fetch_results() to finalize contact manifolds before simulation begins.
+        cls._physx_sim.simulate(cls.get_physics_dt(), 0.0)
+        cls._physx_sim.fetch_results()
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
