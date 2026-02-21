@@ -411,6 +411,9 @@ def test_throughput(setup_simulation):
     del camera
 
 
+@pytest.mark.skip(
+    reason="Known failure - USD Camera replicator returns only inf when position set over `set_world_poses_from_view`"
+)
 @pytest.mark.parametrize(
     "data_types",
     [
@@ -781,6 +784,9 @@ def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
     del camera_usd, camera_warp
 
 
+@pytest.mark.skip(
+    reason="Known failure - USD Camera replicator returns only inf when position set over `set_world_poses_from_view`"
+)
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
