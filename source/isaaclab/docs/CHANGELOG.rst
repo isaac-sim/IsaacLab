@@ -16,6 +16,10 @@ Changed
   for warp array properties and write methods, ensuring consistent documentation between
   PhysX and Newton backend implementations.
 
+* Improved Docker multi-user container isolation by making omitted ``--suffix`` default to a
+  user-derived value, propagating this suffix to ``COMPOSE_PROJECT_NAME``, and adding startup
+  conflict detection with support for explicit legacy mode (``--suffix ''``).
+
 
 4.1.0 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
@@ -499,6 +503,13 @@ Changed
 
 
 0.54.4 (2026-02-04)
+=======
+* Improved Docker multi-user isolation behavior by making omitted ``--suffix`` default to a
+  user-derived suffix, propagating it to Compose project naming, and adding pre-start conflict
+  detection while preserving legacy behavior for explicit ``--suffix ''``.
+
+0.54.3 (2026-02-04)
+>>>>>>> 8aa25a8966c (Updates Docker deployment docs and release metadata for multi-user isolation)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
