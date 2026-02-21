@@ -8,6 +8,11 @@ rem SPDX-License-Identifier: BSD-3-Clause
 
 rem Configurations
 set "ISAACLAB_PATH=%~dp0"
+rem @myurasov-nv:
+rem Fix for https://github.com/isaac-sim/IsaacLab/issues/4407
+rem If the path contains () it breaks if statements, so we need to escape those
+set "ISAACLAB_PATH=%ISAACLAB_PATH:)=^)%"
+set "ISAACLAB_PATH=%ISAACLAB_PATH:(=^(%"
 goto main
 
 rem Helper functions
