@@ -76,7 +76,7 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-    "test_environments_stage_in_memory.py",  # Failing
+    "test_environments_with_stage_in_memory.py",  # Failing
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
 ]
