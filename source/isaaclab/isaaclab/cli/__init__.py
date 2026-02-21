@@ -23,6 +23,7 @@ from .utils import (
 
 
 def cli() -> None:
+    """Parse CLI arguments and run the requested command."""
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog="isaaclab" + (".bat" if is_windows() else ".sh"),

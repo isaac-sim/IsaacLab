@@ -150,7 +150,11 @@ def _install_isaaclab_extensions() -> None:
 
 
 def _install_extra_frameworks(framework_name: str = "all") -> None:
-    """install the python packages for supported reinforcement learning frameworks"""
+    """install the python packages for supported reinforcement learning frameworks
+
+    Args:
+        framework_name: Framework extra to install (for example ``all`` or ``none``).
+    """
     python_exe = extract_python_exe()
 
     extras = ""

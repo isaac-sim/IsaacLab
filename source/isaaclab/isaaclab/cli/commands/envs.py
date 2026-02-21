@@ -44,7 +44,14 @@ def _sanitized_conda_env() -> dict[str, str]:
 
 def _patch_environment_yml(yml_path: str | Path, python_version: str = "3.12") -> str:
     """
-    Read environment.yml, return content with patched python version.
+    Read environment.yml, return content with altered python version.
+
+    Args:
+        yml_path: Path to the source environment file.
+        python_version: Python version to inject.
+
+    Returns:
+        Patched YML file content.
     """
     with open(yml_path, encoding="utf-8") as f:
         lines = f.readlines()
@@ -58,7 +65,14 @@ def _patch_environment_yml(yml_path: str | Path, python_version: str = "3.12") -
 
 
 def _get_conda_prefix(env_name: str) -> Path | None:
-    """Get the prefix of the conda environment."""
+    """Get the prefix of the conda environment.
+
+    Args:
+        env_name: Name of the conda environment.
+
+    Returns:
+        Environment path, or ``None`` if it cannot be determined.
+    """
     # Use conda run to get sys.prefix
     env = _sanitized_conda_env()
     cmd = ["conda", "run", "-n", env_name, "python", "-c", "import sys; print(sys.prefix)"]
@@ -69,7 +83,11 @@ def _get_conda_prefix(env_name: str) -> Path | None:
 
 
 def _create_conda_envhooks_shell(conda_prefix: Path) -> None:
-    """Write Linux/Mac conda activation/deactivation hooks for Isaac Lab environment variables."""
+    """Write Linux/Mac conda activation/deactivation hooks for Isaac Lab environment variables.
+
+    Args:
+        conda_prefix: Prefix path of the target conda environment.
+    """
     activate_d = conda_prefix / "etc" / "conda" / "activate.d"
     deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
     activate_d.mkdir(parents=True, exist_ok=True)
@@ -135,7 +153,11 @@ def _create_conda_envhooks_shell(conda_prefix: Path) -> None:
 
 
 def _write_torch_gomp_hooks_linux(conda_prefix: Path) -> None:
-    """Write Linux-only conda hooks for torch libgomp/libstdc++ LD_PRELOAD handling."""
+    """Write Linux-only conda hooks for torch libgomp/libstdc++ LD_PRELOAD handling.
+
+    Args:
+        conda_prefix: Path of the target conda environment.
+    """
     if not sys.platform.startswith("linux"):
         return
 
@@ -207,7 +229,11 @@ def _write_torch_gomp_hooks_linux(conda_prefix: Path) -> None:
 
 
 def _create_conda_envhooks_cmdexe(conda_prefix: Path) -> None:
-    """Write Windows cmd.exe conda activation/deactivation hooks."""
+    """Write Windows cmd.exe conda activation/deactivation hooks.
+
+    Args:
+        conda_prefix: Path of the target conda environment.
+    """
     activate_d = conda_prefix / "etc" / "conda" / "activate.d"
     deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
     activate_d.mkdir(parents=True, exist_ok=True)
@@ -269,7 +295,11 @@ def _create_conda_envhooks_cmdexe(conda_prefix: Path) -> None:
 
 
 def _create_conda_envhooks_powershell(conda_prefix: Path) -> None:
-    """Write Windows PowerShell conda activation/deactivation hooks."""
+    """Write Windows PowerShell conda activation/deactivation hooks.
+
+    Args:
+        conda_prefix: Path of the target conda environment.
+    """
     activate_d = conda_prefix / "etc" / "conda" / "activate.d"
     deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
     activate_d.mkdir(parents=True, exist_ok=True)
@@ -333,7 +363,11 @@ def _create_conda_envhooks_powershell(conda_prefix: Path) -> None:
 
 
 def _write_conda_env_hooks(conda_prefix: Path) -> None:
-    """Write conda activation/deactivation hooks for current platform shell(s)."""
+    """Write conda activation/deactivation hooks for current platform shell(s).
+
+    Args:
+        conda_prefix: Path of the target conda environment.
+    """
     if is_windows():
         _create_conda_envhooks_cmdexe(conda_prefix)
         _create_conda_envhooks_powershell(conda_prefix)
@@ -343,7 +377,13 @@ def _write_conda_env_hooks(conda_prefix: Path) -> None:
 
 
 def _append_hook_if_missing(script_path: Path, marker: str, hook_content: str) -> None:
-    """Append hook content to a script once, guarded by a marker."""
+    """Append hook content to a script once, guarded by a marker.
+
+    Args:
+        script_path: Activation script file to update.
+        marker: Unique marker used to detect an existing hook.
+        hook_content: Hook text to append when missing.
+    """
     if not script_path.exists():
         print_warning(f"Activation script not found, skipping hook injection: {script_path}")
         return
@@ -361,7 +401,11 @@ def _append_hook_if_missing(script_path: Path, marker: str, hook_content: str) -
 
 
 def _create_uv_envhooks_shell(env_path: Path) -> None:
-    """Inject Bash activation hook for uv environments."""
+    """Inject Bash activation hook for uv environments.
+
+    Args:
+        env_path: Root path of the uv environment.
+    """
     activate_script = env_path / "bin" / "activate"
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh"
 
@@ -383,7 +427,11 @@ def _create_uv_envhooks_shell(env_path: Path) -> None:
 
 
 def _create_uv_envhooks_cmdexe(env_path: Path) -> None:
-    """Inject cmd.exe activation hook for uv environments."""
+    """Inject cmd.exe activation hook for uv environments.
+
+    Args:
+        env_path: Root path of the uv environment.
+    """
     activate_script = env_path / "Scripts" / "activate.bat"
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.bat"
 
@@ -403,7 +451,11 @@ def _create_uv_envhooks_cmdexe(env_path: Path) -> None:
 
 
 def _create_uv_envhooks_powershell(env_path: Path) -> None:
-    """Inject PowerShell activation hook for uv environments."""
+    """Inject PowerShell activation hook for uv environments.
+
+    Args:
+        env_path: Root path of the uv environment.
+    """
     activate_script = env_path / "Scripts" / "Activate.ps1"
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.ps1"
 
@@ -425,7 +477,11 @@ def _create_uv_envhooks_powershell(env_path: Path) -> None:
 
 
 def _write_uv_env_hooks(env_path: Path) -> None:
-    """Write uv activation hooks for current platform shell(s)."""
+    """Write uv activation hooks for current platform shell(s).
+
+    Args:
+        env_path: Root path of the uv environment.
+    """
     if is_windows():
         _create_uv_envhooks_cmdexe(env_path)
         _create_uv_envhooks_powershell(env_path)
@@ -434,7 +490,11 @@ def _write_uv_env_hooks(env_path: Path) -> None:
 
 
 def command_setup_conda(env_name: str) -> None:
-    """Setup conda environment for Isaac Lab"""
+    """Setup conda environment for Isaac Lab
+
+    Args:
+        env_name: Name for the conda environment to create or reuse.
+    """
 
     # Check if conda is installed.
     if not shutil.which("conda"):
@@ -523,7 +583,11 @@ def command_setup_conda(env_name: str) -> None:
 
 
 def command_setup_uv(env_name: str) -> None:
-    """setup uv environment for Isaac Lab"""
+    """setup uv environment for Isaac Lab
+
+    Args:
+        env_name: Name for the uv environment directory to create or reuse.
+    """
     # Check if uv is installed.
     if not shutil.which("uv"):
         print_error("uv could not be found. Please install uv and try again.")

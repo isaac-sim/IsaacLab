@@ -18,7 +18,11 @@ from ..utils import (
 
 
 def command_run_isaacsim(sim_args: list[str]) -> None:
-    """Run Isaac Sim (-s)."""
+    """Run Isaac Sim (-s).
+
+    Args:
+        sim_args: Additional arguments passed to the Isaac Sim executable.
+    """
 
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
@@ -31,7 +35,11 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
 
 
 def command_new(new_args: list[str]) -> None:
-    """Create a new external project or internal task from template (-n)."""
+    """Create a new external project or internal task from template (-n).
+
+    Args:
+        new_args: Arguments forwarded to the template generator CLI.
+    """
 
     print_info("Installing template dependencies...")
     reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
@@ -43,7 +51,11 @@ def command_new(new_args: list[str]) -> None:
 
 
 def command_test(test_args: list[str]) -> None:
-    """Run pytest for Isaac Lab tools tests (-t)."""
+    """Run pytest for Isaac Lab tests (-t).
+
+    Args:
+        test_args: Additional pytest arguments.
+    """
     run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
 
 
@@ -64,6 +76,7 @@ def command_vscode_settings() -> None:
 
 
 def command_build_docs() -> None:
+    """Build the documentation."""
     print_info("Building documentation...")
     python_exe = extract_python_exe()
     docs_dir = ISAACLAB_ROOT / "docs"
@@ -98,7 +111,11 @@ def command_build_docs() -> None:
 
 
 def command_run_docker(args: list[str]) -> None:
-    """Run the docker container helper script."""
+    """Run the docker container helper script (docker/container.py).
+
+    Args:
+        args: Arguments forwarded to ``docker/container.py``.
+    """
     script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")
     run_python_command(script_path, args)

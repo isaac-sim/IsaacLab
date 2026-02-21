@@ -36,39 +36,72 @@ def is_arm() -> bool:
     return "aarch64" in machine or "arm64" in machine
 
 
-def _colorize(label: str, color: str, stream: IO[str]) -> str:
-    """Colorize a label, if the stream supports colors."""
+def _colorize(text: str, color: str, stream: IO[str]) -> str:
+    """Colorize bit of text, if the stream supports colors or colors aren't disabled.
+
+    Args:
+        label: Text to colorize.
+        color: ANSI color code prefix.
+        stream: Output stream used to detectcolor support.
+
+    Returns:
+        Colorized label when supported; otherwise the original label.
+    """
 
     if os.environ.get("NO_COLOR"):
-        return f"{label}"
+        return f"{text}"
 
     if os.environ.get("TERM") == "dumb":
-        return f"{label}"
+        return f"{text}"
 
     color_supported = hasattr(stream, "isatty") and stream.isatty()
 
     if not color_supported:
-        return f"{label}"
+        return f"{text}"
     else:
-        return f"{color}{label}{_ANSI_COLOR_RESET}"
+        return f"{color}{text}{_ANSI_COLOR_RESET}"
 
 
 def print_info(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print informational message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
     label = _colorize("[INFO]", _ANSI_COLOR_INFO, stream)
     print(f"{label} {message}", file=stream)
 
 
 def print_warning(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print warning message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
     label = _colorize("[WARNING]", _ANSI_COLOR_WARNING, stream)
     print(f"{label} {message}", file=stream)
 
 
 def print_error(message: str, stream: IO[str] = sys.stderr) -> None:
+    """Print error message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
     label = _colorize("[ERROR]", _ANSI_COLOR_ERROR, stream)
     print(f"{label} {message}", file=stream)
 
 
 def print_debug(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print debug message, when debugging is enabled.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
     if os.environ.get("DEBUG") != "1":
         return
     label = _colorize("[DEBUG]", _ANSI_COLOR_DEBUG, stream)
@@ -79,6 +112,10 @@ def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
     """
     Print the environment for debugging purpose.
     Only prints the vars that are added, changed or removed vs the os.environ.
+
+    Args:
+        prefix: Prefix identifying the caller function in debug output.
+        env: Environment to compare against os.environ.
     """
 
     if env is None:
@@ -116,7 +153,21 @@ def run_command(
     stderr: int | IO[str] | None = None,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[Any]:
-    """Run a command in a subprocess."""
+    """Run a command in a subprocess.
+
+    Args:
+        cmd: Command to execute.
+        cwd: Working directory for the subprocess.
+        env: Environment variables for the subprocess.
+        shell: Whether to run the command through the shell.
+        check: Whether to raise on non-zero exit code.
+        stdout: Standard output stream or redirection target.
+        stderr: Standard error stream or redirection target.
+        **kwargs: Additional keyword arguments forwarded to ``subprocess.run``.
+
+    Returns:
+        Result object returned by ``subprocess.run``.
+    """
 
     if cwd is None:
         cwd = ISAACLAB_ROOT
