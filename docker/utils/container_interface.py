@@ -8,6 +8,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -73,9 +74,14 @@ class ContainerInterface:
             self.suffix = ""
         elif suffix is None:
             # no suffix provided -> default to current user to avoid name collisions in multi-user environments
-            user = getpass.getuser()
+            try:
+                user = getpass.getuser()
+            except Exception:
+                user = ""
             # sanitize username to be safe for docker names (replace problematic chars)
             safe_user = "".join(c if c.isalnum() or c in ["-", "_"] else "_" for c in user)
+            if not safe_user:
+                safe_user = "user"
             self.suffix = f"-{safe_user}"
         else:
             # insert a hyphen before the provided suffix
@@ -96,7 +102,7 @@ class ContainerInterface:
         # running `docker compose up` in the same directory won't recreate each other's containers.
         # Use COMPOSE_PROJECT_NAME to override the project name used by docker compose.
         # If suffix is empty (legacy behavior), keep the base project name `isaac-lab`.
-        project_name = f"isaac-lab{self.suffix}".replace("--", "-").rstrip("-")
+        project_name = re.sub(r"-+", "-", f"isaac-lab{self.suffix}").rstrip("-")
         self.environ["COMPOSE_PROJECT_NAME"] = project_name
 
         # resolve the image extension through the passed yamls and envs
