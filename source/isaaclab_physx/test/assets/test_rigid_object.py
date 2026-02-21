@@ -1187,3 +1187,51 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_state_w[:, 7:], root_com_state_w[:, 7:])
             torch.testing.assert_close(root_state_w[:, :7], root_link_state_w[:, :7])
             torch.testing.assert_close(root_state_w[:, 10:], root_link_state_w[:, 10:])
+
+
+@pytest.mark.isaacsim_ci
+def test_warmup_attach_stage_not_called_for_cpu():
+    """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
+
+    Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
+    ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
+    These are two alternative initialization patterns; combining them causes
+    double-initialization that corrupts the CPU MBP broadphase, producing
+    non-deterministic collision failures (objects passing through surfaces).
+
+    Fix: guard ``attach_stage()`` with ``if is_gpu:`` — it is only required by the
+    GPU pipeline, which needs explicit stage attachment before the physics load step.
+    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()``.
+
+    This test verifies the guard is in place by monkeypatching ``attach_stage`` on
+    the PhysX simulation interface and asserting it is *not* called during CPU warmup.
+    The simulation test itself (1 cube falling onto a ground plane) is intentionally
+    omitted here because the MBP corruption is non-deterministic and depends on scene
+    complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
+    unit test assertion.
+    """
+    from unittest.mock import MagicMock
+
+    from isaaclab_physx.physics import PhysxManager
+
+    with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
+
+        # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
+        # assign to _physx_sim.attach_stage directly.  Instead, replace the class-level
+        # reference with a MagicMock that wraps the real object so all other calls still
+        # work, then restore it in the finally block.
+        original_physx_sim = PhysxManager._physx_sim
+        spy = MagicMock(wraps=original_physx_sim)
+        PhysxManager._physx_sim = spy
+        try:
+            sim.reset()
+        finally:
+            PhysxManager._physx_sim = original_physx_sim
+
+        assert spy.attach_stage.call_count == 0, (
+            f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "
+            f"This indicates the CPU MBP broadphase double-initialization regression is present: "
+            f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
+        )
