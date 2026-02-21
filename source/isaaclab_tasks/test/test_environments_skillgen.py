@@ -27,7 +27,9 @@ import pytest
 import isaaclab_tasks  # noqa: F401
 
 # Local imports should be imported last
-from env_test_utils import _run_environments  # isort: skip
+# Note: _check_random_actions is used directly here (instead of _run_environments) so that the
+# skip guards in _run_environments for Skillgen environments are intentionally bypassed.
+from env_test_utils import _check_random_actions  # isort: skip
 
 # SkillGen environments require cuRobo to be installed. This test is intentionally excluded from
 # the base-image CI jobs via CUROBO_TESTS / TESTS_TO_SKIP in test_settings.py and is only executed
@@ -41,4 +43,4 @@ SKILLGEN_ENVS = [
 @pytest.mark.parametrize("task_name", SKILLGEN_ENVS)
 @pytest.mark.isaacsim_ci
 def test_skillgen_environments(task_name, num_envs, device):
-    _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
+    _check_random_actions(task_name, device, num_envs, create_stage_in_memory=False)

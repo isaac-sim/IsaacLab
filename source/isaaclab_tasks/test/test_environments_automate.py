@@ -27,7 +27,9 @@ import pytest
 import isaaclab_tasks  # noqa: F401
 
 # Local imports should be imported last
-from env_test_utils import _run_environments  # isort: skip
+# Note: _check_random_actions is used directly here (instead of _run_environments) so that the
+# skip guards in _run_environments for AutoMate environments are intentionally bypassed.
+from env_test_utils import _check_random_actions  # isort: skip
 
 # AutoMate environments require a CUDA installation that is present in the cuRobo Docker image
 # but not in the base image. This test is intentionally excluded from the base-image CI jobs via
@@ -43,4 +45,4 @@ AUTOMATE_ENVS = [
 @pytest.mark.parametrize("task_name", AUTOMATE_ENVS)
 @pytest.mark.isaacsim_ci
 def test_automate_environments(task_name, num_envs, device):
-    _run_environments(task_name, device, num_envs, create_stage_in_memory=False)
+    _check_random_actions(task_name, device, num_envs, create_stage_in_memory=False)
