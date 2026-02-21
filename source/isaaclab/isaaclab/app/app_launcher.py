@@ -203,8 +203,8 @@ class AppLauncher:
         self._load_extensions()
         # Hide the stop button in the toolbar
         self._hide_stop_button()
-        # Set settings from the given rendering mode
-        self._set_rendering_mode_settings(launcher_args)
+        # Set settings from rendering quality selection
+        self._set_rendering_quality_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
         # Set visualizer settings (if requested)
@@ -425,15 +425,21 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
+            "--rendering_quality",
+            type=str,
+            action=ExplicitAction,
+            choices={"performance", "balanced", "high"},
+            help=(
+                "Select rendering quality profile and override visualizer_cfg.rendering_quality."
+                ' Can be "performance", "balanced", or "high".'
+            ),
+        )
+        arg_group.add_argument(
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
             choices={"performance", "balanced", "quality"},
-            help=(
-                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", or "quality".'
-                " Individual settings can be overwritten by using the RenderCfg class."
-            ),
+            help=argparse.SUPPRESS,
         )
         arg_group.add_argument(
             "--kit_args",

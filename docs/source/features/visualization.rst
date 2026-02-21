@@ -176,7 +176,7 @@ For the migration-focused summary and deprecation context, see
 Visualizer Backends
 -------------------
 
-Omniverse Visualizer
+Kit Visualizer
 ~~~~~~~~~~~~~~~~~~~~
 
 **Main Features:**

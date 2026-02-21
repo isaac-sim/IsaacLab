@@ -121,7 +121,8 @@ def setup_test_environment():
         "--output_file",
         annotated_output_path,
         "--auto",
-        "--headless",
+        "--visualizer",
+        "none",
     ]
     print(config_command)
 
@@ -191,7 +192,8 @@ def test_generate_dataset(setup_test_environment):
         generated_output_path,
         "--generation_num_trials",
         "1",
-        "--headless",
+        "--visualizer",
+        "none",
     ]
 
     result = _run_script(command)

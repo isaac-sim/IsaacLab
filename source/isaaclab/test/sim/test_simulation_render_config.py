@@ -14,11 +14,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import os
-
-import flatdict
 import pytest
-import toml
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
@@ -90,40 +86,31 @@ def test_render_cfg():
 
 @pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
-    """Test that the simulation context is created with the correct render cfg preset with overrides."""
+    """Test that quality presets are applied and can be overridden via RenderingQualityCfg."""
 
-    # carb setting dictionary overrides
-    carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
-    # user-friendly setting overrides
+    # user-friendly field override
     dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-    rendering_modes = ["performance", "balanced", "quality"]
+    rendering_modes = ["performance", "balanced", "high"]
 
     for rendering_mode in rendering_modes:
         # Clear any existing simulation context before creating a new one
         SimulationContext.clear_instance()
 
-        # grab isaac lab apps path
-        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        # for Isaac Sim 5 compatibility, we use the 5 rendering mode app files in a different folder
-        if get_isaac_sim_version().major < 6:
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+        preset_dict = get_kit_rendering_preset(rendering_mode)
 
-        # grab preset settings
-        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename) as file:
-            preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
-
-        render_cfg = RenderCfg(
-            rendering_mode=rendering_mode,
-            dlss_mode=dlss_mode[1],
-            carb_settings=carb_settings,
+        profile_name = f"profile_{rendering_mode}"
+        quality_cfg = RenderingQualityCfg(
+            kit_rendering_preset=rendering_mode,
+            kit_dlss_mode=dlss_mode[1],
+        )
+        cfg = SimulationCfg(
+            rendering_quality_cfgs={profile_name: quality_cfg},
+            visualizer_cfgs=KitVisualizerCfg(rendering_quality=profile_name),
         )
 
-        cfg = SimulationCfg(render=render_cfg)
-
-        SimulationContext(cfg)
+        sim = SimulationContext(cfg)
+        sim.reset()
 
         settings = get_settings_manager()
         for key, val in preset_dict.items():
@@ -149,49 +136,27 @@ def test_render_cfg_presets():
 
 @pytest.mark.skip(reason="Timeline not stopped")
 @pytest.mark.isaacsim_ci
-def test_render_cfg_defaults():
-    """Test that the simulation context is created with the correct render cfg."""
-    enable_translucency = False
-    enable_reflections = False
-    enable_global_illumination = False
-    antialiasing_mode = "DLSS"
-    enable_dlssg = False
-    enable_dl_denoiser = False
-    dlss_mode = 2
-    enable_direct_lighting = False
-    samples_per_pixel = 1
-    enable_shadows = False
-    enable_ambient_occlusion = False
-
-    render_cfg = RenderCfg(
-        enable_translucency=enable_translucency,
-        enable_reflections=enable_reflections,
-        enable_global_illumination=enable_global_illumination,
-        antialiasing_mode=antialiasing_mode,
-        enable_dlssg=enable_dlssg,
-        enable_dl_denoiser=enable_dl_denoiser,
-        dlss_mode=dlss_mode,
-        enable_direct_lighting=enable_direct_lighting,
-        samples_per_pixel=samples_per_pixel,
-        enable_shadows=enable_shadows,
-        enable_ambient_occlusion=enable_ambient_occlusion,
+def test_rendering_quality_cfg_field_overrides():
+    """Test that explicit RenderingQualityCfg fields map to carb settings."""
+    quality_cfg = RenderingQualityCfg(
+        kit_enable_translucency=True,
+        kit_enable_reflections=True,
+        kit_enable_global_illumination=True,
+        kit_antialiasing_mode="DLAA",
+        kit_enable_dlssg=True,
+        kit_enable_dl_denoiser=True,
+        kit_dlss_mode=0,
+        kit_enable_direct_lighting=True,
+        kit_samples_per_pixel=4,
+        kit_enable_shadows=True,
+        kit_enable_ambient_occlusion=True,
     )
-
-    cfg = SimulationCfg(render=render_cfg)
-
+    cfg = SimulationCfg(
+        rendering_quality_cfgs={"custom": quality_cfg},
+        visualizer_cfgs=KitVisualizerCfg(rendering_quality="custom"),
+    )
     sim = SimulationContext(cfg)
-
-    assert sim.cfg.render.enable_translucency == enable_translucency
-    assert sim.cfg.render.enable_reflections == enable_reflections
-    assert sim.cfg.render.enable_global_illumination == enable_global_illumination
-    assert sim.cfg.render.antialiasing_mode == antialiasing_mode
-    assert sim.cfg.render.enable_dlssg == enable_dlssg
-    assert sim.cfg.render.enable_dl_denoiser == enable_dl_denoiser
-    assert sim.cfg.render.dlss_mode == dlss_mode
-    assert sim.cfg.render.enable_direct_lighting == enable_direct_lighting
-    assert sim.cfg.render.samples_per_pixel == samples_per_pixel
-    assert sim.cfg.render.enable_shadows == enable_shadows
-    assert sim.cfg.render.enable_ambient_occlusion == enable_ambient_occlusion
+    sim.reset()
 
     assert sim.get_setting("/rtx/translucency/enabled") == sim.cfg.render.enable_translucency
     assert sim.get_setting("/rtx/reflections/enabled") == sim.cfg.render.enable_reflections
