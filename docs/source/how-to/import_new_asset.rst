@@ -128,7 +128,7 @@ Executing the above script will create a USD file inside the
 * ``anymal_d.usd`` - This is the main asset file.
 
 
-To run the script headless, you can add the ``--visualizer none`` flag. This will not open the GUI and
+To run the script headless, you can add the ``--headless`` flag. This will not open the GUI and
 exit the script after the conversion is complete.
 
 You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.

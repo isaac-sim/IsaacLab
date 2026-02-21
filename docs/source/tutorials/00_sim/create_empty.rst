@@ -156,7 +156,7 @@ following:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --visualizer none
+   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless
 
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the

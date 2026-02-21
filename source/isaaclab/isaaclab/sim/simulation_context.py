@@ -365,24 +365,11 @@ class SimulationContext:
         parts = [p.strip() for p in requested.split(",") if p.strip()]
         return [v for part in parts for v in part.split() if v]
 
-    def _is_cli_visualizer_explicit(self) -> bool:
-        """Return whether --visualizer/--viz was explicitly provided."""
-        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
-
-    def _is_cli_visualizer_disable_all(self) -> bool:
-        """Return whether CLI explicitly disabled all visualizers."""
-        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
-
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
-        if self._is_cli_visualizer_disable_all():
-            return []
-        if self._is_cli_visualizer_explicit():
-            return self._get_cli_visualizer_types()
-
         visualizer_cfgs = self.cfg.visualizer_cfgs
         if visualizer_cfgs is None:
-            return []
+            return self._get_cli_visualizer_types()
 
         if not isinstance(visualizer_cfgs, list):
             visualizer_cfgs = [visualizer_cfgs]
@@ -397,17 +384,11 @@ class SimulationContext:
             )
 
         cli_requested = self._get_cli_visualizer_types()
-        cli_explicit = self._is_cli_visualizer_explicit()
-        cli_disable_all = self._is_cli_visualizer_disable_all()
-
-        if cli_disable_all:
-            return []
-
-        if not cli_explicit:
-            return visualizer_cfgs
-
         if not visualizer_cfgs:
             return self._create_default_visualizer_configs(cli_requested) if cli_requested else []
+
+        if not cli_requested:
+            return visualizer_cfgs
 
         # CLI selection is explicit: keep only requested cfg types, then add defaults for missing requested types.
         cli_requested_set = set(cli_requested)

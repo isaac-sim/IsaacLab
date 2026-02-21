@@ -40,23 +40,3 @@ def test_livestream_launch_with_argparser(mocker):
 
     # close the app on exit
     app.close()
-
-
-def test_visualizer_alias_none_parsing():
-    """Test that --viz alias and explicit none are parsed correctly."""
-    parser = argparse.ArgumentParser()
-    AppLauncher.add_app_launcher_args(parser)
-
-    args = parser.parse_args(["--viz", "none"])
-    assert args.visualizer == ["none"]
-    assert args.visualizer_explicit is True
-
-
-def test_visualizer_none_cannot_be_combined():
-    """Test that --visualizer none cannot be combined with other visualizers."""
-    parser = argparse.ArgumentParser()
-    AppLauncher.add_app_launcher_args(parser)
-    args = parser.parse_args(["--visualizer", "none", "kit"])
-
-    with pytest.raises(ValueError, match="cannot be combined"):
-        AppLauncher(args)

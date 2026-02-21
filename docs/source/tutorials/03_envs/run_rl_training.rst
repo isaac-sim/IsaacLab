@@ -82,13 +82,13 @@ It is up to you to decide which one you prefer based on your use case.
 Headless execution
 """"""""""""""""""
 
-If the ``--visualizer none`` flag is set, the simulation is not rendered during training. This is useful
+If the ``--headless`` flag is set, the simulation is not rendered during training. This is useful
 when training on a remote server or when you do not want to see the simulation. Typically, it speeds
 up the training process since only physics simulation step is performed.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --visualizer none
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
 
 
 Headless execution with off-screen render
@@ -101,7 +101,7 @@ agent's behavior during training.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --visualizer none --video
+  ./isaaclab.sh -p scripts/reinforcement_learning/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
@@ -112,7 +112,7 @@ Interactive execution
 .. currentmodule:: isaaclab
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
-simulation to see what is happening. In this case, you can ignore the ``--visualizer none`` flag and run the
+simulation to see what is happening. In this case, you can ignore the ``--headless`` flag and run the
 training script as follows:
 
 .. code-block:: bash

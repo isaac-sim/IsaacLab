@@ -135,8 +135,8 @@ class AppLauncher:
         self._load_extensions()
         # Hide the stop button in the toolbar
         self._hide_stop_button()
-        # Set settings from rendering quality selection
-        self._set_rendering_quality_settings(launcher_args)
+        # Set settings from the given rendering mode
+        self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
         # Set visualizer settings (if requested)
@@ -310,16 +310,10 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
-            "--viz",
             type=str,
-            action=ExplicitAction,
             nargs="+",
             default=None,
-            help=(
-                "Visualizer backends to enable (kit/newton/rerun) or 'none' to disable all visualizers."
-                " If omitted, `SimulationCfg.visualizer_cfgs` is used when provided."
-                " If '--visualizer none' is passed, it overrides `SimulationCfg.visualizer_cfgs` and launches none."
-            ),
+            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -344,21 +338,15 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
-            "--rendering_quality",
-            type=str,
-            action=ExplicitAction,
-            choices={"performance", "balanced", "high"},
-            help=(
-                "Select rendering quality profile and override visualizer_cfg.rendering_quality."
-                ' Can be "performance", "balanced", or "high".'
-            ),
-        )
-        arg_group.add_argument(
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
             choices={"performance", "balanced", "quality"},
-            help=argparse.SUPPRESS,
+            help=(
+                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
+                ' Can be "performance", "balanced", or "quality".'
+                " Individual settings can be overwritten by using the RenderCfg class."
+            ),
         )
         arg_group.add_argument(
             "--kit_args",
@@ -411,7 +399,7 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
-        "rendering_quality": ([str], ""),
+        "rendering_mode": ([str], "balanced"),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -508,7 +496,6 @@ class AppLauncher:
         """
         # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
-        self._resolve_visualizer_settings(launcher_args)
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
@@ -603,7 +590,6 @@ class AppLauncher:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
-
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -628,44 +614,18 @@ class AppLauncher:
 
         # If visualizers are explicitly requested and Kit viewport is not among them,
         # force headless mode so Isaac Sim GUI does not launch unnecessarily.
-        if self._cli_visualizer_explicit and self._livestream == 0:
-            requested_visualizers = set(self._cli_visualizer_types)
-            if self._cli_visualizer_disable_all or "kit" not in requested_visualizers:
+        visualizers_arg = launcher_args.get("visualizer")
+        if visualizers_arg:
+            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
+            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
                 if not self._headless:
                     print(
-                        "[INFO][AppLauncher]: Forcing headless mode because visualizer selection excludes 'kit'"
-                        " and livestream is disabled."
+                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
+                        "'kit' and livestream is disabled."
                     )
                 self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
-
-    def _resolve_visualizer_settings(self, launcher_args: dict) -> None:
-        """Resolve visualizer CLI semantics and normalize selection."""
-        raw_visualizers = launcher_args.get("visualizer")
-        visualizer_explicit = bool(launcher_args.pop("visualizer_explicit", False))
-        if not visualizer_explicit and "visualizer" in launcher_args:
-            visualizer_explicit = raw_visualizers is not None
-
-        visualizer_types: list[str] = []
-        if raw_visualizers is not None:
-            visualizer_types = [str(v).strip().lower() for v in raw_visualizers if str(v).strip()]
-
-        if visualizer_explicit and "none" in visualizer_types and len(visualizer_types) > 1:
-            raise ValueError("Invalid '--visualizer' value: 'none' cannot be combined with other visualizer types.")
-
-        valid_visualizer_types = {"kit", "newton", "rerun", "none"}
-        invalid_visualizers = [v for v in visualizer_types if v not in valid_visualizer_types]
-        if invalid_visualizers:
-            raise ValueError(
-                f"Invalid value(s) for '--visualizer': {invalid_visualizers}. "
-                "Expected one or more of: ['kit', 'newton', 'rerun', 'none']."
-            )
-
-        self._cli_visualizer_explicit = visualizer_explicit
-        self._cli_visualizer_disable_all = visualizer_explicit and "none" in visualizer_types
-        self._cli_visualizer_types = [] if self._cli_visualizer_disable_all else visualizer_types
-        launcher_args["visualizer"] = self._cli_visualizer_types
 
     def _resolve_camera_settings(self, launcher_args: dict):
         """Resolve camera related settings."""
@@ -954,33 +914,21 @@ class AppLauncher:
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
 
-    def _set_rendering_quality_settings(self, launcher_args: dict) -> None:
-        """Store rendering quality selection and deprecated rendering_mode mapping."""
+    def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
+        """Store RTX rendering mode in carb settings."""
         import carb
 
-        carb_settings = carb.settings.get_settings()
-        rendering_quality = launcher_args.get("rendering_quality")
-        rendering_quality_explicit = launcher_args.get("rendering_quality_explicit", False)
-
-        if rendering_quality_explicit and rendering_quality:
-            carb_settings.set_string("/isaaclab/rendering/rendering_quality", rendering_quality)
-            carb_settings.set_bool("/isaaclab/rendering/rendering_quality/explicit", True)
-            return
-
         rendering_mode = launcher_args.get("rendering_mode")
-        rendering_mode_explicit = launcher_args.get("rendering_mode_explicit", False)
-        if rendering_mode_explicit and rendering_mode:
-            mapped_quality = "high" if rendering_mode == "quality" else rendering_mode
-            print(
-                "[WARN][AppLauncher]: '--rendering_mode' is deprecated. "
-                "Use '--rendering_quality' instead."
-            )
-            carb_settings.set_string("/isaaclab/rendering/rendering_quality", mapped_quality)
-            carb_settings.set_bool("/isaaclab/rendering/rendering_quality/explicit", True)
-            return
 
-        carb_settings.set_string("/isaaclab/rendering/rendering_quality", "")
-        carb_settings.set_bool("/isaaclab/rendering/rendering_quality/explicit", False)
+        if rendering_mode is None:
+            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
+            if not self._enable_cameras:
+                return
+            rendering_mode = ""
+
+        # store rendering mode in carb settings
+        carb_settings = carb.settings.get_settings()
+        carb_settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in carb settings."""
@@ -1010,14 +958,14 @@ class AppLauncher:
 
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
         """Store visualizer selection in carb settings."""
+        visualizers = launcher_args.get("visualizer")
+        if not visualizers:
+            return
         with contextlib.suppress(Exception):
             import carb
 
-            carb_settings = carb.settings.get_settings()
-            visualizer_str = " ".join(self._cli_visualizer_types)
-            carb_settings.set_string("/isaaclab/visualizer", visualizer_str)
-            carb_settings.set_bool("/isaaclab/visualizer/explicit", self._cli_visualizer_explicit)
-            carb_settings.set_bool("/isaaclab/visualizer/disable_all", self._cli_visualizer_disable_all)
+            visualizer_str = " ".join(visualizers)
+            carb.settings.get_settings().set_string("/isaaclab/visualizer", visualizer_str)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
