@@ -453,9 +453,7 @@ class PhysxManager(PhysicsManager):
             settings.set_bool("/physics/suppressReadback", True)
             PhysicsManager._device = f"cuda:{device_id}"
         else:
-            # NOTE: Do NOT set cudaDevice=-1 here. The old SimulationManager.set_device("cpu")
-            # had this line explicitly commented out. Setting it can interfere with PhysX CPU
-            # initialization in edge cases where the default device is already in use.
+            settings.set_int("/physics/cudaDevice", -1)
             settings.set_bool("/physics/suppressReadback", False)
             PhysicsManager._device = "cpu"
 
@@ -582,12 +580,10 @@ class PhysxManager(PhysicsManager):
         if is_gpu:
             cls._physx_sim.attach_stage(stage_id)
 
-        # Warm-up PhysX: use simulate/fetch_results to match old SimulationManager.initialize_physics().
-        # Avoid IPhysx.update_simulation() for warmup - it can skip CPU contact-setup paths
-        # and leaves contact manifolds incomplete for CPU simulation.
+        # warmup physx
         cls._physx.force_load_physics_from_usd()
         cls._physx.start_simulation()
-        cls._physx_sim.simulate(cls.get_physics_dt(), 0.0)
+        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._physx_sim.fetch_results()
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
@@ -604,10 +600,8 @@ class PhysxManager(PhysicsManager):
         if cls._view_warp:
             cls._view_warp.set_subspace_roots("/")
 
-        # Second warmup step after view creation (matches old SimulationManager.initialize_physics).
-        # Must include fetch_results() to finalize contact manifolds before simulation begins.
-        cls._physx_sim.simulate(cls.get_physics_dt(), 0.0)
-        cls._physx_sim.fetch_results()
+        # Final update after view creation
+        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
