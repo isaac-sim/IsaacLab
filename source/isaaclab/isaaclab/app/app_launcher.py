@@ -42,17 +42,6 @@ class ExplicitAction(argparse.Action):
         setattr(namespace, f"{self.dest}_explicit", True)
 
 
-class ExplicitTrueAction(argparse.Action):
-    """Custom action to track explicit use of boolean flags."""
-
-    def __init__(self, option_strings, dest, default=False, required=False, help=None):
-        super().__init__(option_strings=option_strings, dest=dest, nargs=0, default=default, required=required, help=help)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, True)
-        setattr(namespace, f"{self.dest}_explicit", True)
-
-
 class AppLauncher:
     """A utility class to launch Isaac Sim application based on command-line arguments and environment variables.
 
@@ -289,12 +278,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--headless",
-            action=ExplicitTrueAction,
+            action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help=(
-                "[DEPRECATED] Disable visualizers and force host headless mode."
-                " Prefer `--visualizer` / `--viz`."
-            ),
+            help="Force display off at all times.",
         )
         arg_group.add_argument(
             "--livestream",
@@ -611,25 +597,12 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
-        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
-        if headless_arg and headless_arg_explicit:
-            print(
-                "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated."
-                " Use '--visualizer none' to disable all visualizers or '--visualizer ...' to pick specific backends."
-            )
-            if self._cli_visualizer_explicit:
-                print(
-                    "[WARN][AppLauncher]: Both '--headless' and '--visualizer/--viz' were provided."
-                    " Deprecated '--headless' takes precedence and disables all visualizers."
-                )
-            self._cli_visualizer_disable_all = True
-            self._cli_visualizer_types = []
 
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
