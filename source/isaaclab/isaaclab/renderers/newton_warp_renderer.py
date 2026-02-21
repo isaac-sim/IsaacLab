@@ -12,7 +12,6 @@ import newton
 import torch
 import warp as wp
 
-import isaaclab.sim as isaaclab_sim
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -132,8 +131,7 @@ class NewtonWarpRenderer:
     RenderData = RenderData
 
     def __init__(self):
-        self.scene_data_provider = self._create_scene_data_provider()
-        self.newton_sensor = newton.sensors.SensorTiledCamera(self.scene_data_provider.get_newton_model())
+        self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
 
     def create_render_data(self, sensor: SensorBase) -> RenderData:
         return RenderData(self.newton_sensor.render_context, sensor)
@@ -142,7 +140,7 @@ class NewtonWarpRenderer:
         render_data.set_outputs(output_data)
 
     def update_transforms(self):
-        self.scene_data_provider.update()
+        SimulationContext.instance().update_scene_data_provider(True)
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -151,7 +149,7 @@ class NewtonWarpRenderer:
 
     def render(self, render_data: RenderData):
         self.newton_sensor.render(
-            self.scene_data_provider.get_newton_state(),
+            self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -167,15 +165,7 @@ class NewtonWarpRenderer:
             if image_data.ptr != output_data.data_ptr():
                 wp.copy(wp.from_torch(output_data), image_data)
 
-    def _create_scene_data_provider(self) -> SceneDataProvider:
-        sim = SimulationContext.instance()
-
-        if sim._scene_data_provider is not None:
-            return sim._scene_data_provider
-
-        from ..sim.scene_data_providers import PhysxSceneDataProvider
+    def get_scene_data_provider(self) -> SceneDataProvider:
         from ..visualizers import VisualizerCfg
 
-        visualizer_cfg = VisualizerCfg(visualizer_type="newton")
-        scene_data_provider = PhysxSceneDataProvider([visualizer_cfg], isaaclab_sim.get_current_stage(), sim)
-        return scene_data_provider
+        return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])
