@@ -22,7 +22,7 @@ from .utils import (
 )
 
 
-def cli():
+def cli() -> None:
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog="isaaclab" + (".bat" if is_windows() else ".sh"),

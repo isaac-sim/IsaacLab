@@ -8,11 +8,11 @@ import subprocess
 from ..utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
-def command_format():
+def command_format() -> None:
     """Run code formatting using pre-commit."""
     python_exe = extract_python_exe()
 
-    def _run_pre_commit():
+    def _run_pre_commit() -> None:
         run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], cwd=ISAACLAB_ROOT)
 
     # Check if pre-commit is installed.

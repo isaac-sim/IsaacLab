@@ -17,7 +17,7 @@ from ..utils import (
 )
 
 
-def command_run_isaacsim(sim_args):
+def command_run_isaacsim(sim_args: list[str]) -> None:
     """Run Isaac Sim (-s)."""
 
     isaacsim_exe = extract_isaacsim_exe()
@@ -30,7 +30,7 @@ def command_run_isaacsim(sim_args):
     run_command(isaacsim_exe, check=False)
 
 
-def command_new(new_args):
+def command_new(new_args: list[str]) -> None:
     """Create a new external project or internal task from template (-n)."""
 
     print_info("Installing template dependencies...")
@@ -42,12 +42,12 @@ def command_new(new_args):
     run_python_command(cli_script, new_args)
 
 
-def command_test(test_args):
+def command_test(test_args: list[str]) -> None:
     """Run pytest for Isaac Lab tools tests (-t)."""
     run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
 
 
-def command_vscode_settings():
+def command_vscode_settings() -> None:
     """Update the vscode settings from template and Isaac Sim settings"""
 
     print_info("Setting up vscode settings...")
@@ -63,7 +63,7 @@ def command_vscode_settings():
         print_warning("Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
 
 
-def command_build_docs():
+def command_build_docs() -> None:
     print_info("Building documentation...")
     python_exe = extract_python_exe()
     docs_dir = ISAACLAB_ROOT / "docs"
@@ -97,7 +97,7 @@ def command_build_docs():
         print_info(f"Open with: xdg-open {index_path}")
 
 
-def command_run_docker(args):
+def command_run_docker(args: list[str]) -> None:
     """Run the docker container helper script."""
     script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")

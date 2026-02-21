@@ -18,7 +18,7 @@ from ..utils import (
 from .misc import command_vscode_settings
 
 
-def _install_system_deps():
+def _install_system_deps() -> None:
     """install system dependencies"""
     if is_windows():
         return
@@ -45,7 +45,7 @@ def _install_system_deps():
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
-def _ensure_cuda_torch():
+def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
     python_exe = extract_python_exe()
 
@@ -121,7 +121,7 @@ def _ensure_cuda_torch():
     )
 
 
-def _install_isaaclab_extensions():
+def _install_isaaclab_extensions() -> None:
     """check if input directory is a python extension and install the module"""
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -149,7 +149,7 @@ def _install_isaaclab_extensions():
             )
 
 
-def _install_extra_frameworks(framework_name="all"):
+def _install_extra_frameworks(framework_name: str = "all") -> None:
     """install the python packages for supported reinforcement learning frameworks"""
     python_exe = extract_python_exe()
 
@@ -187,7 +187,7 @@ def _install_extra_frameworks(framework_name="all"):
     )
 
 
-def command_install(install_type="all"):
+def command_install(install_type: str = "all") -> None:
     """
     Install stuff
 

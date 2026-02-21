@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import IO, Any
 
 # Path to Isaac Lab installation.
 ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
@@ -24,18 +25,18 @@ _ANSI_COLOR_ERROR = "\033[31m"  # red
 _ANSI_COLOR_DEBUG = "\033[1;32m"  # bold green
 
 
-def is_windows():
+def is_windows() -> bool:
     """Check if the platform is Windows."""
     return platform.system().lower() == "windows"
 
 
-def is_arm():
+def is_arm() -> bool:
     """Check if the architecture is ARM (likely Mac)."""
     machine = platform.machine().lower()
     return "aarch64" in machine or "arm64" in machine
 
 
-def _colorize(label, color, stream):
+def _colorize(label: str, color: str, stream: IO[str]) -> str:
     """Colorize a label, if the stream supports colors."""
 
     if os.environ.get("NO_COLOR"):
@@ -52,29 +53,29 @@ def _colorize(label, color, stream):
         return f"{color}{label}{_ANSI_COLOR_RESET}"
 
 
-def print_info(message, stream=sys.stdout):
+def print_info(message: str, stream: IO[str] = sys.stdout) -> None:
     label = _colorize("[INFO]", _ANSI_COLOR_INFO, stream)
     print(f"{label} {message}", file=stream)
 
 
-def print_warning(message, stream=sys.stdout):
+def print_warning(message: str, stream: IO[str] = sys.stdout) -> None:
     label = _colorize("[WARNING]", _ANSI_COLOR_WARNING, stream)
     print(f"{label} {message}", file=stream)
 
 
-def print_error(message, stream=sys.stderr):
+def print_error(message: str, stream: IO[str] = sys.stderr) -> None:
     label = _colorize("[ERROR]", _ANSI_COLOR_ERROR, stream)
     print(f"{label} {message}", file=stream)
 
 
-def print_debug(message, stream=sys.stdout):
+def print_debug(message: str, stream: IO[str] = sys.stdout) -> None:
     if os.environ.get("DEBUG") != "1":
         return
     label = _colorize("[DEBUG]", _ANSI_COLOR_DEBUG, stream)
     print(f"{label} {message}", file=stream)
 
 
-def _print_debug_env(prefix, env):
+def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
     """
     Print the environment for debugging purpose.
     Only prints the vars that are added, changed or removed vs the os.environ.
@@ -105,7 +106,16 @@ def _print_debug_env(prefix, env):
         print_debug(f"{prefix}: ENV removed: {env_removed}")
 
 
-def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, stderr=None, **kwargs):
+def run_command(
+    cmd: str | list[str] | tuple[str, ...],
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    shell: bool = False,
+    check: bool = True,
+    stdout: int | IO[str] | None = None,
+    stderr: int | IO[str] | None = None,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[Any]:
     """Run a command in a subprocess."""
 
     if cwd is None:
@@ -134,7 +144,7 @@ def run_command(cmd, cwd=None, env=None, shell=False, check=True, stdout=None, s
         sys.exit(e.returncode)
 
 
-def extract_python_exe(allow_isaacsim_python: bool = True):
+def extract_python_exe(allow_isaacsim_python: bool = True) -> str:
     """
     Find the Python executable to use.
 
@@ -164,8 +174,7 @@ def extract_python_exe(allow_isaacsim_python: bool = True):
     if not python_exe or not Path(python_exe).exists():
         if python_exe:
             print_debug(
-                f'extract_python_exe(): Venv python "{python_exe}" does not exist, '
-                "trying to find conda python..."
+                f'extract_python_exe(): Venv python "{python_exe}" does not exist, trying to find conda python...'
             )
 
         conda_prefix = os.environ.get("CONDA_PREFIX")
@@ -231,7 +240,7 @@ def extract_python_exe(allow_isaacsim_python: bool = True):
     return str(python_exe)
 
 
-def extract_isaacsim_path():
+def extract_isaacsim_path() -> Path:
     """
     Find the Isaac Sim installation path.
     """
@@ -271,7 +280,7 @@ def extract_isaacsim_path():
     return isaacsim_path
 
 
-def extract_isaacsim_exe():
+def extract_isaacsim_exe() -> list[str]:
     """
     Find the Isaac Sim executable.
     """
@@ -304,7 +313,7 @@ def extract_isaacsim_exe():
     return [str(isaacsim_exe)]
 
 
-def determine_python_version():
+def determine_python_version() -> str:
     """Detect Isaac Sim version and return the matching Python version."""
 
     # 1. Version file
@@ -346,12 +355,12 @@ def determine_python_version():
 
 
 def run_python_command(
-    script_or_module,
-    args,
-    is_module=False,
-    env=None,
-    check=False,
-):
+    script_or_module: str | Path,
+    args: list[str],
+    is_module: bool = False,
+    env: dict[str, str] | None = None,
+    check: bool = False,
+) -> subprocess.CompletedProcess[Any]:
     """Run a python script or module using the resolved Python executable.
 
     Args:
