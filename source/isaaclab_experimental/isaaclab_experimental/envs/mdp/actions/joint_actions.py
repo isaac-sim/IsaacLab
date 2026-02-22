@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import logging
+import numpy as np
 from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.managers.action_manager import ActionTerm
+from isaaclab_experimental.utils.warp.utils import zero_masked_2d
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
@@ -51,24 +53,6 @@ def _process_joint_actions_kernel(
     if x > high:
         x = high
     processed_out[env_id, j] = x
-
-
-@wp.kernel
-def _set_clip_1d_to_2d(
-    clip_low: wp.array(dtype=wp.float32),
-    clip_high: wp.array(dtype=wp.float32),
-    out: wp.array(dtype=wp.float32, ndim=2),
-):
-    j = wp.tid()
-    out[j, 0] = clip_low[j]
-    out[j, 1] = clip_high[j]
-
-
-@wp.kernel
-def _zero_masked_2d(mask: wp.array(dtype=wp.bool), values: wp.array(dtype=wp.float32, ndim=2)):
-    env_id, j = wp.tid()
-    if mask[env_id]:
-        values[env_id, j] = 0.0
 
 
 class JointAction(ActionTerm):
@@ -171,15 +155,8 @@ class JointAction(ActionTerm):
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
-        clip_low_vec = wp.array(clip_low, dtype=wp.float32, device=self.device)
-        clip_high_vec = wp.array(clip_high, dtype=wp.float32, device=self.device)
-        self._clip = wp.zeros((self.action_dim, 2), dtype=wp.float32, device=self.device)
-        # TODO(jichuanh): use np.stack([a, b], axis=0)
-        wp.launch(
-            kernel=_set_clip_1d_to_2d,
-            dim=self.action_dim,
-            inputs=[clip_low_vec, clip_high_vec, self._clip],
-            device=self.device,
+        self._clip = wp.array(
+            np.column_stack([clip_low, clip_high]).astype(np.float32), dtype=wp.float32, device=self.device
         )
 
     """
@@ -259,11 +236,35 @@ class JointAction(ActionTerm):
             self._raw_actions.fill_(0.0)
             return
         wp.launch(
-            kernel=_zero_masked_2d,
+            kernel=zero_masked_2d,
             dim=(self.num_envs, self.action_dim),
             inputs=[env_mask, self._raw_actions],
             device=self.device,
         )
+
+
+class JointPositionAction(JointAction):
+    """Joint action term that applies the processed actions to the articulation's joints as position commands.
+
+    Warp-first override of :class:`isaaclab.envs.mdp.actions.JointPositionAction`.
+    """
+
+    cfg: actions_cfg.JointPositionActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        # use default joint positions as offset
+        if cfg.use_default_offset:
+            defaults_np = self._asset.data.default_joint_pos.numpy()
+            if isinstance(self._joint_ids, slice):
+                offset_vals = defaults_np[0, :].tolist()
+            else:
+                offset_vals = [float(defaults_np[0, jid]) for jid in self._joint_ids]
+            self._offset = wp.array(offset_vals, dtype=wp.float32, device=self.device)
+
+    def apply_actions(self):
+        self._asset.set_joint_position_target(self.processed_actions, joint_mask=self._joint_mask)
 
 
 class JointEffortAction(JointAction):
