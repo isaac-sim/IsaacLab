@@ -135,9 +135,10 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
         # -- command manager
-        self.command_manager = self._manager_call_switch.resolve_manager_class("CommandManager")(
-            self.cfg.commands, self
-        )
+        # TODO(jichuanh): switch to experimental command manager once command-term isolation is complete.
+        self.command_manager = self._manager_call_switch.resolve_manager_class(
+            "CommandManager", mode_override=ManagerCallMode.STABLE
+        )(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
         # call the parent class to load the managers for observations and actions.
@@ -379,6 +380,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 stage="CommandManager_compute",
                 stable_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
                 warp_calls=[{"fn": self.command_manager.compute, "kwargs": {"dt": float(self.step_dt)}}],
+                mode_override=ManagerCallMode.STABLE,
             )
 
         # -- step interval events
@@ -669,10 +671,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             enable=TIMER_ENABLED_RESET_IDX,
             format="us",
         ):
+            command_mode = ManagerCallMode.STABLE
             command_info = self._manager_call_switch.call_stage(
                 stage="CommandManager_reset",
                 stable_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_ids": env_ids}}],
                 warp_calls=[{"fn": self.command_manager.reset, "kwargs": {"env_mask": env_mask}}],
+                mode_override=command_mode,
             )
             event_info = self._manager_call_switch.call_stage(
                 stage="EventManager_reset",
@@ -684,7 +688,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 stable_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_ids": env_ids}}],
                 warp_calls=[{"fn": self.termination_manager.reset, "kwargs": {"env_mask": env_mask}}],
             )
-            if self._manager_call_switch.get_mode_for_manager("CommandManager") == ManagerCallMode.WARP_CAPTURED:
+            if command_mode == ManagerCallMode.WARP_CAPTURED:
                 command_info = self.command_manager.reset_extras
             if self._manager_call_switch.get_mode_for_manager("EventManager") == ManagerCallMode.WARP_CAPTURED:
                 event_info = {}

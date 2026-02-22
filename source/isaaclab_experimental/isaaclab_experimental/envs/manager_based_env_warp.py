@@ -83,19 +83,31 @@ class ManagerCallSwitch:
         "TerminationManager",
         "RewardManager",
         "CurriculumManager",
+        "Scene",
     )
 
-    def __init__(self, cfg_source: str | None = None):
+    def __init__(self, cfg_source: dict | str | None = None, max_modes: dict[str, int] | None = None):
         self._wp_graphs: dict[str, Any] = {}
+        self._non_capturable_managers: set[str] = set()
         self._cfg = self._load_cfg(cfg_source)
+        self._max_modes = self._validate_max_modes(max_modes)
         print("[INFO] ManagerCallSwitch configuration:")
         print(f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}")
         for manager_name in self.MANAGER_NAMES:
-            print(f"  - {manager_name}: {int(self.get_mode_for_manager(manager_name))}")
+            mode = int(self.get_mode_for_manager(manager_name))
+            cap = self._max_modes.get(manager_name)
+            cap_str = f" (cap={cap})" if cap is not None else ""
+            print(f"  - {manager_name}: {mode}{cap_str}")
 
     def invalidate_graphs(self) -> None:
         """Invalidate cached capture graphs."""
         self._wp_graphs.clear()
+
+    def register_manager_capturability(self, manager_name: str, all_terms_capturable: bool) -> None:
+        """Register whether a manager's terms are all CUDA-graph-capturable."""
+        if not all_terms_capturable:
+            self._non_capturable_managers.add(manager_name)
+            logger.warning(f"{manager_name} has non-capturable terms — mode=2 requests will fall back to mode=1.")
 
     def call_stage(
         self,
@@ -103,12 +115,15 @@ class ManagerCallSwitch:
         stage: str,
         stable_calls: Sequence[dict[str, Any]],
         warp_calls: Sequence[dict[str, Any]],
+        mode_override: ManagerCallMode | int | None = None,
     ) -> Any:
-        """Run the stage according to configured mode."""
+        """Run the stage according to configured mode (or explicit override)."""
         manager_name = self._manager_name_from_stage(stage)
-        mode = self.get_mode_for_manager(manager_name)
+        mode = self.get_mode_for_manager(manager_name) if mode_override is None else ManagerCallMode(mode_override)
         if mode == ManagerCallMode.STABLE:
             return self._run_calls(stable_calls)
+        if mode == ManagerCallMode.WARP_CAPTURED and manager_name in self._non_capturable_managers:
+            mode = ManagerCallMode.WARP_NOT_CAPTURED
         if mode == ManagerCallMode.WARP_NOT_CAPTURED:
             return self._run_calls(warp_calls)
         self._wp_capture_or_launch(stage=stage, calls=warp_calls)
@@ -122,14 +137,14 @@ class ManagerCallSwitch:
     def get_mode_for_manager(self, manager_name: str) -> ManagerCallMode:
         default_key = next(iter(self.DEFAULT_CONFIG))
         mode_value = self._cfg.get(manager_name, self._cfg[default_key])
+        cap = self._max_modes.get(manager_name)
+        if cap is not None:
+            mode_value = min(mode_value, cap)
         return ManagerCallMode(mode_value)
 
-    def resolve_manager_class(self, manager_name: str) -> type:
-        module_name = (
-            "isaaclab.managers"
-            if self.get_mode_for_manager(manager_name) == ManagerCallMode.STABLE
-            else "isaaclab_experimental.managers"
-        )
+    def resolve_manager_class(self, manager_name: str, mode_override: ManagerCallMode | int | None = None) -> type:
+        mode = self.get_mode_for_manager(manager_name) if mode_override is None else ManagerCallMode(mode_override)
+        module_name = "isaaclab.managers" if mode == ManagerCallMode.STABLE else "isaaclab_experimental.managers"
         module = importlib.import_module(module_name)
         if not hasattr(module, manager_name):
             raise AttributeError(f"Manager '{manager_name}' not found in module '{module_name}'.")
@@ -138,35 +153,41 @@ class ManagerCallSwitch:
     def _run_calls(self, calls: Sequence[dict[str, Any]]) -> Any:
         result = None
         for spec in calls:
-            fn = spec["fn"]
-            fn_args = spec.get("args", ())
-            fn_kwargs = spec.get("kwargs", {})
-            result = fn(*fn_args, **fn_kwargs)
+            result = self._run_call(call=spec)
         return result
+
+    def _run_call(self, call: dict[str, Any]) -> Any:
+        fn = call["fn"]
+        fn_args = call.get("args", ())
+        fn_kwargs = call.get("kwargs", {})
+        return fn(*fn_args, **fn_kwargs)
 
     def _wp_capture_or_launch(self, stage: str, calls: Sequence[dict[str, Any]]) -> None:
         """Capture Warp CUDA graph for a stage on first call, then replay."""
         graph = self._wp_graphs.get(stage)
-        if graph is None:
-            with wp.ScopedCapture() as capture:
-                for spec in calls:
-                    fn = spec["fn"]
-                    fn_args = spec.get("args", ())
-                    fn_kwargs = spec.get("kwargs", {})
-                    fn(*fn_args, **fn_kwargs)
-            graph = capture.graph
-            self._wp_graphs[stage] = graph
-        wp.capture_launch(graph)
+        if graph is not None:
+            wp.capture_launch(graph)
+            return
+        # Warmup: run eagerly to trigger first-call allocations (hasattr guards, wp.zeros, etc.)
+        self._run_calls(calls)
+        # Capture: allocations already done, only wp.launch calls are recorded
+        with wp.ScopedCapture() as capture:
+            self._run_calls(calls)
+        self._wp_graphs[stage] = capture.graph
 
-    def _load_cfg(self, cfg_source: str | None) -> dict[str, int]:
-        if cfg_source is not None and not isinstance(cfg_source, str):
-            raise TypeError(f"cfg_source must be a string or None, got: {type(cfg_source)}")
-        if cfg_source is None or cfg_source.strip() == "":
+    def _load_cfg(self, cfg_source: dict | str | None) -> dict[str, int]:
+        if cfg_source is None:
             return dict(self.DEFAULT_CONFIG)
-
-        parsed = json.loads(cfg_source)
-        if not isinstance(parsed, dict):
-            raise TypeError("manager_call_config must decode to a dict.")
+        if isinstance(cfg_source, dict):
+            parsed = cfg_source
+        elif isinstance(cfg_source, str):
+            if cfg_source.strip() == "":
+                return dict(self.DEFAULT_CONFIG)
+            parsed = json.loads(cfg_source)
+            if not isinstance(parsed, dict):
+                raise TypeError("manager_call_config must decode to a dict.")
+        else:
+            raise TypeError(f"cfg_source must be a dict, string, or None, got: {type(cfg_source)}")
 
         cfg = dict(parsed)
         if self.DEFAULT_KEY not in cfg:
@@ -185,6 +206,20 @@ class ManagerCallSwitch:
                     f"Invalid manager_call_config value for '{manager_name}': {mode_value}. Expected 0/1/2."
                 ) from exc
         return cfg
+
+    def _validate_max_modes(self, max_modes: dict[str, int] | None) -> dict[str, int]:
+        if max_modes is None:
+            return {}
+        if not isinstance(max_modes, dict):
+            raise TypeError(f"max_modes must be a dict or None, got: {type(max_modes)}")
+        for name, cap in max_modes.items():
+            if not isinstance(cap, int):
+                raise TypeError(f"manager_call_max_mode value for '{name}' must be int (0/1/2), got: {type(cap)}")
+            try:
+                ManagerCallMode(cap)
+            except ValueError as exc:
+                raise ValueError(f"Invalid manager_call_max_mode value for '{name}': {cap}. Expected 0/1/2.") from exc
+        return dict(max_modes)
 
 
 class ManagerBasedEnvWarp:
@@ -211,16 +246,9 @@ class ManagerBasedEnvWarp:
         # initialize internal variables
         self._is_closed = False
         # temporary debug runtime config for manager source/call switching.
-        cfg_source: str | None = getattr(self.cfg, "manager_call_config", None)
-        # if cfg_source is None:
-        #     try:
-        #         import __main__
-
-        #         args_cli = getattr(__main__, "args_cli", None)
-        #         cfg_source = getattr(args_cli, "manager_call_config", None)
-        #     except Exception:
-        #         cfg_source = None
-        self._manager_call_switch = ManagerCallSwitch(cfg_source)
+        cfg_source: dict | str | None = getattr(self.cfg, "manager_call_config", None)
+        max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
+        self._manager_call_switch = ManagerCallSwitch(cfg_source, max_modes=max_modes)
         self._apply_manager_term_cfg_profile()
 
         # set the seed for the environment
@@ -408,6 +436,17 @@ class ManagerBasedEnvWarp:
     def device(self):
         """The device on which the environment is running."""
         return self.sim.device
+
+    @property
+    def env_origins_wp(self) -> wp.array:
+        """Scene env origins as a warp ``vec3f`` array. Cached on first access."""
+        if not hasattr(self, "_env_origins_wp"):
+            origins = self.scene.env_origins
+            if isinstance(origins, wp.array):
+                self._env_origins_wp = origins
+            else:
+                self._env_origins_wp = wp.from_torch(origins, dtype=wp.vec3f)
+        return self._env_origins_wp
 
     def resolve_env_mask(
         self,
