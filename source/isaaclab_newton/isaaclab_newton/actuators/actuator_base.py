@@ -241,7 +241,7 @@ class ActuatorBase(ABC):
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
-                indices_global = torch.stack([self._joint_indices[i] for i in indices], dim=0)
+                indices_global = [self._joint_indices[i] for i in indices]
                 wp.launch(
                     update_array2D_with_array1D_indexed,
                     dim=(self._num_envs, len(indices_global)),
