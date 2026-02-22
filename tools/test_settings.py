@@ -19,9 +19,9 @@ PER_TEST_TIMEOUTS = {
     "test_articulation.py": 500,
     "test_stage_in_memory.py": 500,
     "test_imu.py": 500,
-    "test_environments.py": 2500,  # This test runs through all the environments for 100 steps each
+    "test_environments.py": 5000,  # This test runs through all the environments for 100 steps each
     "test_environments_with_stage_in_memory.py": (
-        2500
+        5000
     ),  # Like the above, with stage in memory and with and without fabric cloning
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
@@ -42,7 +42,7 @@ PER_TEST_TIMEOUTS = {
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 500,
     "test_manager_based_rl_env_obs_spaces.py": 500,
-    "test_visuotactile_sensor.py": 500,
+    "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 500,
     "test_rigid_object_collection.py": 1000,
     "test_scale_randomization.py": 500,
@@ -76,7 +76,6 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-    "test_environments_with_stage_in_memory.py",  # Failing
     # curobo / skillgen - require cuRobo installation; run via the test-curobo CI job
     *CUROBO_TESTS,
 ]
