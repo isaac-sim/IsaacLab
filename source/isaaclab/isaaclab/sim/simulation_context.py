@@ -17,6 +17,7 @@ import toml
 import torch
 
 import carb
+import omni.usd
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
@@ -103,20 +104,28 @@ class SimulationContext:
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            # Create a fresh in-memory stage (not attached to USD context)
+            # Create a fresh in-memory stage
             self.stage = create_new_stage_in_memory()
         else:
-            # Use existing stage from cache, or create in-memory as fallback
-            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
-            self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
+            # Use existing stage from USD context, or create a new one
+            self.stage = omni.usd.get_context().get_stage()
+            if self.stage is None:
+                omni.usd.get_context().new_stage()
+                self.stage = omni.usd.get_context().get_stage()
 
-        # Cache stage in USD cache
-        stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
-        if stage_id < 0:
-            stage_cache.Insert(self.stage)  # type: ignore[union-attr]
+        # Ensure stage is in USD cache and get its ID
+        cached_id = stage_cache.GetId(self.stage)  # type: ignore[union-attr]
+        if not cached_id.IsValid():
+            cached_id = stage_cache.Insert(self.stage)  # type: ignore[union-attr]
+        stage_id = cached_id.ToLongInt()
 
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
+
+        # Attach in-memory stage to USD context immediately to ensure proper lifecycle events
+        # This allows PhysX and viewport to receive stage events and prevents cleanup issues
+        if self.cfg.create_stage_in_memory:
+            omni.usd.get_context().attach_stage_with_callback(stage_id)
 
         # Acquire settings interface and create helper
         self._carb_settings = carb.settings.get_settings()
@@ -586,6 +595,9 @@ class SimulationContext:
             # Clear thread-local stage context
             if hasattr(stage_utils._context, "stage"):
                 delattr(stage_utils._context, "stage")
+
+            # Close the USD context stage (symmetric with attach in __init__)
+            omni.usd.get_context().close_stage()
 
             # Clear instance
             cls._instance = None

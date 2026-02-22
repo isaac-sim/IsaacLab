@@ -13,7 +13,6 @@ import pytest
 import torch
 
 import carb
-import omni.usd
 
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
@@ -188,10 +187,6 @@ def _check_random_actions(
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
     """
-    # create a new context stage, if stage in memory is not enabled
-    if not create_stage_in_memory:
-        omni.usd.get_context().new_stage()
-
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
@@ -262,7 +257,7 @@ def _check_random_actions(
         if env is not None:
             env.close()
 
-        # Always clear the simulation context singleton to allow next test to run
+        # Clear the simulation context singleton (also closes the USD context stage)
         SimulationContext.clear_instance()
 
 
