@@ -15,9 +15,9 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-import omni
 from isaacsim.core.cloner import GridCloner
 
+import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.timer import Timer
@@ -39,9 +39,9 @@ def test_robot_load_performance(test_config, device):
     """Test robot load time."""
     with build_simulation_context(device=device) as sim:
         sim._app_control_on_stop_handle = None
-        cloner = GridCloner(spacing=2)
+        cloner = GridCloner(spacing=2, stage=sim.stage)
         target_paths = cloner.generate_paths("/World/Robots", 4096)
-        omni.usd.get_context().get_stage().DefinePrim(target_paths[0], "Xform")
+        sim_utils.get_current_stage().DefinePrim(target_paths[0], "Xform")
         _ = cloner.clone(
             source_prim_path=target_paths[0],
             prim_paths=target_paths,

@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 
 import omni.physx
+import omni.usd
 import usdrt
 from isaacsim.core.cloner import GridCloner
 

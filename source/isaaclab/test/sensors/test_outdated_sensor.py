@@ -20,7 +20,8 @@ import pytest
 import torch
 
 import carb
-import omni.usd
+
+import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -46,7 +47,7 @@ def temp_dir():
 @pytest.mark.isaacsim_ci
 def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
     """Check FrameTransformer values after reset."""
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)

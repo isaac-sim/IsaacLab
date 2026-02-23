@@ -20,8 +20,8 @@ import torch
 from tensordict import TensorDict
 
 import carb
-import omni.usd
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
@@ -62,7 +62,7 @@ def test_random_actions(registered_tasks):
         # Use pytest's subtests
         print(f">>> Running test for environment: {task_name}")
         # create a new stage
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
         # reset the rtx sensors carb setting to False
         carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
         try:
@@ -114,7 +114,7 @@ def test_no_time_outs(registered_tasks):
         # Use pytest's subtests
         print(f">>> Running test for environment: {task_name}")
         # create a new stage
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
         # parse configuration
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # change to finite horizon

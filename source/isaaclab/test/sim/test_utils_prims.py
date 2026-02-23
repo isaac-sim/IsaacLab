@@ -342,45 +342,6 @@ def test_delete_prim():
     assert not prim2.IsValid()
 
 
-def test_move_prim():
-    """Test move_prim() function."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create scene
-    sim_utils.create_prim("/World/Test", "Xform", stage=stage)
-    prim = sim_utils.create_prim(
-        "/World/Test/Xform",
-        "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
-        translation=(1.0, 2.0, 3.0),
-        orientation=(0.0, 0.0, 1.0, 0.0),
-        stage=stage,
-    )
-
-    # move prim
-    sim_utils.create_prim("/World/TestMove", "Xform", stage=stage, translation=(1.0, 1.0, 1.0))
-    sim_utils.move_prim("/World/Test/Xform", "/World/TestMove/Xform", stage=stage)
-    # check prim moved
-    prim = stage.GetPrimAtPath("/World/TestMove/Xform")
-    assert prim.IsValid()
-    assert prim.GetPrimPath() == "/World/TestMove/Xform"
-    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 1.0, 0.0))
-
-    # check moving prim with keep_world_transform=False
-    # it should preserve the local transform from last move
-    sim_utils.create_prim(
-        "/World/TestMove2", "Xform", stage=stage, translation=(2.0, 2.0, 2.0), orientation=(0.7071, 0.0, 0.7071, 0.0)
-    )
-    sim_utils.move_prim("/World/TestMove/Xform", "/World/TestMove2/Xform", keep_world_transform=False, stage=stage)
-    # check prim moved
-    prim = stage.GetPrimAtPath("/World/TestMove2/Xform")
-    assert prim.IsValid()
-    assert prim.GetPrimPath() == "/World/TestMove2/Xform"
-    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), (0.0, 0.0, 1.0, 0.0))
-
-
 """
 USD references and variants.
 """

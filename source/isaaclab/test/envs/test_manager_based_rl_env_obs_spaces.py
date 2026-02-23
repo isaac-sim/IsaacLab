@@ -15,8 +15,7 @@ import numpy as np
 import pytest
 import torch
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg import (
@@ -38,7 +37,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     )
 
     # new USD stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # configure the stack env - it has multiple non-concatenated observation groups
     env_cfg = FrankaCubeStackEnvCfg()
@@ -118,7 +117,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
 def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # configure the cartpole env
     env_cfg = env_cfg_cls()

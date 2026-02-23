@@ -40,7 +40,6 @@ import traceback
 
 import torch
 
-import omni
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema
@@ -72,9 +71,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     )
     _ = TerrainImporter(terrain_importer_cfg)
     # obtain the current stage
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=2.0, stage=stage)
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
     # create source prim
