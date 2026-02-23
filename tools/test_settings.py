@@ -59,6 +59,7 @@ CUROBO_TESTS = [
     "test_generate_dataset_skillgen.py",
     "test_environments_skillgen.py",
     "test_environments_automate.py",
+    "test_pink_ik.py",
 ]
 """A list of tests that require cuRobo installation.
 
