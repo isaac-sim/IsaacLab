@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+1.2.0 (2026-02-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Documented the Hydra override order: **Presets > Groups > Single field**; within same type,
+  **lower depth > higher depth** and **left > right** (rightmost wins for same target).
+* Updated Hydra documentation and examples to use real preset names (``noise_less``,
+  ``relative_joint_position``) instead of hypothetical ones (``inference``, ``newton``).
+
+Added
+^^^^^
+
+* Added override order tests in :mod:`isaaclab_tasks.test.test_hydra`:
+  * ``test_override_order_groups_override_global_presets`` — path preset overrides global preset
+  * ``test_override_order_single_field_overrides_preset`` — scalar overrides preset value
+  * ``test_override_order_left_right_scalar_wins`` — rightmost scalar wins for same target
+
+
 1.1.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 
