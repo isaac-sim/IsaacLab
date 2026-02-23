@@ -75,6 +75,7 @@ class PhysxSceneDataProvider:
         self._xform_views: dict[str, Any] = {}
         self._xform_view_failures: set[str] = set()
         self._view_body_index_map: dict[str, list[int]] = {}
+        self._warned_once: set[str] = set()
 
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
@@ -260,22 +261,32 @@ class PhysxSceneDataProvider:
 
     # ---- Pose/velocity read pipeline ------------------------------------------------------
 
-    def _get_view_world_poses(self, view):
+    def _warn_once(self, key: str, message: str, *args) -> None:
+        """Log a warning only once for a given key."""
+        if key in self._warned_once:
+            return
+        self._warned_once.add(key)
+        logger.warning(message, *args)
+
+    def _get_view_world_poses(self, view: Any):
         """Read world poses from a PhysX view.
 
-        Returns (positions, orientations) or (None, None). The returned tensors
-        are expected to be shaped [..., 3] and [..., 4].
+        Articulation views expose `get_root_transforms()`, while rigid-body views
+        expose `get_transforms()`.
         """
         if view is None:
             return None, None
-        try:
-            # Canonical API for PhysX tensor views.
-            transforms = view.get_transforms()
-            if hasattr(transforms, "shape") and transforms.shape[-1] == 7:
-                return transforms[..., :3], transforms[..., 3:7]
-        except (AttributeError, RuntimeError, TypeError) as exc:
-            logger.debug("[PhysxSceneDataProvider] get_transforms() unavailable/failed for %s: %s", type(view), exc)
-        return None, None
+
+        result = view.get_root_transforms() if hasattr(view, "get_root_transforms") else view.get_transforms()
+        if isinstance(result, tuple) and len(result) == 2:
+            return result
+        if hasattr(result, "shape"):
+            return result[:, :3], result[:, 3:7]
+
+        import warp as wp
+
+        result_t = wp.to_torch(result)
+        return result_t[:, :3], result_t[:, 3:7]
 
     def _cache_view_index_map(self, view, key: str) -> None:
         """Map PhysX view indices to Newton body_key ordering."""
@@ -326,6 +337,7 @@ class PhysxSceneDataProvider:
     def _apply_view_poses(self, view: Any, view_key: str, positions: Any, orientations: Any, covered: Any) -> int:
         """Fill poses from a PhysX view for bodies not yet covered."""
         import torch
+        import warp as wp
 
         if view is None:
             return 0
@@ -336,7 +348,24 @@ class PhysxSceneDataProvider:
 
         order = self._view_body_index_map.get(view_key)
         if not order:
+            self._warn_once(
+                f"missing-index-map-{view_key}",
+                "[PhysxSceneDataProvider] Missing index map for %s; cannot scatter transforms.",
+                view_key,
+            )
             return 0
+
+        # Normalize returned arrays to torch tensors across backends (torch/warp/other).
+        if not isinstance(pos, torch.Tensor):
+            try:
+                pos = wp.to_torch(pos)
+            except Exception:
+                pos = torch.as_tensor(pos)
+        if not isinstance(quat, torch.Tensor):
+            try:
+                quat = wp.to_torch(quat)
+            except Exception:
+                quat = torch.as_tensor(quat)
 
         pos = pos.to(device=self._device, dtype=torch.float32)
         quat = quat.to(device=self._device, dtype=torch.float32)
@@ -369,8 +398,6 @@ class PhysxSceneDataProvider:
         count = 0
         for idx in uncovered:
             path = self._rigid_body_paths[idx]
-            if path in self._xform_view_failures:
-                continue
             try:
                 if path not in self._xform_views:
                     self._xform_views[path] = XformPrimView(
@@ -388,6 +415,12 @@ class PhysxSceneDataProvider:
                 self._xform_view_failures.add(path)
                 continue
 
+        if len(self._xform_view_failures) > 0:
+            self._warn_once(
+                "xform-fallback-failures",
+                "[PhysxSceneDataProvider] Xform fallback failed for %d body paths.",
+                len(self._xform_view_failures),
+            )
         return count
 
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
@@ -423,6 +456,11 @@ class PhysxSceneDataProvider:
         )
         rigid_count = self._apply_view_poses(self._rigid_body_view, "rigid_body_view", positions, orientations, covered)
         xform_count = self._apply_xform_poses(positions, orientations, covered, xform_mask)
+        if rigid_count == 0:
+            self._warn_once(
+                "rigid-source-unused",
+                "[PhysxSceneDataProvider] RigidBodyView did not provide any body transforms; using fallback sources.",
+            )
 
         if not covered.all():
             logger.warning(f"Failed to read {(~covered).sum().item()}/{num_bodies} body poses")
@@ -555,7 +593,11 @@ class PhysxSceneDataProvider:
                     device=self._device,
                 )
         except Exception as exc:
-            logger.debug(f"Failed to sync transforms to Newton: {exc}")
+            self._warn_once(
+                "newton-sync-update-failed",
+                "[PhysxSceneDataProvider] Failed to sync transforms to Newton state: %s",
+                exc,
+            )
 
     def get_newton_model(self) -> Any | None:
         """Return Newton model when sync is enabled."""
@@ -735,7 +777,12 @@ class PhysxSceneDataProvider:
             positions, orientations, _, xform_mask = result
             orientations_xyzw = self._convert_xform_quats(orientations, xform_mask)
             return {"positions": positions, "orientations": orientations_xyzw}
-        except Exception:
+        except Exception as exc:
+            self._warn_once(
+                "get-transforms-failed",
+                "[PhysxSceneDataProvider] get_transforms() failed: %s",
+                exc,
+            )
             return None
 
     def get_velocities(self) -> dict[str, Any] | None:

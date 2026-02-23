@@ -29,7 +29,8 @@ from isaaclab.envs import (
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
-from isaaclab.visualizers import KitVisualizer
+from isaaclab.visualizers.kit_visualizer import KitVisualizer
+from isaaclab.visualizers.kit_visualizer_cfg import KitVisualizerCfg
 
 
 @configclass
@@ -48,7 +49,9 @@ def create_manager_based_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -65,7 +68,9 @@ def create_manager_based_rl_env(render_interval: int):
 
         decimation: int = 4
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
         actions: EmptyManagerCfg = EmptyManagerCfg()
         observations: EmptyManagerCfg = EmptyManagerCfg()
@@ -86,7 +91,9 @@ def create_direct_rl_env(render_interval: int):
         action_space: int = 0
         observation_space: int = 0
         episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
+        sim: SimulationCfg = SimulationCfg(
+            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
+        )
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):
@@ -185,8 +192,8 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
         original_step = viz.step
         render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
 
-        def wrapped_step(dt, state=None):
-            original_step(dt, state)
+        def wrapped_step(dt):
+            original_step(dt)
             render_cb(render_dt)
 
         viz.step = wrapped_step

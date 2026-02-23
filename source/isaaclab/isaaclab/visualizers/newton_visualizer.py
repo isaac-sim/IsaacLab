@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
@@ -270,7 +270,7 @@ class NewtonVisualizer(Visualizer):
         )
         self._is_initialized = True
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 

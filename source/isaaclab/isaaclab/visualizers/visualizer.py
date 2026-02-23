@@ -41,12 +41,11 @@ class Visualizer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         """Update visualization for one step.
 
         Args:
             dt: Time step in seconds.
-            state: Updated physics state (e.g., newton.State).
         """
         raise NotImplementedError
 
@@ -98,14 +97,13 @@ class Visualizer(ABC):
         """Compute which env indices to show from config."""
         if self._scene_data_provider is None:
             return None
-        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
-        if num_envs <= 0:
-            logger.warning(
-                "[Visualizer] num_envs is 0 or missing from provider metadata; partial visualization disabled."
-            )
-            return None
         filter_mode = getattr(self.cfg, "env_filter_mode", "none")
         if filter_mode == "none":
+            return None
+
+        num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
+        if num_envs <= 0:
+            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled.")
             return None
         if filter_mode == "env_ids":
             env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)

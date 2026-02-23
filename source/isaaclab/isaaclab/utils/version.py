@@ -12,6 +12,24 @@ import functools
 from packaging.version import Version
 
 
+def has_kit() -> bool:
+    """Check if Kit (Omniverse Kit) is available in the current environment.
+
+    Returns True when running inside an Omniverse Kit application (e.g. Isaac Sim).
+    Returns False in kitless mode (e.g. Newton physics backend without Kit).
+
+    Not cached with ``lru_cache`` because this may be called before ``AppLauncher``
+    finishes starting Kit, which would permanently lock in a ``False`` result.
+    The underlying ``import`` is already cached by Python and ``get_app()`` is cheap.
+    """
+    try:
+        import omni.kit.app
+
+        return omni.kit.app.get_app() is not None
+    except (ImportError, ModuleNotFoundError, RuntimeError):
+        return False
+
+
 @functools.lru_cache(maxsize=1)
 def get_isaac_sim_version() -> Version:
     """Get the Isaac Sim version as a Version object, cached for performance.

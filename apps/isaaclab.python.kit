@@ -13,7 +13,7 @@ keywords = ["experience", "app", "usd"]
 [dependencies]
 # Isaac Sim extensions
 "isaacsim.app.about" = {}
-"isaacsim.asset.browser" = {}
+"isaacsim.examples.browser" = {}
 "isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
 "isaacsim.core.nodes" = {}
@@ -256,7 +256,7 @@ outDirectory = "${data}"
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/${kit_version_short}/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]

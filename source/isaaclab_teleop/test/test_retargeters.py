@@ -36,45 +36,55 @@ sys.modules["isaaclab.sim"].SimulationContext.instance.return_value = mock_sim_c
 
 
 # Import after mocking
-from isaaclab.devices.device_base import DeviceBase
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import (
+from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.g1_lower_body_standing import (
     G1LowerBodyStandingRetargeter,
     G1LowerBodyStandingRetargeterCfg,
 )
-from isaaclab.devices.openxr.retargeters.humanoid.unitree.g1_motion_controller_locomotion import (
+from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.g1_motion_controller_locomotion import (
     G1LowerBodyStandingMotionControllerRetargeter,
     G1LowerBodyStandingMotionControllerRetargeterCfg,
 )
-from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeter, GripperRetargeterCfg
-from isaaclab.devices.openxr.retargeters.manipulator.se3_abs_retargeter import Se3AbsRetargeter, Se3AbsRetargeterCfg
-from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeter, Se3RelRetargeterCfg
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.gripper_retargeter import (
+    GripperRetargeter,
+    GripperRetargeterCfg,
+)
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_abs_retargeter import (
+    Se3AbsRetargeter,
+    Se3AbsRetargeterCfg,
+)
+from isaaclab_teleop.deprecated.openxr.retargeters.manipulator.se3_rel_retargeter import (
+    Se3RelRetargeter,
+    Se3RelRetargeterCfg,
+)
+
+from isaaclab.devices.device_base import DeviceBase
 
 # Mock dex retargeting utils
 with patch.dict(
     sys.modules,
     {
-        "isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_dex_retargeting_utils": MagicMock(),
-        "isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils": MagicMock(),
-        "isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_dex_retargeting_utils": MagicMock(),
+        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.inspire.g1_dex_retargeting_utils": MagicMock(),
+        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils": MagicMock(),
+        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_dex_retargeting_utils": MagicMock(),
     },
 ):
-    from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import (
         GR1T2Retargeter,
         GR1T2RetargeterCfg,
     )
-    from isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter import (
         UnitreeG1Retargeter,
         UnitreeG1RetargeterCfg,
     )
-    from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (  # noqa: E501
         G1TriHandUpperBodyMotionControllerGripperRetargeter,
         G1TriHandUpperBodyMotionControllerGripperRetargeterCfg,
     )
-    from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (  # noqa: E501
         G1TriHandUpperBodyMotionControllerRetargeter,
         G1TriHandUpperBodyMotionControllerRetargeterCfg,
     )
-    from isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
+    from isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter import (
         G1TriHandUpperBodyRetargeter,
         G1TriHandUpperBodyRetargeterCfg,
     )
@@ -209,7 +219,7 @@ class TestG1LowerBodyStandingRetargeter(unittest.TestCase):
 
 class TestUnitreeG1Retargeter(unittest.TestCase):
     @patch(
-        "isaaclab.devices.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter.UnitreeG1DexRetargeting"
+        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.inspire.g1_upper_body_retargeter.UnitreeG1DexRetargeting"
     )
     def test_retarget(self, mock_dex_retargeting_cls):
         mock_dex_retargeting = mock_dex_retargeting_cls.return_value
@@ -235,7 +245,7 @@ class TestUnitreeG1Retargeter(unittest.TestCase):
 
 
 class TestGR1T2Retargeter(unittest.TestCase):
-    @patch("isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter.GR1TR2DexRetargeting")
+    @patch("isaaclab_teleop.deprecated.openxr.retargeters.humanoid.fourier.gr1t2_retargeter.GR1TR2DexRetargeting")
     def test_retarget(self, mock_dex_retargeting_cls):
         mock_dex_retargeting = mock_dex_retargeting_cls.return_value
         mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
@@ -340,7 +350,7 @@ class TestG1TriHandUpperBodyMotionControllerRetargeter(unittest.TestCase):
 
 class TestG1TriHandUpperBodyRetargeter(unittest.TestCase):
     @patch(
-        "isaaclab.devices.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter.G1TriHandDexRetargeting"
+        "isaaclab_teleop.deprecated.openxr.retargeters.humanoid.unitree.trihand.g1_upper_body_retargeter.G1TriHandDexRetargeting"
     )
     def test_retarget(self, mock_dex_retargeting_cls):
         mock_dex_retargeting = mock_dex_retargeting_cls.return_value

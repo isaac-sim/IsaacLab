@@ -11,8 +11,6 @@ import logging
 import re
 from collections.abc import Callable
 
-import omni
-import omni.kit.app
 from pxr import Sdf, Usd, UsdPhysics
 
 from .stage import get_current_stage
@@ -34,6 +32,9 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
     Returns:
         A new path that is guaranteed to not exist on the current stage
 
+    Raises:
+        ValueError: If the path is not a valid prim path string.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
@@ -44,8 +45,36 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
     """
     # get current stage
     stage = get_current_stage() if stage is None else stage
-    # get next free path
-    return omni.usd.get_stage_next_free_path(stage, path, True)
+
+    # validate and convert path
+    if not Sdf.Path.IsValidPathString(path):
+        raise ValueError(f"'{path}' is not a valid prim path")
+    sdf_path = Sdf.Path(path)
+
+    # ensure path is absolute
+    corrected_path = sdf_path.MakeAbsolutePath(Sdf.Path.absoluteRootPath)
+    if sdf_path != corrected_path:
+        logger.warning(f"Path '{sdf_path}' auto-corrected to '{corrected_path}'.")
+        sdf_path = corrected_path
+
+    # prepend default prim if needed
+    if stage.HasDefaultPrim():
+        default_prim = stage.GetDefaultPrim()
+        if default_prim and not (sdf_path.HasPrefix(default_prim.GetPath()) and sdf_path != default_prim.GetPath()):
+            sdf_path = sdf_path.ReplacePrefix(Sdf.Path.absoluteRootPath, default_prim.GetPath())
+
+    def _increment_path(path_str: str) -> str:
+        match = re.search(r"_(\d+)$", path_str)
+        if match:
+            new_num = int(match.group(1)) + 1
+            return re.sub(r"_(\d+)$", f"_{new_num:02d}", path_str)
+        return path_str + "_01"
+
+    path_string = sdf_path.pathString
+    while stage.GetPrimAtPath(path_string).IsValid():
+        path_string = _increment_path(path_string)
+
+    return path_string
 
 
 def get_first_matching_ancestor_prim(

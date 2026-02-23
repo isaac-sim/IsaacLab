@@ -145,6 +145,17 @@ class ManagerBasedEnvCfg:
     teleop_devices: DevicesCfg = field(default_factory=DevicesCfg)
     """Configuration for teleoperation devices."""
 
+    isaac_teleop: object | None = None
+    """Configuration for IsaacTeleop-based teleoperation.
+
+    When set, the environment uses the IsaacTeleop stack for XR teleoperation instead
+    of the native Isaac Lab teleop devices. This should be a IsaacTeleopCfg instance
+    from the isaaclab_teleop package.
+
+    The teleop scripts will automatically detect this configuration and use the
+    IsaacTeleop stack when present.
+    """
+
     export_io_descriptors: bool = False
     """Whether to export the IO descriptors for the environment. Defaults to False."""
 

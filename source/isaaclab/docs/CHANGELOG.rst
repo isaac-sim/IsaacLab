@@ -2,6 +2,89 @@ Changelog
 ---------
 
 
+3.4.3 (2026-02-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated settings access from ``carb.settings`` to :class:`~isaaclab.app.settings_manager.SettingsManager`.
+  Application code and tests now use :func:`~isaaclab.app.settings_manager.get_settings_manager` or
+  :meth:`~isaaclab.sim.SimulationContext.get_setting` / :meth:`~isaaclab.sim.SimulationContext.set_setting`
+  instead of ``carb.settings.get_settings()``.
+
+
+3.4.2 (2026-02-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced PhysX schema interactions via ``pxr.PhysxSchema`` API helpers with direct prim schema apply/get calls.
+* Replaced ``omni.kit.commands.execute("ChangePropertyCommand")`` uses with direct ``CreateAttribute`` + ``Set`` calls.
+
+
+3.5.1 (2026-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``omni.usd`` calls with pure USD (``pxr``) equivalents in sim utils and sensors.
+
+Deprecated
+^^^^^^^^^^
+
+* ``create_new_stage_in_memory`` — use ``create_new_stage`` instead.
+* ``is_stage_loading`` — Kit-only, no production callers.
+
+
+3.5.0 (2026-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The in-memory stage created with ``SimulationCfg(create_stage_in_memory=True)`` is now automatically
+  attached to the USD context at :class:`~isaaclab.sim.SimulationContext` creation. This ensures proper
+  stage lifecycle events for viewport and physics systems, preventing test isolation issues.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.utils.attach_stage_to_usd_context`. This function is no longer needed
+  since the in-memory stage is now automatically attached to the USD context at ``SimulationContext``
+  creation. Remove any calls to this function from your code.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.utils.add_labels` to use :class:`UsdSemantics.LabelsAPI` directly
+  instead of the Replicator API for Isaac Sim 5.0+. This resolves ``'NoneType' object has no
+  attribute 'GetEditTarget'`` errors when using stage-in-memory mode.
+
+
+3.4.0 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Integrated TeleopCore as the teleoperation backend via the new :mod:`isaaclab_teleop` extension.
+  The :class:`~isaaclab_teleop.IsaacTeleopDevice` provides a unified teleoperation interface that
+  replaces the previous XR-specific device and retargeter classes.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the existing XR teleoperation solution. :class:`~isaaclab.devices.openxr.OpenXRDevice`,
+  :class:`~isaaclab.devices.openxr.OpenXRDeviceCfg`, :class:`~isaaclab.devices.openxr.ManusVive`,
+  :class:`~isaaclab.devices.RetargeterBase`, :class:`~isaaclab.devices.RetargeterCfg`, and all
+  retargeters under :mod:`isaaclab.devices.openxr.retargeters` are deprecated in favor of
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`. Existing imports will continue to work but emit
+  :class:`DeprecationWarning` when ``isaaclab_teleop`` is installed.
+
+
 3.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

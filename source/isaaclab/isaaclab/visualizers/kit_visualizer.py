@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
 
@@ -67,7 +67,7 @@ class KitVisualizer(Visualizer):
 
         self._is_initialized = True
 
-    def step(self, dt: float, state: Any | None = None) -> None:
+    def step(self, dt: float) -> None:
         if not self._is_initialized:
             return
         self._sim_time += dt
