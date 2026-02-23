@@ -20,8 +20,8 @@ import pytest
 import torch
 
 import carb
-import omni.usd
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper
@@ -62,7 +62,7 @@ def test_random_actions(registered_tasks):
         # Use pytest's subtests
         print(f">>> Running test for environment: {task_name}")
         # create a new stage
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
         # reset the rtx sensors carb setting to False
         carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
         try:

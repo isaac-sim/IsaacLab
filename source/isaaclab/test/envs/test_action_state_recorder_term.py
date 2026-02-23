@@ -21,8 +21,8 @@ import pytest
 import torch
 
 import carb
-import omni.usd
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -90,7 +90,7 @@ def check_initial_state_recorder_term(env):
 @pytest.mark.parametrize("num_envs", [1, 2])
 def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
     """Check action state recorder terms."""
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
 

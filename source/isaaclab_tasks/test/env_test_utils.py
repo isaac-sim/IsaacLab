@@ -14,6 +14,7 @@ import torch
 
 import carb
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
@@ -187,6 +188,10 @@ def _check_random_actions(
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
     """
+    # create a new context stage, if stage in memory is not enabled
+    if not create_stage_in_memory:
+        sim_utils.create_new_stage()
+
     # reset the rtx sensors carb setting to False
     carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None

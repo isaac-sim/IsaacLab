@@ -17,7 +17,7 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.sim.utils.stage import get_current_stage, resolve_paths
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 
 if TYPE_CHECKING:
@@ -360,8 +360,8 @@ class BaseEnvWindow:
                 # if prim is a joint type then disable it
                 if prim.IsA(UsdPhysics.Joint):
                     prim.GetAttribute("physics:jointEnabled").Set(False)
-            # resolve all paths relative to layer path
-            omni.usd.resolve_paths(source_layer.identifier, temp_layer.identifier)
+            # resolve paths so asset references remain valid from the new location
+            resolve_paths(source_layer.identifier, temp_layer.identifier)
             # save the stage
             temp_layer.Save()
             # print the path to the saved stage

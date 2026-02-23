@@ -16,7 +16,6 @@ import torch
 from packaging import version
 
 import carb
-import omni.usd
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -315,11 +314,8 @@ class Camera(SensorBase):
                 # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
                 if isinstance(param_value, np.floating):
                     param_value = float(param_value)
-                # set value
-                # note: We have to do it this way because the camera might be on a different
-                #   layer (default cameras are on session layer), and this is the simplest
-                #   way to set the property on the right layer.
-                omni.usd.set_prop_val(param_attr(), param_value)
+                # set value using pure USD API
+                param_attr().Set(param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
 

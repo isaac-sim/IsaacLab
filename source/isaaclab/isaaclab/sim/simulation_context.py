@@ -17,13 +17,12 @@ import toml
 import torch
 
 import carb
-import omni.usd
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils import create_new_stage_in_memory
+from isaaclab.sim.utils import create_new_stage
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -104,28 +103,33 @@ class SimulationContext:
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            # Create a fresh in-memory stage
-            self.stage = create_new_stage_in_memory()
+            self.stage = create_new_stage()
         else:
-            # Use existing stage from USD context, or create a new one
-            self.stage = omni.usd.get_context().get_stage()
-            if self.stage is None:
-                omni.usd.get_context().new_stage()
-                self.stage = omni.usd.get_context().get_stage()
+            # Prefer the thread-local current stage (set by create_new_stage / test fixtures)
+            # over cache lookup, since the cache may contain stale stages from prior tests.
+            current = getattr(stage_utils._context, "stage", None)
+            if current is not None:
+                self.stage = current
+            else:
+                all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
+                self.stage = all_stages[0] if all_stages else create_new_stage()
 
-        # Ensure stage is in USD cache and get its ID
-        cached_id = stage_cache.GetId(self.stage)  # type: ignore[union-attr]
-        if not cached_id.IsValid():
-            cached_id = stage_cache.Insert(self.stage)  # type: ignore[union-attr]
-        stage_id = cached_id.ToLongInt()
+        # Ensure stage is in the USD cache
+        stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
+        if stage_id < 0:
+            stage_cache.Insert(self.stage)  # type: ignore[union-attr]
 
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        # Attach in-memory stage to USD context immediately to ensure proper lifecycle events
-        # This allows PhysX and viewport to receive stage events and prevents cleanup issues
-        if self.cfg.create_stage_in_memory:
-            omni.usd.get_context().attach_stage_with_callback(stage_id)
+        # When Kit is running, attach the stage to Kit's USD context so that
+        # Kit extensions (PhysX views, Articulation, viewport) can discover it.
+        if sim_utils.has_kit():
+            import omni.usd
+
+            kit_context = omni.usd.get_context()
+            if kit_context is not None and kit_context.get_stage() is not self.stage:
+                kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
 
         # Acquire settings interface and create helper
         self._carb_settings = carb.settings.get_settings()
@@ -597,7 +601,9 @@ class SimulationContext:
                 delattr(stage_utils._context, "stage")
 
             # Close the USD context stage (symmetric with attach in __init__)
-            omni.usd.get_context().close_stage()
+            if sim_utils.has_kit():
+                import omni.usd
+                omni.usd.get_context().close_stage()
 
             # Clear instance
             cls._instance = None
@@ -655,7 +661,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)

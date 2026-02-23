@@ -26,7 +26,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 
 from .queries import find_matching_prim_paths
 from .semantics import add_labels
-from .stage import get_current_stage, get_current_stage_id
+from .stage import get_current_stage, get_current_stage_id, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
@@ -220,46 +220,6 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         "DeletePrimsCommand",
         paths=prim_path,
         stage=stage,
-    )
-    return success
-
-
-def move_prim(path_from: str, path_to: str, keep_world_transform: bool = True, stage: Usd.Stage | None = None) -> bool:
-    """Moves a prim from one path to another within a USD stage.
-
-    This function moves the prim from the source path to the destination path. If the :attr:`keep_world_transform`
-    is set to True, the world transform of the prim is kept. This implies that the prim's local transform is reset
-    such that the prim's world transform is the same as the source path's world transform. If it is set to False,
-    the prim's local transform is preserved.
-
-    .. warning::
-        Reparenting or moving prims in USD is an expensive operation that may trigger
-        significant recomposition costs, especially in large or deeply layered stages.
-
-    Args:
-        path_from: Path of the USD Prim you wish to move
-        path_to: Final destination of the prim
-        keep_world_transform: Whether to keep the world transform of the prim. Defaults to True.
-        stage: The stage to move the prim in. Defaults to None, in which case the current stage is used.
-
-    Returns:
-        True if the prim was moved successfully, False otherwise.
-
-    Example:
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # given the stage: /World/Cube. Move the prim Cube outside the prim World
-        >>> sim_utils.move_prim("/World/Cube", "/Cube")
-    """
-    # get stage handle
-    stage = get_current_stage() if stage is None else stage
-    # move prim
-    success, _ = omni.kit.commands.execute(
-        "MovePrimCommand",
-        path_from=path_from,
-        path_to=path_to,
-        keep_world_transform=keep_world_transform,
-        stage_or_context=stage,
     )
     return success
 
@@ -573,8 +533,8 @@ def export_prim_to_file(
     Sdf.CopySpec(source_layer, source_prim_path, target_layer, target_prim_path)
     # set the default prim
     target_layer.defaultPrim = Sdf.Path(target_prim_path).name
-    # resolve all paths relative to layer path
-    omni.usd.resolve_paths(source_layer.identifier, target_layer.identifier)
+    # resolve paths so asset references remain valid from the new location
+    resolve_paths(source_layer.identifier, target_layer.identifier)
     # save the stage
     target_layer.Save()
 

@@ -13,7 +13,6 @@ from pxr import Usd, UsdGeom, UsdSemantics
 
 from .stage import get_current_stage
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

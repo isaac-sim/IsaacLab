@@ -14,8 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni
-from pxr import UsdGeom, UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -189,7 +188,10 @@ class RayCaster(SensorBase):
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
                 # read the vertices and faces
                 points = np.asarray(mesh_prim.GetPointsAttr().Get())
-                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
+                # Get world transform using pure USD (UsdGeom.Xformable)
+                xformable = UsdGeom.Xformable(mesh_prim)
+                world_transform: Gf.Matrix4d = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+                transform_matrix = np.array(world_transform).T
                 points = np.matmul(points, transform_matrix[:3, :3].T)
                 points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
