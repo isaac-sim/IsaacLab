@@ -42,7 +42,6 @@ import torch
 
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.utils.viewports import set_camera_view
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -101,7 +100,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # obtain the current physics scene
     physics_scene_prim_path = None
     for prim in stage.Traverse():
-        if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+        if "PhysxSceneAPI" in prim.GetAppliedSchemas():
             physics_scene_prim_path = prim.GetPrimPath()
             logging.info(f"Physics scene prim path: {physics_scene_prim_path}")
             break

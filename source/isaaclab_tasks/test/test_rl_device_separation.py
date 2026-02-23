@@ -47,8 +47,6 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
@@ -70,8 +68,10 @@ def _create_env(sim_device: str):
     """
     # Create a new stage
     sim_utils.create_new_stage()
-    # Reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # Reset the rtx sensors setting to False
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 
     try:
         env_cfg = parse_env_cfg(TEST_ENV, device=sim_device, num_envs=NUM_ENVS)

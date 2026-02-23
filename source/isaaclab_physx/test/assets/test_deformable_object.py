@@ -24,8 +24,6 @@ import warp as wp
 from flaky import flaky
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
-import carb
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sim import build_simulation_context
@@ -265,8 +263,9 @@ def test_set_nodal_state(sim, num_cubes):
 @pytest.mark.isaacsim_ci
 def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, randomize_rot):
     """Test setting the state of the deformable object with applied transform."""
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     # Create simulation context with gravity disabled (no fixture needed)
     with build_simulation_context(auto_add_lighting=True, gravity_enabled=False) as sim:

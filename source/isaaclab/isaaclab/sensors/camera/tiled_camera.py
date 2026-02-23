@@ -14,9 +14,9 @@ import numpy as np
 import torch
 import warp as wp
 
-import carb
 from pxr import UsdGeom
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -145,8 +145,7 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -193,7 +192,7 @@ class TiledCamera(Camera):
             # Set simple shading mode (if requested) before rendering
             simple_shading_mode = self._resolve_simple_shading_mode()
             if simple_shading_mode is not None:
-                carb.settings.get_settings().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+                get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
         # Define the annotators based on requested data types
         self._annotators = dict()
         for annotator_type in self.cfg.data_types:

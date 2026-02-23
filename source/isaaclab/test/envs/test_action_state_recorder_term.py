@@ -20,9 +20,8 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -31,9 +30,8 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():
-    """Set up carb settings to prevent simulation getting stuck."""
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    """Set up settings to prevent simulation getting stuck."""
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.fixture
