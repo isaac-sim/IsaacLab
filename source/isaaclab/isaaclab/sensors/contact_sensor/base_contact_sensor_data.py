@@ -81,7 +81,7 @@ class BaseContactSensorData(ABC):
         (N, B, M, 3).
 
         Note:
-            If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.
+            If the :attr:`ContactSensorCfg.filter_body_prim_expr` is empty, then this quantity is None.
         """
         raise NotImplementedError
 
@@ -97,7 +97,7 @@ class BaseContactSensorData(ABC):
         In the history dimension, the first index is the most recent and the last index is the oldest.
 
         Note:
-            If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.
+            If the :attr:`ContactSensorCfg.filter_body_prim_expr` is empty, then this quantity is None.
         """
         raise NotImplementedError
 

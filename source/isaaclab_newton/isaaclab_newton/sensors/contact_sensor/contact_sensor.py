@@ -33,6 +33,8 @@ from .contact_sensor_kernels import (
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
 
+    from .contact_sensor_cfg import NewtonContactSensorCfg
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,23 +44,29 @@ class ContactSensor(BaseContactSensor):
     The contact sensor reports the normal contact forces on a rigid body or shape in the world frame.
 
     The sensor can be configured to report the contact forces on a set of sensors (bodies or shapes)
-    against specific filter objects using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is
+    against specific filter objects using the :attr:`ContactSensorCfg.filter_body_prim_expr`. This is
     useful when you want to report the contact forces between the sensors and a specific set of objects
     in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
 
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
-    cfg: ContactSensorCfg
+    cfg: NewtonContactSensorCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: ContactSensorCfg):
+    def __init__(self, cfg: ContactSensorCfg | NewtonContactSensorCfg):
         """Initializes the contact sensor object.
 
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
+        if isinstance(cfg, NewtonContactSensorCfg):
+            pass
+        elif isinstance(cfg, ContactSensorCfg):
+            cfg = NewtonContactSensorCfg.from_base_cfg(cfg)
+        else:
+            raise TypeError("Invalid config: {cfg}")
+
         super().__init__(cfg)
 
         # Create empty variables for storing output data
@@ -255,40 +263,16 @@ class ContactSensor(BaseContactSensor):
     def _initialize_impl(self):
         super()._initialize_impl()
         """Initializes the sensor-related handles and internal buffers."""
-        # construct regex expression for the sensor names
 
-        if self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_paths_expr is not None:
-            self._generate_force_matrix = True
-        else:
-            self._generate_force_matrix = False
-
-        sensor_body_regex = self.cfg.prim_path
-        if self.cfg.shape_path is not None:
-            sensor_shape_regex = "(" + "|".join(self.cfg.shape_path) + ")"
-        else:
-            sensor_shape_regex = None
-        if self.cfg.filter_prim_paths_expr is not None:
-            filter_object_body_regex = "(" + "|".join(self.cfg.filter_prim_paths_expr) + ")"
-        else:
-            filter_object_body_regex = None
-        if self.cfg.filter_shape_paths_expr is not None:
-            filter_object_shape_regex = "(" + "|".join(self.cfg.filter_shape_paths_expr) + ")"
-        else:
-            filter_object_shape_regex = None
-
-        # Store the sensor key for later lookup
-        self._sensor_key = (
-            sensor_body_regex,
-            sensor_shape_regex,
-            filter_object_body_regex,
-            filter_object_shape_regex,
+        self._generate_force_matrix = (
+            self.cfg.filter_body_prim_expr is not None or self.cfg.filter_shape_prim_expr is not None
         )
 
-        NewtonManager.add_contact_sensor(
-            body_names_expr=sensor_body_regex,
-            shape_names_expr=sensor_shape_regex,
-            contact_partners_body_expr=filter_object_body_regex,
-            contact_partners_shape_expr=filter_object_shape_regex,
+        self._sensor_key = NewtonManager.add_contact_sensor(
+            body_names_expr=self.cfg.prim_path if self.cfg.sensor_shape_prim_expr is None else None,
+            shape_names_expr=self.cfg.sensor_shape_prim_expr,
+            contact_partners_body_expr=self.cfg.filter_body_prim_expr,
+            contact_partners_shape_expr=self.cfg.filter_shape_prim_expr,
             prune_noncolliding=True,
         )
 

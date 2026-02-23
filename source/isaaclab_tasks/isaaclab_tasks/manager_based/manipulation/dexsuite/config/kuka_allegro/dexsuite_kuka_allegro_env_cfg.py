@@ -30,7 +30,7 @@ class KukaAllegroSceneCfg(dexsuite.SceneCfg):
                 f"{link_name}_object_s",
                 ContactSensorCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
-                    filter_prim_paths_expr=["{ENV_REGEX_NS}/object"],
+                    filter_body_prim_expr=["{ENV_REGEX_NS}/object"],
                 ),
             )
 
