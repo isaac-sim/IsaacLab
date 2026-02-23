@@ -21,9 +21,10 @@ import random
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
-from pxr import Gf, UsdGeom
+from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
@@ -1517,6 +1518,10 @@ def test_all_annotators_instanceable(setup_camera, device):
         prim = stage.GetPrimAtPath(f"/World/Cube_{i}")
         sim_utils.add_labels(prim, labels=["cube"], instance_name="class")
 
+    # Disable gravity — we teleport cubes explicitly to get deterministic motion vectors
+    physics_scene = UsdPhysics.Scene(stage.GetPrimAtPath(sim.cfg.physics_prim_path))
+    physics_scene.GetGravityMagnitudeAttr().Set(0.0)
+
     # Create camera
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 120
@@ -1544,16 +1549,40 @@ def test_all_annotators_instanceable(setup_camera, device):
     assert camera.data.intrinsic_matrices.shape == (num_cameras, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
 
-    from isaaclab.sensors.camera.utils import save_images_to_file
+    # Create a rigid body view so we can teleport the cubes each frame
+    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    cube_view = physics_sim_view.create_rigid_body_view("/World/Cube_*")
+    all_indices = torch.arange(num_cameras, dtype=torch.int32, device=device)
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
     #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(1):
+    for frame in range(2):
+        # Build transforms: [x, y, z, qx, qy, qz, qw] — move cubes down by 0.5 each frame
+        transforms = torch.zeros(num_cameras, 7, device=device)
+        for i in range(num_cameras):
+            transforms[i, 0] = 0.0  # x
+            transforms[i, 1] = float(i)  # y
+            transforms[i, 2] = 5.0 - frame * 0.5  # z — moves down 0.5 per frame
+            transforms[i, 6] = 1.0  # qw (identity orientation, xyzw format)
+        cube_view.set_transforms(wp.from_torch(transforms), wp.from_torch(all_indices))
+        # Zero out velocities so physics doesn't fight the teleport
+        cube_view.set_velocities(wp.from_torch(torch.zeros(num_cameras, 6, device=device)), wp.from_torch(all_indices))
         sim.step()
 
-    # Simulate physics
-    for _ in range(3):
+    # Teleport cubes to explicit positions each frame so motion vectors are deterministic
+    for frame in range(3):
+        # Build transforms: [x, y, z, qx, qy, qz, qw] — move cubes down by 0.5 each frame
+        transforms = torch.zeros(num_cameras, 7, device=device)
+        for i in range(num_cameras):
+            transforms[i, 0] = 0.0  # x
+            transforms[i, 1] = float(i)  # y
+            transforms[i, 2] = 5.0 - frame * 0.5  # z — moves down 0.5 per frame
+            transforms[i, 6] = 1.0  # qw (identity orientation, xyzw format)
+        cube_view.set_transforms(wp.from_torch(transforms), wp.from_torch(all_indices))
+        # Zero out velocities so physics doesn't fight the teleport
+        cube_view.set_velocities(wp.from_torch(torch.zeros(num_cameras, 6, device=device)), wp.from_torch(all_indices))
+
         # perform rendering
         sim.step()
         # update camera
@@ -1570,20 +1599,13 @@ def test_all_annotators_instanceable(setup_camera, device):
                 "instance_id_segmentation_fast",
             ]:
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 4)
-                # semantic_segmentation has mean 0.43
-                # rgba has mean 0.38
-                # instance_segmentation_fast has mean 0.42
-                # instance_id_segmentation_fast has mean 0.55-0.62
                 for i in range(num_cameras):
                     assert (im_data[i] / 255.0).mean() > 0.2
             elif data_type in ["motion_vectors"]:
-                # motion vectors have mean 0.2
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 2)
                 for i in range(num_cameras):
-                    print(im_data[i].abs().mean())
-                    # assert (im_data[i].abs().mean()) > 0.15
+                    assert im_data[i].abs().mean() > 0.001
             elif data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-                # depth has mean ~2.2-2.7, distance_to_image_plane has mean ~3.1
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
                 for i in range(num_cameras):
                     assert im_data[i].mean() > 2.0
