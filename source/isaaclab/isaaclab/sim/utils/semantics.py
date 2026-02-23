@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from pxr import Usd, UsdGeom
-
-from pxr import UsdSemantics
+from pxr import Usd, UsdGeom, UsdSemantics
 
 from .stage import get_current_stage
 
