@@ -24,6 +24,10 @@
     "license": null
   },
   {
+    "package": "isaaclab_teleop",
+    "license": null
+  },
+  {
     "package": "isaacsim",
     "license": null
   },
@@ -316,9 +320,9 @@
     "comment": "MIT"
   },
   {
-    "package": "typing_extensions",
-    "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "package": "usd-core",
+    "license": "LicenseRef-TOST-1.0",
+    "comment": "TOST / OSRB"
   },
   {
     "package": "urllib3",
@@ -449,5 +453,15 @@
     "package": "matplotlib-inline",
     "license": "UNKNOWN",
     "comment": "BSD-3"
+  },
+  {
+    "package": "pyglet",
+    "license": "UNKNOWN",
+    "comment": "BSD-3"
+  },
+  {
+    "package": "typing_extensions",
+    "license": "PSF-2.0",
+    "comment": "PSF-2.0 / OSRB"
   }
 ]

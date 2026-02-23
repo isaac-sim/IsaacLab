@@ -76,3 +76,6 @@ tests/
 
 # No benchmarks output
 /benchmarks/
+
+# Ruff cache
+**/.ruff_cache/

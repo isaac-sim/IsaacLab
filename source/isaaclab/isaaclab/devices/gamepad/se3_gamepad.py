@@ -18,6 +18,8 @@ from scipy.spatial.transform import Rotation
 import carb
 import omni
 
+from isaaclab.app.settings_manager import get_settings_manager
+
 from ..device_base import DeviceBase, DeviceCfg
 
 
@@ -62,8 +64,7 @@ class Se3Gamepad(DeviceBase):
             cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
