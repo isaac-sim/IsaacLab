@@ -70,6 +70,12 @@ INSTALL_REQUIRES += [
     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
     f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
+# Adds OpenUSD dependencies based on architecture for Kit less mode.
+INSTALL_REQUIRES += [
+    # required by isaaclab.isaaclab.controllers.pink_ik
+    f"usd-core==25.05.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-exchange>=2.1 ; ({SUPPORTED_ARCHS_ARM})",
+]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
