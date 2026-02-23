@@ -795,7 +795,6 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                print(f"About to create XformPrimView for prim at path '{asset_cfg.prim_path}, device={self.device}, stage={self.stage}'")
                 self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
