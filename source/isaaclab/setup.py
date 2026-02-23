@@ -53,9 +53,6 @@ INSTALL_REQUIRES = [
     "newton @ git+https://github.com/newton-physics/newton.git@d435c418b6510f628fbb613736e2cfa4ad7968f3",
     "imgui-bundle>=1.92.5",
     "rerun-sdk>=0.29.0",
-    # usd utilities
-    "usd-core>=25.5",
-    "usd-exchange>=2.2",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
 ]
@@ -72,7 +69,6 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    # required by isaaclab.isaaclab.controllers.pink_ik
     f"usd-core==25.05.0 ; ({SUPPORTED_ARCHS})",
     f"usd-exchange>=2.1 ; ({SUPPORTED_ARCHS_ARM})",
 ]
