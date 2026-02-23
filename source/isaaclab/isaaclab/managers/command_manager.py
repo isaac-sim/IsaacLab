@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-import omni.kit.app
+from isaaclab.utils.version import has_kit
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
@@ -102,10 +102,14 @@ class CommandTerm(ManagerTermBase):
             return False
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
-        # toggle debug visualization handles
+        # toggle debug visualization handles (only in Kit environments)
+        if not has_kit():
+            return True
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

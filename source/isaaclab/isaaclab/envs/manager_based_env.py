@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import logging
 import warnings
 from collections.abc import Sequence
@@ -101,10 +100,6 @@ class ManagerBasedEnv:
             # since it gets confused with Isaac Sim's SimulationContext class
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
-            # simulation context should only be created before the environment
-            # when in extension mode
-            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
         # make sure torch is running on the correct device
@@ -158,23 +153,16 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        # play the simulator to activate physics handles
-        # note: this activates the physics simulation view that exposes TensorAPIs
-        # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.stage):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments
-                # so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
-            # add timeline event to load managers
-            self.load_managers()
+        # play the simulator to activate physics handles and load managers
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            self.scene.update(dt=self.physics_dt)
+        self.load_managers()
 
         # extend UI elements
         # we need to do this here after all the managers are initialized

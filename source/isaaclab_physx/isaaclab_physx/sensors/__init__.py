@@ -5,12 +5,13 @@
 
 """Sub-package containing PhysX-specific sensor implementations."""
 
-from .contact_sensor import ContactSensor, ContactSensorData
+from .contact_sensor import ContactSensor, ContactSensorCfg, ContactSensorData
 from .frame_transformer import FrameTransformer, FrameTransformerData
 from .imu import Imu, ImuData
 
 __all__ = [
     "ContactSensor",
+    "ContactSensorCfg",
     "ContactSensorData",
     "FrameTransformer",
     "FrameTransformerData",

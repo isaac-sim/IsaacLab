@@ -6,10 +6,13 @@
 from __future__ import annotations
 
 import math
+import torch
 from collections.abc import Sequence
 
-import torch
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -19,8 +22,6 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
-
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
 @configclass
@@ -33,8 +34,25 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     observation_space = 4
     state_space = 0
 
+    solver_cfg = MJWarpSolverCfg(
+        njmax=5,
+        nconmax=3,
+        ls_iterations=10,
+        cone="pyramidal",
+        impratio=1,
+        ls_parallel=True,
+        integrator="implicitfast",
+    )
+
+    newton_cfg = NewtonCfg(
+        solver_cfg=solver_cfg,
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
@@ -134,24 +152,25 @@ class CartpoleEnv(DirectRLEnv):
             env_ids = self.cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids]
+        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids].clone()
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids]
+        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids].clone()
 
-        default_root_state = wp.to_torch(self.cartpole.data.default_root_state)[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.cartpole.write_joint_state_to_sim_index(
+            position=joint_pos, velocity=joint_vel, joint_ids=None, env_ids=env_ids
+        )
 
 
 @torch.jit.script

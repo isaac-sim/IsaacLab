@@ -25,10 +25,10 @@ from dataclasses import MISSING
 import numpy as np
 import torch
 
-import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils.configclass import configclass
 
@@ -402,5 +402,9 @@ class VisualizationMarkers:
             # add children to list
             all_prims += child_prim.GetChildren()
 
-        # remove any physics on the markers because they are only for visualization!
-        physx_utils.removeRigidBodySubtree(prim)
+        # remove any physics on the markers because they are only for visualization (PhysX backend only)
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None and "Physx" in sim_ctx.physics_manager.__name__:
+            import omni.physx.scripts.utils as physx_utils
+
+            physx_utils.removeRigidBodySubtree(prim)

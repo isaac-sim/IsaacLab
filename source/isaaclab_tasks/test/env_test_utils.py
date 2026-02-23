@@ -16,7 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -111,7 +111,7 @@ def _run_environments(
     """
 
     # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
+    if has_kit() and get_isaac_sim_version().major < 5 and create_stage_in_memory:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip suction gripper environments as they require CPU simulation and cannot be run with GPU simulation

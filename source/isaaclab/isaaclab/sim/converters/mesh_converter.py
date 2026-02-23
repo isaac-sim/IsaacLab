@@ -7,9 +7,7 @@ import asyncio
 import logging
 import os
 
-import omni
-import omni.kit.commands
-from isaacsim.core.utils.extensions import enable_extension
+
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
@@ -137,6 +135,7 @@ class MeshConverter(AssetConverterBase):
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
         # Apply default Xform rotation to mesh -> enable to set rotation and scale
+        import omni.kit.commands
         omni.kit.commands.execute(
             "CreateDefaultXformOnPrimCommand",
             prim_path=xform_prim.GetPath(),
@@ -217,6 +216,7 @@ class MeshConverter(AssetConverterBase):
         Returns:
             True if the conversion succeeds.
         """
+        from isaacsim.core.utils.extensions import enable_extension
         enable_extension("omni.kit.asset_converter")
 
         import omni.kit.asset_converter

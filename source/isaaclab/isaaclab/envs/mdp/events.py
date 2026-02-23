@@ -21,11 +21,8 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject
 
 import carb
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.utils.extensions import enable_extension
 from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
@@ -35,10 +32,12 @@ from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, Rig
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.version import compare_versions, get_isaac_sim_version
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab_physx.assets import DeformableObject
+    import omni.physics.tensors.impl.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -766,7 +765,7 @@ class randomize_joint_parameters(ManagerTermBase):
             static_friction_coeff = friction_coeff[env_ids_for_slice, joint_ids]
 
             # if isaacsim version is lower than 5.0.0 we can set only the static friction coefficient
-            if get_isaac_sim_version().major >= 5:
+            if has_kit() and get_isaac_sim_version().major >= 5:
                 # Randomize raw tensors
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.default_dynamic_joint_friction_coeff.clone(),
@@ -1299,7 +1298,7 @@ def reset_joints_by_scale(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 def reset_joints_by_offset(
@@ -1339,7 +1338,7 @@ def reset_joints_by_offset(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 def reset_nodal_state_uniform(
@@ -1412,7 +1411,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
         default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
         default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
         # set into the physics simulation
-        articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
+        articulation_asset.write_joint_state_to_sim(position=default_joint_pos, velocity=default_joint_vel, env_ids=env_ids)
         # reset joint targets if required
         if reset_joint_targets:
             articulation_asset.set_joint_position_target(default_joint_pos, env_ids=env_ids)
@@ -1463,6 +1462,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled
+        from isaacsim.core.utils.extensions import enable_extension
         enable_extension("omni.replicator.core")
 
         # we import the module here since we may not always need the replicator
@@ -1624,6 +1624,7 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled
+        from isaacsim.core.utils.extensions import enable_extension
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep

@@ -18,13 +18,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import torch
-from isaaclab_physx.physics import IsaacEvents, PhysxManager
+import warp as wp
 
-import omni.kit.app
-
-import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -41,6 +38,11 @@ class SensorBase(ABC):
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
+
+    Backend-specific implementations should inherit from this class and implement:
+    - :meth:`_initialize_impl` - Initialize sensor handles and buffers
+    - :meth:`_update_outdated_buffers` - Update sensor data for outdated environments
+    - Either :meth:`_update_buffers_impl_index` (PhysX) or :meth:`_update_buffers_impl_mask` (Newton)
     """
 
     def __init__(self, cfg: SensorBaseCfg):
@@ -149,14 +151,17 @@ class SensorBase(ABC):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization flag
         self._is_visualizing = debug_vis
-        # toggle debug visualization handles
+        # toggle debug visualization handles (Kit/omni only for PhysX backend)
         if debug_vis:
-            # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                sim_ctx = SimulationContext.instance()
+                if sim_ctx and "Physx" in sim_ctx.physics_manager.__name__:
+                    import omni.kit.app
+
+                    app_interface = omni.kit.app.get_app_interface()
+                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
@@ -165,73 +170,88 @@ class SensorBase(ABC):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    @abstractmethod
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the sensor internals.
 
         Args:
-            env_ids: The sensor ids to reset. Defaults to None.
-        """
-        # Resolve sensor ids
-        if env_ids is None:
-            env_ids = slice(None)
-        # Reset the timestamp for the sensors
-        self._timestamp[env_ids] = 0.0
-        self._timestamp_last_update[env_ids] = 0.0
-        # Set all reset sensors to outdated so that they are updated when data is called the next time.
-        self._is_outdated[env_ids] = True
+            env_ids: The sensor ids to reset. Defaults to None (all instances).
+            env_mask: The sensor mask to reset. Defaults to None (all instances).
 
+        Note:
+            Backend implementations should handle either env_ids or env_mask based on their preference.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def update(self, dt: float, force_recompute: bool = False):
-        # Update the timestamp for the sensors
-        self._timestamp += dt
-        self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
-        # Update the buffers
-        # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
-        #   It is only for the contact sensor but there we should redefine the update function IMO.
-        if force_recompute or self._is_visualizing or (self.cfg.history_length > 0):
-            self._update_outdated_buffers()
+        """Updates the sensor data.
+
+        Args:
+            dt: The time step for the update.
+            force_recompute: Whether to force recomputation of sensor data.
+        """
+        raise NotImplementedError
 
     """
     Implementation specific.
     """
 
+    _device: str
+    """Memory device for computation."""
+    _backend: str
+    """Simulation backend (e.g., "newton", "physx")."""
+    _num_envs: int
+    """Number of environments."""
+
     @abstractmethod
     def _initialize_impl(self):
-        """Initializes the sensor-related handles and internal buffers."""
-        # Obtain Simulation Context
-        sim = sim_utils.SimulationContext.instance()
-        if sim is None:
-            raise RuntimeError("Simulation Context is not initialized!")
-        # Obtain device and backend
-        self._device = sim.device
-        self._backend = sim.backend
-        self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments
-        env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-        self._num_envs = len(self._parent_prims)
-        # Boolean tensor indicating whether the sensor data has to be refreshed
-        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-        # Current timestamp (in seconds)
-        self._timestamp = torch.zeros(self._num_envs, device=self._device)
-        # Timestamp from last update
-        self._timestamp_last_update = torch.zeros_like(self._timestamp)
+        """Initializes the sensor-related handles and internal buffers.
 
-        # Initialize debug visualization handle
-        if self._debug_vis_handle is None:
-            # set initial state of debug visualization
-            self.set_debug_vis(self.cfg.debug_vis)
-
-    @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
-        """Fills the sensor data for provided environment ids.
-
-        This function does not perform any time-based checks and directly fills the data into the
-        data container.
-
-        Args:
-            env_ids: The indices of the sensors that are ready to capture.
+        Backend implementations should:
+        1. Get device and backend from SimulationContext
+        2. Determine number of environments
+        3. Initialize internal state (timestamps, outdated flags, etc.)
+        4. Initialize sensor-specific buffers
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def _update_outdated_buffers(self):
+        """Fills the sensor data for the outdated sensors.
+
+        Backend implementations should:
+        1. Determine which environments need updating (based on timestamps/outdated flags)
+        2. Call the appropriate _update_buffers_impl method
+        3. Update timestamps and clear outdated flags
+        """
+        raise NotImplementedError
+
+    def _update_buffers_impl_index(self, env_ids: Sequence[int]):
+        """Fills the sensor data for provided environment indices.
+
+        This is the index-based API primarily used by PhysX backend.
+
+        Args:
+            env_ids: The indices of the environments to update.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _update_buffers_impl_index. "
+            "This method is typically used by PhysX backend sensors."
+        )
+
+    def _update_buffers_impl_mask(self, env_mask: wp.array):
+        """Fills the sensor data for environments specified by mask.
+
+        This is the mask-based API primarily used by Newton backend.
+
+        Args:
+            env_mask: Boolean mask array indicating which environments to update.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _update_buffers_impl_mask. "
+            "This method is typically used by Newton backend sensors."
+        )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
@@ -254,9 +274,9 @@ class SensorBase(ABC):
     """
 
     def _register_callbacks(self):
-        """Registers physics lifecycle and prim deletion callbacks."""
+        """Registers physics lifecycle callbacks via the current backend's physics manager."""
+        physics_mgr_cls = SimulationContext.instance().physics_manager
 
-        # register simulator callbacks (with weakref safety to avoid crashes on deletion)
         def safe_callback(callback_name, event, obj_ref):
             """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
             try:
@@ -269,37 +289,48 @@ class SensorBase(ABC):
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
 
-        # Register PHYSICS_READY callback for initialization (order=10 for lower priority)
-        self._initialize_handle = PhysxManager.register_callback(
+        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        self._initialize_handle = physics_mgr_cls.register_callback(
             lambda payload, obj_ref=obj_ref: safe_callback("_initialize_callback", payload, obj_ref),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        # Register TIMELINE_STOP callback for invalidation (PhysX-specific)
-        self._invalidate_initialize_handle = PhysxManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
-            IsaacEvents.TIMELINE_STOP,
+        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", payload, obj_ref),
+            PhysicsEvent.STOP,
             order=10,
         )
-        # Register PRIM_DELETION callback (PhysX-specific)
-        self._prim_deletion_handle = PhysxManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            IsaacEvents.PRIM_DELETION,
-        )
+        # Optional: prim deletion (only supported by PhysX backend)
+        self._prim_deletion_handle = None
+        physics_backend = physics_mgr_cls.__name__
+        if "Physx" in physics_backend:
+            from isaaclab_physx.physics import IsaacEvents
+
+            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+                lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
+                IsaacEvents.PRIM_DELETION,
+            )
 
     def _initialize_callback(self, event):
         """Initializes the scene elements.
 
         .. note::
-            PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
-            called whenever the simulator "plays" from a "stop" state.
+            Physics handles are only valid once the simulation is ready. This callback runs when
+            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
             try:
                 self._initialize_impl()
             except Exception as e:
-                # Store exception to be raised after callback completes
-                PhysxManager.store_callback_exception(e)
+                store_fn = getattr(
+                    SimulationContext.instance().physics_manager,
+                    "store_callback_exception",
+                    None,
+                )
+                if callable(store_fn):
+                    store_fn(e)
+                else:
+                    raise
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
@@ -310,15 +341,12 @@ class SensorBase(ABC):
             self._debug_vis_handle = None
 
     def _on_prim_deletion(self, event) -> None:
-        """Invalidates and deletes the callbacks when the prim is deleted.
+        """Invalidates and clears callbacks when the prim is deleted.
 
-        Args:
-            event: The prim deletion event containing the prim path in payload.
-
-        Note:
-            This function is called when the prim is deleted.
+        Only used when the backend supports prim deletion events (e.g. PhysX).
         """
-        prim_path = event.payload["prim_path"]
+        payload = getattr(event, "payload", event) if not isinstance(event, dict) else event
+        prim_path = payload.get("prim_path", "") if isinstance(payload, dict) else ""
         if prim_path == "/":
             self._clear_callbacks()
             return
@@ -329,32 +357,16 @@ class SensorBase(ABC):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
-        """Clears the callbacks."""
-        if self._initialize_handle is not None:
+        """Clears all registered callbacks."""
+        if getattr(self, "_initialize_handle", None) is not None:
             self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
+        if getattr(self, "_invalidate_initialize_handle", None) is not None:
             self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
+        if getattr(self, "_prim_deletion_handle", None) is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
-        # Clear debug visualization
-        if self._debug_vis_handle is not None:
+        if getattr(self, "_debug_vis_handle", None) is not None:
             self._debug_vis_handle.unsubscribe()
             self._debug_vis_handle = None
-
-    """
-    Helper functions.
-    """
-
-    def _update_outdated_buffers(self):
-        """Fills the sensor data for the outdated sensors."""
-        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
-        if len(outdated_env_ids) > 0:
-            # obtain new data
-            self._update_buffers_impl(outdated_env_ids)
-            # update the timestamp from last update
-            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
-            # set outdated flag to false for the updated sensors
-            self._is_outdated[outdated_env_ids] = False

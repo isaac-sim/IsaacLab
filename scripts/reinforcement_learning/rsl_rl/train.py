@@ -47,9 +47,35 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+# Register tasks so we can load env_cfg and decide whether to launch Kit
+import isaaclab_tasks  # noqa: F401
+from isaaclab.sim.backend_detection import physics_backend_requires_kit
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+# Only launch Isaac Sim Kit when the task's physics backend requires it (e.g. PhysX)
+_requires_kit = True
+if args_cli.task is not None:
+    _env_cfg = load_cfg_from_registry(args_cli.task.split(":")[-1], "env_cfg_entry_point")
+    _requires_kit = physics_backend_requires_kit(_env_cfg)
+if _requires_kit:
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    # Newton or other backends that do not require Kit: use a no-op app handle
+    class _DummySimulationApp:
+        def close(self):
+            pass
+
+    class _AppLauncherStub:
+        """Minimal stand-in for AppLauncher when Kit is not launched (e.g. Newton backend)."""
+
+        def __init__(self):
+            self.app = _DummySimulationApp()
+            self.local_rank = 0
+            self.global_rank = 0
+
+    app_launcher = _AppLauncherStub()
+    simulation_app = app_launcher.app
 
 """Check for minimum supported RSL-RL version."""
 
@@ -96,7 +122,6 @@ from isaaclab.utils.io import dump_yaml
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
-import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 

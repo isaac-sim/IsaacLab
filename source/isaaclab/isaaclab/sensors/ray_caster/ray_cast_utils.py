@@ -6,13 +6,14 @@
 """Utility functions for ray-cast sensors."""
 
 from __future__ import annotations
-
+from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
-
 from isaaclab.sim.views import XformPrimView
+
+if TYPE_CHECKING:
+    import omni.physics.tensors.impl.api as physx
 
 
 def obtain_world_pose_from_view(

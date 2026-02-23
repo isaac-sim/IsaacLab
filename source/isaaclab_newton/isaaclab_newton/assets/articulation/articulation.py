@@ -952,6 +952,18 @@ class Articulation(BaseArticulation):
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write joint positions and velocities over selected environment indices into the simulation."""
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+
     def write_joint_state_to_sim(
         self,
         *,
@@ -968,9 +980,9 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_state_to_sim_index(
+            position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids
+        )
 
     def write_joint_state_to_sim_mask(
         self,

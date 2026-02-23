@@ -193,9 +193,9 @@ class SimulationContext:
                 )
 
             isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
+            from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
-            if get_isaac_sim_version().major < 6:
+            if has_kit() and get_isaac_sim_version().major < 6:
                 isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")

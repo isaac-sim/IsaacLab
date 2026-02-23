@@ -24,7 +24,7 @@ from isaacsim.core.prims import Articulation
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 
 # Create a fixture for setup and teardown
@@ -34,7 +34,7 @@ def sim_config():
     sim_utils.create_new_stage()
     # pin the urdf importer extension to the older version
     manager = omni.kit.app.get_app().get_extension_manager()
-    if get_isaac_sim_version() == Version("5.1"):
+    if has_kit() and get_isaac_sim_version() == Version("5.1"):
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf-2.4.31"
     else:
         pinned_urdf_extension_name = "isaacsim.asset.importer.urdf"

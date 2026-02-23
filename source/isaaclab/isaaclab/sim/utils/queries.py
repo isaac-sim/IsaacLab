@@ -43,6 +43,8 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
         >>> sim_utils.get_next_free_prim_path("/World/Cube")
         /World/Cube_02
     """
+    import omni.usd
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
 

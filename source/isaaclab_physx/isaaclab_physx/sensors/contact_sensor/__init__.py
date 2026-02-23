@@ -6,6 +6,7 @@
 """Sub-module for PhysX rigid contact sensor."""
 
 from .contact_sensor import ContactSensor
+from .contact_sensor_cfg import ContactSensorCfg
 from .contact_sensor_data import ContactSensorData
 
-__all__ = ["ContactSensor", "ContactSensorData"]
+__all__ = ["ContactSensor", "ContactSensorCfg", "ContactSensorData"]

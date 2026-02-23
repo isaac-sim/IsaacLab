@@ -19,7 +19,7 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 """Rest everything follows."""
 
@@ -51,7 +51,7 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 @pytest.mark.parametrize("task_name", setup_environment(include_play=False, factory_envs=False, multi_agent=False))
 def test_environments_with_stage_in_memory_and_clone_in_fabric_disabled(task_name, num_envs, device):
     # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # run environments with stage in memory
