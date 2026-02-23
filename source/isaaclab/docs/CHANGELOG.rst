@@ -1,27 +1,13 @@
 Changelog
 ---------
 
-
-3.4.3 (2026-02-22)
+3.5.2 (2026-02-23)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Migrated settings access from ``carb.settings`` to :class:`~isaaclab.app.settings_manager.SettingsManager`.
-  Application code and tests now use :func:`~isaaclab.app.settings_manager.get_settings_manager` or
-  :meth:`~isaaclab.sim.SimulationContext.get_setting` / :meth:`~isaaclab.sim.SimulationContext.set_setting`
-  instead of ``carb.settings.get_settings()``.
-
-
-3.4.2 (2026-02-20)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Replaced PhysX schema interactions via ``pxr.PhysxSchema`` API helpers with direct prim schema apply/get calls.
-* Replaced ``omni.kit.commands.execute("ChangePropertyCommand")`` uses with direct ``CreateAttribute`` + ``Set`` calls.
+* ``NUCLEUS_ASSET_ROOT_DIR`` and derived Nucleus path constants are now parsed from ``apps/isaaclab.python.kit``
 
 
 3.5.1 (2026-02-21)
@@ -48,6 +34,29 @@ Changed
 * The in-memory stage created with ``SimulationCfg(create_stage_in_memory=True)`` is now automatically
   attached to the USD context at :class:`~isaaclab.sim.SimulationContext` creation. This ensures proper
   stage lifecycle events for viewport and physics systems, preventing test isolation issues.
+
+
+3.4.3 (2026-02-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated settings access from ``carb.settings`` to :class:`~isaaclab.app.settings_manager.SettingsManager`.
+  Application code and tests now use :func:`~isaaclab.app.settings_manager.get_settings_manager` or
+  :meth:`~isaaclab.sim.SimulationContext.get_setting` / :meth:`~isaaclab.sim.SimulationContext.set_setting`
+  instead of ``carb.settings.get_settings()``.
+
+
+3.4.2 (2026-02-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced PhysX schema interactions via ``pxr.PhysxSchema`` API helpers with direct prim schema apply/get calls.
+* Replaced ``omni.kit.commands.execute("ChangePropertyCommand")`` uses with direct ``CreateAttribute`` + ``Set`` calls.
+
 
 Removed
 ^^^^^^^
