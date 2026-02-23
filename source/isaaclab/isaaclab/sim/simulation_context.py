@@ -603,6 +603,7 @@ class SimulationContext:
             # Close the USD context stage (symmetric with attach in __init__)
             if sim_utils.has_kit():
                 import omni.usd
+
                 omni.usd.get_context().close_stage()
 
             # Clear instance
