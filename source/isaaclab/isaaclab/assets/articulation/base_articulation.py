@@ -673,8 +673,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         position: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint positions to the simulation.
 
@@ -687,8 +687,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -721,8 +721,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint velocities to the simulation.
 
@@ -735,8 +735,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -773,8 +773,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint stiffness into the simulation.
 
@@ -787,8 +787,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             stiffness: Joint stiffness. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -821,8 +821,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint damping into the simulation.
 
@@ -835,8 +835,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -873,8 +873,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
         """Write joint position limits into the simulation.
@@ -889,8 +889,8 @@ class BaseArticulation(AssetBase):
         Args:
             limits: Joint limits. Shape is (num_instances, num_joints, 2) or (num_instances, num_joints) with dtype
                 wp.vec2f.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
@@ -929,8 +929,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint max velocity to the simulation.
 
@@ -947,8 +947,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             limits: Joint max velocity. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -984,8 +984,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint effort limits into the simulation.
 
@@ -1001,8 +1001,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             limits: Joint torque limits. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1038,8 +1038,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         armature: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write joint armature into the simulation.
 
@@ -1055,8 +1055,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             armature: Joint armature. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1093,8 +1093,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         r"""Write joint static friction coefficients into the simulation.
 
@@ -1111,8 +1111,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             joint_friction_coeff: Joint static friction coefficient. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1149,8 +1149,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set masses of all bodies in the simulation world frame.
 
@@ -1163,8 +1163,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1199,8 +1199,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies in the simulation world frame.
 
@@ -1214,8 +1214,8 @@ class BaseArticulation(AssetBase):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
                 or (num_instances, num_bodies) with dtype wp.vec3f.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1248,8 +1248,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies in the simulation world frame.
 
@@ -1262,8 +1262,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all the bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1299,8 +1299,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
 
@@ -1316,8 +1316,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             target: Joint position targets. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1353,8 +1353,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
@@ -1370,8 +1370,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             target: Joint velocity targets. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1407,8 +1407,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
 
@@ -1424,8 +1424,8 @@ class BaseArticulation(AssetBase):
 
         Args:
             target: Joint effort targets. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1466,8 +1466,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers.
 
@@ -1484,9 +1484,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1519,8 +1519,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers.
 
@@ -1533,9 +1533,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1572,8 +1572,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon limit stiffness into internal buffers.
 
@@ -1590,9 +1590,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1629,8 +1629,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limits into internal buffers.
 
@@ -1647,9 +1647,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             limit: Fixed tendon limit. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1686,8 +1686,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         rest_length: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon rest length into internal buffers.
 
@@ -1704,9 +1704,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1743,8 +1743,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon offset into internal buffers.
 
@@ -1761,9 +1761,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1793,8 +1793,8 @@ class BaseArticulation(AssetBase):
     def write_fixed_tendon_properties_to_sim_mask(
         self,
         *,
-        env_mask: wp.array | None = None,
         fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation.
 
@@ -1806,9 +1806,9 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1845,8 +1845,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon stiffness into internal buffers.
 
@@ -1863,9 +1863,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             spatial_tendon_mask: Spatial tendon mask. If None, then all the spatial tendons are updated.
                 Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1902,8 +1902,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon damping into internal buffers.
 
@@ -1920,9 +1920,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             spatial_tendon_mask: Spatial tendon mask. If None, then all the spatial tendons are updated.
                 Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -1960,8 +1960,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon limit stiffness into internal buffers.
 
@@ -1978,9 +1978,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             spatial_tendon_mask: Spatial tendon mask. If None, then all the spatial tendons are updated.
                 Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2017,8 +2017,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set spatial tendon offset into internal buffers.
 
@@ -2035,9 +2035,9 @@ class BaseArticulation(AssetBase):
 
         Args:
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             spatial_tendon_mask: Spatial tendon mask. If None, then all the spatial tendons are updated.
                 Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2068,8 +2068,8 @@ class BaseArticulation(AssetBase):
     def write_spatial_tendon_properties_to_sim_mask(
         self,
         *,
-        env_mask: wp.array | None = None,
         spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation.
 
@@ -2081,9 +2081,9 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             spatial_tendon_mask: Spatial tendon mask. If None, then all the spatial tendons are updated.
                 Shape is (num_spatial_tendons,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 

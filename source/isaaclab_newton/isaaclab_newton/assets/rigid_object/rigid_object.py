@@ -275,7 +275,9 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -353,8 +355,10 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -396,11 +400,14 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
 
     def write_root_com_pose_to_sim_index(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -446,12 +453,16 @@ class RigidObject(BaseRigidObject):
         # Update the timestamps
         self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_com_state_w.timestamp = -1.0
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
 
     def write_root_com_pose_to_sim_mask(
         self,
+        *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -493,19 +504,25 @@ class RigidObject(BaseRigidObject):
         # Update the timestamps
         self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_com_state_w.timestamp = -1.0
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
 
     def write_root_com_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -541,25 +558,30 @@ class RigidObject(BaseRigidObject):
         )
         # Update the timestamps
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_com_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
@@ -586,25 +608,30 @@ class RigidObject(BaseRigidObject):
         )
         # Update the timestamps
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_link_velocity_to_sim_index(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects partial data or full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame.
@@ -645,13 +672,16 @@ class RigidObject(BaseRigidObject):
 
     def write_root_link_velocity_to_sim_mask(
         self,
+        *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects full data.
@@ -700,6 +730,7 @@ class RigidObject(BaseRigidObject):
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -740,6 +771,7 @@ class RigidObject(BaseRigidObject):
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -781,21 +813,27 @@ class RigidObject(BaseRigidObject):
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set center of mass pose of all bodies using indices.
+        """Set center of mass position of all bodies using indices.
 
         .. note::
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        .. caution::
+            Unlike the PhysX version of this method, this method does not set the center of mass orientation.
+            Only the position is set. This is because Newton considers the center of mass orientation to always be
+            aligned with the body frame.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7).
+            coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
@@ -821,11 +859,12 @@ class RigidObject(BaseRigidObject):
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set center of mass pose of all bodies using masks.
+        """Set center of mass position of all bodies using masks.
 
         .. note::
             This method expects full data.
@@ -834,8 +873,13 @@ class RigidObject(BaseRigidObject):
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
             However, to allow graphed pipelines, the mask method must be used.
 
+        .. caution::
+            Unlike the PhysX version of this method, this method does not set the center of mass orientation.
+            Only the position is set. This is because Newton considers the center of mass orientation to always be
+            aligned with the body frame.
+
         Args:
-            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
+            coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -862,6 +906,7 @@ class RigidObject(BaseRigidObject):
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -876,8 +921,7 @@ class RigidObject(BaseRigidObject):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
-                (num_instances, num_bodies, 9) if full_data.
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
@@ -903,6 +947,7 @@ class RigidObject(BaseRigidObject):
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,

@@ -199,19 +199,30 @@ class Articulation(BaseArticulation):
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the articulation."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the articulation."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     """
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, *, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
         .. caution::
@@ -219,7 +230,7 @@ class Articulation(BaseArticulation):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
@@ -406,7 +417,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
@@ -429,8 +441,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         self.write_root_link_pose_to_sim_mask(root_pose, env_mask=env_mask)
 
@@ -452,7 +465,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -506,8 +520,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -551,7 +566,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expect partial data.
@@ -561,7 +576,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7).
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -615,7 +631,7 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principle axes of inertia.
+        The orientation is the orientation of the principal axes of inertia.
 
         .. note::
             This method expect full data.
@@ -625,8 +641,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -675,7 +692,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect partial data.
@@ -685,7 +703,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
@@ -699,7 +718,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect full data.
@@ -709,8 +729,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
 
@@ -723,7 +744,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect partial data.
@@ -733,7 +755,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -772,7 +795,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect full data.
@@ -782,8 +806,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -820,7 +845,8 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expect partial data.
@@ -830,7 +856,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6).
+            root_velocity: Root frame velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
@@ -877,7 +904,8 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expect full data.
@@ -887,8 +915,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            root_velocity: Root frame velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -948,8 +977,8 @@ class Articulation(BaseArticulation):
         *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
@@ -963,8 +992,8 @@ class Articulation(BaseArticulation):
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # set into simulation
         self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
@@ -1042,7 +1071,7 @@ class Articulation(BaseArticulation):
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1138,7 +1167,7 @@ class Articulation(BaseArticulation):
         Args:
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1241,7 +1270,7 @@ class Articulation(BaseArticulation):
         Args:
             stiffness: Joint stiffness. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1354,7 +1383,7 @@ class Articulation(BaseArticulation):
         Args:
             damping: Joint damping. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1393,6 +1422,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1457,6 +1487,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_position_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1472,9 +1503,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            limits: Joint limits. Shape is (num_envs, num_joints, 2).
+            limits: Joint limits. Shape is (num_instances, num_joints, 2).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
@@ -1518,6 +1549,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1577,6 +1609,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1595,9 +1628,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            limits: Joint max velocity. Shape is (num_envs, num_joints).
+            limits: Joint max velocity. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1636,6 +1669,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_effort_limit_to_sim_index(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -1695,6 +1729,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_effort_limit_to_sim_mask(
         self,
+        *,
         limits: torch.Tensor | wp.array | float,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -1712,9 +1747,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            limits: Joint torque limits. Shape is (num_envs, num_joints).
+            limits: Joint torque limits. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -1830,9 +1865,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            armature: Joint armature. Shape is (num_envs, num_joints).
+            armature: Joint armature. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is None:
@@ -1945,9 +1980,9 @@ class Articulation(BaseArticulation):
 
         Args:
             joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
-                Shape is (num_envs, num_joints).
+                Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -2046,9 +2081,9 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            masses: Masses of all bodies. Shape is (num_envs, num_bodies).
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is None:
@@ -2141,7 +2176,7 @@ class Articulation(BaseArticulation):
         Args:
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is None:
@@ -2224,7 +2259,7 @@ class Articulation(BaseArticulation):
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         if env_mask is None:
@@ -2309,7 +2344,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint position targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -2392,7 +2427,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint velocity targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is None:
@@ -2476,7 +2511,7 @@ class Articulation(BaseArticulation):
         Args:
             target: Joint effort targets. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -2552,7 +2587,7 @@ class Articulation(BaseArticulation):
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2607,7 +2642,7 @@ class Articulation(BaseArticulation):
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2662,7 +2697,7 @@ class Articulation(BaseArticulation):
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2717,7 +2752,7 @@ class Articulation(BaseArticulation):
             limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2772,7 +2807,7 @@ class Articulation(BaseArticulation):
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2827,7 +2862,7 @@ class Articulation(BaseArticulation):
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2861,7 +2896,7 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2916,7 +2951,7 @@ class Articulation(BaseArticulation):
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
                 Shape is (num_spatial_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2971,7 +3006,7 @@ class Articulation(BaseArticulation):
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
                 Shape is (num_spatial_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -3027,7 +3062,7 @@ class Articulation(BaseArticulation):
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
                 Shape is (num_spatial_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -3082,7 +3117,7 @@ class Articulation(BaseArticulation):
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
                 Shape is (num_spatial_tendons,).
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -3116,7 +3151,7 @@ class Articulation(BaseArticulation):
 
         Args:
             spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
-            env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -3750,8 +3785,6 @@ class Articulation(BaseArticulation):
     def write_joint_friction_coefficient_to_sim(
         self,
         joint_friction_coeff: torch.Tensor | wp.array | float,
-        joint_dynamic_friction_coeff: torch.Tensor | wp.array | float | None = None,
-        joint_viscous_friction_coeff: torch.Tensor | wp.array | float | None = None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -3765,8 +3798,6 @@ class Articulation(BaseArticulation):
         )
         self.write_joint_friction_coefficient_to_sim_index(
             joint_friction_coeff,
-            joint_dynamic_friction_coeff=joint_dynamic_friction_coeff,
-            joint_viscous_friction_coeff=joint_viscous_friction_coeff,
             joint_ids=joint_ids,
             env_ids=env_ids,
             full_data=full_data,
@@ -3774,7 +3805,7 @@ class Articulation(BaseArticulation):
 
     def write_root_state_to_sim(
         self,
-        root_state: torch.Tensor | wp.array,
+        root_state: torch.Tensor,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
@@ -3785,12 +3816,14 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self,
-        root_state: torch.Tensor | wp.array,
+        root_state: torch.Tensor,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
@@ -3801,12 +3834,14 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self,
-        root_state: torch.Tensor | wp.array,
+        root_state: torch.Tensor,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
@@ -3817,5 +3852,7 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)

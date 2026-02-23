@@ -257,6 +257,7 @@ class RigidObjectData(BaseRigidObjectData):
         """Mass of all bodies in the simulation world frame.
 
         Shape is (num_instances, 1, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1, 1).
         """
         return self._body_mass
 
@@ -264,7 +265,8 @@ class RigidObjectData(BaseRigidObjectData):
     def body_inertia(self) -> wp.array:
         """Inertia of all bodies in the simulation world frame.
 
-        Shape is (num_instances, 1, 3, 3), dtype = wp.float32.
+        Shape is (num_instances, 1, 9), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1, 9).
         """
         return self._body_inertia
 
@@ -398,7 +400,7 @@ class RigidObjectData(BaseRigidObjectData):
     def heading_w(self) -> wp.array:
         """Yaw heading of the base frame (in radians).
 
-        Shape is (num_instances,), dtype = wp.float32.
+        Shape is (num_instances,), dtype = wp.float32. In torch this resolves to (num_instances,).
 
         .. note::
             This quantity is computed by assuming that the forward-direction of the base
@@ -605,7 +607,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame.
+        """Positions of all bodies' center of mass in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the position of the rigid bodies' center of mass frame.

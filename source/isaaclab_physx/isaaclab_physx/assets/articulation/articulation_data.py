@@ -137,7 +137,8 @@ class ArticulationData(BaseArticulationData):
     def default_root_pose(self) -> wp.array:
         """Default root pose ``[pos, quat]`` in the local environment frame.
 
-        The position and quaternion are of the articulation root's actor frame. Shape is (num_instances, 7).
+        The position and quaternion are of the articulation root's actor frame.
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         """
         return self._default_root_pose
 
@@ -160,7 +161,7 @@ class ArticulationData(BaseArticulationData):
         """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         The linear and angular velocities are of the articulation root's center of mass frame.
-        Shape is (num_instances, 6).
+        Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
         """
         return self._default_root_vel
 
@@ -180,7 +181,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def default_joint_pos(self) -> wp.array:
-        """Default joint positions of all joints. Shape is (num_instances, num_joints).
+        """Default joint positions of all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
@@ -202,7 +205,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def default_joint_vel(self) -> wp.array:
-        """Default joint velocities of all joints. Shape is (num_instances, num_joints).
+        """Default joint velocities of all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
@@ -228,7 +233,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_pos_target(self) -> wp.array:
-        """Joint position targets commanded by the user. Shape is (num_instances, num_joints).
+        """Joint position targets commanded by the user.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
@@ -238,7 +245,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_vel_target(self) -> wp.array:
-        """Joint velocity targets commanded by the user. Shape is (num_instances, num_joints).
+        """Joint velocity targets commanded by the user.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
@@ -248,7 +257,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_effort_target(self) -> wp.array:
-        """Joint effort targets commanded by the user. Shape is (num_instances, num_joints).
+        """Joint effort targets commanded by the user.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         For an implicit actuator model, the targets are directly set into the simulation.
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
@@ -262,7 +273,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def computed_torque(self) -> wp.array:
-        """Joint torques computed from the actuator model (before clipping). Shape is (num_instances, num_joints).
+        """Joint torques computed from the actuator model (before clipping).
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         This quantity is the raw torque output from the actuator mode, before any clipping is applied.
         It is exposed for users who want to inspect the computations inside the actuator model.
@@ -272,7 +285,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def applied_torque(self) -> wp.array:
-        """Joint torques applied from the actuator model (after clipping). Shape is (num_instances, num_joints).
+        """Joint torques applied from the actuator model (after clipping).
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
         actuator model.
@@ -285,7 +300,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_stiffness(self) -> wp.array:
-        """Joint stiffness provided to the simulation. Shape is (num_instances, num_joints).
+        """Joint stiffness provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         In the case of explicit actuators, the value for the corresponding joints is zero.
         """
@@ -293,7 +310,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_damping(self) -> wp.array:
-        """Joint damping provided to the simulation. Shape is (num_instances, num_joints)
+        """Joint damping provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         In the case of explicit actuators, the value for the corresponding joints is zero.
         """
@@ -301,27 +320,42 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_armature(self) -> wp.array:
-        """Joint armature provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint armature provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_armature
 
     @property
     def joint_friction_coeff(self) -> wp.array:
-        """Joint static friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint static friction coefficient provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_friction_coeff
 
     @property
     def joint_dynamic_friction_coeff(self) -> wp.array:
-        """Joint dynamic friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint dynamic friction coefficient provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_dynamic_friction_coeff
 
     @property
     def joint_viscous_friction_coeff(self) -> wp.array:
-        """Joint viscous friction coefficient provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint viscous friction coefficient provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_viscous_friction_coeff
 
     @property
     def joint_pos_limits(self) -> wp.array:
-        """Joint position limits provided to the simulation. Shape is (num_instances, num_joints, 2).
+        """Joint position limits provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.vec2f. In torch this resolves to
+        (num_instances, num_joints, 2).
 
         The limits are in the order :math:`[lower, upper]`.
         """
@@ -329,12 +363,18 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_vel_limits(self) -> wp.array:
-        """Joint maximum velocity provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint maximum velocity provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_vel_limits
 
     @property
     def joint_effort_limits(self) -> wp.array:
-        """Joint maximum effort provided to the simulation. Shape is (num_instances, num_joints)."""
+        """Joint maximum effort provided to the simulation.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._joint_effort_limits
 
     """
@@ -343,7 +383,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def soft_joint_pos_limits(self) -> wp.array:
-        r"""Soft joint positions limits for all joints. Shape is (num_instances, num_joints, 2).
+        r"""Soft joint positions limits for all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.vec2f. In torch this resolves to
+        (num_instances, num_joints, 2).
 
         The limits are in the order :math:`[lower, upper]`.The soft joint position limits are computed as
         a sub-region of the :attr:`joint_pos_limits` based on the
@@ -364,7 +407,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def soft_joint_vel_limits(self) -> wp.array:
-        """Soft joint velocity limits for all joints. Shape is (num_instances, num_joints).
+        """Soft joint velocity limits for all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
 
         These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
         has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
@@ -373,7 +418,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def gear_ratio(self) -> wp.array:
-        """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
+        """Gear ratio for relating motor torques to applied Joint torques.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         return self._gear_ratio
 
     """
@@ -382,32 +430,56 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def fixed_tendon_stiffness(self) -> wp.array:
-        """Fixed tendon stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        """Fixed tendon stiffness provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_fixed_tendons).
+        """
         return self._fixed_tendon_stiffness
 
     @property
     def fixed_tendon_damping(self) -> wp.array:
-        """Fixed tendon damping provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        """Fixed tendon damping provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_fixed_tendons).
+        """
         return self._fixed_tendon_damping
 
     @property
     def fixed_tendon_limit_stiffness(self) -> wp.array:
-        """Fixed tendon limit stiffness provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        """Fixed tendon limit stiffness provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_fixed_tendons).
+        """
         return self._fixed_tendon_limit_stiffness
 
     @property
     def fixed_tendon_rest_length(self) -> wp.array:
-        """Fixed tendon rest length provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        """Fixed tendon rest length provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_fixed_tendons).
+        """
         return self._fixed_tendon_rest_length
 
     @property
     def fixed_tendon_offset(self) -> wp.array:
-        """Fixed tendon offset provided to the simulation. Shape is (num_instances, num_fixed_tendons)."""
+        """Fixed tendon offset provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_fixed_tendons).
+        """
         return self._fixed_tendon_offset
 
     @property
     def fixed_tendon_pos_limits(self) -> wp.array:
-        """Fixed tendon position limits provided to the simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+        """Fixed tendon position limits provided to the simulation.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.vec2f. In torch this resolves to
+        (num_instances, num_fixed_tendons, 2).
+        """
         return self._fixed_tendon_pos_limits
 
     """
@@ -416,22 +488,38 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def spatial_tendon_stiffness(self) -> wp.array:
-        """Spatial tendon stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        """Spatial tendon stiffness provided to the simulation.
+
+        Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_spatial_tendons).
+        """
         return self._spatial_tendon_stiffness
 
     @property
     def spatial_tendon_damping(self) -> wp.array:
-        """Spatial tendon damping provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        """Spatial tendon damping provided to the simulation.
+
+        Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_spatial_tendons).
+        """
         return self._spatial_tendon_damping
 
     @property
     def spatial_tendon_limit_stiffness(self) -> wp.array:
-        """Spatial tendon limit stiffness provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        """Spatial tendon limit stiffness provided to the simulation.
+
+        Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_spatial_tendons).
+        """
         return self._spatial_tendon_limit_stiffness
 
     @property
     def spatial_tendon_offset(self) -> wp.array:
-        """Spatial tendon offset provided to the simulation. Shape is (num_instances, num_spatial_tendons)."""
+        """Spatial tendon offset provided to the simulation.
+
+        Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_spatial_tendons).
+        """
         return self._spatial_tendon_offset
 
     """
@@ -526,13 +614,19 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_mass(self) -> wp.array:
         """Body mass in the world frame.
-        Shape is (num_instances, num_bodies), dtype = wp.float32."""
+
+        Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
+        """
         self._body_mass.assign(self._root_view.get_masses())
         return self._body_mass
 
     @property
     def body_inertia(self) -> wp.array:
-        """Body inertia in the world frame. Shape is (num_instances, num_bodies, 3, 3), dtype = wp.float32."""
+        """Flattened body inertia in the world frame.
+
+        Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_bodies, 9).
+        """
         self._body_inertia.assign(self._root_view.get_inertias())
         return self._body_inertia
 
@@ -660,7 +754,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
         world of an articulation.
 
-        For more information on joint wrenches, please check the`PhysX documentation`_ and the underlying
+        For more information on joint wrenches, please check the `PhysX documentation`_ and the underlying
         `PhysX Tensor API`_.
 
         .. _`PhysX documentation`: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
@@ -680,7 +774,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_pos(self) -> wp.array:
-        """Joint positions of all joints. Shape is (num_instances, num_joints), dtype = wp.float32."""
+        """Joint positions of all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             self._joint_pos.data = self._root_view.get_dof_positions()
@@ -689,7 +786,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_vel(self) -> wp.array:
-        """Joint velocities of all joints. Shape is (num_instances, num_joints), dtype = wp.float32."""
+        """Joint velocities of all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             self._joint_vel.data = self._root_view.get_dof_velocities()
@@ -698,7 +798,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_acc(self) -> wp.array:
-        """Joint acceleration of all joints. Shape is (num_instances, num_joints), dtype = wp.float32."""
+        """Joint acceleration of all joints.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        """
         if self._joint_acc.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp

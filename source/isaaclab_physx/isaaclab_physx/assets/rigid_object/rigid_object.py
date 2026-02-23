@@ -225,8 +225,8 @@ class RigidObject(BaseRigidObject):
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
@@ -247,8 +247,8 @@ class RigidObject(BaseRigidObject):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
@@ -266,14 +266,16 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
@@ -294,8 +296,8 @@ class RigidObject(BaseRigidObject):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
@@ -319,8 +321,8 @@ class RigidObject(BaseRigidObject):
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
@@ -369,8 +371,8 @@ class RigidObject(BaseRigidObject):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
@@ -399,8 +401,8 @@ class RigidObject(BaseRigidObject):
             This method expects partial data or full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
@@ -453,8 +455,8 @@ class RigidObject(BaseRigidObject):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
@@ -477,14 +479,16 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data or full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame.
@@ -532,14 +536,16 @@ class RigidObject(BaseRigidObject):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's center of mass rather than the roots frame.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
@@ -562,14 +568,16 @@ class RigidObject(BaseRigidObject):
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects partial data or full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame.
@@ -622,14 +630,16 @@ class RigidObject(BaseRigidObject):
         """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        NOTE: This sets the velocity of the root's frame rather than the roots center of mass.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)

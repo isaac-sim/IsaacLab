@@ -181,12 +181,23 @@ class Articulation(BaseArticulation):
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the articulation."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the articulation."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     """
@@ -596,7 +607,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect partial data.
@@ -621,7 +633,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect full data.
@@ -647,7 +660,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect partial data or full data.
@@ -699,7 +713,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's center of mass rather than the roots frame.
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expect full data.
@@ -732,7 +747,8 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expect partial data or full data.
@@ -791,7 +807,8 @@ class Articulation(BaseArticulation):
         """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
-        .. note:: This sets the velocity of the root's frame rather than the roots center of mass.
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expect full data.
@@ -4260,6 +4277,8 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
@@ -4276,6 +4295,8 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
         self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
@@ -4292,5 +4313,7 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        if isinstance(root_state, wp.array):
+            raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
