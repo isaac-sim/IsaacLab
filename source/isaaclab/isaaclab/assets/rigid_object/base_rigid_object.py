@@ -510,7 +510,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -558,7 +558,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -608,7 +608,7 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.

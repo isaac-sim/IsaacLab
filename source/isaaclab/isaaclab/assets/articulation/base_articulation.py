@@ -356,7 +356,7 @@ class BaseArticulation(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root pose over selected environment indices into the simulation.
+        """Set the root pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -406,7 +406,7 @@ class BaseArticulation(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link pose over selected environment indices into the simulation.
+        """Set the root link pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -457,7 +457,7 @@ class BaseArticulation(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass pose over selected environment indices into the simulation.
+        """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principal axes of inertia.
@@ -511,7 +511,7 @@ class BaseArticulation(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
@@ -567,7 +567,7 @@ class BaseArticulation(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
@@ -623,7 +623,7 @@ class BaseArticulation(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link velocity over selected environment indices into the simulation.
+        """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
@@ -645,12 +645,64 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write joint positions and velocities over selected environment indices into the simulation.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: The joint indices to set the state for. Defaults to None (all joints).
+            env_ids: The environment indices to set the state for. Defaults to None (all instances).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write_joint_state_to_sim_mask(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write joint positions and velocities over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            position: Joint positions. Shape is (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (num_instances, num_joints).
+            joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def write_joint_position_to_sim_index(
         self,
         *,
         position: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint positions to the simulation.
 
@@ -697,8 +749,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint velocities to the simulation.
 
@@ -749,7 +801,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint stiffness into the simulation.
@@ -797,7 +849,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint damping into the simulation.
@@ -845,7 +897,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
     ) -> None:
@@ -901,7 +953,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint max velocity to the simulation.
@@ -957,7 +1009,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limits: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint effort limits into the simulation.
@@ -1011,7 +1063,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         armature: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write joint armature into the simulation.
@@ -1065,7 +1117,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         r"""Write joint static friction coefficients into the simulation.
@@ -1125,7 +1177,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | slice | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies in the simulation world frame.
@@ -1173,7 +1225,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies in the simulation world frame.
@@ -1224,7 +1276,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies in the simulation world frame.
@@ -1272,7 +1324,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
@@ -1326,7 +1378,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
@@ -1380,7 +1432,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
@@ -1438,7 +1490,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers.
@@ -1495,7 +1547,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers.
@@ -1552,7 +1604,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon limit stiffness into internal buffers.
@@ -1609,7 +1661,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limits into internal buffers.
@@ -1666,7 +1718,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         rest_length: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon rest length into internal buffers.
@@ -1723,7 +1775,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set fixed tendon offset into internal buffers.
@@ -1779,7 +1831,7 @@ class BaseArticulation(AssetBase):
     def write_fixed_tendon_properties_to_sim_index(
         self,
         *,
-        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation.
@@ -1825,7 +1877,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         stiffness: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon stiffness into internal buffers.
@@ -1882,7 +1934,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         damping: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon damping into internal buffers.
@@ -1939,7 +1991,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         limit_stiffness: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon limit stiffness into internal buffers.
@@ -1997,7 +2049,7 @@ class BaseArticulation(AssetBase):
         self,
         *,
         offset: torch.Tensor | wp.array,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set spatial tendon offset into internal buffers.
@@ -2053,7 +2105,7 @@ class BaseArticulation(AssetBase):
     def write_spatial_tendon_properties_to_sim_index(
         self,
         *,
-        spatial_tendon_ids: Sequence[int] | slice | None = None,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write spatial tendon properties into the simulation.

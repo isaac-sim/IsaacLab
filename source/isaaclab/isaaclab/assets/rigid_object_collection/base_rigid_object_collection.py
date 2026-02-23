@@ -190,7 +190,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body poses over selected environment and body indices into the simulation.
@@ -244,7 +244,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
@@ -298,7 +298,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_poses: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
@@ -354,7 +354,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
@@ -414,7 +414,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
@@ -474,7 +474,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
-        body_ids: slice | torch.Tensor | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
@@ -538,7 +538,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
@@ -586,7 +586,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
@@ -636,7 +636,7 @@ class BaseRigidObjectCollection(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
