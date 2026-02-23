@@ -19,7 +19,7 @@ import torch
 import omni.kit.commands
 import omni.usd
 from isaacsim.core.cloner import Cloner
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import get_isaac_sim_version
@@ -360,6 +360,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         sdf_type = Sdf.ValueTypeNames.Int
     elif isinstance(value, float):
         sdf_type = Sdf.ValueTypeNames.Float
+    elif isinstance(value, str):
+        sdf_type = Sdf.ValueTypeNames.String
     elif isinstance(value, (tuple, list)) and len(value) == 3 and any(isinstance(v, float) for v in value):
         sdf_type = Sdf.ValueTypeNames.Float3
     elif isinstance(value, (tuple, list)) and len(value) == 2 and any(isinstance(v, float) for v in value):
@@ -826,10 +828,11 @@ def bind_physics_material(
     # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    applied = prim.GetAppliedSchemas()
+    has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
-    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    has_deformable_body = "PhysxDeformableBodyAPI" in applied
+    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"

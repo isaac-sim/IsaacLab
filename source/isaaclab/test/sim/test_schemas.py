@@ -213,6 +213,64 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
         sim.step()
 
 
+@pytest.mark.isaacsim_ci
+def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
+    """Test that multi-instance PhysX tendon schemas are correctly detected via substring matching.
+
+    Multi-instance schemas (e.g. PhysxTendonAxisAPI, PhysxTendonAxisRootAPI) appear in
+    GetAppliedSchemas() as 'SchemaName:instanceName' (e.g. 'PhysxTendonAxisAPI:inst0').
+    An exact ``in list`` check fails because 'PhysxTendonAxisAPI' != 'PhysxTendonAxisAPI:inst0'.
+    This test ensures the substring-based detection used by modify_joint_drive_properties
+    and modify_fixed_tendon_properties handles multi-instance schemas correctly.
+
+    We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
+    ``@apply_nested`` decorator, which traverses children and does not return the
+    inner function's bool result.
+    """
+    sim, _, _, _, _, joint_cfg = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # unwrap to get the raw functions that return bool
+    _modify_joint_drive = schemas.modify_joint_drive_properties.__wrapped__
+    _modify_fixed_tendon = schemas.modify_fixed_tendon_properties.__wrapped__
+
+    # -- set up two body prims connected by a revolute joint
+    sim_utils.create_prim("/World/tendon_test", prim_type="Xform")
+    sim_utils.create_prim("/World/tendon_test/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/tendon_test/body1", prim_type="Cube")
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/World/tendon_test/body1/joint0")
+    joint_prim = joint.GetPrim()
+
+    # -- 1) Joint with only tendon child schema (no root) -> drive should be SKIPPED
+    joint_prim.AddAppliedSchema("PhysxTendonAxisAPI:inst0")
+    applied = joint_prim.GetAppliedSchemas()
+    assert any("PhysxTendonAxisAPI" in s for s in applied), "Multi-instance schema not found via substring"
+    assert "PhysxTendonAxisAPI" not in applied, "Exact match should NOT find multi-instance schema"
+
+    result = _modify_joint_drive(joint_prim.GetPrimPath().pathString, joint_cfg)
+    assert result is False, "Tendon child joint should be skipped (return False)"
+
+    # -- 2) Joint with both child AND root tendon schema -> drive should NOT be skipped
+    joint_prim.AddAppliedSchema("PhysxTendonAxisRootAPI:inst0")
+    applied = joint_prim.GetAppliedSchemas()
+    assert any("PhysxTendonAxisRootAPI" in s for s in applied)
+    assert "PhysxTendonAxisRootAPI" not in applied, "Exact match should NOT find multi-instance schema"
+
+    result = _modify_joint_drive(joint_prim.GetPrimPath().pathString, joint_cfg)
+    assert result is True, "Tendon root joint should NOT be skipped"
+
+    # -- 3) modify_fixed_tendon_properties should detect multi-instance root schema
+    tendon_cfg = schemas.FixedTendonPropertiesCfg(stiffness=10.0, damping=0.1)
+    result = _modify_fixed_tendon(joint_prim.GetPrimPath().pathString, tendon_cfg)
+    assert result is True, "Prim with PhysxTendonAxisRootAPI:inst0 should be detected"
+
+    # -- 4) Prim WITHOUT any tendon root schema -> modify_fixed_tendon should return False
+    sim_utils.create_prim("/World/tendon_test/body2", prim_type="Cube")
+    no_tendon_joint = UsdPhysics.RevoluteJoint.Define(stage, "/World/tendon_test/body2/joint1")
+    result = _modify_fixed_tendon(no_tendon_joint.GetPrim().GetPrimPath().pathString, tendon_cfg)
+    assert result is False, "Prim without tendon root schema should return False"
+
+
 """
 Helper functions.
 """

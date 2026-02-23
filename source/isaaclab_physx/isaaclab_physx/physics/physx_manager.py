@@ -28,10 +28,11 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import PhysxSchema, Sdf
+from pxr import Sdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -458,35 +459,42 @@ class PhysxManager(PhysicsManager):
             PhysicsManager._device = "cpu"
 
         # physx scene api (use sim.cfg for shared parameters like physics_prim_path, dt, physics_material)
+        # apply schema and set attributes by name
         sim_cfg = sim.cfg
         stage = sim.stage
         scene_prim = stage.GetPrimAtPath(sim_cfg.physics_prim_path)
-        PhysxSchema.PhysxSceneAPI.Apply(scene_prim)
-        scene_api = PhysxSchema.PhysxSceneAPI(scene_prim)
+        if "PhysxSceneAPI" not in scene_prim.GetAppliedSchemas():
+            scene_prim.AddAppliedSchema("PhysxSceneAPI")
 
         # timestep and frame rate
         steps_per_sec = int(1.0 / sim_cfg.dt)
-        scene_api.CreateTimeStepsPerSecondAttr(steps_per_sec)
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:timeStepsPerSecond", steps_per_sec, camel_case=False
+        )
         render_interval = max(sim_cfg.render_interval, 1)
         settings.set_int("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)
 
         # gpu dynamics
-        scene_api.CreateBroadphaseTypeAttr("GPU" if is_gpu else "MBP")
-        scene_api.CreateEnableGPUDynamicsAttr(is_gpu)
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:broadphaseType", "GPU" if is_gpu else "MBP", camel_case=False
+        )
+        sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableGPUDynamics", is_gpu, camel_case=False)
 
         # ccd (not supported on gpu)
         enable_ccd = cfg.enable_ccd and not is_gpu
         if cfg.enable_ccd and is_gpu:
             logger.warning("CCD disabled when GPU dynamics is enabled.")
-        scene_api.CreateEnableCCDAttr(enable_ccd)
+        sim_utils.safe_set_attribute_on_usd_prim(scene_prim, "physxScene:enableCCD", enable_ccd, camel_case=False)
 
         # solver
-        scene_api.CreateSolverTypeAttr("TGS" if cfg.solver_type == 1 else "PGS")
+        sim_utils.safe_set_attribute_on_usd_prim(
+            scene_prim, "physxScene:solverType", "TGS" if cfg.solver_type == 1 else "PGS", camel_case=False
+        )
         scene_prim.CreateAttribute("physxScene:solveArticulationContactLast", Sdf.ValueTypeNames.Bool).Set(
             cfg.solve_articulation_contact_last
         )
 
-        # apply remaining cfg attributes to scene
+        # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
             "solver_type",
             "enable_ccd",
@@ -503,7 +511,12 @@ class PhysxManager(PhysicsManager):
         for key, value in cfg.to_dict().items():  # type: ignore
             if key not in skip:
                 attr_name = "bounce_threshold" if key == "bounce_threshold_velocity" else key
-                sim_utils.safe_set_attribute_on_usd_schema(scene_api, attr_name, value, camel_case=True)
+                sim_utils.safe_set_attribute_on_usd_prim(
+                    scene_prim,
+                    f"physxScene:{to_camel_case(attr_name, 'cC')}",
+                    value,
+                    camel_case=False,
+                )
 
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material

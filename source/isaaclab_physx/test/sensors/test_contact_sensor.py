@@ -23,7 +23,6 @@ import warp as wp
 from flaky import flaky
 
 import carb
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -434,9 +433,8 @@ def test_contact_sensor_threshold(setup_simulation, device):
         assert contact_sensor is not None, "Contact sensor was not created"
 
         # Check if the prim has contact report API and verify threshold is close to 0.0
-        if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-            cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
-            threshold_attr = cr_api.GetThresholdAttr()
+        if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
+            threshold_attr = prim.GetAttribute("physxContactReport:threshold")
             if threshold_attr.IsValid():
                 threshold_value = threshold_attr.Get()
                 assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
