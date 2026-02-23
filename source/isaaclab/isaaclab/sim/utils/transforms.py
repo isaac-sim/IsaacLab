@@ -213,45 +213,17 @@ def standardize_xform_ops(
     print(f"  final values -> pos={xform_pos}, quat={xform_quat}, scale={xform_scale}, has_reset={has_reset}")
     print(f"  removing invalid ops: {[p for p in prop_names if p in _INVALID_XFORM_OPS]}")
 
-    # --- BEGIN DIAGNOSTICS ---
-    stage = prim.GetStage()
-    edit_layer = stage.GetEditTarget().GetLayer()
-    sdf_path = prim.GetPath()
-    prim_spec = edit_layer.GetPrimAtPath(sdf_path)
-    print(f"  [diag] edit_target_layer={edit_layer.identifier}")
-    print(f"  [diag] layer.permissionToEdit={edit_layer.permissionToEdit}")
-    print(f"  [diag] prim_spec_on_edit_target={prim_spec}")
-    print(f"  [diag] prim.IsInPrototype()={prim.IsInPrototype()}")
-    print(f"  [diag] prim.IsInstance()={prim.IsInstance()}")
-
-    # Test: can we create ANY attribute on this prim outside the ChangeBlock?
-    test_attr = prim.CreateAttribute("_diag_test_attr", Sdf.ValueTypeNames.Bool)
-    print(f"  [diag] test CreateAttribute result={test_attr}, valid={bool(test_attr)}")
-    if test_attr:
-        prim.RemoveProperty("_diag_test_attr")
-
-    # Test: does RemoveProperty succeed for the invalid ops?
-    for prop_name in prop_names:
-        if prop_name in _INVALID_XFORM_OPS:
-            still_exists_before = bool(prim.GetAttribute(prop_name))
-            remove_result = prim.RemoveProperty(prop_name)
-            still_exists_after = bool(prim.GetAttribute(prop_name))
-            print(
-                f"  [diag] RemoveProperty('{prop_name}'): returned={remove_result}, "
-                f"existed_before={still_exists_before}, exists_after={still_exists_after}"
-            )
-            # Undo the removal so the actual logic below can still run
-            # (If it returned False, nothing happened anyway)
-
-    # Test: can we AddXformOp outside the ChangeBlock (without prior RemoveProperty)?
-    try:
-        test_op = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "_diag")
-        print(f"  [diag] test AddXformOp (suffixed '_diag'): result={test_op}, valid={bool(test_op)}")
-        if test_op:
-            prim.RemoveProperty("xformOp:scale:_diag")
-    except Exception as e:
-        print(f"  [diag] test AddXformOp (suffixed '_diag') FAILED: {e}")
-    # --- END DIAGNOSTICS ---
+    # Ensure the prim has an "over" spec on the edit target layer. Prims from
+    # referenced USD files may only exist in the reference layer with no spec on
+    # the edit target. Inside an Sdf.ChangeBlock, AddXformOp calls CreateAttribute
+    # which needs an existing prim spec on the edit target — it cannot create one
+    # while stage recomposition is deferred.
+    edit_layer = prim.GetStage().GetEditTarget().GetLayer()
+    if not edit_layer.GetPrimAtPath(prim.GetPath()):
+        for prefix in prim.GetPath().GetPrefixes():
+            if not edit_layer.GetPrimAtPath(prefix):
+                parent_spec = edit_layer.GetPrimAtPath(prefix.GetParentPath()) or edit_layer.pseudoRoot
+                Sdf.PrimSpec(parent_spec, prefix.name, Sdf.SpecifierOver)
 
     # Batch the operations
     with Sdf.ChangeBlock():
