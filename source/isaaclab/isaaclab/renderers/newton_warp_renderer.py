@@ -11,14 +11,19 @@ from typing import TYPE_CHECKING
 import newton
 import torch
 import warp as wp
+import logging
 
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from ..visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
     from ..sim.scene_data_providers import SceneDataProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 class RenderData:
@@ -64,7 +69,7 @@ class RenderData:
             elif output_name == RenderData.OutputNames.RGB:
                 pass
             else:
-                print(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
+                logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name == RenderData.OutputNames.RGBA:
@@ -110,7 +115,7 @@ class RenderData:
                 copy=False,
             )
 
-        print("NewtonWarpRenderer - torch output array is non-contiguous")
+        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
         return wp.zeros(
             (self.render_context.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
@@ -166,6 +171,4 @@ class NewtonWarpRenderer:
                 wp.copy(wp.from_torch(output_data), image_data)
 
     def get_scene_data_provider(self) -> SceneDataProvider:
-        from ..visualizers import VisualizerCfg
-
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])
