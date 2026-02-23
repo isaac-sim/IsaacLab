@@ -162,8 +162,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None,
-        env_mask: wp.array | None = None, object_mask: wp.array | None = None,
+    def reset(
+        self,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
+        object_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
 

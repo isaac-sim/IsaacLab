@@ -2189,9 +2189,7 @@ class BaseArticulation(AssetBase):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_friction_coefficient_to_sim(
-            joint_friction, joint_ids=joint_ids, env_ids=env_ids
-        )
+        self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_limits_to_sim(
         self,
