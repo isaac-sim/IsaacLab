@@ -53,6 +53,45 @@ from .ovrtx_usd import (
 from .renderer import RendererBase
 
 
+class OVRTXRenderData:
+    """OVRTX-specific RenderData. Holds warp output buffers."""
+
+    @staticmethod
+    def _create_warp_buffers(
+        width: int,
+        height: int,
+        num_envs: int,
+        data_types: list[str],
+        device,
+    ) -> dict:
+        """Create warp output buffers for OVRTX renderer."""
+        buffers = {}
+        if any(dt in ("rgba", "rgb") for dt in data_types):
+            buffers["rgba"] = wp.zeros((num_envs, height, width, 4), dtype=wp.uint8, device=device)
+            buffers["rgb"] = buffers["rgba"][:, :, :, :3]
+        if "albedo" in data_types:
+            buffers["albedo"] = wp.zeros((num_envs, height, width, 4), dtype=wp.uint8, device=device)
+        if "semantic_segmentation" in data_types:
+            buffers["semantic_segmentation"] = wp.zeros(
+                (num_envs, height, width, 4), dtype=wp.uint8, device=device
+            )
+        for depth_key in ("depth", "distance_to_image_plane", "distance_to_camera"):
+            if depth_key in data_types:
+                buffers[depth_key] = wp.zeros(
+                    (num_envs, height, width, 1), dtype=wp.float32, device=device
+                )
+        return buffers
+
+    def __init__(self, width: int, height: int, num_envs: int, data_types: list[str], device):
+        self.width = width
+        self.height = height
+        self.num_envs = num_envs
+        self.data_types = data_types
+        self.warp_buffers = self._create_warp_buffers(
+            width, height, num_envs, data_types, device
+        )
+
+
 class OVRTXRenderer(RendererBase):
     """OVRTX Renderer implementation using the ovrtx library.
 
@@ -206,9 +245,6 @@ class OVRTXRenderer(RendererBase):
         assert self._renderer, "Renderer should be valid after creation"
         print("OVRTX renderer created successfully!")
 
-        # Initialize output buffers
-        self._initialize_output()
-        
         # If a USD scene is provided, load and optionally clone
         if usd_scene_path is not None:
             # Load USD file into OvRTX
@@ -335,50 +371,71 @@ class OVRTXRenderer(RendererBase):
         print(f"USD scene loaded successfully (handle: {handle})")
         return handle
 
-    def _initialize_output(self):
-        """Initialize the output of the renderer."""
-        # Create output buffers based on requested data types
-        
-        # RGBA/RGB buffers (shared)
-        if any(dt in ["rgba", "rgb"] for dt in self._data_types):
-            self._output_data_buffers["rgba"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
-            )
-            # Create RGB view that references the same underlying array as RGBA, but only first 3 channels
-            self._output_data_buffers["rgb"] = self._output_data_buffers["rgba"][:, :, :, :3]
-        
-        # Albedo buffer (4-channel RGBA format, similar to rgb/rgba)
-        if "albedo" in self._data_types:
-            self._output_data_buffers["albedo"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
-            )
-        
-        # Semantic segmentation buffer (4-channel RGBA format for colorized output)
-        if "semantic_segmentation" in self._data_types:
-            self._output_data_buffers["semantic_segmentation"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 4), dtype=wp.uint8, device=DEVICE
-            )
-        
-        # Depth buffers (note: "depth" is an alias for "distance_to_image_plane")
-        if "depth" in self._data_types:
-            self._output_data_buffers["depth"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
-            )
-        
-        if "distance_to_image_plane" in self._data_types:
-            self._output_data_buffers["distance_to_image_plane"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
-            )
-        
-        if "distance_to_camera" in self._data_types:
-            self._output_data_buffers["distance_to_camera"] = wp.zeros(
-                (self._num_envs, self._height, self._width, 1), dtype=wp.float32, device=DEVICE
-            )
+    def create_render_data(self, sensor) -> OVRTXRenderData:
+        """Create OVRTX-specific RenderData with GPU buffers."""
+        return OVRTXRenderData(
+            width=self._width,
+            height=self._height,
+            num_envs=self._num_envs,
+            data_types=self._data_types if self._data_types else ["rgb"],
+            device=DEVICE,
+        )
+
+    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict) -> None:
+        """No-op; OVRTX uses internal warp buffers."""
+        pass
+
+    def update_transforms(self) -> None:
+        """Sync physics objects to OVRTX."""
+        self._update_object_transforms()
+
+    def update_camera(
+        self,
+        render_data: OVRTXRenderData,
+        positions: torch.Tensor,
+        orientations: torch.Tensor,
+        intrinsics: torch.Tensor,
+    ) -> None:
+        """Update camera transforms in OVRTX binding."""
+        num_envs = positions.shape[0]
+        camera_quats_opengl = convert_camera_frame_orientation_convention(
+            orientations, origin="world", target="opengl"
+        )
+        camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
+        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
+        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
+        wp.launch(
+            kernel=create_camera_transforms_kernel,
+            dim=num_envs,
+            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
+            device=DEVICE,
+        )
+        if self._camera_binding is not None:
+            with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+                wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+                wp.copy(wp_transforms_view, camera_transforms)
+
+    def write_output(
+        self,
+        render_data: OVRTXRenderData,
+        output_name: str,
+        output_data: torch.Tensor,
+    ) -> None:
+        """Copy from render_data warp buffer to output tensor."""
+        if output_name not in render_data.warp_buffers:
+            return
+        src = render_data.warp_buffers[output_name]
+        if src.ptr != output_data.data_ptr():
+            wp.copy(dest=wp.from_torch(output_data), src=src)
 
     def _extract_rgba_tiles(
-        self, tiled_data: wp.array, buffer_key: str, suffix: str = ""
+        self,
+        tiled_data: wp.array,
+        output_buffers: dict,
+        buffer_key: str,
+        suffix: str = "",
     ) -> None:
-        """Extract per-env RGBA tiles from tiled buffer and optionally save to disk."""
+        """Extract per-env RGBA tiles from tiled buffer into output_buffers."""
         for env_idx in range(self._num_envs):
             tile_x = env_idx % self._num_cols
             tile_y = env_idx // self._num_cols
@@ -387,7 +444,7 @@ class OVRTXRenderer(RendererBase):
                 dim=(self._height, self._width),
                 inputs=[
                     tiled_data,
-                    self._output_data_buffers[buffer_key][env_idx],
+                    output_buffers[buffer_key][env_idx],
                     tile_x,
                     tile_y,
                     self._width,
@@ -396,19 +453,21 @@ class OVRTXRenderer(RendererBase):
                 device=DEVICE,
             )
 
-    def _extract_depth_tiles(self, tiled_depth_data: wp.array) -> None:
-        """Extract per-env depth tiles and populate all depth-type buffers; save depth images."""
+    def _extract_depth_tiles(
+        self, tiled_depth_data: wp.array, output_buffers: dict
+    ) -> None:
+        """Extract per-env depth tiles into output_buffers."""
         for env_idx in range(self._num_envs):
             tile_x = env_idx % self._num_cols
             tile_y = env_idx // self._num_cols
             for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
-                if depth_type in self._output_data_buffers:
+                if depth_type in output_buffers:
                     wp.launch(
                         kernel=extract_depth_tile_from_tiled_buffer_kernel,
                         dim=(self._height, self._width),
                         inputs=[
                             tiled_depth_data,
-                            self._output_data_buffers[depth_type][env_idx],
+                            output_buffers[depth_type][env_idx],
                             tile_x,
                             tile_y,
                             self._width,
@@ -417,14 +476,14 @@ class OVRTXRenderer(RendererBase):
                         device=DEVICE,
                     )
 
-    def _process_render_frame(self, frame) -> None:
-        """Extract RGB, depth, albedo, and semantic from a single render frame into buffers."""
+    def _process_render_frame(self, frame, output_buffers: dict) -> None:
+        """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         # RGB/RGBA
         rgb_render_var = "SimpleShadingSD" if "SimpleShadingSD" in frame.render_vars else "LdrColor" if "LdrColor" in frame.render_vars else None
-        if rgb_render_var and "rgba" in self._output_data_buffers:
+        if rgb_render_var and "rgba" in output_buffers:
             with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
                 tiled_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(tiled_data, "rgba", suffix="rgb")
+                self._extract_rgba_tiles(tiled_data, output_buffers, "rgba", suffix="rgb")
 
         # Depth
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
@@ -436,17 +495,17 @@ class OVRTXRenderer(RendererBase):
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
-                self._extract_depth_tiles(tiled_depth_data)
+                self._extract_depth_tiles(tiled_depth_data, output_buffers)
             break
 
         # Albedo
-        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in self._output_data_buffers:
+        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(tiled_albedo_data, "albedo", suffix="albedo")
+                self._extract_rgba_tiles(tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         # Semantic segmentation
-        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in self._output_data_buffers:
+        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in output_buffers:
             with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
                 if tiled_semantic_data.dtype == wp.uint32:
@@ -457,71 +516,30 @@ class OVRTXRenderer(RendererBase):
                         semantic_uint8 = semantic_uint8.reshape(h, w, 4)
                     tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
                 self._extract_rgba_tiles(
-                    tiled_semantic_data, "semantic_segmentation", suffix="semantic"
+                    tiled_semantic_data, output_buffers, "semantic_segmentation", suffix="semantic"
                 )
 
-    def render(self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor):
-        """Render the scene using OVRTX.
-        
-        Args:
-            camera_positions: Tensor of shape (num_envs, 3) - camera positions in world frame
-            camera_orientations: Tensor of shape (num_envs, 4) - camera quaternions (x, y, z, w) in world frame
-            intrinsic_matrices: Tensor of shape (num_envs, 3, 3) - camera intrinsic matrices
-        """
-        # Scene should already be set up during initialize()
+    def render(self, render_data: OVRTXRenderData) -> None:
+        """Render the scene into the provided RenderData."""
         if not self._initialized_scene:
-            raise RuntimeError("Scene not initialized. This should not happen - scene setup should occur in initialize()")
-        
-
-        
-        num_envs = camera_positions.shape[0]
-        
-        # Convert camera orientations from world convention to OpenGL convention
-        # This is necessary because Camera._update_poses() converts from opengl to world,
-        # but OVRTX expects OpenGL convention (same as Newton Warp Renderer)
-        camera_quats_opengl = convert_camera_frame_orientation_convention(
-            camera_orientations, origin="world", target="opengl"
-        )
-        
-        # Convert torch tensors to warp arrays
-        camera_positions_wp = wp.from_torch(camera_positions.contiguous(), dtype=wp.vec3)
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
-        
-        # Create camera transforms array
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
-        
-        # Launch kernel to populate transforms
-        wp.launch(
-            kernel=create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=DEVICE,
-        )
-        
-        # Update camera transforms in the scene using the binding
-        if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
-                wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.copy(wp_transforms_view, camera_transforms)
-                # Unmap will commit the changes
-        
-        # Update object transforms from Newton physics
-        self._update_object_transforms()
-        
-        # Step the renderer and process the tiled frame
-        if self._renderer is not None and len(self._render_product_paths) > 0:
-            try:
-                products = self._renderer.step(
-                    render_products=set(self._render_product_paths),
-                    delta_time=1.0 / 60.0,
+            raise RuntimeError("Scene not initialized. Call initialize() first.")
+        if self._renderer is None or len(self._render_product_paths) == 0:
+            return
+        try:
+            products = self._renderer.step(
+                render_products=set(self._render_product_paths),
+                delta_time=1.0 / 60.0,
+            )
+            product_path = self._render_product_paths[0]
+            if product_path in products and len(products[product_path].frames) > 0:
+                self._process_render_frame(
+                    products[product_path].frames[0],
+                    render_data.warp_buffers,
                 )
-                product_path = self._render_product_paths[0]
-                if product_path in products and len(products[product_path].frames) > 0:
-                    self._process_render_frame(products[product_path].frames[0])
-            except Exception as e:
-                print(f"Warning: OVRTX rendering failed: {e}")
-                import traceback
-                traceback.print_exc()
+        except Exception as e:
+            print(f"Warning: OVRTX rendering failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _update_object_transforms(self):
         """Update object transforms from Newton physics state to OVRTX.

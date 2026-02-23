@@ -165,6 +165,7 @@ class TiledCamera(Camera):
         renderer_cls = get_renderer_class(renderer_cfg)
         self._renderer = renderer_cls(renderer_cfg)
         self._renderer.initialize(stage=self.stage, camera_prim_path=self.cfg.prim_path)
+        self._render_data = self._renderer.create_render_data(self)
 
         # Recreate view if initialize made changes to the stage
         self._view = XFormPrim(self.cfg.prim_path, device=self._device)
@@ -200,11 +201,20 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        # call render function of the renderer to update the output buffers
-        self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
-
-        for data_type, output_buffer in self._renderer.get_output().items():
-            self._data.output[data_type] = wp.to_torch(output_buffer)
+        # Per-frame render flow: update_transforms, update_camera, render, write_output
+        self._renderer.update_transforms()
+        self._renderer.update_camera(
+            self._render_data,
+            self._data.pos_w,
+            self._data.quat_w_world,
+            self._data.intrinsic_matrices,
+        )
+        self._renderer.render(self._render_data)
+        for data_type in self.cfg.data_types:
+            if data_type in self._data.output:
+                self._renderer.write_output(
+                    self._render_data, data_type, self._data.output[data_type]
+                )
 
         self._save_rendered_data()
 
