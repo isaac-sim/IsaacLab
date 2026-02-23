@@ -90,7 +90,8 @@ class RigidObjectData(BaseRigidObjectData):
     def is_primed(self, value: bool) -> None:
         """Set whether the rigid object data is fully instantiated and ready to use.
 
-        .. note:: Once this quantity is set to True, it cannot be changed.
+        .. note::
+            Once this quantity is set to True, it cannot be changed.
 
         Args:
             value: The primed state.

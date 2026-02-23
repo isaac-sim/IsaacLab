@@ -488,7 +488,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -516,7 +516,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -544,7 +544,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -572,7 +572,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -600,7 +600,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects partial data.
@@ -628,7 +628,7 @@ class BaseArticulation(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects full data.
@@ -1507,6 +1507,10 @@ class BaseArticulation(AssetBase):
         .. note::
             This method expects partial data.
 
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
         Args:
             damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
@@ -1530,6 +1534,10 @@ class BaseArticulation(AssetBase):
 
         .. note::
             This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
@@ -2169,8 +2177,6 @@ class BaseArticulation(AssetBase):
         joint_friction: torch.Tensor | float | wp.array,
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_mask: wp.array | None = None,
-        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint friction coefficients into the simulation.
 
@@ -2184,7 +2190,7 @@ class BaseArticulation(AssetBase):
             stacklevel=2,
         )
         self.write_joint_friction_coefficient_to_sim(
-            joint_friction, joint_ids=joint_ids, env_ids=env_ids, env_mask=env_mask, joint_mask=joint_mask
+            joint_friction, joint_ids=joint_ids, env_ids=env_ids
         )
 
     def write_joint_limits_to_sim(
@@ -2193,8 +2199,6 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         warn_limit_violation: bool = True,
-        env_mask: wp.array | None = None,
-        joint_mask: wp.array | None = None,
     ) -> None:
         """Write joint limits into the simulation.
 
@@ -2212,8 +2216,6 @@ class BaseArticulation(AssetBase):
             joint_ids=joint_ids,
             env_ids=env_ids,
             warn_limit_violation=warn_limit_violation,
-            env_mask=env_mask,
-            joint_mask=joint_mask,
         )
 
     def set_fixed_tendon_limit(
@@ -2221,8 +2223,6 @@ class BaseArticulation(AssetBase):
         limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_mask: wp.array | None = None,
-        fixed_tendon_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon position limits into internal buffers.
 
@@ -2239,8 +2239,6 @@ class BaseArticulation(AssetBase):
             limit,
             fixed_tendon_ids=fixed_tendon_ids,
             env_ids=env_ids,
-            env_mask=env_mask,
-            fixed_tendon_mask=fixed_tendon_mask,
         )
 
     @abstractmethod

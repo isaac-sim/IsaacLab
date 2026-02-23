@@ -134,7 +134,7 @@ class BaseRigidObject(AssetBase):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -263,7 +263,7 @@ class BaseRigidObject(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link pose over selected environment indices into the simulation.
+        """Set the root link pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -314,7 +314,7 @@ class BaseRigidObject(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass pose over selected environment indices into the simulation.
+        """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principal axes of inertia.
@@ -345,7 +345,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -368,12 +368,12 @@ class BaseRigidObject(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -401,7 +401,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects partial data.
@@ -424,12 +424,12 @@ class BaseRigidObject(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's center of mass rather than the roots frame.
+            This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
             This method expects full data.
@@ -457,7 +457,7 @@ class BaseRigidObject(AssetBase):
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects partial data.
@@ -480,12 +480,12 @@ class BaseRigidObject(AssetBase):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link velocity over selected environment indices into the simulation.
+        """Set the root link velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
-            This sets the velocity of the root's frame rather than the roots center of mass.
+            This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
             This method expects full data.
@@ -534,8 +534,8 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         masses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set masses of all bodies.
 
@@ -548,8 +548,8 @@ class BaseRigidObject(AssetBase):
 
         Args:
             masses: Masses of all bodies. Shape is (num_instances, num_bodies).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -583,8 +583,8 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         coms: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set center of mass positions of all bodies.
 
@@ -598,8 +598,8 @@ class BaseRigidObject(AssetBase):
         Args:
             coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
                 or (num_instances, num_bodies) with dtype wp.vec3f.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -632,8 +632,8 @@ class BaseRigidObject(AssetBase):
         self,
         *,
         inertias: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set inertias of all bodies.
 
@@ -646,8 +646,8 @@ class BaseRigidObject(AssetBase):
 
         Args:
             inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         raise NotImplementedError()
 

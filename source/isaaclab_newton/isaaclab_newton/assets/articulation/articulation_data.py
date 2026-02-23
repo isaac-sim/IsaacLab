@@ -88,7 +88,8 @@ class ArticulationData(BaseArticulationData):
     def is_primed(self, value: bool) -> None:
         """Set whether the articulation data is fully instantiated and ready to use.
 
-        .. note:: Once this quantity is set to True, it cannot be changed.
+        .. note::
+            Once this quantity is set to True, it cannot be changed.
 
         Args:
             value: The primed state.

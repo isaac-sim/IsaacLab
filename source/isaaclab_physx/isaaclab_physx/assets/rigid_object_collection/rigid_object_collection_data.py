@@ -95,7 +95,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def is_primed(self, value: bool) -> None:
         """Set whether the rigid object collection data is fully instantiated and ready to use.
 
-        .. note:: Once this quantity is set to True, it cannot be changed.
+        .. note::
+            Once this quantity is set to True, it cannot be changed.
 
         Args:
             value: The primed state.
@@ -485,7 +486,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     @property
     def body_com_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame.
+        """Positions of all bodies' center of mass in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).

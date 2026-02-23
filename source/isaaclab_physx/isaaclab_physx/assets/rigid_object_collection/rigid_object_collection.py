@@ -139,19 +139,32 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the rigid object collection."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the rigid object collection."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     """
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None,
+        env_mask: wp.array | None = None, object_mask: wp.array | None = None,
+    ) -> None:
         """Resets all internal buffers of selected environments and objects.
 
         Args:

@@ -204,7 +204,7 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, *, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
         .. caution::
@@ -832,6 +832,7 @@ class Articulation(BaseArticulation):
 
     def write_joint_state_to_sim(
         self,
+        *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -854,8 +855,8 @@ class Articulation(BaseArticulation):
         *,
         position: torch.Tensor | wp.array,
         velocity: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
@@ -869,8 +870,8 @@ class Articulation(BaseArticulation):
         Args:
             position: Joint positions. Shape is (num_instances, num_joints).
             velocity: Joint velocities. Shape is (num_instances, num_joints).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             joint_mask: Joint mask. If None, then all joints are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # set into simulation
         self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)

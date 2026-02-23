@@ -342,7 +342,7 @@ class BaseRigidObjectCollectionData(ABC):
     @property
     @abstractmethod
     def body_com_pos_w(self) -> wp.array:
-        """Positions of all bodies in simulation world frame.
+        """Positions of all bodies' center of mass in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).

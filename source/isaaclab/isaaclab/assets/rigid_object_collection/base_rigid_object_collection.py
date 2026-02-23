@@ -220,7 +220,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body poses over selected environment and body indices into the simulation.
+        """Set the body poses over selected environment and body mask into the simulation.
 
         The body pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -274,7 +274,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body link pose over selected environment and body indices into the simulation.
+        """Set the body link pose over selected environment and body mask into the simulation.
 
         The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
@@ -329,7 +329,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body center of mass pose over selected environment and body indices into the simulation.
+        """Set the body center of mass pose over selected environment and body mask into the simulation.
 
         The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
         The orientation is the orientation of the principal axes of inertia.
@@ -387,7 +387,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body velocity over selected environment and body indices into the simulation.
+        """Set the body velocity over selected environment and body mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
@@ -447,7 +447,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body center of mass velocity over selected environment and body indices into the simulation.
+        """Set the body center of mass velocity over selected environment and body mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
@@ -507,7 +507,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the body link velocity over selected environment and body indices into the simulation.
+        """Set the body link velocity over selected environment and body mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 

@@ -222,7 +222,7 @@ class Articulation(BaseArticulation):
     Operations.
     """
 
-    def reset(self, *, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the articulation.
 
         .. caution::
