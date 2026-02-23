@@ -99,13 +99,24 @@ class BaseRigidObject(AssetBase):
     @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the rigid object."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         raise NotImplementedError()
 
     @property
     @abstractmethod
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the rigid object."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         raise NotImplementedError()
 
     """
@@ -202,7 +213,7 @@ class BaseRigidObject(AssetBase):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root pose over selected environment indices into the simulation.
+        """Set the root pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
