@@ -28,7 +28,7 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -282,12 +282,12 @@ class Articulation(BaseArticulation):
 
         # apply actuator models
         self._apply_actuator_model()
-        # write actions into simulation
-        self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        # write actions into simulation via Newton bindings
+        wp.copy(self.data._sim_bind_joint_effort, self._joint_effort_target_sim)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-            self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+            wp.copy(self.data._sim_bind_joint_position_target, self._joint_pos_target_sim)
+            wp.copy(self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -409,7 +409,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_root_link_pose_to_sim_index(root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_pose_to_sim_mask(
         self,
@@ -473,13 +473,20 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
         self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -520,13 +527,20 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
         self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -575,14 +589,22 @@ class Articulation(BaseArticulation):
         # Update the timestamps
         self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_com_state_w.timestamp = -1.0
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
         self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -627,14 +649,22 @@ class Articulation(BaseArticulation):
         # Update the timestamps
         self.data._root_com_pose_w.timestamp = self.data._sim_timestamp
         # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._root_com_state_w.timestamp = -1.0
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
         self.data._body_link_pose_w_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_root_velocity_to_sim_index(
         self,
@@ -727,8 +757,11 @@ class Articulation(BaseArticulation):
         )
         # Update the timestamps
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -772,8 +805,11 @@ class Articulation(BaseArticulation):
         )
         # Update the timestamps
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -824,9 +860,13 @@ class Articulation(BaseArticulation):
         # Update the timestamps
         self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -875,9 +915,13 @@ class Articulation(BaseArticulation):
         # Update the timestamps
         self.data._root_link_vel_w.timestamp = self.data._sim_timestamp
         self.data._body_com_acc_w.timestamp = self.data._sim_timestamp
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._root_link_state_w is not None:
+            self.data._root_link_state_w.timestamp = -1.0
+        if self.data._root_state_w is not None:
+            self.data._root_state_w.timestamp = -1.0
+        if self.data._root_com_state_w is not None:
+            self.data._root_com_state_w.timestamp = -1.0
 
     def write_joint_state_to_sim(
         self,
@@ -896,8 +940,8 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         # set into simulation
-        self.write_joint_position_to_sim_index(position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -965,12 +1009,19 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new root pose.
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1011,12 +1062,19 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Need to invalidate the buffer to trigger the update with the new root pose.
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        # Only invalidate if the buffer has been accessed (not None).
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -3280,19 +3338,19 @@ class Articulation(BaseArticulation):
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
                 # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_effort_limit_to_sim_index(limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim_index(limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices)
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
@@ -3306,7 +3364,6 @@ class Articulation(BaseArticulation):
                     actuator.stiffness,
                     self._ALL_INDICES,
                     joint_ids,
-                    False,
                 ],
                 outputs=[
                     self.data._sim_bind_joint_stiffness_sim,
@@ -3320,7 +3377,6 @@ class Articulation(BaseArticulation):
                     actuator.damping,
                     self._ALL_INDICES,
                     joint_ids,
-                    False,
                 ],
                 outputs=[
                     self.data._sim_bind_joint_damping_sim,
@@ -3334,7 +3390,6 @@ class Articulation(BaseArticulation):
                     actuator.armature,
                     self._ALL_INDICES,
                     joint_ids,
-                    False,
                 ],
                 outputs=[
                     self.data._sim_bind_joint_armature,
@@ -3348,7 +3403,6 @@ class Articulation(BaseArticulation):
                     actuator.friction,
                     self._ALL_INDICES,
                     joint_ids,
-                    False,
                 ],
                 outputs=[
                     self.data._sim_bind_joint_friction_coeff,
@@ -3464,10 +3518,16 @@ class Articulation(BaseArticulation):
             created. Otherwise, some settings that are altered during processing may not be validated.
             For instance, the actuator models may change the joint max velocity limits.
         """
+        # Skip validation if there are no joints (e.g., fixed-base articulation with 0 DOF)
+        if self.num_joints == 0:
+            return
+
         # check that the default values are within the limits
-        joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
-        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
+        joint_pos_limits_lower = wp.to_torch(self._data.joint_pos_limits_lower)[0]
+        joint_pos_limits_upper = wp.to_torch(self._data.joint_pos_limits_upper)[0]
+        default_joint_pos = wp.to_torch(self._data.default_joint_pos)[0]
+        out_of_range = default_joint_pos < joint_pos_limits_lower
+        out_of_range |= default_joint_pos > joint_pos_limits_upper
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -3475,15 +3535,16 @@ class Articulation(BaseArticulation):
             msg = "The following joints have default positions out of the limits: \n"
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
-                joint_limit = joint_pos_limits[idx]
-                joint_pos = wp.to_torch(self._data.default_joint_pos)[0, idx]
+                joint_limit = [joint_pos_limits_lower[idx], joint_pos_limits_upper[idx]]
+                joint_pos = default_joint_pos[idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
-        out_of_range = torch.abs(wp.to_torch(self._data.default_joint_vel)[0]) > joint_max_vel
+        joint_max_vel = wp.to_torch(self._data.joint_vel_limits)[0]
+        default_joint_vel = wp.to_torch(self._data.default_joint_vel)[0]
+        out_of_range = torch.abs(default_joint_vel) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -3491,7 +3552,7 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = wp.to_torch(self._data.default_joint_vel)[0, idx]
+                joint_vel = default_joint_vel[idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
@@ -3559,7 +3620,7 @@ class Articulation(BaseArticulation):
         for index, name in enumerate(self.joint_names):
             # build row data based on Isaac Sim version
             row_data = [index, name, stiffnesses[index], dampings[index], armatures[index]]
-            if get_isaac_sim_version().major < 5:
+            if has_kit() and get_isaac_sim_version().major < 5:
                 row_data.append(static_frictions[index])
             else:
                 row_data.extend([static_frictions[index]])

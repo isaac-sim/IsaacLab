@@ -25,7 +25,7 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -1869,7 +1869,7 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
-        if get_isaac_sim_version().major < 5:
+        if has_kit() and get_isaac_sim_version().major < 5:
             logger.warning("Setting joint viscous friction coefficients are not supported in Isaac Sim < 5.0")
             return
         # resolve all indices
@@ -3969,7 +3969,7 @@ class Articulation(BaseArticulation):
         for index, name in enumerate(self.joint_names):
             # build row data based on Isaac Sim version
             row_data = [index, name, stiffnesses[index], dampings[index], armatures[index]]
-            if get_isaac_sim_version().major < 5:
+            if has_kit() and get_isaac_sim_version().major < 5:
                 row_data.append(static_frictions[index])
             else:
                 row_data.extend([static_frictions[index], dynamic_frictions[index], viscous_frictions[index]])

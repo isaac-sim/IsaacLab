@@ -76,6 +76,7 @@ class ArticulationData(BaseArticulationData):
         self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.vec3f)
         self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.vec3f)
 
+        self._create_simulation_bindings()
         self._create_buffers()
 
     @property
@@ -107,8 +108,6 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # Update the body link pose timestamp to avoid unnecessary kinematic updates.
-        self._body_link_pose_w_timestamp = self._sim_timestamp
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
@@ -545,10 +544,6 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        # Need to force the kinematic update to get the latest body link poses.
-        if self._body_link_pose_w_timestamp < self._sim_timestamp:
-            # FIXME: Check what this will look like in newton
-            self._physics_sim_view.update_articulations_kinematic()
         return self._sim_bind_body_link_pose_w
 
     @property
@@ -1041,7 +1036,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[
             :, 0
-        ].reshape((self._num_instances, self._num_bodies, 9))
+        ]
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
@@ -1110,7 +1105,6 @@ class ArticulationData(BaseArticulationData):
         self._num_bodies = self._root_view.link_count
         self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
         self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
-        self._body_link_pose_w_timestamp = -1.0
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
@@ -1169,7 +1163,7 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
-            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(SimulationManager.get_state_0()))
+            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0])
         else:
             self._previous_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
@@ -1259,7 +1253,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if transform.is_contiguous():
+            if transform.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -1270,34 +1264,27 @@ class ArticulationData(BaseArticulationData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(transform.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the position part of the transform.
-        if not transform.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not transform.is_contiguous:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_pos_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
         return source
@@ -1313,7 +1300,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if transform.is_contiguous():
+            if transform.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -1324,34 +1311,27 @@ class ArticulationData(BaseArticulationData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((transform.shape[0], 4), dtype=wp.quatf, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches transform.shape since each element is quatf (already contains 4 floats)
+                source = wp.zeros(transform.shape, dtype=wp.quatf, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the quaternion part of the transform.
-        if not transform.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not transform.is_contiguous:
+            # Launch the right kernel based on the shape of the transform array.
+            if len(transform.shape) > 1:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_transform_to_quat_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=transform.shape,
+                    inputs=[transform],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -1370,7 +1350,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if spatial_vector.is_contiguous():
+            if spatial_vector.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -1381,34 +1361,27 @@ class ArticulationData(BaseArticulationData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the top part of the spatial vector.
-        if not spatial_vector.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not spatial_vector.is_contiguous:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_top_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -1427,7 +1400,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Check if we already created the lazy buffer.
         if source is None:
-            if spatial_vector.is_contiguous():
+            if spatial_vector.is_contiguous:
                 # Check if the array is contiguous. If so, we can just return a strided array.
                 # Then this update becomes a no-op.
                 return wp.array(
@@ -1438,34 +1411,27 @@ class ArticulationData(BaseArticulationData):
                     device=self.device,
                 )
             else:
-                # If the array is no contiguous, we need to create a new array to write to.
-                source = wp.zeros((spatial_vector.shape[0], 3), dtype=wp.vec3f, device=self.device)
+                # If the array is not contiguous, we need to create a new array to write to.
+                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
+                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
 
         # If the array is not contiguous, we need to launch the kernel to get the bottom part of the spatial vector.
-        if not spatial_vector.is_contiguous():
-            # Launch the right kernel based on the shape of the source array.
-            if len(source.shape) > 1:
+        if not spatial_vector.is_contiguous:
+            # Launch the right kernel based on the shape of the spatial_vector array.
+            if len(spatial_vector.shape) > 1:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_2d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
             else:
                 wp.launch(
                     shared_kernels.split_spatial_vector_to_bottom_1d,
-                    dim=source.shape,
-                    inputs=[
-                        source,
-                    ],
-                    outputs=[
-                        source,
-                    ],
+                    dim=spatial_vector.shape,
+                    inputs=[spatial_vector],
+                    outputs=[source],
                     device=self.device,
                 )
         # Return the source array. (no-op if the array is contiguous.)
@@ -1485,7 +1451,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec13f, device=self.device)
+            self._root_state_w = TimestampedBuffer(shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device)
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,
@@ -1514,7 +1480,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec13f, device=self.device
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
             )
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             wp.launch(
@@ -1544,7 +1510,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec13f, device=self.device
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
             )
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             wp.launch(
