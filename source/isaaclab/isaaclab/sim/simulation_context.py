@@ -449,7 +449,7 @@ class SimulationContext:
         self._is_stopped = False
 
     def step(self, render: bool = True) -> None:
-        """Step physics, update visualizers, and optionally render.
+        """Step physics and optionally render.
 
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
@@ -459,8 +459,31 @@ class SimulationContext:
             self.render()
 
     def render(self, mode: int | None = None) -> None:
-        """Render the scene via all active visualizers."""
+        """Update visualizers and render the scene.
+
+        Calls update_visualizers() so visualizers run at the render cadence (not at
+        every physics step). Then pumps the Kit app loop to flush the RTX renderer
+        and Replicator annotator buffers, unless a visualizer (e.g. KitVisualizer)
+        already does so in its own step().
+        """
         self.update_visualizers(self.get_rendering_dt())
+
+        # Check if a visualizer (e.g. KitVisualizer) already pumps the Kit app
+        # loop in its step(). If so, we skip to avoid a redundant double render.
+        visualizer_pumps_app = any(viz.pumps_app_update() for viz in self._visualizers)
+
+        if self.is_rendering and not visualizer_pumps_app:
+            # Sync physics results → Fabric so RTX sees updated positions.
+            # physics_manager.step() only runs simulate()/fetch_results() and does NOT
+            # call _update_fabric(), so without this the render would lag one frame behind.
+            self.physics_manager.forward()
+
+            import omni.kit.app
+
+            self.set_setting("/app/player/playSimulations", False)
+            omni.kit.app.get_app().update()
+            self.set_setting("/app/player/playSimulations", True)
+
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
             for callback in self._render_callbacks.values():
