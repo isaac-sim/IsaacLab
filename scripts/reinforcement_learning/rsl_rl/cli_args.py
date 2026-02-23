@@ -315,6 +315,9 @@ def _validate_old_stochastic_cfg(model_cfg):
             "Please parameterize the output distribution using the old parameters `stochastic`, `init_noise_std`,"
             " `noise_std_type`, and `state_dependent_std` or update rsl-rl."
         )
+    # remove new distribution configuration
+    if hasattr(model_cfg, "distribution_cfg"):
+        del model_cfg.distribution_cfg
 
 
 def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
@@ -334,3 +337,12 @@ def _update_distribution_cfg(model_cfg, rsl_rl_mlp_model_cfg_cls):
             model_cfg.distribution_cfg = rsl_rl_mlp_model_cfg_cls.HeteroscedasticGaussianDistributionCfg(
                 init_std=model_cfg.init_noise_std, std_type=model_cfg.noise_std_type
             )
+    # remove deprecated stochastic parameters
+    if hasattr(model_cfg, "stochastic"):
+        del model_cfg.stochastic
+    if hasattr(model_cfg, "init_noise_std"):
+        del model_cfg.init_noise_std
+    if hasattr(model_cfg, "noise_std_type"):
+        del model_cfg.noise_std_type
+    if hasattr(model_cfg, "state_dependent_std"):
+        del model_cfg.state_dependent_std
