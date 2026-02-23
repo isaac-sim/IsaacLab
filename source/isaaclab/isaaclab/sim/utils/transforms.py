@@ -124,14 +124,19 @@ def standardize_xform_ops(
         >>> for prim in prims_to_standardize:
         ...     sim_utils.standardize_xform_ops(prim)  # Each call uses Sdf.ChangeBlock
     """
+    prim_path = prim.GetPath().pathString if prim.IsValid() else "<invalid>"
+    print(f"[standardize_xform_ops] START prim='{prim_path}'")
+
     # Validate prim
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not valid.")
 
+    print(f"  type='{prim.GetTypeName()}', isXformable={prim.IsA(UsdGeom.Xformable)}")
+
     # Check if prim is an Xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.error(
-            f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
+            f"Prim at path '{prim_path}' is of type '{prim.GetTypeName()}', "
             "which is not an Xformable. Transform operations will not be standardized. "
             "This is expected for material, shader, and scope prims."
         )
@@ -139,82 +144,182 @@ def standardize_xform_ops(
 
     # Create xformable interface
     xformable = UsdGeom.Xformable(prim)
+    print(f"  IsInstanceProxy={prim.IsInstanceProxy()}, IsInPrototype={prim.IsInPrototype()}")
     # Get current property names
     prop_names = prim.GetPropertyNames()
 
+    xform_related_props = [p for p in prop_names if "xform" in p.lower()]
+    print(f"  xform-related properties: {xform_related_props}")
+
+    ordered_ops = xformable.GetOrderedXformOps()
+    print(
+        f"  current xformOpOrder: {[op.GetOpName() for op in ordered_ops]}"
+        f"  resetXformStack={xformable.GetResetXformStack()}"
+    )
+    for op in ordered_ops:
+        try:
+            op_val = op.Get()
+            print(f"    op '{op.GetOpName()}': precision={op.GetPrecision()}, type={type(op_val).__name__}, value={op_val}")
+        except Exception as e:
+            print(f"    op '{op.GetOpName()}': precision={op.GetPrecision()}, FAILED to Get(): {e}")
+
     # Obtain current local transformations
-    tf = Gf.Transform(xformable.GetLocalTransformation())
+    try:
+        local_tf_matrix = xformable.GetLocalTransformation()
+        print(f"  GetLocalTransformation() succeeded: {local_tf_matrix}")
+    except Exception as e:
+        print(f"  GetLocalTransformation() FAILED for '{prim_path}': {e}")
+        raise
+
+    tf = Gf.Transform(local_tf_matrix)
     xform_pos = Gf.Vec3d(tf.GetTranslation())
     xform_quat = Gf.Quatd(tf.GetRotation().GetQuat())
     xform_scale = Gf.Vec3d(tf.GetScale())
+    print(f"  decomposed local transform -> pos={xform_pos}, quat={xform_quat}, scale={xform_scale}")
 
     if translation is not None:
         xform_pos = Gf.Vec3d(*translation)
+        print(f"  override translation -> {xform_pos}")
     if orientation is not None:
         # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
         xform_quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
+        print(f"  override orientation -> {xform_quat}")
 
     # Handle scale resolution
     if scale is not None:
         # User provided scale
         xform_scale = Gf.Vec3d(scale)
+        print(f"  override scale -> {xform_scale}")
     elif "xformOp:scale" in prop_names:
         # Handle unit resolution for scale if present
         # This occurs when assets are imported with different unit scales
         # Reference: Omniverse Metrics Assembler
         if "xformOp:scale:unitsResolve" in prop_names:
             units_resolve = prim.GetAttribute("xformOp:scale:unitsResolve").Get()
+            print(f"  unitsResolve={units_resolve}, pre-bake scale={xform_scale}")
             for i in range(3):
                 xform_scale[i] = xform_scale[i] * units_resolve[i]
+            print(f"  post-bake scale={xform_scale}")
+        else:
+            print(f"  using existing scale (no unitsResolve): {xform_scale}")
     else:
         # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
+        print("  no xformOp:scale property, defaulting to (1,1,1)")
 
     # Verify if xform stack is reset
     has_reset = xformable.GetResetXformStack()
+
+    print(f"  final values -> pos={xform_pos}, quat={xform_quat}, scale={xform_scale}, has_reset={has_reset}")
+    print(f"  removing invalid ops: {[p for p in prop_names if p in _INVALID_XFORM_OPS]}")
+
+    # --- BEGIN DIAGNOSTICS ---
+    stage = prim.GetStage()
+    edit_layer = stage.GetEditTarget().GetLayer()
+    sdf_path = prim.GetPath()
+    prim_spec = edit_layer.GetPrimAtPath(sdf_path)
+    print(f"  [diag] edit_target_layer={edit_layer.identifier}")
+    print(f"  [diag] layer.permissionToEdit={edit_layer.permissionToEdit}")
+    print(f"  [diag] prim_spec_on_edit_target={prim_spec}")
+    print(f"  [diag] prim.IsInPrototype()={prim.IsInPrototype()}")
+    print(f"  [diag] prim.IsInstance()={prim.IsInstance()}")
+
+    # Test: can we create ANY attribute on this prim outside the ChangeBlock?
+    test_attr = prim.CreateAttribute("_diag_test_attr", Sdf.ValueTypeNames.Bool)
+    print(f"  [diag] test CreateAttribute result={test_attr}, valid={bool(test_attr)}")
+    if test_attr:
+        prim.RemoveProperty("_diag_test_attr")
+
+    # Test: does RemoveProperty succeed for the invalid ops?
+    for prop_name in prop_names:
+        if prop_name in _INVALID_XFORM_OPS:
+            still_exists_before = bool(prim.GetAttribute(prop_name))
+            remove_result = prim.RemoveProperty(prop_name)
+            still_exists_after = bool(prim.GetAttribute(prop_name))
+            print(
+                f"  [diag] RemoveProperty('{prop_name}'): returned={remove_result}, "
+                f"existed_before={still_exists_before}, exists_after={still_exists_after}"
+            )
+            # Undo the removal so the actual logic below can still run
+            # (If it returned False, nothing happened anyway)
+
+    # Test: can we AddXformOp outside the ChangeBlock (without prior RemoveProperty)?
+    try:
+        test_op = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "_diag")
+        print(f"  [diag] test AddXformOp (suffixed '_diag'): result={test_op}, valid={bool(test_op)}")
+        if test_op:
+            prim.RemoveProperty("xformOp:scale:_diag")
+    except Exception as e:
+        print(f"  [diag] test AddXformOp (suffixed '_diag') FAILED: {e}")
+    # --- END DIAGNOSTICS ---
+
     # Batch the operations
     with Sdf.ChangeBlock():
         # Clear the existing transform operation order
         for prop_name in prop_names:
             if prop_name in _INVALID_XFORM_OPS:
+                print(f"    removing property '{prop_name}'")
                 prim.RemoveProperty(prop_name)
 
         # Remove unitsResolve attribute if present (already handled in scale resolution above)
         if "xformOp:scale:unitsResolve" in prop_names:
+            print("    removing 'xformOp:scale:unitsResolve'")
             prim.RemoveProperty("xformOp:scale:unitsResolve")
 
         # Set up or retrieve scale operation
         xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
         if not xform_op_scale:
+            print("    creating new xformOp:scale (PrecisionDouble)")
             xform_op_scale = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "")
+        else:
+            print(f"    reusing existing xformOp:scale (precision={xform_op_scale.GetPrecision()})")
 
         # Set up or retrieve translate operation
         xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
         if not xform_op_translate:
+            print("    creating new xformOp:translate (PrecisionDouble)")
             xform_op_translate = xformable.AddXformOp(
                 UsdGeom.XformOp.TypeTranslate, UsdGeom.XformOp.PrecisionDouble, ""
             )
+        else:
+            print(f"    reusing existing xformOp:translate (precision={xform_op_translate.GetPrecision()})")
 
         # Set up or retrieve orient (quaternion rotation) operation
         xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
         if not xform_op_orient:
+            print("    creating new xformOp:orient (PrecisionDouble)")
             xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
+        else:
+            print(f"    reusing existing xformOp:orient (precision={xform_op_orient.GetPrecision()})")
 
         # Handle different floating point precisions
         # Existing Xform operations might have floating or double precision.
         # We need to cast the data to the correct type to avoid setting the wrong type.
         xform_ops = [xform_op_translate, xform_op_orient, xform_op_scale]
         xform_values = [xform_pos, xform_quat, xform_scale]
-        for xform_op, value in zip(xform_ops, xform_values):
+        op_names = ["translate", "orient", "scale"]
+        for xform_op, value, name in zip(xform_ops, xform_values, op_names):
             # Get current value to determine precision type
             current_value = xform_op.Get()
-            # Cast to existing type to preserve precision (float/double)
-            xform_op.Set(type(current_value)(value) if current_value is not None else value)
+            print(
+                f"    setting {name}: current_value type={type(current_value).__name__} "
+                f"({current_value}), new_value type={type(value).__name__} ({value})"
+            )
+            try:
+                # Cast to existing type to preserve precision (float/double)
+                xform_op.Set(type(current_value)(value) if current_value is not None else value)
+            except Exception as e:
+                print(
+                    f"    FAILED to set {name} on '{prim_path}': current_value={current_value} "
+                    f"(type={type(current_value).__name__}), new_value={value} (type={type(value).__name__}): {e}"
+                )
+                raise
 
         # Set the transform operation order: translate -> orient -> scale
         # This is the standard USD convention and ensures consistent behavior
         xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
 
+    print(f"[standardize_xform_ops] DONE prim='{prim_path}' -> success")
     return True
 
 
