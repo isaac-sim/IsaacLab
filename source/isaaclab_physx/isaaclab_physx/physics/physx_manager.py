@@ -71,15 +71,15 @@ _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
 class AnimationRecorder:
     """Handles animation recording using PhysX PVD interface."""
 
-    def __init__(self, carb_settings: carb.settings.ISettings):
-        self._settings = carb_settings
-        self._enabled = bool(carb_settings.get("/isaaclab/anim_recording/enabled"))
+    def __init__(self, sim_context: SimulationContext):
+        self._sim = sim_context
+        self._enabled = bool(sim_context.get_setting("/isaaclab/anim_recording/enabled"))
         self._started_at: float | None = None
         self._physx_pvd = None
 
         if self._enabled:
-            self._start_time = carb_settings.get("/isaaclab/anim_recording/start_time")
-            self._stop_time = carb_settings.get("/isaaclab/anim_recording/stop_time")
+            self._start_time = sim_context.get_setting("/isaaclab/anim_recording/start_time")
+            self._stop_time = sim_context.get_setting("/isaaclab/anim_recording/stop_time")
             self._setup_output_dir()
 
     def _setup_output_dir(self) -> None:
@@ -92,8 +92,8 @@ class AnimationRecorder:
         os.makedirs(self._output_dir, exist_ok=True)
 
         self._physx_pvd = _physxPvd.acquire_physx_pvd_interface()
-        self._settings.set_string("/persistent/physics/omniPvdOvdRecordingDirectory", self._output_dir)
-        self._settings.set_bool("/physics/omniPvdOutputEnabled", True)
+        self._sim.set_setting("/persistent/physics/omniPvdOvdRecordingDirectory", self._output_dir)
+        self._sim.set_setting("/physics/omniPvdOutputEnabled", True)
 
     @property
     def enabled(self) -> bool:
@@ -135,7 +135,7 @@ class AnimationRecorder:
             )
             self._update_usda_start_time(os.path.join(self._output_dir, "baked_animation_recording.usda"))
 
-        self._settings.set_bool("/physics/omniPvdOutputEnabled", False)
+        self._sim.set_setting("/physics/omniPvdOutputEnabled", False)
 
     def _update_usda_start_time(self, file_path: str) -> None:
         """Patch the start time in the exported USDA file."""
@@ -206,7 +206,7 @@ class PhysxManager(PhysicsManager):
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
-        cls._anim_recorder = AnimationRecorder(sim_context._carb_settings)
+        cls._anim_recorder = AnimationRecorder(sim_context)
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -434,28 +434,28 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim._carb_settings
         device = sim.device
 
-        # global carb settings
-        settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        settings.set_bool("/physics/physxDispatcher", True)
-        settings.set_bool("/physics/disableContactProcessing", True)
-        settings.set_bool("/physics/collisionConeCustomGeometry", False)
-        settings.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        settings.set_bool("/physics/autoPopupSimulationOutputWindow", False)
+        # global settings (via SettingsManager)
+        sim.set_setting("/persistent/omnihydra/useSceneGraphInstancing", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/physxDispatcher", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/disableContactProcessing", True)  # type: ignore[union-attr]
+        sim.set_setting("/physics/collisionConeCustomGeometry", False)  # type: ignore[union-attr]
+        sim.set_setting("/physics/collisionCylinderCustomGeometry", False)  # type: ignore[union-attr]
+        sim.set_setting("/physics/autoPopupSimulationOutputWindow", False)  # type: ignore[union-attr]
 
         # device setup (set on PhysicsManager so PhysicsManager.get_device() works)
         is_gpu = "cuda" in device
         if is_gpu:
             parts = device.split(":")
-            device_id = int(parts[1]) if len(parts) > 1 else max(0, settings.get_as_int("/physics/cudaDevice"))
-            settings.set_int("/physics/cudaDevice", device_id)
-            settings.set_bool("/physics/suppressReadback", True)
+            cuda_device = sim.get_setting("/physics/cudaDevice")  # type: ignore[union-attr]
+            device_id = int(parts[1]) if len(parts) > 1 else max(0, int(cuda_device) if cuda_device is not None else 0)
+            sim.set_setting("/physics/cudaDevice", device_id)  # type: ignore[union-attr]
+            sim.set_setting("/physics/suppressReadback", True)  # type: ignore[union-attr]
             PhysicsManager._device = f"cuda:{device_id}"
         else:
-            settings.set_int("/physics/cudaDevice", -1)
-            settings.set_bool("/physics/suppressReadback", False)
+            sim.set_setting("/physics/cudaDevice", -1)  # type: ignore[union-attr]
+            sim.set_setting("/physics/suppressReadback", False)  # type: ignore[union-attr]
             PhysicsManager._device = "cpu"
 
         # physx scene api (use sim.cfg for shared parameters like physics_prim_path, dt, physics_material)
@@ -472,7 +472,7 @@ class PhysxManager(PhysicsManager):
             scene_prim, "physxScene:timeStepsPerSecond", steps_per_sec, camel_case=False
         )
         render_interval = max(sim_cfg.render_interval, 1)
-        settings.set_int("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)
+        sim.set_setting("/persistent/simulation/minFrameRate", steps_per_sec // render_interval)  # type: ignore[union-attr]
 
         # gpu dynamics
         sim_utils.safe_set_attribute_on_usd_prim(
@@ -542,7 +542,6 @@ class PhysxManager(PhysicsManager):
         if sim is None or cfg is None:
             return
 
-        settings = sim._carb_settings
         use_fabric = sim.cfg.use_fabric
         ext_mgr = omni.kit.app.get_app().get_extension_manager()
 
@@ -560,7 +559,7 @@ class PhysxManager(PhysicsManager):
             cls._fabric = None
             cls._update_fabric = None
 
-        # disable usd sync when fabric is enabled
+        # disable usd sync when fabric is enabled (via SettingsManager)
         for key in [
             "updateToUsd",
             "updateParticlesToUsd",
@@ -568,9 +567,9 @@ class PhysxManager(PhysicsManager):
             "updateForceSensorsToUsd",
             "updateResidualsToUsd",
         ]:
-            settings.set_bool(f"/physics/{key}", not use_fabric)
-        settings.set_bool("/isaaclab/fabric_enabled", use_fabric)
-        settings.set_bool("/physics/visualizationDisplaySimulationOutput", False)
+            sim.set_setting(f"/physics/{key}", not use_fabric)  # type: ignore[union-attr]
+        sim.set_setting("/isaaclab/fabric_enabled", use_fabric)  # type: ignore[union-attr]
+        sim.set_setting("/physics/visualizationDisplaySimulationOutput", False)  # type: ignore[union-attr]
 
     @classmethod
     def _warmup_and_create_views(cls) -> None:
@@ -625,7 +624,8 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def _on_play(cls, event: Any) -> None:
-        if carb.settings.get_settings().get_as_bool("/app/player/playSimulations"):
+        sim = PhysicsManager._sim
+        if sim is not None and sim.get_setting("/app/player/playSimulations"):  # type: ignore[union-attr]
             cls._warmup_and_create_views()
 
     @classmethod

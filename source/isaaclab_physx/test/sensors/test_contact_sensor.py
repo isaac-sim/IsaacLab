@@ -22,9 +22,8 @@ import torch
 import warp as wp
 from flaky import flaky
 
-import carb
-
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
@@ -221,8 +220,8 @@ def setup_simulation():
     durations = [sim_dt, sim_dt * 2, sim_dt * 32, sim_dt * 128]
     terrains = [FLAT_TERRAIN_CFG, COBBLESTONE_TERRAIN_CFG]
     devices = ["cuda:0", "cpu"]
-    carb_settings_iface = carb.settings.get_settings()
-    return sim_dt, durations, terrains, devices, carb_settings_iface
+    settings = get_settings_manager()
+    return sim_dt, durations, terrains, devices, settings
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
@@ -231,9 +230,9 @@ def test_cube_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a cube collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(CUBE_CFG, sim_dt, devices, terrains, settings, durations)
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])
@@ -242,16 +241,16 @@ def test_sphere_contact_time(setup_simulation, disable_contact_processing):
     """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
     # check for both contact processing enabled and disabled
     # internally, the contact sensor should enable contact processing so it should always work.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", disable_contact_processing)
-    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, carb_settings_iface, durations)
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", disable_contact_processing)
+    _run_contact_sensor_test(SPHERE_CFG, sim_dt, devices, terrains, settings, durations)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
 def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
@@ -282,7 +281,7 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         scene = InteractiveScene(scene_cfg)
 
         # Check that contact processing is enabled
-        assert not carb_settings_iface.get("/physics/disableContactProcessing")
+        assert not settings.get("/physics/disableContactProcessing")
 
         # Set variables internally for reference
         sim.reset()
@@ -320,7 +319,7 @@ def test_no_contact_reporting(setup_simulation):
     We borrow the test :func:`test_cube_stack_contact_filtering` to test this and force disable contact processing.
     """
     # TODO: This test only works on CPU. For GPU, it seems the contact processing is not disabled.
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device="cpu", dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
@@ -351,7 +350,7 @@ def test_no_contact_reporting(setup_simulation):
         scene = InteractiveScene(scene_cfg)
 
         # Force disable contact processing
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+        settings.set_bool("/physics/disableContactProcessing", True)
 
         # Set variables internally for reference
         sim.reset()
@@ -380,7 +379,7 @@ def test_no_contact_reporting(setup_simulation):
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_simulation):
     """Test sensor print is working correctly."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device="cuda:0", dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
@@ -405,7 +404,7 @@ def test_sensor_print(setup_simulation):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_contact_sensor_threshold(setup_simulation, device):
     """Test that the contact sensor USD threshold attribute is set to 0.0."""
-    sim_dt, durations, terrains, devices, carb_settings_iface = setup_simulation
+    sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         # Spawn things into stage
@@ -452,8 +451,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
     This test places a contact sensor enabled cube onto a ground plane under different gravity directions.
     It then compares the normalized friction force dir with the direction of gravity to ensure they are aligned.
     """
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -506,8 +505,8 @@ def test_friction_reporting(setup_simulation, grav_dir):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_prim_paths_config(setup_simulation):
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -540,8 +539,8 @@ def test_invalid_prim_paths_config(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_invalid_max_contact_points_config(setup_simulation):
-    sim_dt, _, _, _, carb_settings_iface = setup_simulation
-    carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -584,7 +583,7 @@ def _run_contact_sensor_test(
     sim_dt: float,
     devices: list[str],
     terrains: list[TerrainImporterCfg],
-    carb_settings_iface,
+    settings,
     durations: list[float],
 ):
     """

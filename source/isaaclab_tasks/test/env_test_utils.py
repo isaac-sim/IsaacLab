@@ -12,9 +12,8 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
@@ -82,8 +81,8 @@ def setup_environment(
     # sort environments alphabetically
     registered_tasks.sort()
 
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomy when running many environments
-    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -192,8 +191,8 @@ def _check_random_actions(
     if not create_stage_in_memory:
         sim_utils.create_new_stage()
 
-    # reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # reset the rtx sensors setting to False
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
         # parse config

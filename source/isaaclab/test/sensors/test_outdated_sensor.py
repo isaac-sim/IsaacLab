@@ -19,9 +19,8 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -32,8 +31,7 @@ def temp_dir():
     """Fixture to create and clean up a temporary directory for test datasets."""
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
     # create a temporary directory to store the test datasets
     temp_dir = tempfile.mkdtemp()
     yield temp_dir

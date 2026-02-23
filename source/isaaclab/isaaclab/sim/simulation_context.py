@@ -16,11 +16,11 @@ from typing import Any
 import toml
 import torch
 
-import carb
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
@@ -36,13 +36,13 @@ _VISUALIZER_TYPES = ("newton", "rerun", "kit")
 
 
 class SettingsHelper:
-    """Helper for typed Carbonite settings access."""
+    """Helper for typed settings access via SettingsManager."""
 
-    def __init__(self, settings: carb.settings.ISettings):
+    def __init__(self, settings: SettingsManager):
         self._settings = settings
 
     def set(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting with automatic type routing."""
+        """Set a setting with automatic type routing."""
         if isinstance(value, bool):
             self._settings.set_bool(name, value)
         elif isinstance(value, int):
@@ -57,7 +57,7 @@ class SettingsHelper:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings.get(name)
 
 
@@ -131,9 +131,9 @@ class SimulationContext:
             if kit_context is not None and kit_context.get_stage() is not self.stage:
                 kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
 
-        # Acquire settings interface and create helper
-        self._carb_settings = carb.settings.get_settings()
-        self._settings_helper = SettingsHelper(self._carb_settings)
+        # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
+        self.settings = SettingsManager.instance()
+        self._settings_helper = SettingsHelper(self.settings)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -198,20 +198,20 @@ class SimulationContext:
                 with open(preset_filename) as file:
                     preset_dict = toml.load(file)
 
-                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
+                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
                     for key, value in data.items():
                         key_path = f"{path}/{key}" if path else f"/{key}"
                         if isinstance(value, dict):
-                            _apply_nested_carb_settings(value, key_path)
+                            _apply_nested(value, key_path)
                         else:
                             self.set_setting(key_path.replace(".", "/"), value)
 
-                _apply_nested_carb_settings(preset_dict)
+                _apply_nested(preset_dict)
             else:
                 logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
 
-        # Friendly RenderCfg fields mapped to native carb settings.
-        field_to_carb = {
+        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
+        field_to_setting = {
             "enable_translucency": "/rtx/translucency/enabled",
             "enable_reflections": "/rtx/reflections/enabled",
             "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
@@ -228,21 +228,23 @@ class SimulationContext:
         for key, value in vars(render_cfg).items():
             if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
                 continue
-            carb_key = field_to_carb.get(key)
-            if carb_key is not None:
-                self.set_setting(carb_key, value)
+            setting_path = field_to_setting.get(key)
+            if setting_path is not None:
+                self.set_setting(setting_path, value)
 
-        # Raw carb overrides have highest priority.
-        carb_settings = getattr(render_cfg, "carb_settings", None)
-        if carb_settings:
-            for key, value in carb_settings.items():
+        # Raw overrides from render_cfg (stored via SettingsManager)
+        extra_settings = getattr(render_cfg, "carb_settings", None)
+        if extra_settings:
+            for key, value in extra_settings.items():
                 if "_" in key:
-                    key = "/" + key.replace("_", "/")
+                    path = "/" + key.replace("_", "/")
                 elif "." in key:
-                    key = "/" + key.replace(".", "/")
-                self.set_setting(key, value)
+                    path = "/" + key.replace(".", "/")
+                else:
+                    path = key
+                self.set_setting(path, value)
 
-        # Optional anti-aliasing mode handling via Replicator (best-effort).
+        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
         antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
         if antialiasing_mode is not None:
             try:
@@ -344,7 +346,7 @@ class SimulationContext:
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:
-        """Return list of visualizer types requested via CLI (carb setting)."""
+        """Return list of visualizer types requested via CLI (setting)."""
         requested = self.get_setting("/isaaclab/visualizer")
         if not requested:
             return []
@@ -562,11 +564,11 @@ class SimulationContext:
         return self._is_stopped
 
     def set_setting(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting value."""
+        """Set a setting value."""
         self._settings_helper.set(name, value)
 
     def get_setting(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings_helper.get(name)
 
     @classmethod

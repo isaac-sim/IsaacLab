@@ -18,6 +18,8 @@ import carb
 import carb.input
 import omni
 
+from isaaclab.app.settings_manager import get_settings_manager
+
 from ..device_base import DeviceBase, DeviceCfg
 
 
@@ -59,8 +61,7 @@ class Se2Gamepad(DeviceBase):
                 this value will be ignored. Defaults to 0.01.
         """
         # turn off simulator gamepad control
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.v_x_sensitivity = cfg.v_x_sensitivity
         self.v_y_sensitivity = cfg.v_y_sensitivity

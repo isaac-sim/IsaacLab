@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import carb
 import omni.physics.tensors.impl.api as physx
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 
@@ -91,8 +91,7 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
