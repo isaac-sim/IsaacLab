@@ -93,9 +93,9 @@ def get_context_stage() -> Usd.Stage | None:
     * Most Isaac Sim/Omniverse systems operate on by default
 
     This is different from an "in-memory stage" created via
-    :func:`create_new_stage_in_memory`, which exists only in RAM and is not
-    attached to the context (invisible to viewport/UI until explicitly attached
-    via :func:`attach_stage_to_usd_context`).
+    :func:`create_new_stage_in_memory`, which exists only in RAM. Note that when
+    using ``SimulationCfg(create_stage_in_memory=True)``, the in-memory stage is
+    automatically attached to the USD context at ``SimulationContext`` creation.
 
     Returns:
         The stage attached to the USD context, or None if no stage is attached.
@@ -513,56 +513,3 @@ def get_current_stage_id() -> int:
         stage_id = stage_cache.Insert(stage).ToLongInt()
     # return stage ID
     return stage_id
-
-
-def attach_stage_to_usd_context(attaching_early: bool = False):
-    """Attaches the current USD stage in memory to the USD context.
-
-    This function should be called during or after scene is created and before stage is simulated or rendered.
-    If the stage is not in memory or rendering is not enabled, this function will return without attaching.
-
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For backwards
-        compatibility, it returns without attaching to the USD context.
-
-    Args:
-        attaching_early: Whether to attach the stage to the usd context before stage is created. Defaults to False.
-    """
-
-    import carb
-    import omni.physx
-    import omni.usd
-
-    from isaaclab.sim.simulation_context import SimulationContext
-
-    # if Isaac Sim version is less than 5.0, stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
-        return
-
-    # if stage is not in memory, we can return early
-    if not is_current_stage_in_memory():
-        return
-
-    # attach stage to physx
-    stage_id = get_current_stage_id()
-    physx_sim_interface = omni.physx.get_physx_simulation_interface()
-    physx_sim_interface.attach_stage(stage_id)
-
-    # this carb flag is equivalent to if rendering is enabled
-    carb_setting = carb.settings.get_settings()  # type: ignore
-    is_rendering_enabled = carb_setting.get("/physics/fabricUpdateTransformations")
-
-    # if rendering is not enabled, we don't need to attach it
-    if not is_rendering_enabled:
-        return
-
-    # early attach warning msg
-    if attaching_early:
-        logger.warning(
-            "Attaching stage in memory to USD context early to support an operation which"
-            " does not support stage in memory."
-        )
-
-    # Enable physics fabric and attach stage to usd context for rendering
-    SimulationContext.instance().set_setting("/isaaclab/fabric_enabled", True)
-    omni.usd.get_context().attach_stage_with_callback(stage_id)

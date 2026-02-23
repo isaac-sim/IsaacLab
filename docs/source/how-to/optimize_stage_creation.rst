@@ -47,25 +47,23 @@ Stage in memory can be toggled by setting the :attr:`isaaclab.sim.SimulationCfg.
     # create env with stage in memory
     env = ManagerBasedRLEnv(cfg=cfg)
 
-Note, if stage in memory is enabled without using an existing RL environment class, a few more steps are need.
-The stage creation steps should be wrapped in a :py:keyword:`with` statement to set the stage context.
-If the stage needs to be attached, the :meth:`~isaaclab.sim.utils.attach_stage_to_usd_context` function should
-be called after the stage is created.
+When using stage in memory without an existing RL environment class, wrap the stage creation steps
+in a :py:keyword:`with` statement to set the stage context. The stage is automatically attached
+to the USD context when ``SimulationContext`` is created with ``create_stage_in_memory=True``.
 
 **Using Stage in Memory with a manual scene setup**
 
 .. code-block:: python
 
     # init simulation context with stage in memory
+    # Note: stage is automatically attached to USD context
     sim = SimulationContext(cfg=SimulationCfg(create_stage_in_memory=True))
 
-    # grab stage in memory and set stage context
+    # grab stage and set stage context
     with stage_utils.use_stage(sim.stage):
         # create cartpole scene
         scene_cfg = CartpoleSceneCfg(num_envs=1024)
         scene = InteractiveScene(scene_cfg)
-        # attach stage to memory after stage is created
-        sim_utils.attach_stage_to_usd_context()
 
     sim.play()
 
@@ -117,13 +115,11 @@ Limitations
 
 - Cannot be currently enabled at the same time as **Fabric Cloning**.
 
-- Attaching stage in memory to the USD context can be slow, offsetting some or all of the performance benefits.
-
-  - Note, attaching is only necessary when rendering is enabled. For example, in headless mode, attachment is not required.
+- The stage is automatically attached to the USD context at ``SimulationContext`` creation, ensuring proper
+  lifecycle events for viewport and physics systems.
 
 - Certain low-level Kit APIs do not yet support stage in memory.
 
-  - In most cases, when these APIs are hit, existing scripts will automatically early attach the stage and print a warning message.
   - In one particular case, for some environments, the API call to color the ground plane is skipped, when stage in memory is enabled.
 
 

@@ -2,6 +2,31 @@ Changelog
 ---------
 
 
+3.5.0 (2026-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* The in-memory stage created with ``SimulationCfg(create_stage_in_memory=True)`` is now automatically
+  attached to the USD context at :class:`~isaaclab.sim.SimulationContext` creation. This ensures proper
+  stage lifecycle events for viewport and physics systems, preventing test isolation issues.
+
+Removed
+^^^^^^^
+
+* Removed :func:`~isaaclab.sim.utils.attach_stage_to_usd_context`. This function is no longer needed
+  since the in-memory stage is now automatically attached to the USD context at ``SimulationContext``
+  creation. Remove any calls to this function from your code.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.utils.add_labels` to use :class:`UsdSemantics.LabelsAPI` directly
+  instead of the Replicator API for Isaac Sim 5.0+. This resolves ``'NoneType' object has no
+  attribute 'GetEditTarget'`` errors when using stage-in-memory mode.
+
+
 3.4.0 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 
