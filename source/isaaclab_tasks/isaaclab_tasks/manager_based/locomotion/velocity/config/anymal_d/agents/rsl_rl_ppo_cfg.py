@@ -27,14 +27,12 @@ class AnymalDRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         hidden_dims=[512, 256, 128],
         activation="elu",
         obs_normalization=False,
-        stochastic=True,
-        init_noise_std=1.0,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
     )
     critic = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
         obs_normalization=False,
-        stochastic=False,
     )
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
@@ -69,8 +67,7 @@ class AnymalDFlatPPORunnerRecurrentCfg(AnymalDFlatPPORunnerCfg):
         hidden_dims=[128, 128, 128],
         activation="elu",
         obs_normalization=False,
-        stochastic=True,
-        init_noise_std=1.0,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
         rnn_type="lstm",
         rnn_hidden_dim=256,
         rnn_num_layers=1,
@@ -79,7 +76,6 @@ class AnymalDFlatPPORunnerRecurrentCfg(AnymalDFlatPPORunnerCfg):
         hidden_dims=[128, 128, 128],
         activation="elu",
         obs_normalization=False,
-        stochastic=False,
         rnn_type="lstm",
         rnn_hidden_dim=256,
         rnn_num_layers=1,

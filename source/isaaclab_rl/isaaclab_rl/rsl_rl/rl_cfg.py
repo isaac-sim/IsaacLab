@@ -34,17 +34,63 @@ class RslRlMLPModelCfg:
     obs_normalization: bool = False
     """Whether to normalize the observation for the model. Default is False."""
 
+    distribution_cfg: DistributionCfg | None = None
+    """The configuration for the output distribution. Default is None, in which case no distribution is used."""
+
+    @configclass
+    class DistributionCfg:
+        """Configuration for the output distribution."""
+
+        class_name: str = MISSING
+        """The distribution class name."""
+
+    @configclass
+    class GaussianDistributionCfg(DistributionCfg):
+        """Configuration for the Gaussian output distribution."""
+
+        class_name: str = "GaussianDistribution"
+        """The distribution class name. Default is GaussianDistribution."""
+
+        init_std: float = MISSING
+        """The initial standard deviation of the output distribution."""
+
+        std_type: Literal["scalar", "log"] = "scalar"
+        """The parameterization type of the output distribution's standard deviation. Default is scalar."""
+
+    @configclass
+    class HeteroscedasticGaussianDistributionCfg(GaussianDistributionCfg):
+        """Configuration for the heteroscedastic Gaussian output distribution."""
+
+        class_name: str = "HeteroscedasticGaussianDistribution"
+        """The distribution class name. Default is HeteroscedasticGaussianDistribution."""
+
     stochastic: bool = MISSING
-    """Whether the model output is stochastic. Default is False."""
+    """Whether the model output is stochastic.
+
+    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
+    for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.
+    """
 
     init_noise_std: float = MISSING
-    """The initial noise standard deviation for the model."""
+    """The initial noise standard deviation for the model.
+
+    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    `init_std` field of the distribution configuration to specify the initial noise standard deviation.
+    """
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the model. Default is scalar."""
+    """The type of noise standard deviation for the model. Default is scalar.
+
+    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
+    `std_type` field of the distribution configuration to specify the type of noise standard deviation.
+    """
 
     state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Default is False."""
+    """Whether to use state-dependent standard deviation for the policy. Default is False.
+
+    For rsl-rl >= 4.1.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
+    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
+    """
 
 
 @configclass
