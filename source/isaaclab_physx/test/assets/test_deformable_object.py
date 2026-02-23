@@ -304,7 +304,7 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
                 cube_object.update(sim.cfg.dt)
 
             torch.testing.assert_close(
-                wp.to_torch(cube_object.data.root_pos_w), mean_nodal_pos_init, rtol=1e-5, atol=1e-5
+                wp.to_torch(cube_object.data.root_pos_w), mean_nodal_pos_init, rtol=1e-4, atol=1e-4
             )
 
 

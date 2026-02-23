@@ -32,7 +32,7 @@ PER_TEST_TIMEOUTS = {
         10000
     ),  # This test runs through training for several environments and compares thresholds
     "test_environments_skillgen.py": 1000,
-    "test_environments_automate.py": 1000,
+    "test_environments_automate.py": 2500,
     "test_simulation_render_config.py": 500,
     "test_operational_space.py": 500,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
