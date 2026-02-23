@@ -148,11 +148,11 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
 
 .. code:: bash
 
-   # step a: create folder for datasets
+   #Create folder for datasets
    mkdir -p datasets
 
-   # step b: collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
-   # Available options: spacemouse, keyboard, handtracking
+   # Collect data with a selected teleoperation device. Replace <teleop_device> with your preferred input device.
+   # Recommended options: spacemouse, keyboard
    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --visualizer kit --teleop_device <teleop_device> --dataset_file ./datasets/dataset.hdf5 --num_demos 10
 
 .. note::
@@ -175,8 +175,6 @@ right button (if using a SpaceMouse) to discard the current demonstration and re
 
 Generating additional demonstrations with Isaac Lab Mimic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Additional demonstrations can now be generated using Isaac Lab Mimic.
 
 In the following example, we will show how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train either a state-based policy
 (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0`` environment) or visuomotor policy (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0`` environment)
