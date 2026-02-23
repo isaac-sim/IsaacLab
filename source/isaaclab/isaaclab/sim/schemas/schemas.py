@@ -156,7 +156,7 @@ def modify_articulation_root_properties(
     # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
-    # ensure PhysX articulation API is applied
+    # ensure PhysX articulation API is applied (string-based, no PhysxSchema import)
     applied_schemas = articulation_prim.GetAppliedSchemas()
     if "PhysxArticulationAPI" not in applied_schemas:
         articulation_prim.AddAppliedSchema("PhysxArticulationAPI")
@@ -318,7 +318,7 @@ def modify_rigid_body_properties(
         return False
     # retrieve the USD rigid-body api
     usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-    # ensure PhysX rigid body API is applied
+    # ensure PhysX rigid body API is applied (string-based, no PhysxSchema import)
     applied_schemas = rigid_body_prim.GetAppliedSchemas()
     if "PhysxRigidBodyAPI" not in applied_schemas:
         rigid_body_prim.AddAppliedSchema("PhysxRigidBodyAPI")
@@ -415,7 +415,7 @@ def modify_collision_properties(
         return False
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
-    # ensure PhysX collision API is applied
+    # ensure PhysX collision API is applied (string-based, no PhysxSchema import)
     applied_schemas = collider_prim.GetAppliedSchemas()
     if "PhysxCollisionAPI" not in applied_schemas:
         collider_prim.AddAppliedSchema("PhysxCollisionAPI")
@@ -569,7 +569,7 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
         # if a prim has a rigid body API, it is a rigid body and we don't need to
         # check its children
         if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            # set sleep threshold to zero
+            # set sleep threshold to zero (string-based, no PhysxSchema import)
             child_applied = child_prim.GetAppliedSchemas()
             if "PhysxRigidBodyAPI" not in child_applied:
                 child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
@@ -651,9 +651,9 @@ def modify_joint_drive_properties(
         drive_api_name = "linear"
     else:
         return False
-    # check that prim is not a tendon child prim
-    applied_schemas_str = str(prim.GetAppliedSchemas())
-    if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
+    # check that prim is not a tendon child prim (string-based, no PhysxSchema import)
+    applied_schemas = prim.GetAppliedSchemas()
+    if "PhysxTendonAxisAPI" in applied_schemas and "PhysxTendonAxisRootAPI" not in applied_schemas:
         return False
 
     # check if prim has joint drive applied on it
@@ -661,7 +661,7 @@ def modify_joint_drive_properties(
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
     # ensure PhysX joint API is applied
-    if "PhysxJointAPI" not in applied_schemas_str:
+    if "PhysxJointAPI" not in applied_schemas:
         prim.AddAppliedSchema("PhysxJointAPI")
 
     # mapping from configuration name to USD attribute name
@@ -744,7 +744,7 @@ def modify_fixed_tendon_properties(
 
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it
+    # check if prim has fixed tendon applied on it (string-based, no PhysxSchema import)
     applied_schemas = tendon_prim.GetAppliedSchemas()
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
         return False
@@ -809,7 +809,7 @@ def modify_spatial_tendon_properties(
         stage = get_current_stage()
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has spatial tendon applied on it
+    # check if prim has spatial tendon applied on it (string-based, no PhysxSchema import)
     applied_schemas = tendon_prim.GetAppliedSchemas()
     has_spatial = any(
         "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in applied_schemas
@@ -884,7 +884,7 @@ def define_deformable_body_properties(
 
     # get deformable-body USD prim
     mesh_prim = matching_prims[0]
-    # ensure PhysX deformable body API is applied
+    # ensure PhysX deformable body API is applied (string-based, no PhysxSchema import)
     mesh_applied = mesh_prim.GetAppliedSchemas()
     if "PhysxDeformableBodyAPI" not in mesh_applied:
         mesh_prim.AddAppliedSchema("PhysxDeformableBodyAPI")
@@ -943,7 +943,7 @@ def modify_deformable_body_properties(
     # get deformable-body USD prim
     deformable_body_prim = stage.GetPrimAtPath(prim_path)
 
-    # check if the prim is valid and has the deformable-body API
+    # check if the prim is valid and has the deformable-body API (string-based, no PhysxSchema import)
     if not deformable_body_prim.IsValid():
         return False
     if "PhysxDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas():
