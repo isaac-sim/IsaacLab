@@ -378,7 +378,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or (len(env_ids),) with dtype wp.transformf.
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
@@ -401,7 +402,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
@@ -479,7 +481,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
@@ -572,7 +575,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7) or (num_instances,) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
@@ -602,7 +606,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
@@ -626,7 +631,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
@@ -703,7 +709,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
@@ -794,7 +801,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root frame velocities in simulation world frame.
+                Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
@@ -2091,7 +2099,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7) or (num_instances, num_bodies) with dtype wp.transformf.
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """

@@ -59,7 +59,7 @@ class ArticulationData(BaseArticulationData):
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_view: ArticulationView = weakref.proxy(root_view)
+        self._root_view: physx.ArticulationView = weakref.proxy(root_view)
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -797,7 +797,8 @@ class ArticulationData(BaseArticulationData):
         """Root center of mass linear velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the linear velocity of the articulation root's center of mass frame with respect to its actor frame.
+        This quantity is the linear velocity of the articulation root's center of mass frame
+        with respect to its actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
@@ -815,7 +816,8 @@ class ArticulationData(BaseArticulationData):
         """Root center of mass angular velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
-        This quantity is the angular velocity of the articulation root's center of mass frame with respect to its actor frame.
+        This quantity is the angular velocity of the articulation root's center of mass frame
+        with respect to its actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(

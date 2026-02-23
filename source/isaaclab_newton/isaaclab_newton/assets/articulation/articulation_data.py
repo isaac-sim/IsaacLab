@@ -1034,9 +1034,7 @@ class ArticulationData(BaseArticulationData):
         if self._sim_bind_body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = self._sim_bind_body_com_vel_w[:, 0]
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[:, 0]
-        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[
-            :, 0
-        ]
+        self._sim_bind_body_inertia = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[:, 0]
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
@@ -1163,7 +1161,9 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
-            self._previous_joint_vel = wp.clone(self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0])
+            self._previous_joint_vel = wp.clone(
+                self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
+            )
         else:
             self._previous_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
@@ -1204,7 +1204,9 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device)
+        # self._body_incoming_joint_wrench_b = TimestampedWarpBuffer(
+        #     shape=(self._num_instances, self._num_joints), dtype=wp.spatial_vectorf, device=self.device
+        # )
         # Empty memory pre-allocations
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
@@ -1451,7 +1453,9 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device)
+            self._root_state_w = TimestampedBuffer(
+                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+            )
         if self._root_state_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.concat_root_pose_and_vel_to_state,

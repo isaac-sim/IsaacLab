@@ -2550,7 +2550,8 @@ class Articulation(BaseArticulation):
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2604,7 +2605,8 @@ class Articulation(BaseArticulation):
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2658,7 +2660,8 @@ class Articulation(BaseArticulation):
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2712,7 +2715,8 @@ class Articulation(BaseArticulation):
 
         Args:
             limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2766,7 +2770,8 @@ class Articulation(BaseArticulation):
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2820,7 +2825,8 @@ class Articulation(BaseArticulation):
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used. Shape is (num_fixed_tendons,).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2908,7 +2914,8 @@ class Articulation(BaseArticulation):
 
         Args:
             stiffness: Spatial tendon stiffness. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+                Shape is (num_spatial_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -2962,7 +2969,8 @@ class Articulation(BaseArticulation):
 
         Args:
             damping: Spatial tendon damping. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+                Shape is (num_spatial_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -3017,7 +3025,8 @@ class Articulation(BaseArticulation):
 
         Args:
             limit_stiffness: Spatial tendon limit stiffness. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+                Shape is (num_spatial_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -3071,7 +3080,8 @@ class Articulation(BaseArticulation):
 
         Args:
             offset: Spatial tendon offset. Shape is (num_instances, num_spatial_tendons).
-            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used. Shape is (num_spatial_tendons,).
+            spatial_tendon_mask: Spatial tendon mask. If None, then all spatial tendons are used.
+                Shape is (num_spatial_tendons,).
             env_mask: Environment mask. If None, then all indices are used. Shape is (num_envs,).
         """
         raise NotImplementedError()
@@ -3347,10 +3357,16 @@ class Articulation(BaseArticulation):
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
 
             # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_effort_limit_to_sim_index(
+                limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_velocity_limit_to_sim_index(
+                limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices
+            )
             self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(
+                joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices
+            )
 
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
