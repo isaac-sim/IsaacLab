@@ -131,19 +131,36 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
-        """Instantaneous wrench composer for the rigid object collection."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer:
-        """Permanent wrench composer for the rigid object collection."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     """
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | None = None, object_ids: slice | torch.Tensor | None = None) -> None:
+    def reset(
+        self,
+        env_ids: torch.Tensor | None = None,
+        object_ids: slice | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
+        object_mask: wp.array | None = None,
+    ) -> None:
         """Resets all internal buffers of selected environments and objects.
 
         Args:
@@ -170,7 +187,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
                 # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques(
+                self._instantaneous_wrench_composer.add_forces_and_torques_index(
                     forces=self._permanent_wrench_composer.composed_force,
                     torques=self._permanent_wrench_composer.composed_torque,
                     body_ids=self._ALL_BODY_INDICES,
@@ -234,7 +251,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.object_names, preserve_order)
+        obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
         return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
 
     """
@@ -243,9 +260,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def write_body_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body pose over selected environment and body indices into the simulation.
 
@@ -255,22 +273,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7).
-            env_ids: Environment indices. If None, then all indices are used.
+            body_poses: Body poses in simulation frame. Shape is (len(env_ids), len(body_ids), 7)
+                or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
+            env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the body pose over selected environment mask into the simulation.
 
@@ -280,12 +299,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+            body_poses: Body poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
@@ -295,55 +316,67 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = wp.nonzero(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
-        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
             This method expects partial data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             body_velocities: Body velocities in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6),
+                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
         """
-        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
         body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Set the body velocity over selected environment mask into the simulation.
 
         The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
 
         .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             body_velocities: Body velocities in simulation frame.
-                Shape is (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
-            body_mask: Body mask. If None, then all bodies are used.
+                Shape is (num_instances, num_bodies, 6)
+                or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
@@ -353,22 +386,35 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_ids = wp.nonzero(body_mask)
         else:
             body_ids = self._ALL_BODY_INDICES
-        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_link_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
+        The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             body_poses: Body link poses in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7).
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7),
+                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -405,37 +451,62 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def write_body_link_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ) -> None:
         """Set the body link pose over selected environment mask into the simulation.
 
+        The body link pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_link_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_com_pose_to_sim_index(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
+        The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             body_poses: Body center of mass poses in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7).
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids), len(body_ids), 7) or (num_instances, num_bodies, 7),
+                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -475,37 +546,63 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def write_body_com_pose_to_sim_mask(
         self,
+        *,
         body_poses: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ) -> None:
         """Set the body center of mass pose over selected environment mask into the simulation.
 
+        The body center of mass pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7).
-            env_mask: Environment mask. If None, then all indices are used.
+            body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
+                or (num_instances, num_bodies) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_com_pose_to_sim_index(body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
 
     def write_body_com_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             body_velocities: Body center of mass velocities in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6),
+                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -544,38 +641,68 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def write_body_com_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ) -> None:
         """Set the body center of mass velocity over selected environment mask into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             body_velocities: Body center of mass velocities in simulation frame.
-                Shape is (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+                Shape is (num_instances, num_bodies, 6)
+                or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_com_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     def write_body_link_velocity_to_sim_index(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's frame rather than the body's center of mass.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
             body_velocities: Body link velocities in simulation frame.
-                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6).
-            env_ids: Environment indices. If None, then all indices are used.
+                Shape is (len(env_ids), len(body_ids), 6) or (num_instances, num_bodies, 6),
+                or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -619,22 +746,38 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def write_body_link_velocity_to_sim_mask(
         self,
+        *,
         body_velocities: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
     ) -> None:
         """Set the body link velocity over selected environment mask into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the body's frame rather than the body's center of mass.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
         Args:
-            body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6).
-            env_mask: Environment mask. If None, then all indices are used.
+            body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
+                or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             body_ids: Body indices. If None, then all indices are used.
         """
         if env_mask is not None:
             env_ids = wp.nonzero(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_link_velocity_to_sim_index(body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        self.write_body_link_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+        )
 
     """
     Operations - Setters.
@@ -642,6 +785,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def set_masses_index(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -689,6 +833,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def set_masses_mask(
         self,
+        *,
         masses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -704,8 +849,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             masses: Masses of all bodies. Shape is ``(num_instances, num_bodies)``.
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -717,10 +862,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_masses_index(masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_coms_index(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -771,6 +917,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def set_coms_mask(
         self,
+        *,
         coms: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -786,8 +933,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             coms: Center of mass pose of all bodies. Shape is ``(num_instances, num_bodies, 7)``.
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -799,10 +946,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_coms_index(coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     def set_inertias_index(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
@@ -850,6 +998,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def set_inertias_mask(
         self,
+        *,
         inertias: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -865,8 +1014,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             inertias: Inertias of all bodies. Shape is ``(num_instances, num_bodies, 9)``.
-            body_mask: Body mask. If None, then all bodies are used.
-            env_mask: Environment mask. If None, then all indices are used.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
         if env_mask is not None:
@@ -878,7 +1027,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_inertias_index(inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
+        self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
     """
     Helper functions.
@@ -1229,8 +1378,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )
 
     def write_body_com_state_to_sim(
         self,
@@ -1246,8 +1397,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_com_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_com_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )
 
     def write_body_link_state_to_sim(
         self,
@@ -1263,5 +1416,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_body_link_pose_to_sim_index(body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
-        self.write_body_link_velocity_to_sim_index(body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(body_poses=body_states[:, :, :7], env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_velocity_to_sim_index(
+            body_velocities=body_states[:, :, 7:], env_ids=env_ids, body_ids=body_ids
+        )

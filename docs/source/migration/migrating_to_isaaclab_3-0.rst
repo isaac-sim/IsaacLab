@@ -683,10 +683,10 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
    robot.write_root_pose_to_sim(pose_data, env_ids)
 
    # After (Isaac Lab 3.x) — indexed variant (partial data)
-   robot.write_root_pose_to_sim_index(pose_data, env_ids)
+   robot.write_root_pose_to_sim_index(root_pose=pose_data, env_ids=env_ids)
 
    # After (Isaac Lab 3.x) — mask variant (full data, boolean mask)
-   robot.write_root_pose_to_sim_mask(pose_data, env_mask)
+   robot.write_root_pose_to_sim_mask(root_pose=pose_data, env_mask=env_mask)
 
 .. list-table:: Affected write methods (RigidObject / Articulation)
    :header-rows: 1
