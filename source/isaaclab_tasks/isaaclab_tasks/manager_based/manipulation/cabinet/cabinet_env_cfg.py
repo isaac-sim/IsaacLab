@@ -54,18 +54,6 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     # End-effector, Will be populated by agent env cfg
     ee_frame: FrameTransformerCfg = MISSING
 
-    kitchen = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/kitchen",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Arena/assets/background_library/kitchen_background/kitchen_background.usd",
-            activate_contact_sensors=False,
-        ),
-    )
-
-    drawer = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/kitchen/Cabinet_B_02",
-    )
-
     cabinet = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",
         spawn=sim_utils.UsdFileCfg(
