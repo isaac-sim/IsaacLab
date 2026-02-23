@@ -16,13 +16,13 @@ from typing import Any
 import toml
 import torch
 
-import carb
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils import create_new_stage_in_memory
+from isaaclab.sim.utils import create_new_stage
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -36,13 +36,13 @@ _VISUALIZER_TYPES = ("newton", "rerun", "kit")
 
 
 class SettingsHelper:
-    """Helper for typed Carbonite settings access."""
+    """Helper for typed settings access via SettingsManager."""
 
-    def __init__(self, settings: carb.settings.ISettings):
+    def __init__(self, settings: SettingsManager):
         self._settings = settings
 
     def set(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting with automatic type routing."""
+        """Set a setting with automatic type routing."""
         if isinstance(value, bool):
             self._settings.set_bool(name, value)
         elif isinstance(value, int):
@@ -57,7 +57,7 @@ class SettingsHelper:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings.get(name)
 
 
@@ -103,14 +103,18 @@ class SimulationContext:
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            # Create a fresh in-memory stage (not attached to USD context)
-            self.stage = create_new_stage_in_memory()
+            self.stage = create_new_stage()
         else:
-            # Use existing stage from cache, or create in-memory as fallback
-            all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
-            self.stage = all_stages[0] if all_stages else create_new_stage_in_memory()
+            # Prefer the thread-local current stage (set by create_new_stage / test fixtures)
+            # over cache lookup, since the cache may contain stale stages from prior tests.
+            current = getattr(stage_utils._context, "stage", None)
+            if current is not None:
+                self.stage = current
+            else:
+                all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
+                self.stage = all_stages[0] if all_stages else create_new_stage()
 
-        # Cache stage in USD cache
+        # Ensure stage is in the USD cache
         stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
         if stage_id < 0:
             stage_cache.Insert(self.stage)  # type: ignore[union-attr]
@@ -118,9 +122,18 @@ class SimulationContext:
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        # Acquire settings interface and create helper
-        self._carb_settings = carb.settings.get_settings()
-        self._settings_helper = SettingsHelper(self._carb_settings)
+        # When Kit is running, attach the stage to Kit's USD context so that
+        # Kit extensions (PhysX views, Articulation, viewport) can discover it.
+        if sim_utils.has_kit():
+            import omni.usd
+
+            kit_context = omni.usd.get_context()
+            if kit_context is not None and kit_context.get_stage() is not self.stage:
+                kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
+
+        # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
+        self.settings = SettingsManager.instance()
+        self._settings_helper = SettingsHelper(self.settings)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -185,20 +198,20 @@ class SimulationContext:
                 with open(preset_filename) as file:
                     preset_dict = toml.load(file)
 
-                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
+                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
                     for key, value in data.items():
                         key_path = f"{path}/{key}" if path else f"/{key}"
                         if isinstance(value, dict):
-                            _apply_nested_carb_settings(value, key_path)
+                            _apply_nested(value, key_path)
                         else:
                             self.set_setting(key_path.replace(".", "/"), value)
 
-                _apply_nested_carb_settings(preset_dict)
+                _apply_nested(preset_dict)
             else:
                 logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
 
-        # Friendly RenderCfg fields mapped to native carb settings.
-        field_to_carb = {
+        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
+        field_to_setting = {
             "enable_translucency": "/rtx/translucency/enabled",
             "enable_reflections": "/rtx/reflections/enabled",
             "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
@@ -215,21 +228,23 @@ class SimulationContext:
         for key, value in vars(render_cfg).items():
             if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
                 continue
-            carb_key = field_to_carb.get(key)
-            if carb_key is not None:
-                self.set_setting(carb_key, value)
+            setting_path = field_to_setting.get(key)
+            if setting_path is not None:
+                self.set_setting(setting_path, value)
 
-        # Raw carb overrides have highest priority.
-        carb_settings = getattr(render_cfg, "carb_settings", None)
-        if carb_settings:
-            for key, value in carb_settings.items():
+        # Raw overrides from render_cfg (stored via SettingsManager)
+        extra_settings = getattr(render_cfg, "carb_settings", None)
+        if extra_settings:
+            for key, value in extra_settings.items():
                 if "_" in key:
-                    key = "/" + key.replace("_", "/")
+                    path = "/" + key.replace("_", "/")
                 elif "." in key:
-                    key = "/" + key.replace(".", "/")
-                self.set_setting(key, value)
+                    path = "/" + key.replace(".", "/")
+                else:
+                    path = key
+                self.set_setting(path, value)
 
-        # Optional anti-aliasing mode handling via Replicator (best-effort).
+        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
         antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
         if antialiasing_mode is not None:
             try:
@@ -331,7 +346,7 @@ class SimulationContext:
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:
-        """Return list of visualizer types requested via CLI (carb setting)."""
+        """Return list of visualizer types requested via CLI (setting)."""
         requested = self.get_setting("/isaaclab/visualizer")
         if not requested:
             return []
@@ -549,11 +564,11 @@ class SimulationContext:
         return self._is_stopped
 
     def set_setting(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting value."""
+        """Set a setting value."""
         self._settings_helper.set(name, value)
 
     def get_setting(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings_helper.get(name)
 
     @classmethod
@@ -586,6 +601,12 @@ class SimulationContext:
             # Clear thread-local stage context
             if hasattr(stage_utils._context, "stage"):
                 delattr(stage_utils._context, "stage")
+
+            # Close the USD context stage (symmetric with attach in __init__)
+            if sim_utils.has_kit():
+                import omni.usd
+
+                omni.usd.get_context().close_stage()
 
             # Clear instance
             cls._instance = None
@@ -643,7 +664,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)

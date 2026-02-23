@@ -20,7 +20,7 @@ INSTALL_REQUIRES = [
     # generic
     "prettytable==3.3.0",
     # newton
-    "mujoco==3.4.1.dev856273160",
+    "mujoco==3.5.0",
     "mujoco-warp @ git+https://github.com/google-deepmind/mujoco_warp.git@7bb099c082d50803fd63bfe57217025d9f5cd2df",
     "newton @ git+https://github.com/newton-physics/newton.git@c2c8588602951238ce07e34edaf983afccf23b5f",
     "imgui-bundle==1.92.0",

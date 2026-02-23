@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 import omni.physics.tensors.impl.api as physx
-from pxr import PhysxSchema, UsdShade
+from pxr import UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -509,13 +509,13 @@ class DeformableObject(AssetBase):
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path,
-            predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI),
+            predicate=lambda prim: "PhysxDeformableBodyAPI" in prim.GetAppliedSchemas(),
             traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
                 f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'PhysxSchema.PhysxDeformableBodyAPI' applied."
+                " Please ensure that the prim has 'PhysxDeformableBodyAPI' applied."
             )
         if len(root_prims) > 1:
             raise RuntimeError(
@@ -539,7 +539,7 @@ class DeformableObject(AssetBase):
             if len(material_paths) > 0:
                 for mat_path in material_paths:
                     mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
-                    if mat_prim.HasAPI(PhysxSchema.PhysxDeformableBodyMaterialAPI):
+                    if "PhysxDeformableBodyMaterialAPI" in mat_prim.GetAppliedSchemas():
                         material_prim = mat_prim
                         break
         if material_prim is None:

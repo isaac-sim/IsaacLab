@@ -24,7 +24,6 @@ import pytest
 import torch
 import warp as wp
 
-import omni.usd
 from pxr import Sdf
 
 import isaaclab.envs.mdp as mdp
@@ -283,7 +282,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 def test_scale_randomization(device):
     """Test scale randomization for cube environment."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # set the device
     env_cfg = CubeEnvCfg()
@@ -306,7 +305,7 @@ def test_scale_randomization(device):
     prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
 
     # get the stage
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
 
     # check if the scale values are truly random
     for i in range(3):
@@ -340,7 +339,7 @@ def test_scale_randomization(device):
 def test_scale_randomization_failure_replicate_physics():
     """Test scale randomization failure when replicate physics is set to True."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # set the arguments
     cfg_failure = CubeEnvCfg()
     cfg_failure.scene.replicate_physics = True
