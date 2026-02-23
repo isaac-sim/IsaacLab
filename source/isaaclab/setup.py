@@ -69,8 +69,8 @@ INSTALL_REQUIRES += [
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
-    f"usd-core==25.05.0 ; ({SUPPORTED_ARCHS})",
-    f"usd-exchange>=2.1 ; ({SUPPORTED_ARCHS_ARM})",
+    f"usd-core==25.5.0 ; ({SUPPORTED_ARCHS})",
+    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
