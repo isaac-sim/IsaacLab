@@ -24,6 +24,8 @@ from ..sensor_base import SensorBase
 from .camera import Camera
 
 if TYPE_CHECKING:
+    from isaaclab.renderers import Renderer
+
     from .tiled_camera_cfg import TiledCameraCfg
 
 
@@ -79,7 +81,7 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg):
+    def __init__(self, cfg: TiledCameraCfg, renderer: Renderer | None = None):
         """Initializes the tiled camera sensor.
 
         Args:
@@ -89,6 +91,8 @@ class TiledCamera(Camera):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
+        self.renderer = renderer
+        self.render_data = None
         super().__init__(cfg)
 
     def __del__(self):
@@ -181,71 +185,84 @@ class TiledCamera(Camera):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
             cam_prim_paths.append(cam_prim_path)
 
-        # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height))
-        self._render_product_paths = [rp.path]
+        if self.renderer is not None:
+            self.render_data = self.renderer.create_render_data(self)
 
-        if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-            rep.AnnotatorRegistry.register_annotator_from_aov(
-                aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
+        else:
+            # Create replicator tiled render product
+            rp = rep.create.render_product_tiled(
+                cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)
             )
-            # Set simple shading mode (if requested) before rendering
-            simple_shading_mode = self._resolve_simple_shading_mode()
-            if simple_shading_mode is not None:
-                get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
-        # Define the annotators based on requested data types
-        self._annotators = dict()
-        for annotator_type in self.cfg.data_types:
-            if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
-                self._annotators["rgba"] = annotator
-            elif annotator_type == "albedo":
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
+            self._render_product_paths = [rp.path]
+
+            if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
                 rep.AnnotatorRegistry.register_annotator_from_aov(
-                    aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
                 )
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "DiffuseAlbedoSD", device=self.device, do_array_copy=False
-                )
-                self._annotators["albedo"] = annotator
-            elif annotator_type in self.SIMPLE_SHADING_MODES:
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-            elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
-                # keep depth for backwards compatibility
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    "distance_to_image_plane", device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
-            # note: we are verbose here to make it easier to understand the code.
-            #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-            #   if colorize is false, the data is returned as a uint32 image with ids as values.
-            else:
-                init_params = None
-                if annotator_type == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
+                # Set simple shading mode (if requested) before rendering
+                simple_shading_mode = self._resolve_simple_shading_mode()
+                if simple_shading_mode is not None:
+                    get_settings_manager().set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+            # Define the annotators based on requested data types
+            self._annotators = dict()
+            for annotator_type in self.cfg.data_types:
+                if annotator_type == "rgba" or annotator_type == "rgb":
+                    annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=self.device, do_array_copy=False)
+                    self._annotators["rgba"] = annotator
+                elif annotator_type == "albedo":
+                    # TODO: this is a temporary solution because replicator has not exposed the annotator yet
+                    # once it's exposed, we can remove this
+                    rep.AnnotatorRegistry.register_annotator_from_aov(
+                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
+                    )
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "DiffuseAlbedoSD", device=self.device, do_array_copy=False
+                    )
+                    self._annotators["albedo"] = annotator
+                elif annotator_type in self.SIMPLE_SHADING_MODES:
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        self.SIMPLE_SHADING_AOV, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
+                elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
+                    # keep depth for backwards compatibility
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        "distance_to_image_plane", device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
+                # note: we are verbose here to make it easier to understand the code.
+                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
+                #   if colorize is false, the data is returned as a uint32 image with ids as values.
+                else:
+                    init_params = None
+                    if annotator_type == "semantic_segmentation":
+                        init_params = {
+                            "colorize": self.cfg.colorize_semantic_segmentation,
+                            "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
+                        }
+                    elif annotator_type == "instance_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                    elif annotator_type == "instance_id_segmentation_fast":
+                        init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
-                annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=self.device, do_array_copy=False
-                )
-                self._annotators[annotator_type] = annotator
+                    annotator = rep.AnnotatorRegistry.get_annotator(
+                        annotator_type, init_params, device=self.device, do_array_copy=False
+                    )
+                    self._annotators[annotator_type] = annotator
 
-        # Attach the annotator to the render product
-        for annotator in self._annotators.values():
-            annotator.attach(self._render_product_paths)
+            # Attach the annotator to the render product
+            for annotator in self._annotators.values():
+                annotator.attach(self._render_product_paths)
 
         # Create internal buffers
         self._create_buffers()
+
+    def _update_poses(self, env_ids: Sequence[int]):
+        super()._update_poses(env_ids)
+        if self.renderer is not None:
+            self.renderer.update_camera(
+                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+            )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
@@ -254,6 +271,15 @@ class TiledCamera(Camera):
         # update latest camera pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+
+        if self.renderer is not None:
+            self.renderer.render(self.render_data)
+
+            for output_name, output_data in self._data.output.items():
+                if output_name == "rgb":
+                    continue
+                self.renderer.write_output(self.render_data, output_name, output_data)
+            return
 
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
@@ -356,13 +382,13 @@ class TiledCamera(Camera):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # create the data object
+        # -- intrinsic matrix
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._update_intrinsic_matrices(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
         # -- output data
         data_dict = dict()
@@ -432,6 +458,8 @@ class TiledCamera(Camera):
 
         self._data.output = data_dict
         self._data.info = dict()
+        if self.renderer is not None:
+            self.renderer.set_outputs(self.render_data, self._data.output)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""

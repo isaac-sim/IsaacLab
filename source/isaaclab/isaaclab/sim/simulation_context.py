@@ -400,13 +400,7 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        from .scene_data_providers import PhysxSceneDataProvider
-
-        # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-        # switch provider selection to route by physics backend:
-        # - Omni/PhysX -> PhysxSceneDataProvider
-        # - Newton/Warp -> NewtonSceneDataProvider
-        self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        self.initialize_scene_data_provider(visualizer_cfgs)
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -423,6 +417,17 @@ class SimulationContext:
             if callable(close_provider):
                 close_provider()
             self._scene_data_provider = None
+
+    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
+        if self._scene_data_provider is None:
+            from .scene_data_providers import PhysxSceneDataProvider
+
+            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
+            # switch provider selection to route by physics backend:
+            # - Omni/PhysX -> PhysxSceneDataProvider
+            # - Newton/Warp -> NewtonSceneDataProvider
+            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        return self._scene_data_provider
 
     @property
     def visualizers(self) -> list[Visualizer]:
@@ -486,19 +491,7 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        if self._should_forward_before_visualizer_update():
-            self.physics_manager.forward()
-        self._visualizer_step_counter += 1
-        if self._scene_data_provider is None:
-            return
-        provider = self._scene_data_provider
-        env_ids_union: list[int] = []
-        for viz in self._visualizers:
-            ids = viz.get_visualized_env_ids()
-            if ids is not None:
-                env_ids_union.extend(ids)
-        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-        provider.update(env_ids)
+        self.update_scene_data_provider()
 
         visualizers_to_remove = []
         for viz in self._visualizers:
@@ -527,6 +520,21 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+
+    def update_scene_data_provider(self, force_require_forward: bool = False):
+        if force_require_forward or self._should_forward_before_visualizer_update():
+            self.physics_manager.forward()
+        self._visualizer_step_counter += 1
+        if self._scene_data_provider is None:
+            return
+        provider = self._scene_data_provider
+        env_ids_union: list[int] = []
+        for viz in self._visualizers:
+            ids = viz.get_visualized_env_ids()
+            if ids is not None:
+                env_ids_union.extend(ids)
+        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+        provider.update(env_ids)
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
