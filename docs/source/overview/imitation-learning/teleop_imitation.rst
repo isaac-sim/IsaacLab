@@ -567,3 +567,35 @@ smooth and natural.
 |0_interp_steps| |5_interp_steps| |20_interp_steps|
 
 .. centered:: Left: 0 steps. Middle: 5 steps. Right: 20 steps.
+
+
+.. _glossary-mimic-terminology:
+
+Glossary
+~~~~~~~~
+
+.. glossary::
+
+   Isaac Lab Mimic (Mimic)
+      Tool for generating spatially new robot demonstrations from a small number of human demonstrations.
+
+   Subtask
+      A contiguous segment of a human demonstration where the robot's end-effector action is dictated by a single rigid object.
+
+   Annotated Dataset
+      An HDF5 dataset with human demonstrations marked with subtask completion boundaries.
+
+   IK
+      Inverse kinematics.
+
+   FK
+      Forward kinematics.
+
+   Task Space Action
+      A robot action defined in the robot's end-effector space given by spatial translation (XYZ) and orientation (quaternion or euler).
+
+   State-based Policy
+      A policy that takes state vectors as input and outputs a robot action.
+
+   Visuomotor Policy:
+      A policy that takes camera images as input and outputs a robot action.
