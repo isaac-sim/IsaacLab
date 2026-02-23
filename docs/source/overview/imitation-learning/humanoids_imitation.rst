@@ -12,7 +12,7 @@ This page covers data generation and imitation learning workflows for humanoid r
 .. important::
 
    Complete the tutorial in :ref:`Teleoperation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
-   before proceeding with the following demonstrations to 
+   before proceeding with the following demonstrations to
    understand the data collection, annotation, and generation steps of Isaac Lab Mimic.
 
 
