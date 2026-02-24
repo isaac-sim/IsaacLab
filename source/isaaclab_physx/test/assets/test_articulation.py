@@ -1721,9 +1721,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             joint_vel = wp.to_torch(articulation.data.joint_vel).unsqueeze(-1)
 
             # LINK state
-            # pose
-            torch.testing.assert_close(root_link_pose_w, root_link_pose_w)
-            torch.testing.assert_close(body_link_pose_w, body_link_pose_w)
+            # angular velocity should be the same for both COM and link frames
+            torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
+            torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
             # lin_vel arm
             lin_vel_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
@@ -1758,9 +1758,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
             torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
             torch.testing.assert_close(com_quat_w[:, 0, :], root_com_pose_w[..., 3:])
 
-            # linear vel, and angular vel
-            torch.testing.assert_close(root_com_vel_w, root_com_vel_w)
-            torch.testing.assert_close(body_com_vel_w, body_com_vel_w)
+            # angular velocity should be the same for both COM and link frames
+            torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
+            torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
         else:
             # single joint center of masses are at link frames so they will be the same
             torch.testing.assert_close(root_link_pose_w, root_com_pose_w)

@@ -410,7 +410,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -434,7 +434,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -458,7 +458,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -513,7 +513,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -569,7 +569,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -634,7 +634,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -652,6 +652,7 @@ class Articulation(BaseArticulation):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
+                self.data.body_com_pose_b,
                 env_mask,
             ],
             outputs=[
@@ -696,7 +697,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -722,7 +723,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -748,7 +749,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -799,7 +800,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -849,7 +850,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -908,7 +909,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -963,7 +964,7 @@ class Articulation(BaseArticulation):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -989,7 +990,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial or full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -1042,7 +1043,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -1138,7 +1139,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -1185,7 +1186,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -1241,7 +1242,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.

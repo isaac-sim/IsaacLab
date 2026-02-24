@@ -46,13 +46,6 @@ class RigidObject(BaseRigidObject):
     simulation, the physics engine will automatically register the rigid body and create a corresponding
     rigid body handle. This handle can be accessed using the :attr:`root_view` attribute.
 
-    .. note::
-
-        For users familiar with Isaac Sim, the PhysX view class API is not the exactly same as Isaac Sim view
-        class API. Similar to Isaac Lab, Isaac Sim wraps around the PhysX view API. However, as of now (2023.1 release),
-        we see a large difference in initializing the view classes in Isaac Sim. This is because the view classes
-        in Isaac Sim perform additional USD-related operations which are slow and also not required.
-
     .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
 
@@ -490,6 +483,7 @@ class RigidObject(BaseRigidObject):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
+                self.data.body_com_pose_b,
                 env_mask,
             ],
             outputs=[
