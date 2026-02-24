@@ -271,6 +271,9 @@ class ContactSensor(BaseContactSensor):
         """Initializes the sensor-related handles and internal buffers."""
         super()._initialize_impl()
 
+        if self.cfg.force_threshold is None:
+            self.cfg.force_threshold = 0.0
+
         self._generate_force_matrix = (
             self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_prim_expr is not None
         )

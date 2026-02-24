@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from newton import Axis, BroadPhaseMode, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.sensors import SensorContact as NewtonContactSensor
+from newton.sensors import SensorContact
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -59,7 +59,7 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
-    _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
+    _newton_contact_sensors: dict = {}  # Maps sensor_key to SensorContact
     _report_contacts: bool = False
 
     # CUDA graphing
@@ -500,7 +500,7 @@ class NewtonManager(PhysicsManager):
 
         # Create and store the sensor
         # Note: SensorContact constructor requests 'force' attribute from the model
-        newton_sensor = NewtonContactSensor(
+        newton_sensor = SensorContact(
             cls._model,
             sensing_obj_bodies=body_indices,
             sensing_obj_shapes=shape_indices,

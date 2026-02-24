@@ -36,14 +36,6 @@ class NewtonContactSensorCfg(ContactSensorCfg):
 
     class_type: type = ContactSensor
 
-    force_threshold: float = 0.0
-    """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
-    Defaults to 0.0.
-
-    Overrides the base default of 1.0. This value is only used for tracking the mode duration
-    (the time in contact or in air), if :attr:`track_air_time` is True.
-    """
-
     @property
     def sensor_body_prim_expr(self) -> str:
         """Read-only alias for :attr:`prim_path`."""

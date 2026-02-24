@@ -48,8 +48,9 @@ class ContactSensorCfg(SensorBaseCfg):
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 
-    force_threshold: float = 1.0
+    force_threshold: float | None = None
     """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
+    Defaults to None, in which case the sensor backend chooses an appropriate value.
 
     This value is only used for tracking the mode duration (the time in contact or in air),
     if :attr:`track_air_time` is True.
