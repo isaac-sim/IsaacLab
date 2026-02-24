@@ -61,22 +61,22 @@ class RenderingQualityCfg:
     kit_dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
     """Maps to '/rtx/domeLight/upperLowerStrategy'."""
 
-    newton_enable_shadows: bool | None = None
+    newton_enable_shadows: bool | None = True
     """Overrides Newton visualizer shadow rendering."""
 
-    newton_enable_sky: bool | None = None
+    newton_enable_sky: bool | None = True
     """Overrides Newton visualizer sky rendering."""
 
-    newton_enable_wireframe: bool | None = None
+    newton_enable_wireframe: bool | None = False
     """Overrides Newton visualizer wireframe rendering."""
 
-    newton_sky_upper_color: tuple[float, float, float] | None = None
+    newton_sky_upper_color: tuple[float, float, float] | None = (0.2, 0.4, 0.6)
     """Overrides Newton visualizer upper sky color."""
 
-    newton_sky_lower_color: tuple[float, float, float] | None = None
+    newton_sky_lower_color: tuple[float, float, float] | None = (0.5, 0.6, 0.7)
     """Overrides Newton visualizer lower sky color."""
 
-    newton_light_color: tuple[float, float, float] | None = None
+    newton_light_color: tuple[float, float, float] | None = (1.0, 1.0, 1.0)
     """Overrides Newton visualizer light color."""
 
     # TODO: Consider supporting additional raw backend settings dictionaries.

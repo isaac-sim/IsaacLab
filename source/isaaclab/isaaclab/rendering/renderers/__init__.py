@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .renderer_cfg import RTXRendererCfg, RendererCfg, WarpRendererCfg
+from .renderer_cfg import RendererCfg
+from .rtx_renderer_cfg import RTXRendererCfg
+from .warp_renderer_cfg import WarpRendererCfg
 
 _RENDERER_REGISTRY: dict[str, Any] = {}
 

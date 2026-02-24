@@ -28,26 +28,3 @@ class RendererCfg:
 
     rendering_quality: str | None = None
     """Name of the rendering quality profile to use with this renderer."""
-
-
-@configclass
-class RTXRendererCfg(RendererCfg):
-    """Stub config for future RTX renderer integration.
-
-    TODO: Implement renderer lifecycle, sensor/render-product routing, and
-    backend-specific settings application.
-    """
-
-    renderer_type: str = "rtx"
-    rendering_quality: str | None = None
-
-
-@configclass
-class WarpRendererCfg(RendererCfg):
-    """Stub config for future Warp/Newton renderer integration.
-
-    TODO: Implement renderer lifecycle, sensor/render-product routing, and
-    backend-specific settings application.
-    """
-
-    renderer_type: str = "warp"
