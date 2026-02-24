@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab_teleop.session_lifecycle.SessionLifecycle._on_request_required_extensions` to request required
+* Added :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle._on_request_required_extensions` to request required
   OpenXR extensions at runtime based on Teleop devices needed for the specified environment.
 
 0.1.0 (2026-02-18)
