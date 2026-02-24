@@ -74,6 +74,7 @@ class BaseImu(SensorBase):
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """
 
+    @abstractmethod
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 

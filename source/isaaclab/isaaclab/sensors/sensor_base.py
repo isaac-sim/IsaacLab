@@ -223,6 +223,10 @@ class SensorBase(ABC):
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
+        # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
+        # This allows warp arrays to be passed to warp kernels while the corresponding torch
+        # views support fancy indexing (e.g. tensor[env_ids] = True) without any memory copies.
+        # Both the warp array and torch view share the same underlying device memory.
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
