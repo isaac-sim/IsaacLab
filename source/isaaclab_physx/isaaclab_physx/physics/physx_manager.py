@@ -582,8 +582,15 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
-        # Attach stage to PhysX BEFORE loading/starting - critical for GPU pipeline
-        cls._physx_sim.attach_stage(stage_id)
+        is_gpu = "cuda" in PhysicsManager.get_device()
+
+        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
+        # For CPU, the old SimulationManager never called attach_stage() explicitly.
+        # Calling attach_stage() + force_load_physics_from_usd() together causes a
+        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
+        # causing objects to fall through surfaces non-deterministically.
+        if is_gpu:
+            cls._physx_sim.attach_stage(stage_id)
 
         # warmup physx
         cls._physx.force_load_physics_from_usd()

@@ -774,6 +774,136 @@ wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
    )
 
 
+MJCF Importer
+~~~~~~~~~~~~~
+
+The MJCF importer in Isaac Sim was rewritten to use the ``mujoco-usd-converter`` library.
+The old C++ binding-based API (using Kit commands ``MJCFCreateAsset``/``MJCFCreateImportConfig``
+and the ``ImportConfig`` class) has been replaced with a new pure-Python ``MJCFImporter`` class
+and ``MJCFImporterConfig`` dataclass.
+
+.. important::
+
+   The new MJCF importer produces USD assets with **nested rigid bodies** (i.e., ``RigidBodyAPI``
+   is applied to each link prim individually) instead of a single articulation root with rigid
+   body applied only at the top level. This matches how MuJoCo represents bodies and is
+   physically more accurate, but it may affect code that assumes a flat rigid body hierarchy.
+   If you have downstream logic that traverses the USD structure of MJCF-imported assets,
+   verify that it handles nested rigid body prims correctly.
+
+Removed Settings
+----------------
+
+The following :class:`~sim.converters.MjcfConverterCfg` settings have been **removed** because
+the new converter handles them automatically based on the MJCF file content:
+
+- ``fix_base`` — base fixedness is now inferred from the MJCF ``<freejoint>`` tag.
+- ``link_density`` — density is now read directly from the MJCF model.
+- ``import_inertia_tensor`` — inertia tensors are always imported.
+- ``import_sites`` — sites are always imported.
+
+The :attr:`~sim.converters.AssetConverterBaseCfg.make_instanceable` setting from the base class
+is also no longer supported and will be ignored.
+
+
+New Settings
+------------
+
+The following new settings were added to :class:`~sim.converters.MjcfConverterCfg`:
+
++----------------------------------------------------+------------------------------------------------------+
+| Setting                                            | Description                                          |
++====================================================+======================================================+
+| :attr:`~sim.converters.MjcfConverterCfg.merge_mesh`| Merge meshes where possible to optimize the model.   |
++----------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.|
++----------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type` | Type of collision geometry (e.g. ``"default"``,  |
+|                                                    | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
++----------------------------------------------------+------------------------------------------------------+
+
+
+Renamed Settings
+----------------
+
++------------------------------------------+------------------------------------------+
+| Old (2.x)                                | New (3.0)                                |
++==========================================+==========================================+
+| ``self_collision``                       | ``self_collision`` (unchanged)           |
++------------------------------------------+------------------------------------------+
+
+.. note::
+
+   The underlying Isaac Sim API renamed ``self_collision`` to ``allow_self_collision``.
+   The IsaacLab :class:`~sim.converters.MjcfConverterCfg` keeps using ``self_collision``
+   for backward compatibility and maps it to the new name internally.
+
+
+Updated CLI Tool
+----------------
+
+The ``convert_mjcf.py`` script has been updated to match the new importer settings.
+Old command-line flags (``--fix-base``, ``--make-instanceable``, ``--import-sites``)
+are no longer available.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+     ../mujoco_menagerie/unitree_h1/h1.xml \
+     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+     --import-sites \
+     --make-instanceable
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
+     ../mujoco_menagerie/unitree_h1/h1.xml \
+     source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+     --merge-mesh \
+     --self-collision
+
+New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
+
+
+Updated Python API
+------------------
+
+If you use :class:`~sim.converters.MjcfConverter` or :class:`~sim.converters.MjcfConverterCfg`
+directly in your code, update your configuration:
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+
+   cfg = MjcfConverterCfg(
+       asset_path="robot.xml",
+       usd_dir="/output/dir",
+       fix_base=True,
+       import_sites=True,
+       make_instanceable=True,
+   )
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+
+   cfg = MjcfConverterCfg(
+       asset_path="robot.xml",
+       usd_dir="/output/dir",
+       merge_mesh=True,
+       collision_from_visuals=False,
+       self_collision=False,
+   )
+
+
 Need Help?
 ~~~~~~~~~~
 
