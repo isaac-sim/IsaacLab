@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -13,30 +14,84 @@ if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
 
-class Renderer:
-    def __init__(self):
-        raise NotImplementedError
+class Renderer(ABC):
+    """Abstract base class for renderer implementations."""
 
+    @abstractmethod
     def create_render_data(self, sensor: SensorBase) -> Any:
-        raise NotImplementedError
+        """Create render data for the given sensor.
 
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]):
-        raise NotImplementedError
+        The returned object is opaque to the interface: callers pass it to other
+        renderer methods without inspecting its contents. Its structure is
+        implementation-specific (each renderer defines its own type).
 
-    def update_transforms(self):
-        raise NotImplementedError
+        Args:
+            sensor: The camera sensor to create render data for.
 
+        Returns:
+            Renderer-specific data object holding resources needed for rendering.
+            Passed to subsequent render calls.
+        """
+        ...
+
+    @abstractmethod
+    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
+        """Store reference to output buffers for writing during render.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            output_data: Dictionary mapping output names (e.g. ``"rgb"``, ``"depth"``)
+                to pre-allocated tensors where rendered data will be written.
+        """
+        ...
+
+    @abstractmethod
+    def update_transforms(self) -> None:
+        """Update scene transforms before rendering.
+
+        Called to sync physics/asset state into the renderer's scene representation.
+        """
+        ...
+
+    @abstractmethod
     def update_camera(
         self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
-    ):
-        raise NotImplementedError
+    ) -> None:
+        """Update camera poses and intrinsics for the next render.
 
-    def render(self, render_data: Any):
-        raise NotImplementedError
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            positions: Camera positions in world frame, shape ``(N, 3)``.
+            orientations: Camera orientations as quaternions (x, y, z, w), shape ``(N, 4)``.
+            intrinsics: Camera intrinsic matrices, shape ``(N, 3, 3)``.
+        """
+        ...
 
-    def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor):
-        raise NotImplementedError
+    @abstractmethod
+    def render(self, render_data: Any) -> None:
+        """Perform rendering and write to output buffers.
 
-    def cleanup(self, render_data: Any):
-        """Release renderer resources."""
-        pass
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+        """
+        ...
+
+    @abstractmethod
+    def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor) -> None:
+        """Write a specific output type to the given buffer.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            output_name: Name of the output (e.g. ``"rgba"``, ``"depth"``).
+            output_data: Pre-allocated tensor to write the output into.
+        """
+        ...
+
+    @abstractmethod
+    def cleanup(self, render_data: Any) -> None:
+        """Release renderer resources associated with the given render data.
+
+        Args:
+            render_data: The render data object to clean up, or ``None``.
+        """
+        ...
