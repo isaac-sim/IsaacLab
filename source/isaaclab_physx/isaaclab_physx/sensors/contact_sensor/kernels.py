@@ -13,19 +13,19 @@ import warp as wp
 @wp.kernel
 def split_flat_pose_to_pos_quat(
     src: wp.array(dtype=wp.transformf),
-    dst_pos: wp.array2d(dtype=wp.vec3f),
-    dst_quat: wp.array2d(dtype=wp.quatf),
     mask: wp.array(dtype=wp.bool),
     num_bodies: wp.int32,
+    dst_pos: wp.array2d(dtype=wp.vec3f),
+    dst_quat: wp.array2d(dtype=wp.quatf),
 ):
     """Split flat (N*B,) transformf into (N, B) vec3f pos and (N, B) quatf quat.
 
     Args:
         src: Flat source array of transforms from PhysX view. Shape is (N*B,).
-        dst_pos: Destination position buffer. Shape is (N, B).
-        dst_quat: Destination quaternion buffer. Shape is (N, B).
         env_ids: Environment indices to update. Shape is (num_env_ids,).
         num_bodies: Number of bodies per environment.
+        dst_pos: Destination position buffer. Shape is (N, B).
+        dst_quat: Destination quaternion buffer. Shape is (N, B).
     """
     env, sensor = wp.tid()
     if mask:
@@ -44,11 +44,11 @@ def unpack_contact_buffer_data(
     contact_data: wp.array(dtype=wp.vec3f),
     buffer_count: wp.array2d(dtype=wp.uint32),
     buffer_start_indices: wp.array2d(dtype=wp.uint32),
-    dst: wp.array3d(dtype=wp.vec3f),
     mask: wp.array(dtype=wp.bool),
     num_bodies: wp.int32,
     avg: bool,
     default_val: wp.float32,
+    dst: wp.array3d(dtype=wp.vec3f),
 ):
     """Unpack and aggregate contact buffer data for each (env, body, filter) group.
 
@@ -60,11 +60,11 @@ def unpack_contact_buffer_data(
         contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
         buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
         buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
-        dst: Destination buffer. Shape is (N, B, M).
         env_ids: Environment indices. Shape is (num_env_ids,).
         num_bodies: Number of bodies per environment.
         avg: If True, average the data; if False, sum it.
         default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
+        dst: Destination buffer. Shape is (N, B, M).
     """
     env, sensor, contact = wp.tid()
     if mask:
@@ -106,6 +106,20 @@ def reset_contact_sensor_kernel(
     """Reset the contact sensor data for specified environments.
 
     Launch with dim=(num_envs, num_sensors).
+
+    Args:
+        history_length: Length of history.
+        num_filter_objects: Number of filter objects.
+        env_mask: Mask array. Shape is (num_envs,).
+        net_forces_w: Net forces array. Shape is (num_envs, num_sensors).
+        net_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
+        force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_objects).
+        current_air_time: Current air time array. Shape is (num_envs, num_sensors).
+        last_air_time: Last air time array. Shape is (num_envs, num_sensors).
+        current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
+        last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
+        friction_forces_w: Friction forces array. Shape is (num_envs, num_sensors, num_filter_objects).
+        contact_pos_w: Contact pos array. Shape is (num_envs, num_sensors, num_filter_objects).
     """
     env, sensor = wp.tid()
 
@@ -142,7 +156,6 @@ def reset_contact_sensor_kernel(
             contact_pos_w[env, sensor, f] = wp.vec3f(0.0)
 
 
-
 @wp.kernel
 def compute_first_transition_kernel(
     # in
@@ -157,6 +170,11 @@ def compute_first_transition_kernel(
     compute_first_air (with current_air_time).
 
     Launch with dim=(num_envs, num_sensors).
+
+    Args:
+        threshold: Threshold for the time.
+        time: Time array. Shape is (num_envs, num_sensors).
+        result: Result array. Shape is (num_envs, num_sensors).
     """
     env, sensor = wp.tid()
     t = time[env, sensor]
@@ -164,6 +182,7 @@ def compute_first_transition_kernel(
         result[env, sensor] = 1.0
     else:
         result[env, sensor] = 0.0
+
 
 @wp.kernel
 def update_net_forces_kernel(
@@ -187,6 +206,30 @@ def update_net_forces_kernel(
     last_air_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
 ):
+    """Update the net forces, force matrix and air/contact time for each (env, sensor) pair.
+
+    Launch with dim=(num_envs, num_sensors).
+
+    Args:
+        net_forces_flat: Flat net forces. Shape is (num_envs*num_sensors,).
+        net_forces_matrix_flat: Flat force matrix. Shape is (num_envs*num_sensors, num_filter_shapes).
+        mask: Mask array. Shape is (num_envs,).
+        num_sensors: Number of sensors per environment.
+        num_filter_shapes: Number of filter shapes.
+        history_length: Length of history.
+        contact_force_threshold: Threshold for the contact force.
+        timestamp: Timestamp array. Shape is (num_envs,).
+        timestamp_last_update: Timestamp last update array. Shape is (num_envs,).
+        net_forces_w: Net forces array. Shape is (num_envs, num_sensors).
+        net_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
+        force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
+        force_matrix_w_history: Force matrix history array. Shape is
+            (num_envs, history_length, num_sensors, num_filter_shapes).
+        current_air_time: Current air time array. Shape is (num_envs, num_sensors).
+        current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
+        last_air_time: Last air time array. Shape is (num_envs, num_sensors).
+        last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
+    """
     env, sensor = wp.tid()
 
     if mask:

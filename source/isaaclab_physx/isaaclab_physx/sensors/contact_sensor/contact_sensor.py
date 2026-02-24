@@ -368,8 +368,6 @@ class ContactSensor(BaseContactSensor):
         # Convert env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
 
-        B = self._num_sensors
-
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
             # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
@@ -411,14 +409,14 @@ class ContactSensor(BaseContactSensor):
             poses_flat = self.body_physx_view.get_transforms().view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
-                dim=(self._num_envs, B),
-                inputs=[poses_flat, self._data._pos_w, self._data._quat_w, env_mask, B],
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[poses_flat, env_mask, self._num_sensors],
+                outputs=[self._data._pos_w, self._data._quat_w],
                 device=self.device,
             )
 
         # -- Contact points --
         if self.cfg.track_contact_points:
-            M = self._num_filter_shapes
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = self.contact_view.get_contact_data(
                 dt=self._sim_physics_dt
             )
@@ -426,40 +424,39 @@ class ContactSensor(BaseContactSensor):
             pts_vec3 = buffer_contact_points.view(wp.vec3f)
             wp.launch(
                 unpack_contact_buffer_data,
-                dim=(self._num_envs, B, M),
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
                 inputs=[
                     pts_vec3,
                     buffer_count,
                     buffer_start_indices,
-                    self._data._contact_pos_w,
                     env_mask,
-                    B,
+                    self._num_sensors,
                     True,
                     float("nan"),
                 ],
+                outputs=[self._data._contact_pos_w],
                 device=self.device,
             )
 
         # -- Friction forces --
         if self.cfg.track_friction_forces:
-            M = self._num_filter_shapes
             friction_forces, _, buffer_count, buffer_start_indices = self.contact_view.get_friction_data(
                 dt=self._sim_physics_dt
             )
             friction_vec3 = friction_forces.view(wp.vec3f)
             wp.launch(
                 unpack_contact_buffer_data,
-                dim=(self._num_envs, B, M),
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
                 inputs=[
                     friction_vec3,
                     buffer_count,
                     buffer_start_indices,
-                    self._data._friction_forces_w,
                     env_mask,
-                    B,
+                    self._num_sensors,
                     False,
                     0.0,
                 ],
+                outputs=[self._data._friction_forces_w],
                 device=self.device,
             )
 
