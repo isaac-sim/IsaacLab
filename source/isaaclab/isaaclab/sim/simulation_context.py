@@ -600,21 +600,8 @@ class SimulationContext:
                     close_provider()
                 cls._instance._scene_data_provider = None
 
-            # Remove stage from cache
-            stage_cache = UsdUtils.StageCache.Get()
-            stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
-            if stage_id > 0:
-                stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
-
-            # Clear thread-local stage context
-            if hasattr(stage_utils._context, "stage"):
-                delattr(stage_utils._context, "stage")
-
-            # Close the USD context stage (symmetric with attach in __init__)
-            if sim_utils.has_kit():
-                import omni.usd
-
-                omni.usd.get_context().close_stage()
+            # Close the stage (clears cache, thread-local context, and Kit USD context)
+            stage_utils.close_stage()
 
             # Clear instance
             cls._instance = None
