@@ -16,20 +16,20 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 
-from isaaclab.rendering.rendering_quality.rendering_quality_presets import get_kit_rendering_preset
+from isaaclab.rendering.rendering_mode.rendering_mode_presets import get_kit_rendering_preset
 from isaaclab.rendering.visualizers import KitVisualizerCfg
-from isaaclab.sim.simulation_cfg import RenderingQualityCfg, SimulationCfg
+from isaaclab.sim.simulation_cfg import RenderingModeCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 
 
 # @pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
-    """Test that quality presets are applied and can be overridden via RenderingQualityCfg."""
+    """Test that quality presets are applied and can be overridden via RenderingModeCfg."""
 
     # user-friendly field override
     dlss_mode = ("/rtx/post/dlss/execMode", 5)
 
-    rendering_modes = ["performance", "balanced", "high"]
+    rendering_modes = ["performance", "balanced", "quality"]
 
     for rendering_mode in rendering_modes:
         # Clear any existing simulation context before creating a new one
@@ -38,7 +38,7 @@ def test_render_cfg_presets():
         preset_dict = get_kit_rendering_preset(rendering_mode)
 
         profile_name = f"profile_{rendering_mode}"
-        quality_cfg = RenderingQualityCfg(
+        quality_cfg = RenderingModeCfg(
             kit_rendering_preset=rendering_mode,
             kit_dlss_mode=dlss_mode[1],
         )
@@ -70,8 +70,8 @@ def test_render_cfg_presets():
 @pytest.mark.skip(reason="Timeline not stopped")
 # @pytest.mark.isaacsim_ci
 def test_rendering_quality_cfg_field_overrides():
-    """Test that explicit RenderingQualityCfg fields map to carb settings."""
-    quality_cfg = RenderingQualityCfg(
+    """Test that explicit RenderingModeCfg fields map to carb settings."""
+    quality_cfg = RenderingModeCfg(
         kit_enable_translucency=True,
         kit_enable_reflections=True,
         kit_enable_global_illumination=True,

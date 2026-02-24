@@ -20,7 +20,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
-from isaaclab.rendering.rendering_quality.rendering_quality_utils import (
+from isaaclab.rendering.rendering_mode.rendering_mode_utils import (
     apply_quality_profile_to_visualizer_cfg,
     apply_runtime_quality_profile_to_visualizer,
 )

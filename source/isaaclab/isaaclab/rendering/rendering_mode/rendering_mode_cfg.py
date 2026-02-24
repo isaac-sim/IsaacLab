@@ -11,18 +11,18 @@ from isaaclab.utils import configclass
 
 
 @configclass
-class RenderingQualityCfg:
-    """Shared rendering quality profile for visualizers and renderers.
+class RenderingModeCfg:
+    """Shared rendering mode profile for visualizers and renderers.
 
     This profile keeps backend-specific fields in one place using explicit prefixes:
     - 'kit_*' for Omniverse/RTX quality controls
     - 'newton_*' for Newton visual quality controls
     """
 
-    kit_rendering_preset: Literal["performance", "balanced", "high"] | None = None
+    kit_rendering_preset: Literal["performance", "balanced", "quality"] | None = None
     """Optional built-in preset profile.
 
-    Preset values are defined in 'isaaclab.rendering.rendering_quality.rendering_quality_presets'.
+    Preset values are defined in 'isaaclab.rendering.rendering_mode.rendering_mode_presets'.
     """
 
     kit_enable_translucency: bool | None = None

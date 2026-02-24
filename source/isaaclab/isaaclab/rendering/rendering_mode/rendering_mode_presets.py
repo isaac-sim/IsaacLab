@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Built-in rendering quality presets for RTX/Kit rendering.
+"""Built-in rendering mode presets for RTX/Kit rendering.
 
 Presets are sourced from the latest Isaac Lab app rendering profiles (apps/rendering_modes).
 """
@@ -58,7 +58,7 @@ _KIT_PRESETS: dict[str, dict[str, Any]] = {
         "/rtx/pathtracing/maxSamplesPerLaunch": 1_000_000,
         "/rtx/viewTile/limit": 1_000_000,
     },
-    "high": {
+    "quality": {
         "/rtx/rtpt/maxBounces": 3,
         "/rtx/rtpt/cached/enabled": False,
         "/rtx/rtpt/lightcache/cached/enabled": False,
@@ -82,6 +82,6 @@ _KIT_PRESETS: dict[str, dict[str, Any]] = {
 
 def get_kit_rendering_preset(preset_name: str) -> dict[str, Any]:
     """Return a deep copy of the requested rendering preset."""
-    if preset_name not in {"performance", "balanced", "high"}:
+    if preset_name not in {"performance", "balanced", "quality"}:
         raise ValueError(f"Unknown preset '{preset_name}'.")
     return deepcopy(_KIT_PRESETS[preset_name])
