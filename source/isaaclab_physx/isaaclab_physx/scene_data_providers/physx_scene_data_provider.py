@@ -364,6 +364,58 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
+
+    def _extract_model_path_list(self, model: Any, attr_candidates: list[str]) -> list[str]:
+        """Extract a list of prim paths from the first supported model attribute."""
+        for attr_name in attr_candidates:
+            if not hasattr(model, attr_name):
+                continue
+            raw = getattr(model, attr_name)
+            if raw is None:
+                continue
+
+            # Dict-like containers may map index->path or path->index.
+            if isinstance(raw, dict):
+                keys = [k for k in raw.keys() if isinstance(k, str) and k.startswith("/")]
+                vals = [v for v in raw.values() if isinstance(v, str) and v.startswith("/")]
+                paths = keys if keys else vals
+                if paths:
+                    return list(paths)
+                continue
+
+            try:
+                values = list(raw)
+            except Exception:
+                continue
+
+            paths = [v for v in values if isinstance(v, str) and v.startswith("/")]
+            if paths:
+                return paths
+
+        return []
+
+    def _discover_physics_paths_from_stage(self) -> tuple[list[str], list[str]]:
+        """Fallback discovery of rigid-body and articulation paths from USD stage."""
+        if self._stage is None:
+            return [], []
+
+        rigid_paths: list[str] = []
+        articulation_paths: list[str] = []
+        for prim in self._stage.Traverse():
+            path = prim.GetPath().pathString
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                rigid_paths.append(path)
+            if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                articulation_paths.append(path)
+
+        if rigid_paths or articulation_paths:
+            logger.warning(
+                "[PhysxSceneDataProvider] Falling back to USD-discovered physics paths "
+                "(rigid=%d, articulations=%d).",
+                len(rigid_paths),
+                len(articulation_paths),
+            )
+        return rigid_paths, articulation_paths
         except Exception as exc:
             logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
             self._filtered_newton_model = None
