@@ -34,7 +34,7 @@ class BaseRenderer(ABC):
             Renderer-specific data object holding resources needed for rendering.
             Passed to subsequent render calls.
         """
-        ...
+        pass
 
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
@@ -45,7 +45,7 @@ class BaseRenderer(ABC):
             output_data: Dictionary mapping output names (e.g. ``"rgb"``, ``"depth"``)
                 to pre-allocated tensors where rendered data will be written.
         """
-        ...
+        pass
 
     @abstractmethod
     def update_transforms(self) -> None:
@@ -53,7 +53,7 @@ class BaseRenderer(ABC):
 
         Called to sync physics/asset state into the renderer's scene representation.
         """
-        ...
+        pass
 
     @abstractmethod
     def update_camera(
@@ -67,7 +67,7 @@ class BaseRenderer(ABC):
             orientations: Camera orientations as quaternions (x, y, z, w), shape ``(N, 4)``.
             intrinsics: Camera intrinsic matrices, shape ``(N, 3, 3)``.
         """
-        ...
+        pass
 
     @abstractmethod
     def render(self, render_data: Any) -> None:
@@ -76,7 +76,7 @@ class BaseRenderer(ABC):
         Args:
             render_data: The render data object from :meth:`create_render_data`.
         """
-        ...
+        pass
 
     @abstractmethod
     def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor) -> None:
@@ -87,7 +87,7 @@ class BaseRenderer(ABC):
             output_name: Name of the output (e.g. ``"rgba"``, ``"depth"``).
             output_data: Pre-allocated tensor to write the output into.
         """
-        ...
+        pass
 
     @abstractmethod
     def cleanup(self, render_data: Any) -> None:
@@ -96,4 +96,4 @@ class BaseRenderer(ABC):
         Args:
             render_data: The render data object to clean up, or ``None``.
         """
-        ...
+        pass
