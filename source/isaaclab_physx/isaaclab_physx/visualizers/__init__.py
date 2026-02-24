@@ -3,4 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.visualizers.visualizer import *  # noqa: F401, F403
+"""PhysX-backed visualizer implementations."""
+
+from .kit_visualizer import KitVisualizer
+from .kit_visualizer_cfg import KitVisualizerCfg
+
+__all__ = ["KitVisualizer", "KitVisualizerCfg"]
