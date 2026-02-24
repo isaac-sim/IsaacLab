@@ -59,9 +59,10 @@ def reset_envs_kernel(
     """Resets the current and last update timestamps and marks environments as outdated for those being reset.
 
     Args:
-        is_outdated: Boolean array indicating which envs need update. Will be set to False.
-        timestamp: Current timestamp per env.
-        timestamp_last_update: Last update timestamp per env. Will be set to current timestamp.
+        reset_mask: Boolean array indicating which envs to reset.
+        is_outdated: Boolean array indicating which envs need update. Will be set to True for reset envs.
+        timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
+        timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
     """
 
     env = wp.tid()

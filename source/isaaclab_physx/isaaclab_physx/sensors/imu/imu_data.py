@@ -11,7 +11,7 @@ import warp as wp
 
 from isaaclab.sensors.imu import BaseImuData
 
-from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_kernel
+from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_1d_kernel
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,11 @@ class ImuData(BaseImuData):
         The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
         wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
+            concat_pos_and_quat_to_pose_1d_kernel,
             dim=self._num_envs,
             inputs=[self._pos_w, self._quat_w],
             outputs=[self._pose_w],
-            device=self._pos_w.device,
+            device=self._device,
         )
         return self._pose_w
 
@@ -99,6 +99,8 @@ class ImuData(BaseImuData):
             num_envs: Number of environments.
             device: Device for tensor storage.
         """
+        self._num_envs = num_envs
+        self._device = device
         self._pose_w = wp.zeros(num_envs, dtype=wp.transformf, device=device)
         self._pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)

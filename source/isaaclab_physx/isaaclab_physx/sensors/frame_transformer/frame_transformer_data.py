@@ -9,7 +9,7 @@ import warp as wp
 
 from isaaclab.sensors.frame_transformer import BaseFrameTransformerData
 
-from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_kernel
+from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_1d_kernel, concat_pos_and_quat_to_pose_kernel
 
 
 class FrameTransformerData(BaseFrameTransformerData):
@@ -21,7 +21,7 @@ class FrameTransformerData(BaseFrameTransformerData):
         return self._target_frame_names
 
     @property
-    def target_pose_source(self) -> None:
+    def target_pose_source(self) -> wp.array:
         """Pose of target frame(s) relative to source frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
@@ -29,10 +29,10 @@ class FrameTransformerData(BaseFrameTransformerData):
         """
         wp.launch(
             concat_pos_and_quat_to_pose_kernel,
-            dim=self._num_envs,
+            dim=(self._num_envs, self._num_target_frames),
             inputs=[self._target_pos_source, self._target_quat_source],
             outputs=[self._target_pose_source],
-            device=self._target_pos_source.device,
+            device=self._device,
         )
         return self._target_pose_source
 
@@ -55,19 +55,20 @@ class FrameTransformerData(BaseFrameTransformerData):
         return self._target_quat_source
 
     @property
-    def target_pose_w(self) -> None:
-        """Not available for warp backend (cannot concatenate vec3f and quatf).
+    def target_pose_w(self) -> wp.array:
+        """Pose of target frame(s) after offset in world frame.
 
-        Use :attr:`target_pos_w` and :attr:`target_quat_w` separately instead.
+        Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
+        (num_instances, num_target_frames, 7). The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
         wp.launch(
             concat_pos_and_quat_to_pose_kernel,
-            dim=self._num_envs,
-            inputs=[self._source_pos_w, self._source_quat_w],
-            outputs=[self._source_pose_w],
-            device=self._source_pos_w.device,
+            dim=(self._num_envs, self._num_target_frames),
+            inputs=[self._target_pos_w, self._target_quat_w],
+            outputs=[self._target_pose_w],
+            device=self._device,
         )
-        return self._source_pose_w
+        return self._target_pose_w
 
     @property
     def target_pos_w(self) -> wp.array:
@@ -88,18 +89,18 @@ class FrameTransformerData(BaseFrameTransformerData):
         return self._target_quat_w
 
     @property
-    def source_pose_w(self) -> None:
+    def source_pose_w(self) -> wp.array:
         """Pose of source frame after offset in world frame.
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         The pose is provided in (x, y, z, qx, qy, qz, qw) format.
         """
         wp.launch(
-            concat_pos_and_quat_to_pose_kernel,
+            concat_pos_and_quat_to_pose_1d_kernel,
             dim=self._num_envs,
             inputs=[self._source_pos_w, self._source_quat_w],
             outputs=[self._source_pose_w],
-            device=self._source_pos_w.device,
+            device=self._device,
         )
         return self._source_pose_w
 
@@ -135,6 +136,9 @@ class FrameTransformerData(BaseFrameTransformerData):
             target_frame_names: Names of target frames.
             device: Device for tensor storage.
         """
+        self._num_envs = num_envs
+        self._device = device
+        self._num_target_frames = num_target_frames
         self._target_frame_names = target_frame_names
         self._source_pose_w = wp.zeros(num_envs, dtype=wp.transformf, device=device)
         self._source_pos_w = wp.zeros(num_envs, dtype=wp.vec3f, device=device)

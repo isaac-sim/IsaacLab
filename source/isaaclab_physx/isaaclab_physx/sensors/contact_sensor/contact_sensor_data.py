@@ -28,10 +28,10 @@ class ContactSensorData(BaseContactSensorData):
         """
         wp.launch(
             concat_pos_and_quat_to_pose_kernel,
-            dim=self._num_envs,
+            dim=(self._num_envs, self._num_sensors),
             inputs=[self._pos_w, self._quat_w],
             outputs=[self._pose_w],
-            device=self._pos_w.device,
+            device=self._device,
         )
         return self._pose_w
 
@@ -184,6 +184,9 @@ class ContactSensorData(BaseContactSensorData):
             track_friction_forces: Whether to track friction forces.
             device: Device for tensor storage.
         """
+        self._num_envs = num_envs
+        self._num_sensors = num_sensors
+        self._device = device
         # Ensure history_length >= 1 for consistent buffer shapes
         effective_history = max(history_length, 1)
 

@@ -191,7 +191,7 @@ class SensorBase(ABC):
                 self._is_outdated,
                 self._timestamp,
                 self._timestamp_last_update,
-                self._sim_physics_dt,
+                dt,
                 self.cfg.update_period,
             ],
             device=self._device,
@@ -227,7 +227,6 @@ class SensorBase(ABC):
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
         # timestamp and outdated flags
-        self._sim_physics_dt = sim.get_physics_dt()
         self._is_outdated = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
