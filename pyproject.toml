@@ -140,3 +140,11 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
 ]
+
+[tool.ruff.lint]
+select = ["TID251"]  # Enables the banned-api rule
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"isaacsim.core.utils".msg = "Do not import from isaacsim.core.utils; use internal framework utilities instead."
+"isaacsim.core.utils.prims".msg = "Do not import from isaacsim.core.utils.prims; use isaaclab.sim.utils.prims instead."
+"isaacsim.core.utils.stage".msg = "Do not import from isaacsim.core.utils.stage; use isaaclab.sim.utils.stage instead."
