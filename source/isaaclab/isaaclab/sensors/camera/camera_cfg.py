@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import Literal
 
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
@@ -13,6 +13,8 @@ from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera import Camera
+
+from isaaclab.renderers import IsaacRtxRendererCfg, RendererCfg
 
 
 @configclass
@@ -143,3 +145,6 @@ class CameraCfg(SensorBaseCfg):
         }
 
     """
+
+    renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
+    """Renderer configuration for camera sensor."""

@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     from ..sim.scene_data_providers import SceneDataProvider
 
+    from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class RenderData:
 class NewtonWarpRenderer:
     RenderData = RenderData
 
-    def __init__(self):
+    def __init__(self, cfg: NewtonWarpRendererCfg):
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
 
     def create_render_data(self, sensor: SensorBase) -> RenderData:
@@ -170,6 +171,10 @@ class NewtonWarpRenderer:
         if image_data is not None:
             if image_data.ptr != output_data.data_ptr():
                 wp.copy(wp.from_torch(output_data), image_data)
+
+    def cleanup(self, render_data: RenderData | None):
+        """No-op for Newton Warp renderer."""
+        pass
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

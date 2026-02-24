@@ -36,3 +36,7 @@ class Renderer:
 
     def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor):
         raise NotImplementedError
+
+    def cleanup(self, render_data: Any):
+        """Release renderer resources."""
+        pass
