@@ -96,6 +96,12 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
+    # Class-level dedup stamp: tracks the last (sim instance, physics step) at
+    # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
+    # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
+    # any stale stamp from a previous instance.
+    _last_render_update_key: tuple[int, int] = (0, -1)
+
     SIMPLE_SHADING_MODES: dict[str, int] = {
         "simple_shading_constant_diffuse": 0,
         "simple_shading_diffuse_mdl": 1,
@@ -554,6 +560,10 @@ class Camera(SensorBase):
         # -- pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
@@ -590,6 +600,55 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _ensure_render_update(self) -> None:
+        """Ensure the Kit RTX renderer has been pumped for the current physics step.
+
+        This keeps the Kit-specific ``app.update()`` logic inside the camera sensor
+        rather than in the backend-agnostic ``SimulationContext``.
+
+        Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+        only the first call triggers ``app.update()``.  Subsequent calls are no-ops
+        because the class-level ``_last_render_update_key`` already matches the
+        current ``(id(sim), step_count)`` pair.
+
+        The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
+        ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
+        any stale stamp left over from a previous instance.
+
+        No-op conditions:
+            * Already called this step (dedup across camera instances).
+            * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+            * Rendering is not active.
+        """
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            return
+
+        key = (id(sim), sim._physics_step_count)
+        if Camera._last_render_update_key == key:
+            return  # Already pumped this step (by another camera or a visualizer)
+
+        # If a visualizer already pumps the Kit app loop, mark as done and skip.
+        if any(viz.pumps_app_update() for viz in sim.visualizers):
+            Camera._last_render_update_key = key
+            return
+
+        if not sim.is_rendering:
+            return
+
+        # Sync physics results → Fabric so RTX sees updated positions.
+        # physics_manager.step() only runs simulate()/fetch_results() and does NOT
+        # call _update_fabric(), so without this the render would lag one frame behind.
+        sim.physics_manager.forward()
+
+        import omni.kit.app
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
+
+        Camera._last_render_update_key = key
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""

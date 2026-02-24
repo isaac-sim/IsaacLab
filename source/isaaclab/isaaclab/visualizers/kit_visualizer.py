@@ -75,9 +75,14 @@ class KitVisualizer(Visualizer):
         try:
             import omni.kit.app
 
+            from isaaclab.app.settings_manager import get_settings_manager
+
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
+                settings = get_settings_manager()
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
@@ -115,6 +120,10 @@ class KitVisualizer(Visualizer):
 
     def requires_forward_before_step(self) -> bool:
         """OV viewport relies on refreshed kinematic state before render."""
+        return True
+
+    def pumps_app_update(self) -> bool:
+        """KitVisualizer calls app.update() in step(), so render() should not do it again."""
         return True
 
     def set_camera_view(

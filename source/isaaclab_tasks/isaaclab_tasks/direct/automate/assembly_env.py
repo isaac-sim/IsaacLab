@@ -120,7 +120,7 @@ class AssemblyEnv(DirectRLEnv):
         materials = wp.to_torch(asset.root_view.get_material_properties())
         materials[..., 0] = value  # Static friction.
         materials[..., 1] = value  # Dynamic friction.
-        env_ids = torch.arange(self.scene.num_envs, device="cpu")
+        env_ids = torch.arange(self.scene.num_envs, device="cpu", dtype=torch.int32)
         asset.root_view.set_material_properties(wp.from_torch(materials), wp.from_torch(env_ids))
 
     def _init_tensors(self):
@@ -300,7 +300,7 @@ class AssemblyEnv(DirectRLEnv):
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.root_view.get_generalized_mass_matrices()[:, 0:7, 0:7]
+        self.arm_mass_matrix = wp.to_torch(self._robot.root_view.get_generalized_mass_matrices())[:, 0:7, 0:7]
         self.joint_pos = wp.to_torch(self._robot.data.joint_pos).clone()
         self.joint_vel = wp.to_torch(self._robot.data.joint_vel).clone()
 
@@ -655,14 +655,14 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_assets_to_default_pose(self, env_ids):
         """Move assets to default pose before randomization."""
-        held_state = self._held_asset.data.default_root_state.clone()[env_ids]
+        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()[env_ids]
         held_state[:, 0:3] += self.scene.env_origins[env_ids]
         held_state[:, 7:] = 0.0
         self._held_asset.write_root_pose_to_sim(held_state[:, 0:7], env_ids=env_ids)
         self._held_asset.write_root_velocity_to_sim(held_state[:, 7:], env_ids=env_ids)
         self._held_asset.reset()
 
-        fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
+        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
         fixed_state[:, 0:3] += self.scene.env_origins[env_ids]
         fixed_state[:, 7:] = 0.0
         self._fixed_asset.write_root_pose_to_sim(fixed_state[:, 0:7], env_ids=env_ids)
@@ -736,7 +736,7 @@ class AssemblyEnv(DirectRLEnv):
     def _set_franka_to_default_pose(self, joints, env_ids):
         """Return Franka to its default joint position."""
         gripper_width = self.gripper_open_width
-        joint_pos = self._robot.data.default_joint_pos[env_ids]
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
         joint_pos[:, 7:] = gripper_width  # MIMIC
         joint_pos[:, :7] = torch.tensor(joints, device=self.device)[None, :]
         joint_vel = torch.zeros_like(joint_pos)
@@ -758,7 +758,7 @@ class AssemblyEnv(DirectRLEnv):
 
     def randomize_fixed_initial_state(self, env_ids):
         # (1.) Randomize fixed asset pose.
-        fixed_state = self._fixed_asset.data.default_root_state.clone()[env_ids]
+        fixed_state = wp.to_torch(self._fixed_asset.data.default_root_state).clone()[env_ids]
         # (1.a.) Position
         rand_sample = torch.rand((len(env_ids), 3), dtype=torch.float32, device=self.device)
         fixed_pos_init_rand = 2 * (rand_sample - 0.5)  # [-1, 1]
@@ -807,7 +807,7 @@ class AssemblyEnv(DirectRLEnv):
 
         # Set plug pos to assembled state, but offset plug Z-coordinate by height of socket,
         # minus curriculum displacement
-        held_state = self._held_asset.data.default_root_state.clone()
+        held_state = wp.to_torch(self._held_asset.data.default_root_state).clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
         held_state[env_ids, 7:] = 0.0
