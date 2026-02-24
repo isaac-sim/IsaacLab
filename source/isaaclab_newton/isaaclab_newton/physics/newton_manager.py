@@ -235,7 +235,7 @@ class NewtonManager(PhysicsManager):
             import usdrt
 
             cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(cls._model.body_key):
+            for i, prim_path in enumerate(cls._model.body_label):
                 prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
                 prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
                 prim.GetAttribute(cls._newton_index_attr).Set(i)
@@ -387,7 +387,7 @@ class NewtonManager(PhysicsManager):
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
             for sensor in cls._newton_contact_sensors.values():
-                sensor.eval(eval_contacts)
+                sensor.update(eval_contacts)
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
@@ -516,7 +516,7 @@ class NewtonManager(PhysicsManager):
         # Regenerate contacts only if they were already created without force attribute
         # If solver is not initialized, contacts will be created with force in initialize_solver()
         if cls._solver is not None and cls._contacts is not None:
-            # Only regenerate if contacts don't have force attribute (sensor.eval() requires it)
+            # Only regenerate if contacts don't have force attribute (sensor.update() requires it)
             if cls._contacts.force is None:
                 cls._initialize_contacts()
 

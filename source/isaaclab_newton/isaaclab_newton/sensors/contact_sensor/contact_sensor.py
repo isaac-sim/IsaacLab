@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
-from newton.sensors import MatchKind
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
@@ -60,6 +59,10 @@ class ContactSensor(BaseContactSensor):
         Args:
             cfg: The configuration parameters.
         """
+        from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
+
+        from .contact_sensor_cfg import NewtonContactSensorCfg
+
         if isinstance(cfg, NewtonContactSensorCfg):
             pass
         elif isinstance(cfg, ContactSensorCfg):
@@ -296,10 +299,10 @@ class ContactSensor(BaseContactSensor):
         # Assume homogeneous envs, i.e. all envs have the same number of sensors
         # Only get the names for the first env. Expected structure: /World/envs/env_.*/...
         def get_name(idx, match_kind):
-            if match_kind == MatchKind.BODY:
-                return NewtonManager._model.body_key[idx].split("/")[-1]
-            if match_kind == MatchKind.SHAPE:
-                return NewtonManager._model.shape_key[idx].split("/")[-1]
+            if match_kind == NewtonContactSensor.MatchKind.BODY:
+                return NewtonManager._model.body_label[idx].split("/")[-1]
+            if match_kind == NewtonContactSensor.MatchKind.SHAPE:
+                return NewtonManager._model.shape_label[idx].split("/")[-1]
             return "MATCH_ANY"
 
         self._sensor_names = [get_name(idx, kind) for idx, kind in self.contact_view.sensing_objs]
