@@ -12,7 +12,7 @@ import re
 from collections import deque
 from typing import Any
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import UsdGeom
 
 logger = logging.getLogger(__name__)
 
