@@ -15,7 +15,7 @@ from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.rendering.rendering_quality_cfg import RenderingQualityCfg
-from isaaclab.rendering.renderers import RTXRendererCfg, WarpRendererCfg
+from isaaclab.rendering.renderers import RendererCfg
 from isaaclab.rendering.visualizers import VisualizerCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
@@ -122,7 +122,7 @@ class SimulationCfg:
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
     """The list of visualizer configurations. Default is None."""
 
-    renderer_cfgs: list[RTXRendererCfg | WarpRendererCfg] | RTXRendererCfg | WarpRendererCfg | None = None
+    renderer_cfgs: list[RendererCfg] | RendererCfg | None = None
     """Placeholder list of renderer configurations. Default is None.
 
     TODO: Hook renderer lifecycle and execution flow into SimulationContext.
