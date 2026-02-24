@@ -6,8 +6,7 @@
 """Configuration for Kit-based visualizer."""
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @configclass

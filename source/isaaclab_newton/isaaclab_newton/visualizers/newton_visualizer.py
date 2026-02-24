@@ -14,8 +14,9 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
+from isaaclab.visualizers import Visualizer
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 

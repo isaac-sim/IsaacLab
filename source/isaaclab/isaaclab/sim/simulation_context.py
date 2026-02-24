@@ -20,11 +20,11 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
-from isaaclab.rendering.rendering_mode.rendering_mode_utils import (
+from isaaclab.rendering_mode.rendering_mode_utils import (
     apply_quality_profile_to_visualizer_cfg,
     apply_runtime_quality_profile_to_visualizer,
 )
-from isaaclab.rendering.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
+from isaaclab.visualizers import Visualizer
 from isaaclab.sim.utils import create_new_stage
 
 from .scene_data_providers import SceneDataProvider
@@ -272,10 +272,16 @@ class SimulationContext:
         for viz_type in requested_visualizers:
             try:
                 if viz_type == "newton":
+                    from isaaclab_newton.visualizers import NewtonVisualizerCfg
+
                     default_configs.append(NewtonVisualizerCfg())
                 elif viz_type == "rerun":
+                    from isaaclab_newton.visualizers import RerunVisualizerCfg
+
                     default_configs.append(RerunVisualizerCfg())
                 elif viz_type == "kit":
+                    from isaaclab_physx.visualizers import KitVisualizerCfg
+
                     default_configs.append(KitVisualizerCfg())
                 else:
                     logger.warning(

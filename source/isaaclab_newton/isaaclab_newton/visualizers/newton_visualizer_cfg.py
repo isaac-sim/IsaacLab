@@ -6,8 +6,7 @@
 """Configuration for Newton OpenGL Visualizer."""
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @configclass

@@ -8,8 +8,7 @@
 from __future__ import annotations
 
 from isaaclab.utils import configclass
-
-from .visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @configclass

@@ -26,8 +26,8 @@ from isaaclab.envs import (
     ManagerBasedRLEnv,
     ManagerBasedRLEnvCfg,
 )
-from isaaclab.rendering.visualizers.kit_visualizer import KitVisualizer
-from isaaclab.rendering.visualizers.kit_visualizer_cfg import KitVisualizerCfg
+from isaaclab_physx.visualizers.kit_visualizer import KitVisualizer
+from isaaclab_physx.visualizers.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass

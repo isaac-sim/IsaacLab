@@ -16,12 +16,7 @@ from isaaclab.utils import configclass
 
 @configclass
 class RendererCfg:
-    """Base configuration for all renderer backends.
-
-    Note:
-        This is an abstract base class and should not be instantiated directly.
-        Use specific renderer configs like RTXRendererCfg or WarpRendererCfg.
-    """
+    """Base configuration for all renderer backends."""
 
     renderer_type: str | None = None
     """Type identifier (e.g., 'rtx', 'warp'). Must be overridden by subclasses."""

@@ -13,9 +13,9 @@ import newton
 import torch
 import warp as wp
 
-from isaaclab.rendering.visualizers import VisualizerCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase

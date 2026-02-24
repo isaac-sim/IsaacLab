@@ -5,13 +5,12 @@
 
 """Stub config for future Warp/Newton renderer integration."""
 
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
-
-from .renderer_cfg import RendererCfg
 
 
 @configclass
-class WarpRendererCfg(RendererCfg):
+class NewtonWarpRendererCfg(RendererCfg):
     """Stub config for future Warp/Newton renderer integration.
 
     TODO: Implement renderer lifecycle, sensor/render-product routing, and

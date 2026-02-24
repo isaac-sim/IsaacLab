@@ -18,8 +18,9 @@ import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
+from isaaclab.visualizers import Visualizer
+
 from .rerun_visualizer_cfg import RerunVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 

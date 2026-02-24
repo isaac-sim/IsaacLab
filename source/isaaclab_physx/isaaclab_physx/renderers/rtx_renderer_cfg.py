@@ -5,9 +5,8 @@
 
 """Stub config for future RTX renderer integration."""
 
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
-
-from .renderer_cfg import RendererCfg
 
 
 @configclass

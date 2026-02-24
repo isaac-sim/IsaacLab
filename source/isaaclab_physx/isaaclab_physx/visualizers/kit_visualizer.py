@@ -13,8 +13,9 @@ from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
 
+from isaaclab.visualizers import Visualizer
+
 from .kit_visualizer_cfg import KitVisualizerCfg
-from .visualizer import Visualizer
 
 logger = logging.getLogger(__name__)
 

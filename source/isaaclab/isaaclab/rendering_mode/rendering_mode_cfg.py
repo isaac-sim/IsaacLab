@@ -22,7 +22,7 @@ class RenderingModeCfg:
     kit_rendering_preset: Literal["performance", "balanced", "quality"] | None = None
     """Optional built-in preset profile.
 
-    Preset values are defined in 'isaaclab.rendering.rendering_mode.rendering_mode_presets'.
+    Preset values are defined in 'isaaclab.rendering_mode.rendering_mode_presets'.
     """
 
     kit_enable_translucency: bool | None = None

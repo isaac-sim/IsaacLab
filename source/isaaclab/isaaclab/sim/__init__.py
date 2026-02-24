@@ -29,7 +29,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 import warnings
 
 from .converters import *  # noqa: F401, F403
-from isaaclab.rendering.rendering_mode.rendering_mode_cfg import RenderingModeCfg  # noqa: F401
+from isaaclab.rendering_mode.rendering_mode_cfg import RenderingModeCfg  # noqa: F401
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
