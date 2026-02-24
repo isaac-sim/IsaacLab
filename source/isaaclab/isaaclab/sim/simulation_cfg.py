@@ -94,9 +94,9 @@ class SimulationCfg:
     """
 
     rendering_quality_cfgs: dict[str, RenderingModeCfg] = {
-        "performance": RenderingModeCfg(kit_rendering_preset="performance"),
-        "balanced": RenderingModeCfg(kit_rendering_preset="balanced"),
-        "quality": RenderingModeCfg(kit_rendering_preset="quality"),
+        "performance": RenderingModeCfg(rendering_mode_preset="performance"),
+        "balanced": RenderingModeCfg(rendering_mode_preset="balanced"),
+        "quality": RenderingModeCfg(rendering_mode_preset="quality"),
     }
     """Named rendering quality profiles available to visualizers/renderers."""
 

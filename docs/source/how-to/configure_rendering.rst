@@ -19,11 +19,6 @@ Rendering quality can be selected in 2 ways.
      from isaaclab.visualizers import KitVisualizerCfg
 
      sim_cfg = sim_utils.SimulationCfg(
-         rendering_quality_cfgs={
-             "performance": sim_utils.RenderingQualityCfg(kit_rendering_preset="performance"),
-             "balanced": sim_utils.RenderingQualityCfg(kit_rendering_preset="balanced"),
-             "high": sim_utils.RenderingQualityCfg(kit_rendering_preset="high"),
-         },
          visualizer_cfgs=[
              KitVisualizerCfg(
                  rendering_quality="performance",

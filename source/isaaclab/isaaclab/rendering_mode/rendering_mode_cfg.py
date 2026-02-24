@@ -19,7 +19,7 @@ class RenderingModeCfg:
     - 'newton_*' for Newton visual quality controls
     """
 
-    kit_rendering_preset: Literal["performance", "balanced", "quality"] | None = None
+    rendering_mode_preset: Literal["performance", "balanced", "quality"] | None = None
     """Optional built-in preset profile.
 
     Preset values are defined in 'isaaclab.rendering_mode.rendering_mode_presets'.

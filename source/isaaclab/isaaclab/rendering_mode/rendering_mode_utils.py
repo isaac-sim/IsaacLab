@@ -22,8 +22,8 @@ def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
 
 def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingModeCfg) -> None:
     """Apply kit-specific quality fields."""
-    if quality_cfg.kit_rendering_preset:
-        apply_kit_rendering_preset(set_setting, quality_cfg.kit_rendering_preset)
+    if quality_cfg.rendering_mode_preset:
+        apply_kit_rendering_preset(set_setting, quality_cfg.rendering_mode_preset)
 
     field_to_carb = {
         "kit_enable_translucency": "/rtx/translucency/enabled",
