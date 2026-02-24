@@ -16,6 +16,7 @@ Reference: https://www.flexiv.com/product/rizon
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -23,7 +24,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 FLEXIV_RIZON4S_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/home/shauryad/workspaces/rl_policy/isaac_sim_ws/exts/isaacsim.robot.manipulators.examples/data/flexiv/Rizon4s.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
@@ -46,7 +47,7 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
             "joint7": 0.0,
         },
         pos=(0.0, 0.0, 0.0),
-        rot=(1.0, 0.0, 0.0, 0.0),
+        rot=(0.0, 0.0, 0.0, 1.0),
     ),
     actuators={
         # Joints 1-2: Higher torque (123 Nm), lower speed (120°/s = 2.094 rad/s)
