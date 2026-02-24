@@ -24,7 +24,7 @@ from ..sensor_base import SensorBase
 from .camera import Camera
 
 if TYPE_CHECKING:
-    from isaaclab.renderers import Renderer
+    from isaaclab.rendering.renderers.renderer import Renderer
 
     from .tiled_camera_cfg import TiledCameraCfg
 

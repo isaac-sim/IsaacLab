@@ -351,7 +351,6 @@ class SimulationContext:
                 visualizer.initialize(self._scene_data_provider)
                 self._apply_runtime_quality_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
-                logger.info(f"Initialized visualizer: {type(visualizer).__name__} (type: {cfg.visualizer_type})")
             except Exception as exc:
                 logger.error(f"Failed to initialize visualizer '{cfg.visualizer_type}' ({type(cfg).__name__}): {exc}")
 

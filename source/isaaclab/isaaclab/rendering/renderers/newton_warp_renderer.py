@@ -13,15 +13,13 @@ import newton
 import torch
 import warp as wp
 
+from isaaclab.rendering.visualizers import VisualizerCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
-from ..visualizers import VisualizerCfg
-
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
-
-    from ..sim.scene_data_providers import SceneDataProvider
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 
 logger = logging.getLogger(__name__)
@@ -167,9 +165,8 @@ class NewtonWarpRenderer:
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
         image_data = render_data.get_output(output_name)
-        if image_data is not None:
-            if image_data.ptr != output_data.data_ptr():
-                wp.copy(wp.from_torch(output_data), image_data)
+        if image_data is not None and image_data.ptr != output_data.data_ptr():
+            wp.copy(wp.from_torch(output_data), image_data)
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

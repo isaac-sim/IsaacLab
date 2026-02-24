@@ -110,10 +110,12 @@ class RerunVisualizer(Visualizer):
             self._setup_rerun_server()
             self._active_record_path = self.cfg.record_to_rrd
             self._create_viewer(record_to_rrd=self.cfg.record_to_rrd, metadata=metadata)
+            quality_name = self.cfg.rendering_quality if self.cfg.rendering_quality is not None else "none"
             logger.info(
-                "[RerunVisualizer] initialized | camera_pos=%s camera_target=%s",
+                "[RerunVisualizer] initialized | camera_pos=%s camera_target=%s quality=%s",
                 self.cfg.camera_position,
                 self.cfg.camera_target,
+                quality_name,
             )
             self._is_initialized = True
         except Exception as exc:

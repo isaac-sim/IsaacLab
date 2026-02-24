@@ -255,10 +255,12 @@ class NewtonVisualizer(Visualizer):
         self._viewer.show_springs = self.cfg.show_springs
         self._viewer.show_com = self.cfg.show_com
 
+        quality_name = self.cfg.rendering_quality if self.cfg.rendering_quality is not None else "none"
         logger.info(
-            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s",
+            "[NewtonVisualizer] initialized | camera_pos=%s camera_target=%s quality=%s",
             self._viewer.camera.pos,
             self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target,
+            quality_name,
         )
         self._is_initialized = True
 

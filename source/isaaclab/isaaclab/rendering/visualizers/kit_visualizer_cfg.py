@@ -31,3 +31,6 @@ class KitVisualizerCfg(VisualizerCfg):
 
     window_height: int = 720
     """Viewport height in pixels."""
+
+
+    rendering_quality="high"
