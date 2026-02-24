@@ -61,6 +61,22 @@ class TeleopSessionLifecycle:
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
+        try:
+            import isaacsim.kit.xr.teleop.bridge as bridge
+
+            subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
+            if callable(subscribe_required_extensions):
+                self._required_extensions_subscription = subscribe_required_extensions(
+                    self._on_request_required_extensions
+                )
+            else:
+                logger.info(
+                    "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
+                    "skipping required extensions subscription"
+                )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
+
     @property
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
@@ -151,6 +167,25 @@ class TeleopSessionLifecycle:
             self._pipeline = None
         logger.info("IsaacTeleop session ended")
 
+    def _on_request_required_extensions(self) -> list[str]:
+        """Callback for required extensions subscription.
+
+        Returns:
+            A list of required extensions.
+        """
+        from isaacteleop import deviceio
+
+        trackers = self._collect_trackers_from_pipeline(self._pipeline)
+
+        # Include fallback/manual tracker when present and not already collected.
+        if self._controller_tracker is not None and all(t is not self._controller_tracker for t in trackers):
+            trackers.append(self._controller_tracker)
+
+        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
+        logger.info(f"Required extensions: {required_extensions}")
+        # Keep extension order deterministic while removing duplicates.
+        return list(dict.fromkeys(required_extensions))
+
     # ------------------------------------------------------------------
     # Deferred session creation
     # ------------------------------------------------------------------
@@ -166,7 +201,7 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR bridge.  If the handles
+        Tries to acquire OpenXR handles from Kit's XR.  If the handles
         are available, creates and enters the ``TeleopSession``.  If not (e.g.
         the user hasn't started AR yet), the attempt is silently deferred and
         will be retried on the next :meth:`step` call.
@@ -349,8 +384,42 @@ class TeleopSessionLifecycle:
         return external_inputs if external_inputs else None
 
     # ------------------------------------------------------------------
-    # Controller tracker discovery
+    # Tracker discovery
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _collect_trackers_from_pipeline(pipeline) -> list:
+        """Collect all tracker objects from pipeline DeviceIO source nodes.
+
+        Returns:
+            A de-duplicated list of trackers discovered in pipeline leaf nodes.
+        """
+        from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
+
+        if pipeline is None:
+            return []
+
+        try:
+            leaf_nodes = pipeline.get_leaf_nodes()
+        except AttributeError:
+            return []
+
+        trackers = []
+        for node in leaf_nodes:
+            if isinstance(node, IDeviceIOSource):
+                tracker = node.get_tracker()
+                if tracker is not None:
+                    trackers.append(tracker)
+
+        # De-duplicate by object identity while preserving discovery order.
+        deduped_trackers = []
+        seen_ids: set[int] = set()
+        for tracker in trackers:
+            tracker_id = id(tracker)
+            if tracker_id not in seen_ids:
+                seen_ids.add(tracker_id)
+                deduped_trackers.append(tracker)
+        return deduped_trackers
 
     @staticmethod
     def _find_controller_tracker_in(pipeline):
@@ -407,7 +476,7 @@ class TeleopSessionLifecycle:
     def _acquire_kit_oxr_handles(handles_cls: type[OpenXRSessionHandles]) -> OpenXRSessionHandles | None:
         """Acquire OpenXR session handles from Kit's XR bridge extension.
 
-        Imports ``isaacsim.kit.xr.teleop.bridge`` and reads the four raw handle
+        Imports ``omni.kit.xr.openxr`` and reads the four raw handle
         values (XrInstance, XrSession, XrSpace, xrGetInstanceProcAddr) that Kit's
         OpenXR system exposes.  The handles are returned as an
         ``OpenXRSessionHandles`` instance ready for ``DeviceIOSession.run()``.
@@ -421,15 +490,16 @@ class TeleopSessionLifecycle:
             extension is not available (e.g. running outside Isaac Sim).
         """
         try:
-            import isaacsim.kit.xr.teleop.bridge as xr_bridge
+            import isaacsim.kit.xr.teleop.bridge  # Performs polyfill of openxr functions.
+            import omni.kit.xr.system.openxr as openxr
         except (ImportError, ModuleNotFoundError):
-            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
+            logger.info("omni.kit.xr.system.openxr or isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
             return None
 
-        instance = xr_bridge.get_instance_handle()
-        session = xr_bridge.get_session_handle()
-        space = xr_bridge.get_stage_space_handle()
-        proc_addr = xr_bridge.get_instance_proc_addr()
+        instance = openxr.get_instance_handle()
+        session = openxr.get_session_handle()
+        space = openxr.get_stage_space_handle()
+        proc_addr = openxr.get_instance_proc_addr()
 
         if not all((instance, session, space, proc_addr)):
             logger.debug(
