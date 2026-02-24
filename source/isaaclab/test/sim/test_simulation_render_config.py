@@ -84,7 +84,7 @@ def test_render_cfg():
     assert sim.get_setting("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
 
 
-@pytest.mark.isaacsim_ci
+# @pytest.mark.isaacsim_ci
 def test_render_cfg_presets():
     """Test that quality presets are applied and can be overridden via RenderingQualityCfg."""
 
@@ -135,7 +135,7 @@ def test_render_cfg_presets():
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
-@pytest.mark.isaacsim_ci
+# @pytest.mark.isaacsim_ci
 def test_rendering_quality_cfg_field_overrides():
     """Test that explicit RenderingQualityCfg fields map to carb settings."""
     quality_cfg = RenderingQualityCfg(

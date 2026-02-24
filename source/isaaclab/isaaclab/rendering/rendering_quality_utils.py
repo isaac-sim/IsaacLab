@@ -68,6 +68,25 @@ def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg:
             setattr(visualizer_cfg, viz_field, value)
 
 
+def apply_newton_quality_cfg_to_viewer(viewer: Any, quality_cfg: RenderingQualityCfg) -> None:
+    """Apply Newton quality values to a live Newton viewer renderer, if available."""
+    if viewer is None or not hasattr(viewer, "renderer"):
+        return
+
+    if quality_cfg.newton_enable_shadows is not None:
+        viewer.renderer.draw_shadows = quality_cfg.newton_enable_shadows
+    if quality_cfg.newton_enable_sky is not None:
+        viewer.renderer.draw_sky = quality_cfg.newton_enable_sky
+    if quality_cfg.newton_enable_wireframe is not None:
+        viewer.renderer.draw_wireframe = quality_cfg.newton_enable_wireframe
+    if quality_cfg.newton_sky_upper_color is not None:
+        viewer.renderer.sky_upper = quality_cfg.newton_sky_upper_color
+    if quality_cfg.newton_sky_lower_color is not None:
+        viewer.renderer.sky_lower = quality_cfg.newton_sky_lower_color
+    if quality_cfg.newton_light_color is not None:
+        viewer.renderer._light_color = quality_cfg.newton_light_color
+
+
 def resolve_rendering_quality_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
     """Resolve effective quality profile name for a visualizer cfg."""
     cli_quality_explicit = bool(get_setting("/isaaclab/rendering/rendering_quality/explicit"))
@@ -92,3 +111,53 @@ def resolve_rendering_quality_cfg(
         )
         return None
     return quality_cfg
+
+
+def apply_quality_profile_to_visualizer_cfg(
+    get_setting: Any,
+    set_setting: Any,
+    visualizer_cfg: Any,
+    quality_cfgs: dict[str, RenderingQualityCfg],
+    logger: Any,
+) -> None:
+    """Resolve and apply quality profile to a visualizer config."""
+    quality_name = resolve_rendering_quality_name_for_visualizer_cfg(get_setting, visualizer_cfg)
+    quality_cfg = resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
+    if quality_cfg is None:
+        return
+
+    visualizer_type = getattr(visualizer_cfg, "visualizer_type", None)
+    if visualizer_type == "kit":
+        apply_kit_rendering_quality_cfg(set_setting, quality_cfg)
+    elif visualizer_type == "newton":
+        apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg, quality_cfg)
+
+
+def apply_runtime_quality_profile_to_visualizer(
+    get_setting: Any,
+    set_setting: Any,
+    viz: Any,
+    visualizer_quality_keys: dict[int, str | None],
+    quality_cfgs: dict[str, RenderingQualityCfg],
+    logger: Any,
+    force: bool = False,
+) -> None:
+    """Resolve and apply runtime quality profile to an active visualizer."""
+    quality_name = resolve_rendering_quality_name_for_visualizer_cfg(get_setting, viz.cfg)
+    viz_id = id(viz)
+    if not force and visualizer_quality_keys.get(viz_id) == quality_name:
+        return
+
+    quality_cfg = resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
+    if quality_cfg is None:
+        visualizer_quality_keys[viz_id] = quality_name
+        return
+
+    viz_type = getattr(viz.cfg, "visualizer_type", None)
+    if viz_type == "kit":
+        apply_kit_rendering_quality_cfg(set_setting, quality_cfg)
+    elif viz_type == "newton":
+        apply_newton_quality_cfg_to_visualizer_cfg(viz.cfg, quality_cfg)
+        apply_newton_quality_cfg_to_viewer(getattr(viz, "_viewer", None), quality_cfg)
+
+    visualizer_quality_keys[viz_id] = quality_name
