@@ -64,12 +64,6 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -82,11 +76,6 @@ if args_cli.task is None:
 
 app_launcher_args = vars(args_cli)
 
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
@@ -114,10 +103,6 @@ from isaaclab.devices.teleop_device_factory import create_teleop_device
 
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from collections.abc import Callable
 
