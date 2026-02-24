@@ -22,4 +22,16 @@ The following table summarizes the interpretation of the prim paths for differen
 
 """
 
-from .tacsl_sensor import *
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "tacsl_sensor": [
+            "GelSightRenderCfg",
+            "VisuoTactileSensor",
+            "VisuoTactileSensorCfg",
+            "VisuoTactileSensorData",
+        ],
+    },
+)

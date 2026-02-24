@@ -5,7 +5,14 @@
 
 """Sub-module containing different buffers."""
 
-from .circular_buffer import CircularBuffer
-from .delay_buffer import DelayBuffer
-from .timestamped_buffer import TimestampedBuffer
-from .timestamped_buffer_warp import TimestampedBufferWarp
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "circular_buffer": ["CircularBuffer"],
+        "delay_buffer": ["DelayBuffer"],
+        "timestamped_buffer": ["TimestampedBuffer"],
+        "timestamped_buffer_warp": ["TimestampedBufferWarp"],
+    },
+)

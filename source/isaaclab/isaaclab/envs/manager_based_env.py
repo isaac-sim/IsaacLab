@@ -19,11 +19,12 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from source.isaaclab.isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ class ManagerBasedEnv:
         # allocate dictionary to store metrics
         self.extras = {}
 
-        # generate scene
+
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
@@ -139,7 +140,8 @@ class ManagerBasedEnv:
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.has_gui:
+        if has_kit() and self.sim.has_gui:
+            from .ui import ViewportCameraController
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -168,6 +170,12 @@ class ManagerBasedEnv:
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+            if hasattr(self.cfg.ui_window_class_type, "resolve"):
+                self.cfg.ui_window_class_type = self.cfg.ui_window_class_type.resolve()
+            elif isinstance(self.cfg.ui_window_class_type, str):
+                from isaaclab.utils.string import string_to_callable
+
+                self.cfg.ui_window_class_type = string_to_callable(self.cfg.ui_window_class_type)
             # setup live visualizers
             self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
@@ -313,7 +321,6 @@ class ManagerBasedEnv:
 
     def setup_manager_visualizers(self):
         """Creates live visualizers for manager terms."""
-
         self.manager_visualizers = {
             "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
             "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),

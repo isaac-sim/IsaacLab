@@ -10,12 +10,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils import configclass
-
-from .newton_manager import NewtonManager
+from isaaclab.utils import DeferredClass, configclass
 
 if TYPE_CHECKING:
     from isaaclab.physics import PhysicsManager
+
+    from .newton_manager import NewtonManager
 
 
 @configclass
@@ -196,7 +196,7 @@ class NewtonCfg(PhysicsCfg):
     This configuration includes Newton-specific simulation settings and solver configuration.
     """
 
-    class_type: type[PhysicsManager] = NewtonManager
+    class_type: type[PhysicsManager] | DeferredClass = DeferredClass("isaaclab_newton.physics.newton_manager:NewtonManager")
     """The class type of the NewtonManager."""
 
     num_substeps: int = 1

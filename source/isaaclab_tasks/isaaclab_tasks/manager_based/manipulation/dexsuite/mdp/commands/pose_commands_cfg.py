@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -10,8 +12,7 @@ from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-from . import pose_commands as dex_cmd
+from isaaclab.utils.string import DeferredClass
 
 ALIGN_MARKER_CFG = VisualizationMarkersCfg(
     markers={
@@ -35,7 +36,9 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type = dex_cmd.ObjectUniformPoseCommand
+    class_type: type = DeferredClass(
+        "isaaclab_tasks.manager_based.manipulation.dexsuite.mdp.commands.pose_commands:ObjectUniformPoseCommand"
+    )
 
     asset_name: str = MISSING
     """Name of the coordinate referencing asset in the environment for which the commands are generated respect to."""

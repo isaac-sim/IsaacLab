@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
+from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg
 
 from pxr import Sdf
 
@@ -465,7 +466,7 @@ class InteractiveScene:
             # joint state
             joint_position = asset_state["joint_position"].clone()
             joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            articulation.write_joint_state_to_sim(position=joint_position, velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
@@ -696,11 +697,7 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif "Physx" in self.physics_backend and type(asset_cfg).__name__ in (
-                "DeformableObjectCfg", "SurfaceGripperCfg"
-            ):
-                from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg
-
+            elif isinstance(asset_cfg, DeformableObjectCfg) or isinstance(asset_cfg, SurfaceGripperCfg):
                 if isinstance(asset_cfg, DeformableObjectCfg):
                     self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
                 elif isinstance(asset_cfg, SurfaceGripperCfg):

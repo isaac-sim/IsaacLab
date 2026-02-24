@@ -22,10 +22,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-import omni.client
-
 logger = logging.getLogger(__name__)
-from pxr import Sdf
 
 
 def _parse_kit_asset_root() -> str:
@@ -72,8 +69,9 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
-    # we need to convert backslash to forward slash on Windows for omni.client API
-    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+    import omni.client
+
+    if omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
         return 2
     else:
         return 0
@@ -106,6 +104,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     if file_status == 1:
         return os.path.abspath(path)
     elif file_status == 2:
+        import omni.client
+
         # resolve download directory
         if download_dir is None:
             download_dir = tempfile.gettempdir()
@@ -168,6 +168,8 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
+        import omni.client
+
         file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
@@ -191,6 +193,8 @@ def _is_downloadable_asset(path: str) -> bool:
 
 def _find_usd_references(local_usd_path: str) -> set[str]:
     """Use Sdf API to collect referenced assets from a USD layer."""
+    from pxr import Sdf
+
     try:
         layer = Sdf.Layer.FindOrOpen(local_usd_path)
     except Exception:

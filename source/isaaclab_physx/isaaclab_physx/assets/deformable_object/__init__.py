@@ -5,12 +5,13 @@
 
 """Sub-module for deformable object assets."""
 
-from .deformable_object import DeformableObject
-from .deformable_object_cfg import DeformableObjectCfg
-from .deformable_object_data import DeformableObjectData
+import lazy_loader as lazy
 
-__all__ = [
-    "DeformableObject",
-    "DeformableObjectCfg",
-    "DeformableObjectData",
-]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "deformable_object": ["DeformableObject"],
+        "deformable_object_cfg": ["DeformableObjectCfg"],
+        "deformable_object_data": ["DeformableObjectData"],
+    },
+)

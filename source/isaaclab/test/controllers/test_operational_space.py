@@ -1351,7 +1351,7 @@ def _run_op_space_controller(
             # reset joint state to default
             default_joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
             default_joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
-            robot.write_joint_state_to_sim(default_joint_pos, default_joint_vel)
+            robot.write_joint_state_to_sim(position=default_joint_pos, velocity=default_joint_vel)
             robot.set_joint_effort_target(zero_joint_efforts)  # Set zero torques in the initial step
             robot.write_data_to_sim()
             robot.reset()

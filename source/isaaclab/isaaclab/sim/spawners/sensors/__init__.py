@@ -11,5 +11,12 @@ Currently, the following sensors are supported:
 
 """
 
-from .sensors import spawn_camera
-from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "sensors": ["spawn_camera"],
+        "sensors_cfg": ["FisheyeCameraCfg", "PinholeCameraCfg"],
+    },
+)

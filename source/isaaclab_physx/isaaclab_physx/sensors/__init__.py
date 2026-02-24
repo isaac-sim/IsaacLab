@@ -5,16 +5,14 @@
 
 """Sub-package containing PhysX-specific sensor implementations."""
 
-from .contact_sensor import ContactSensor, ContactSensorCfg, ContactSensorData
-from .frame_transformer import FrameTransformer, FrameTransformerData
-from .imu import Imu, ImuData
+import lazy_loader as lazy
 
-__all__ = [
-    "ContactSensor",
-    "ContactSensorCfg",
-    "ContactSensorData",
-    "FrameTransformer",
-    "FrameTransformerData",
-    "Imu",
-    "ImuData",
-]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "contact_sensor": ["ContactSensor", "ContactSensorData"],
+        "contact_sensor.contact_sensor_cfg": ["ContactSensorCfg"],
+        "frame_transformer": ["FrameTransformer", "FrameTransformerData"],
+        "imu": ["Imu", "ImuData"],
+    },
+)

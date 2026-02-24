@@ -220,7 +220,7 @@ class LocomotionEnv(DirectRLEnv):
 
         self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         to_target = self.targets[env_ids] - default_root_state[:, :3]
         to_target[:, 2] = 0.0

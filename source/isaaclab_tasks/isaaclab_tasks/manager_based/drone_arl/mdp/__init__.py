@@ -5,10 +5,14 @@
 
 """This sub-module contains the functions that are specific to the drone ARL environments."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+import isaaclab.envs.mdp as _parent_mdp
 
 from isaaclab_contrib.mdp import *  # noqa: F401, F403
 
 from .commands import *  # noqa: F401, F403
 from .observations import *  # noqa: F401, F403
 from .rewards import *  # noqa: F401, F403
+
+
+def __getattr__(name):
+    return getattr(_parent_mdp, name)

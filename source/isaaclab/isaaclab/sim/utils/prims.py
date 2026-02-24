@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
-
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
@@ -212,14 +211,17 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     stage_id = stage_cache.GetId(stage).ToLongInt()
     if stage_id < 0:
         stage_id = stage_cache.Insert(stage).ToLongInt()
-    # delete prims
-    import omni.kit.commands
-    success, _ = omni.kit.commands.execute(
-        "DeletePrimsCommand",
-        paths=prim_path,
-        stage=stage,
-    )
-    return success
+    
+    if has_kit():
+        # delete prims
+        import omni.kit.commands
+
+        success, _ = omni.kit.commands.execute(
+            "DeletePrimsCommand",
+            paths=prim_path,
+            stage=stage,
+        )
+        return success
 
 
 """
@@ -754,6 +756,8 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
+    if not has_kit():
+        return
     # get stage handle
     if stage is None:
         stage = get_current_stage()

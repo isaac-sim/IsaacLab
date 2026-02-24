@@ -8,16 +8,15 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from isaaclab.devices.openxr import XrCfg
-
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import AgentID, SpaceType, ViewerCfg
-from .ui import BaseEnvWindow
+
+if TYPE_CHECKING:
+    from isaaclab.devices.openxr import XrCfg
 
 
 @configclass
@@ -35,7 +34,7 @@ class DirectMARLEnvCfg:
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | None = BaseEnvWindow
+    ui_window_class_type: type | DeferredClass | None = DeferredClass("isaaclab.envs.ui:BaseEnvWindow")
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.

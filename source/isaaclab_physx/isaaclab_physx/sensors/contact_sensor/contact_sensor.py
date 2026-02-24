@@ -158,21 +158,14 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask=None):
-        # resolve env_ids
+    def reset(self, env_ids: Sequence[int] | None = None):
+        super().reset(env_ids)
         if env_ids is None:
             env_ids_wp = self._ALL_ENV_INDICES
-            env_ids_torch = torch.arange(self._num_envs, device=self._device)
             num_env_ids = self._num_envs
         else:
             env_ids_wp = self._to_warp_int32(env_ids)
-            env_ids_torch = torch.tensor(env_ids, device=self._device, dtype=torch.long)
             num_env_ids = len(env_ids)
-
-        # Reset timestamps and outdated flags
-        self._is_outdated[env_ids_torch] = True
-        self._timestamp[env_ids_torch] = 0.0
-        self._timestamp_last_update[env_ids_torch] = 0.0
 
         B = self._num_bodies
         zero_vec3 = wp.vec3f(0.0, 0.0, 0.0)
@@ -193,7 +186,7 @@ class ContactSensor(BaseContactSensor):
         )
 
         # reset force matrix
-        if len(self.cfg.filter_prim_paths_expr) != 0:
+        if self.cfg.filter_prim_paths_expr:
             M = self._num_filter_shapes
             wp.launch(
                 reset_vec3f_3d,
@@ -256,46 +249,12 @@ class ContactSensor(BaseContactSensor):
                 device=self.device,
             )
 
-    def update(self, dt: float, force_recompute: bool = False):
-        """Updates the sensor data."""
-        if not self._is_initialized:
-            return
-        # Update the timestamp for the sensors
-        self._timestamp += self._sim_physics_dt
-        # Check if we need to update
-        self._is_outdated |= (self._timestamp - self._timestamp_last_update) >= self.cfg.update_period
-        # Update the buffers
-        if force_recompute or self._is_visualizing:
-            self._update_outdated_buffers()
-
-    def _update_outdated_buffers(self):
-        """Fills the sensor data for the outdated sensors."""
-        outdated_env_ids = torch.nonzero(self._is_outdated, as_tuple=False).squeeze(-1).tolist()
-        if len(outdated_env_ids) > 0:
-            self._update_buffers_impl_index(outdated_env_ids)
-            # Update timestamps and clear outdated flags
-            self._timestamp_last_update[self._is_outdated] = self._timestamp[self._is_outdated]
-            self._is_outdated[:] = False
-
     """
     Implementation.
     """
 
     def _initialize_impl(self):
-        """Initializes the sensor-related handles and internal buffers."""
-        # Obtain Simulation Context
-        sim = sim_utils.SimulationContext.instance()
-        if sim is None:
-            raise RuntimeError("Simulation Context is not initialized!")
-        # Obtain device and backend
-        self._device = sim.device
-        self._backend = sim.backend
-        self._num_envs = SimulationManager._num_envs
-        self._sim_physics_dt = sim.get_physics_dt()
-        # Initialize timestamps and state tracking (torch-based for PhysX)
-        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-        self._timestamp = torch.zeros(self._num_envs, dtype=torch.float32, device=self._device)
-        self._timestamp_last_update = torch.zeros_like(self._timestamp)
+        super()._initialize_impl()
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
         # check that only rigid bodies are selected
@@ -319,7 +278,7 @@ class ContactSensor(BaseContactSensor):
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
         # convert regex expressions to glob expressions for PhysX
         body_names_glob = body_names_regex.replace(".*", "*")
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in (self.cfg.filter_prim_paths_expr or [])]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
@@ -340,7 +299,7 @@ class ContactSensor(BaseContactSensor):
 
         # check if filter paths are valid
         if self.cfg.track_contact_points or self.cfg.track_friction_forces:
-            if len(self.cfg.filter_prim_paths_expr) == 0:
+            if not self.cfg.filter_prim_paths_expr:
                 raise ValueError(
                     "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
                     f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
@@ -353,7 +312,7 @@ class ContactSensor(BaseContactSensor):
                 )
 
         # Store filter shapes count
-        self._num_filter_shapes = self.contact_view.filter_count if len(self.cfg.filter_prim_paths_expr) != 0 else 0
+        self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr else 0
         # Store effective history length (always >= 1 for consistent buffer shapes)
         self._history_length = max(self.cfg.history_length, 1)
 
@@ -375,8 +334,8 @@ class ContactSensor(BaseContactSensor):
             torch.arange(self._num_envs, dtype=torch.int32, device=self._device), dtype=wp.int32
         )
 
-    def _update_buffers_impl_index(self, env_ids: Sequence[int]):
-        """Fills the buffers of the sensor data (index-based API for PhysX)."""
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
+        """Fills the buffers of the sensor data."""
         # Convert env_ids to warp array
         num_env_ids = len(env_ids)
         if num_env_ids == self._num_envs:
@@ -405,7 +364,7 @@ class ContactSensor(BaseContactSensor):
         )
 
         # -- Force matrix --
-        if len(self.cfg.filter_prim_paths_expr) != 0:
+        if self.cfg.filter_prim_paths_expr:
             M = self._num_filter_shapes
             # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
             force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)

@@ -26,32 +26,34 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-import warnings
+import lazy_loader as lazy
 
-from .converters import *  # noqa: F401, F403
-from .schemas import *  # noqa: F401, F403
-from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
-from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
-from .spawners import *  # noqa: F401, F403
-from .utils import *  # noqa: F401, F403
-from .views import *  # noqa: F401, F403
+from .simulation_cfg import RenderCfg, SimulationCfg
 
-# Deprecated alias for PhysxCfg -> PhysxCfg
-# This supports old code that uses `from isaaclab.sim import PhysxCfg`
-try:
-    from isaaclab_physx.physics import PhysxCfg as _PhysxCfg
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["converters", "schemas", "spawners", "utils", "views"],
+    submod_attrs={
+        "simulation_context": ["SimulationContext", "build_simulation_context"],
+    },
+)
+__all__ += ["RenderCfg", "SimulationCfg"]
 
-    class PhysxCfg(_PhysxCfg):
-        """DEPRECATED: Use PhysxCfg from isaaclab_physx.physics instead."""
+_lazy_getattr = __getattr__
+_SUBPACKAGES = ("converters", "schemas", "spawners", "utils", "views")
 
-        def __init__(self, *args, **kwargs):
-            warnings.warn(
-                "PhysxCfg is deprecated. Use PhysxCfg from isaaclab_physx.physics instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            super().__init__(*args, **kwargs)
 
-except ImportError:
-    # isaaclab_physx not installed
-    PhysxCfg = None  # type: ignore
+def __getattr__(name):
+    try:
+        return _lazy_getattr(name)
+    except AttributeError:
+        pass
+    import importlib
+
+    for subpkg in _SUBPACKAGES:
+        try:
+            submod = importlib.import_module(f"{__name__}.{subpkg}")
+            return getattr(submod, name)
+        except (ImportError, AttributeError):
+            continue
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

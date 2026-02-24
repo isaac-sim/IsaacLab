@@ -312,18 +312,7 @@ class AssetBase(ABC):
         if not self._is_initialized:
             self._backend = PhysicsManager.get_backend()
             self._device = PhysicsManager.get_device()
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                store_fn = getattr(
-                    SimulationContext.instance().physics_manager,
-                    "store_callback_exception",
-                    None,
-                )
-                if callable(store_fn):
-                    store_fn(e)
-                else:
-                    raise
+            self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

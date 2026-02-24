@@ -195,7 +195,7 @@ def run_simulator(
     joint_pos = robot.data.default_joint_pos.clone()
     joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
     joint_vel = robot.data.default_joint_vel.clone()
-    robot.write_joint_state_to_sim(joint_pos, joint_vel)
+    robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
 
     for _ in range(10):
         scene.write_data_to_sim()
@@ -253,7 +253,7 @@ def run_simulator(
             joint_pos = robot.data.default_joint_pos.clone()
             joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
             joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
 
             cube_state = cube.data.default_root_state.clone()
             cube_state[:, :3] += scene.env_origins

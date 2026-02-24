@@ -182,45 +182,5 @@ class BaseContactSensor(SensorBase):
         return wp.from_torch(currently_detached * less_than_dt_detached)
 
     """
-    Implementation - Abstract methods to be implemented by backend-specific subclasses.
+    Implementation - Methods to be implemented by backend-specific subclasses.
     """
-
-    @abstractmethod
-    def _initialize_impl(self):
-        """Initializes the sensor handles and internal buffers.
-
-        Backend-specific subclasses must implement this method to initialize
-        device, num_envs, timestamps, and sensor-specific buffers.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def _update_outdated_buffers(self):
-        """Fills the sensor data for the outdated sensors.
-
-        Backend-specific subclasses must implement this method to:
-        1. Determine which environments need updating
-        2. Call the appropriate buffer update method
-        3. Update timestamps and clear outdated flags
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        """Resets the sensor internals.
-
-        Args:
-            env_ids: The sensor ids to reset. Defaults to None (all instances).
-            env_mask: The sensor mask to reset. Defaults to None (all instances).
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def update(self, dt: float, force_recompute: bool = False):
-        """Updates the sensor data.
-
-        Args:
-            dt: The time step for the update.
-            force_recompute: Whether to force recomputation of sensor data.
-        """
-        raise NotImplementedError

@@ -19,11 +19,43 @@ There are two main components in this package:
   * :meth:`TerrainImporter.import_usd`: spawn a prim as reference to input USD file.
 
 """
-from .height_field import *  # noqa: F401, F403
-from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
-from .terrain_generator import TerrainGenerator
-from .terrain_generator_cfg import TerrainGeneratorCfg
-from .terrain_importer import TerrainImporter
-from .terrain_importer_cfg import TerrainImporterCfg
-from .trimesh import *  # noqa: F401, F403
-from .utils import color_meshes_by_height, create_prim_from_mesh
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["height_field", "trimesh"],
+    submod_attrs={
+        "sub_terrain_cfg": ["FlatPatchSamplingCfg", "SubTerrainBaseCfg"],
+        "terrain_generator": ["TerrainGenerator"],
+        "terrain_generator_cfg": ["TerrainGeneratorCfg"],
+        "terrain_importer": ["TerrainImporter"],
+        "terrain_importer_cfg": ["TerrainImporterCfg"],
+        "utils": ["color_meshes_by_height", "create_prim_from_mesh"],
+        "trimesh": [
+            "MeshBoxTerrainCfg",
+            "MeshFloatingRingTerrainCfg",
+            "MeshGapTerrainCfg",
+            "MeshInvertedPyramidStairsTerrainCfg",
+            "MeshPitTerrainCfg",
+            "MeshPlaneTerrainCfg",
+            "MeshPyramidStairsTerrainCfg",
+            "MeshRailsTerrainCfg",
+            "MeshRandomGridTerrainCfg",
+            "MeshRepeatedBoxesTerrainCfg",
+            "MeshRepeatedCylindersTerrainCfg",
+            "MeshRepeatedPyramidsTerrainCfg",
+            "MeshStarTerrainCfg",
+        ],
+        "height_field": [
+            "HfDiscreteObstaclesTerrainCfg",
+            "HfInvertedPyramidSlopedTerrainCfg",
+            "HfInvertedPyramidStairsTerrainCfg",
+            "HfPyramidSlopedTerrainCfg",
+            "HfPyramidStairsTerrainCfg",
+            "HfRandomUniformTerrainCfg",
+            "HfSteppingStonesTerrainCfg",
+            "HfTerrainBaseCfg",
+            "HfWaveTerrainCfg",
+        ],
+    },
+)

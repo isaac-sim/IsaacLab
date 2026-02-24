@@ -5,7 +5,11 @@
 
 """This sub-module contains the functions that are specific to the humanoid environment."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+import isaaclab.envs.mdp as _parent_mdp
 
 from .observations import *
 from .rewards import *
+
+
+def __getattr__(name):
+    return getattr(_parent_mdp, name)

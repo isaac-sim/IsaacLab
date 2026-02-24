@@ -14,12 +14,12 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 
 from isaaclab_tasks.direct.automate import factory_control as fc
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -345,7 +345,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             # Write to sim
             self.robot_asset.set_joint_position_target(joint_pos, env_ids=env_ids)
             self.robot_asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
-            self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+            self.robot_asset.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         # Set gripper to grasp position
         joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
@@ -358,7 +358,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)
 
         self.robot_asset.set_joint_position_target(joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
-        self.robot_asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self.robot_asset.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
         # Set gripper to closed position
         for row_idx, env_id in enumerate(env_ids.tolist()):

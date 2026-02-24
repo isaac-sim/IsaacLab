@@ -5,10 +5,15 @@
 
 """Sub-module for frame transformer sensor."""
 
-from .base_frame_transformer import BaseFrameTransformer
-from .base_frame_transformer_data import BaseFrameTransformerData
-from .frame_transformer import FrameTransformer
-from .frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from .frame_transformer_data import FrameTransformerData
+import lazy_loader as lazy
 
-__all__ = ["BaseFrameTransformer", "BaseFrameTransformerData", "FrameTransformer", "FrameTransformerCfg", "FrameTransformerData", "OffsetCfg"]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "base_frame_transformer": ["BaseFrameTransformer"],
+        "base_frame_transformer_data": ["BaseFrameTransformerData"],
+        "frame_transformer": ["FrameTransformer"],
+        "frame_transformer_cfg": ["FrameTransformerCfg", "OffsetCfg"],
+        "frame_transformer_data": ["FrameTransformerData"],
+    },
+)

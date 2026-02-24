@@ -36,10 +36,11 @@ class FactoryBase:
 
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
+        from isaaclab.sim import SimulationContext
 
-        # SimulationContext.instance().physics_manager.get_backend()
-        physics_name = SimulationContext.instance().physics_manager.__name__
-        physics_backend = "newton" if "Newton" in physics_name else "physx"
+        physics_mgr = SimulationContext.instance().physics_manager
+        mgr_name = physics_mgr.__name__  # e.g. "PhysxManager", "NewtonManager"
+        physics_backend = mgr_name.replace("Manager", "").lower()  # "physx", "newton"
 
         if cls == FactoryBase:
             raise TypeError("FactoryBase cannot be instantiated directly. Please subclass it.")

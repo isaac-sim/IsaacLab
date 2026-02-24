@@ -5,9 +5,11 @@
 
 """Sub-package containing Newton-specific sensor implementations."""
 
-from .contact_sensor import *  # noqa: F401, F403
-__all__ = [
-    "ContactSensor",
-    "ContactSensorCfg",
-    "ContactSensorData",
-]
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "contact_sensor": ["ContactSensor", "ContactSensorCfg", "ContactSensorData"],
+    },
+)

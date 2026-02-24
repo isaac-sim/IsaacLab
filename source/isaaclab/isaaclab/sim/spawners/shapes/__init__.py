@@ -14,5 +14,12 @@ on the configuration, the spawned prim can be:
 
 """
 
-from .shapes import spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
-from .shapes_cfg import CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, ShapeCfg, SphereCfg
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "shapes": ["spawn_capsule", "spawn_cone", "spawn_cuboid", "spawn_cylinder", "spawn_sphere"],
+        "shapes_cfg": ["CapsuleCfg", "ConeCfg", "CuboidCfg", "CylinderCfg", "ShapeCfg", "SphereCfg"],
+    },
+)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
+from isaaclab.utils.version import has_kit
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
@@ -243,23 +244,27 @@ def spawn_ground_plane(
     if light_prim.IsValid():
         imageable = UsdGeom.Imageable(light_prim)
         imageable.MakeInvisible()
+    if has_kit():
+        import omni.kit.commands
 
-    prim = stage.GetPrimAtPath(prim_path)
-    # Apply semantic tags
-    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-        # note: taken from replicator scripts.utils.utils.py
-        for semantic_type, semantic_value in cfg.semantic_tags:
-            # deal with spaces by replacing them with underscores
-            semantic_type_sanitized = semantic_type.replace(" ", "_")
-            semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # add labels to the prim
-            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
+        omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"], stage=stage)
 
-    # Apply visibility
-    set_prim_visibility(prim, cfg.visible)
+        prim = stage.GetPrimAtPath(prim_path)
+        # Apply semantic tags
+        if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+            # note: taken from replicator scripts.utils.utils.py
+            for semantic_type, semantic_value in cfg.semantic_tags:
+                # deal with spaces by replacing them with underscores
+                semantic_type_sanitized = semantic_type.replace(" ", "_")
+                semantic_value_sanitized = semantic_value.replace(" ", "_")
+                # add labels to the prim
+                add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
 
-    # return the prim
-    return prim
+        # Apply visibility
+        set_prim_visibility(prim, cfg.visible)
+
+        # return the prim
+        return prim
 
 
 """

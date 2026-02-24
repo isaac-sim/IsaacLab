@@ -316,6 +316,62 @@ without triggering circular imports.
 It is important to note that this is the sole instance within our codebase where circular imports are used
 and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
 
+Lazy Loading and ``__init__.py`` Structure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Isaac Lab uses the `lazy_loader <https://pypi.org/project/lazy-loader/>`__ package
+(``lazy.attach``) to defer the loading of heavy modules. This is critical because
+certain backend modules (``pxr``, ``omni``, ``carb``, ``isaacsim``) must not be
+imported before ``SimulationApp`` is initialized. Importing them too early causes
+crashes such as ``free(): invalid pointer``.
+
+**Configuration vs. Implementation separation**
+
+The codebase follows a clear separation between *configuration classes* (pure data,
+no runtime dependencies) and *implementation classes* (require backend modules at
+runtime). In ``__init__.py`` files, this separation is expressed as:
+
+* **Cfg classes** are imported eagerly at the top of the file.
+* **Implementation classes** are deferred via ``lazy.attach()``.
+
+This pattern makes the architectural intent explicit: configuration classes are
+lightweight and always available, while implementation classes are only loaded when
+actually used.
+
+.. code:: python
+
+   # Example: isaaclab/assets/articulation/__init__.py
+
+   import lazy_loader as lazy
+
+   from .articulation_cfg import ArticulationCfg       # safe -- pure data, no backend deps
+
+   __getattr__, __dir__, __all__ = lazy.attach(
+       __name__,
+       submod_attrs={
+           "base_articulation": ["BaseArticulation"],
+           "base_articulation_data": ["BaseArticulationData"],
+           "articulation": ["Articulation"],            # deferred -- may chain into backend
+           "articulation_data": ["ArticulationData"],
+       },
+   )
+   __all__ += ["ArticulationCfg"]
+
+**Rules for deciding eager vs. lazy**
+
+1. A ``Cfg`` class can be eagerly imported only if its module (and every module it
+   transitively imports) is free of backend imports (``pxr``, ``omni``, ``carb``,
+   ``isaacsim``).
+2. If a ``Cfg`` module imports an implementation class (e.g. for ``class_type``
+   defaults), verify that the implementation module is also backend-free before
+   making the ``Cfg`` eager.
+3. If there is any doubt, keep the ``Cfg`` in the ``lazy.attach()`` block. Safety
+   over style.
+4. For callable fields such as ``func`` in spawner configs, prefer string references
+   (e.g. ``"isaaclab.sim.spawners.shapes.shapes:spawn_sphere"``) over direct
+   function references. Strings are inert data and never trigger accidental imports.
+
+
 Type-hinting
 ^^^^^^^^^^^^
 

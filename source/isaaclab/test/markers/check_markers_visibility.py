@@ -105,7 +105,7 @@ def run_simulator(
                 scene["robot"].data.default_joint_pos.clone(),
                 scene["robot"].data.default_joint_vel.clone(),
             )
-            scene["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["robot"].write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting robot state...")

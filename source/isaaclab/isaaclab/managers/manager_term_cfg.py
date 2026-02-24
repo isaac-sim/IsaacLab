@@ -7,13 +7,14 @@
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 
@@ -353,3 +354,36 @@ class TerminationTermCfg(ManagerTermBaseCfg):
     Note:
         These usually correspond to tasks that have a fixed time limit.
     """
+
+
+class DatasetExportMode(enum.IntEnum):
+    """The mode to handle episode exports."""
+
+    EXPORT_NONE = 0
+    EXPORT_ALL = 1
+    EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES = 2
+    EXPORT_SUCCEEDED_ONLY = 3
+
+
+@configclass
+class RecorderManagerBaseCfg:
+    """Base class for configuring recorder manager terms."""
+
+    dataset_file_handler_class_type: type | DeferredClass = DeferredClass(
+        "isaaclab.utils.datasets:HDF5DatasetFileHandler"
+    )
+
+    dataset_export_dir_path: str = "/tmp/isaaclab/logs"
+    """The directory path where the recorded datasets are exported."""
+
+    dataset_filename: str = "dataset"
+    """Dataset file name without file extension."""
+
+    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_ALL
+    """The mode to handle episode exports."""
+
+    export_in_record_pre_reset: bool = True
+    """Whether to export episodes in the record_pre_reset call."""
+
+    export_in_close: bool = False
+    """Whether to export episodes in the close call."""

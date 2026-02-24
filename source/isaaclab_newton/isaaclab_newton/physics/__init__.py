@@ -5,15 +5,20 @@
 
 """Implementation backends for simulation interfaces."""
 
-from .newton_manager import NewtonManager
-from .newton_manager_cfg import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg, XPBDSolverCfg
+import lazy_loader as lazy
 
-__all__ = [
-    "NewtonManager",
-    "NewtonCfg",
-    "NewtonCfg",
-    "NewtonSolverCfg",
-    "MJWarpSolverCfg",
-    "XPBDSolverCfg",
-    "FeatherstoneSolverCfg",
-]
+from .newton_manager_cfg import (
+    FeatherstoneSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonSolverCfg,
+    XPBDSolverCfg,
+)
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "newton_manager": ["NewtonManager"],
+    },
+)
+__all__ += ["FeatherstoneSolverCfg", "MJWarpSolverCfg", "NewtonCfg", "NewtonSolverCfg", "XPBDSolverCfg"]

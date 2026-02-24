@@ -27,7 +27,6 @@ from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVis
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
-from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,14 @@ class SimulationContext:
 
             self.cfg.physics = PhysxCfg()
         self._physics = self.cfg.physics
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        _class_type = self._physics.class_type
+        if isinstance(_class_type, str):
+            from isaaclab.utils.string import string_to_callable
+
+            _class_type = string_to_callable(_class_type)
+        elif hasattr(_class_type, "resolve"):
+            _class_type = _class_type.resolve()
+        self.physics_manager: type[PhysicsManager] = _class_type  # type: ignore[assignment]
         self.physics_manager.initialize(self)
         self._apply_render_cfg_settings()
 
@@ -682,10 +688,14 @@ def build_simulation_context(
         sim = SimulationContext(sim_cfg)
 
         if add_ground_plane:
+            from .spawners import GroundPlaneCfg
+
             cfg = GroundPlaneCfg()
             cfg.func("/World/defaultGroundPlane", cfg)
 
         if add_lighting or (auto_add_lighting and sim.get_setting("/isaaclab/has_gui")):
+            from .spawners import DomeLightCfg
+
             cfg = DomeLightCfg(
                 color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=10000
             )

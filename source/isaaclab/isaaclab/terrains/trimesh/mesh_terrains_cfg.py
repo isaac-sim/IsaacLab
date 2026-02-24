@@ -7,9 +7,8 @@ import warnings
 from dataclasses import MISSING
 from typing import Literal
 
-import isaaclab.terrains.trimesh.mesh_terrains as mesh_terrains
-import isaaclab.terrains.trimesh.utils as mesh_utils_terrains
 from isaaclab.utils import configclass
+from isaaclab.utils.string import DeferredClass
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
@@ -22,14 +21,14 @@ Different trimesh terrain configurations.
 class MeshPlaneTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a plane mesh terrain."""
 
-    function = mesh_terrains.flat_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:flat_terrain")
 
 
 @configclass
 class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a pyramid stair mesh terrain."""
 
-    function = mesh_terrains.pyramid_stairs_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:pyramid_stairs_terrain")
 
     border_width: float = 0.0
     """The width of the border around the terrain (in m). Defaults to 0.0.
@@ -63,14 +62,14 @@ class MeshInvertedPyramidStairsTerrainCfg(MeshPyramidStairsTerrainCfg):
         This is the same as :class:`MeshPyramidStairsTerrainCfg` except that the steps are inverted.
     """
 
-    function = mesh_terrains.inverted_pyramid_stairs_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:inverted_pyramid_stairs_terrain")
 
 
 @configclass
 class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a random grid mesh terrain."""
 
-    function = mesh_terrains.random_grid_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:random_grid_terrain")
 
     grid_width: float = MISSING
     """The width of the grid cells (in m)."""
@@ -93,7 +92,7 @@ class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
 class MeshRailsTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with box rails as extrusions."""
 
-    function = mesh_terrains.rails_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:rails_terrain")
 
     rail_thickness_range: tuple[float, float] = MISSING
     """The thickness of the inner and outer rails (in m)."""
@@ -109,7 +108,7 @@ class MeshRailsTerrainCfg(SubTerrainBaseCfg):
 class MeshPitTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a pit that leads out of the pit."""
 
-    function = mesh_terrains.pit_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:pit_terrain")
 
     pit_depth_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the pit (in m)."""
@@ -125,7 +124,7 @@ class MeshPitTerrainCfg(SubTerrainBaseCfg):
 class MeshBoxTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with boxes (similar to a pyramid)."""
 
-    function = mesh_terrains.box_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:box_terrain")
 
     box_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the box (in m)."""
@@ -141,7 +140,7 @@ class MeshBoxTerrainCfg(SubTerrainBaseCfg):
 class MeshGapTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a gap around the platform."""
 
-    function = mesh_terrains.gap_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:gap_terrain")
 
     gap_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the gap (in m)."""
@@ -154,7 +153,7 @@ class MeshGapTerrainCfg(SubTerrainBaseCfg):
 class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a floating ring around the center."""
 
-    function = mesh_terrains.floating_ring_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:floating_ring_terrain")
 
     ring_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the ring (in m)."""
@@ -173,7 +172,7 @@ class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
 class MeshStarTerrainCfg(SubTerrainBaseCfg):
     """Configuration for a terrain with a star pattern."""
 
-    function = mesh_terrains.star_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:star_terrain")
 
     num_bars: int = MISSING
     """The number of bars per-side the star. Must be greater than 2."""
@@ -201,7 +200,7 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
         height: float = MISSING
         """The height (along z) of the object (in m)."""
 
-    function = mesh_terrains.repeated_objects_terrain
+    function = DeferredClass("isaaclab.terrains.trimesh.mesh_terrains:repeated_objects_terrain")
 
     object_type: Literal["cylinder", "box", "cone"] | callable = MISSING
     """The type of object to generate.
@@ -263,7 +262,7 @@ class MeshRepeatedPyramidsTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""
 
-    object_type = mesh_utils_terrains.make_cone
+    object_type = DeferredClass("isaaclab.terrains.trimesh.utils:make_cone")
 
     object_params_start: ObjectCfg = MISSING
     """The object curriculum parameters at the start of the curriculum."""
@@ -287,7 +286,7 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""
 
-    object_type = mesh_utils_terrains.make_box
+    object_type = DeferredClass("isaaclab.terrains.trimesh.utils:make_box")
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""
@@ -311,7 +310,7 @@ class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         degrees: bool = True
         """Whether the angle is in degrees. Defaults to True."""
 
-    object_type = mesh_utils_terrains.make_cylinder
+    object_type = DeferredClass("isaaclab.terrains.trimesh.utils:make_cylinder")
 
     object_params_start: ObjectCfg = MISSING
     """The box curriculum parameters at the start of the curriculum."""

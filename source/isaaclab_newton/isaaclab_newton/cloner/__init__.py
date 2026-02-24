@@ -3,6 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .newton_replicate import newton_replicate
+import lazy_loader as lazy
 
-__all__ = ["newton_replicate"]
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "newton_replicate": ["newton_replicate"],
+    },
+)

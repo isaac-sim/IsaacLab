@@ -9,9 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
-
-from .terrain_importer import TerrainImporter
+from isaaclab.utils import DeferredClass, configclass
 
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
@@ -21,7 +19,7 @@ if TYPE_CHECKING:
 class TerrainImporterCfg:
     """Configuration for the terrain manager."""
 
-    class_type: type = TerrainImporter
+    class_type: type | DeferredClass = DeferredClass("isaaclab.terrains.terrain_importer:TerrainImporter")
     """The class to use for the terrain importer.
 
     Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.

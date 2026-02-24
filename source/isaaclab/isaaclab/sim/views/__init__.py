@@ -5,4 +5,11 @@
 
 """Views for manipulating USD prims."""
 
-from .xform_prim_view import XformPrimView
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "xform_prim_view": ["XformPrimView"],
+    },
+)

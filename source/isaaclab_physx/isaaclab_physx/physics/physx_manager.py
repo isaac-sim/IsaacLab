@@ -67,6 +67,10 @@ _PHYSICS_EVENT_TO_ISAAC_EVENT: dict[PhysicsEvent, IsaacEvents] = {
     PhysicsEvent.STOP: IsaacEvents.TIMELINE_STOP,
 }
 
+_PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT: dict[str, IsaacEvents] = {
+    e.value: ie for e, ie in _PHYSICS_EVENT_TO_ISAAC_EVENT.items()
+}
+
 
 class AnimationRecorder:
     """Handles animation recording using PhysX PVD interface."""
@@ -371,6 +375,7 @@ class PhysxManager(PhysicsManager):
     ) -> Any:
         """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
         isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
+        isaac_event = _PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT.get(event.value)
         return cls._subscribe_isaac(callback, isaac_event, order, name) if isaac_event else None
 
     @classmethod

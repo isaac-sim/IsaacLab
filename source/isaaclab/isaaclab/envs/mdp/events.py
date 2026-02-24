@@ -22,22 +22,25 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-import carb
-from pxr import Gf, Sdf, UsdGeom, Vt
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.actuators import ImplicitActuator
-from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.terrains import TerrainImporter
-from isaaclab.utils.version import compare_versions, get_isaac_sim_version, has_kit
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab_physx.assets import DeformableObject
+    import carb
     import omni.physics.tensors.impl.api as physx
+    from isaaclab.actuators import ImplicitActuator
+    from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, RigidObject
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sim.utils.stage import get_current_stage
+    from isaaclab.terrains import TerrainImporter
+    from isaaclab_physx.assets import DeformableObject
+
+
+def _is_instance_by_name(obj: object, *class_names: str) -> bool:
+    """Check isinstance without importing the class, by inspecting the MRO names."""
+    return any(c.__name__ in class_names for c in type(obj).__mro__)
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -85,7 +88,7 @@ def randomize_rigid_body_scale(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    if isinstance(asset, Articulation):
+    if _is_instance_by_name(asset, "Articulation"):
         raise ValueError(
             "Scaling an articulation randomly is not supported, as it affects joint attributes and can cause"
             " unexpected behavior. To achieve different scales, we recommend generating separate USD files for"
@@ -100,7 +103,7 @@ def randomize_rigid_body_scale(
         env_ids = env_ids.cpu()
 
     # acquire stage
-    stage = get_current_stage()
+    stage = env.sim.stage
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
@@ -123,6 +126,8 @@ def randomize_rigid_body_scale(
         relative_child_path = "/" + relative_child_path
 
     # use sdf changeblock for faster processing of USD properties
+    from pxr import Gf, Sdf, UsdGeom, Vt
+
     with Sdf.ChangeBlock():
         for i, env_id in enumerate(env_ids):
             # path to prim to randomize
@@ -197,7 +202,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
+        if not _is_instance_by_name(self.asset, "BaseRigidObject", "BaseArticulation"):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -206,7 +211,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
-        if isinstance(self.asset, Articulation) and self.asset_cfg.body_ids != slice(None):
+        if _is_instance_by_name(self.asset, "Articulation") and self.asset_cfg.body_ids != slice(None):
             self.num_shapes_per_body = []
             for link_path in self.asset.root_view.link_paths[0]:
                 link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
@@ -398,7 +403,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             inertias = wp.to_torch(self.asset.data.body_inertia).clone()
             print("inertias device: ", inertias.device)
             print("inertias shape: ", inertias.shape)
-            if isinstance(self.asset, BaseArticulation):
+            if _is_instance_by_name(self.asset, "BaseArticulation"):
                 # inertia has shape: (num_envs, num_bodies, 9) for articulation
                 inertias[env_ids[:, None], body_ids] = (
                     self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
@@ -548,8 +553,9 @@ def randomize_physics_scene_gravity(
     # unbatch the gravity tensor into a list
     gravity = gravity[0].tolist()
 
-    # set the gravity into the physics simulation
-    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
+    import carb
+
+    physics_sim_view: physx.SimulationView = env.sim.physics_sim_view
     physics_sim_view.set_gravity(carb.Float3(*gravity))
 
 
@@ -652,7 +658,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 stiffness[:, actuator_indices] = self.default_joint_stiffness[env_ids][:, global_indices].clone()
                 randomize(stiffness, stiffness_distribution_params)
                 actuator.stiffness[env_ids] = stiffness
-                if isinstance(actuator, ImplicitActuator):
+                if _is_instance_by_name(actuator, "ImplicitActuator"):
                     self.asset.write_joint_stiffness_to_sim(
                         stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
@@ -662,7 +668,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 damping[:, actuator_indices] = self.default_joint_damping[env_ids][:, global_indices].clone()
                 randomize(damping, damping_distribution_params)
                 actuator.damping[env_ids] = damping
-                if isinstance(actuator, ImplicitActuator):
+                if _is_instance_by_name(actuator, "ImplicitActuator"):
                     self.asset.write_joint_damping_to_sim(damping, joint_ids=actuator.joint_indices, env_ids=env_ids)
 
 
@@ -1463,6 +1469,7 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # enable replicator extension if not already enabled
         from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.replicator.core")
 
         # we import the module here since we may not always need the replicator
@@ -1531,8 +1538,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_texture_randomization()
         else:
-            # acquire stage
-            stage = get_current_stage()
+            stage = env.sim.stage
             prims_group = rep.functional.get.prims(path_pattern=prim_path, stage=stage)
 
             num_prims = len(prims_group)
@@ -1625,6 +1631,7 @@ class randomize_visual_color(ManagerTermBase):
 
         # enable replicator extension if not already enabled
         from isaacsim.core.utils.extensions import enable_extension
+
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep
@@ -1681,7 +1688,7 @@ class randomize_visual_color(ManagerTermBase):
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_color_randomization()
         else:
-            stage = get_current_stage()
+            stage = env.sim.stage
             prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
 
             num_prims = len(prims_group)

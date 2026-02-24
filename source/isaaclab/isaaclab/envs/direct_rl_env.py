@@ -173,6 +173,12 @@ class DirectRLEnv(gym.Env):
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+            if hasattr(self.cfg.ui_window_class_type, "resolve"):
+                self.cfg.ui_window_class_type = self.cfg.ui_window_class_type.resolve()
+            elif isinstance(self.cfg.ui_window_class_type, str):
+                from isaaclab.utils.string import string_to_callable
+
+                self.cfg.ui_window_class_type = string_to_callable(self.cfg.ui_window_class_type)
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window

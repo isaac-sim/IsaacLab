@@ -4,9 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.sensors.contact_sensor import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils import configclass
-
-from .contact_sensor import ContactSensor
+from isaaclab.utils import DeferredClass, configclass
 
 
 @configclass
@@ -16,7 +14,7 @@ class ContactSensorCfg(BaseContactSensorCfg):
     Extends :class:`isaaclab.sensors.ContactSensorCfg` with Newton-specific fields.
     """
 
-    class_type: type = ContactSensor
+    class_type: type | DeferredClass = DeferredClass("isaaclab_newton.sensors.contact_sensor.contact_sensor:ContactSensor")
 
     shape_path: list[str] | None = None
     """A list of shape path expressions to filter which shapes to sense contacts ON. Defaults to None,

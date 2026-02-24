@@ -5,10 +5,9 @@
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import CONTACT_SENSOR_MARKER_CFG
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .contact_sensor import ContactSensor
 
 
 @configclass
@@ -20,7 +19,7 @@ class ContactSensorCfg(SensorBaseCfg):
     - :class:`isaaclab_newton.sensors.ContactSensorCfg` for Newton
     """
 
-    class_type: type = ContactSensor
+    class_type: type | DeferredClass = DeferredClass("isaaclab.sensors.contact_sensor.contact_sensor:ContactSensor")
 
     track_pose: bool = False
     """Whether to track the pose of the sensor's origin. Defaults to False."""

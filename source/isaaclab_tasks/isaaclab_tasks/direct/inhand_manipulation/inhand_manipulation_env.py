@@ -242,7 +242,7 @@ class InHandManipulationEnv(DirectRLEnv):
         self.hand_dof_targets[env_ids] = dof_pos
 
         self.hand.set_joint_position_target(dof_pos, env_ids=env_ids)
-        self.hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
+        self.hand.write_joint_state_to_sim(position=dof_pos, velocity=dof_vel, env_ids=env_ids)
 
         self.successes[env_ids] = 0
         self._compute_intermediate_values()
