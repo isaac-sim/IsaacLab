@@ -163,6 +163,11 @@ class SimulationContext:
         # Simulation state
         self._is_playing = False
         self._is_stopped = True
+
+        # Monotonic physics-step counter used by camera sensors for
+        # render-update deduplication (see TiledCamera._ensure_render_update).
+        self._physics_step_count: int = 0
+
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
     def _apply_render_cfg_settings(self) -> None:
@@ -474,6 +479,7 @@ class SimulationContext:
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
         """
+        self._physics_step_count += 1
         self.physics_manager.step()
         if render:
             self.render()
@@ -482,27 +488,12 @@ class SimulationContext:
         """Update visualizers and render the scene.
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
-        every physics step). Then pumps the Kit app loop to flush the RTX renderer
-        and Replicator annotator buffers, unless a visualizer (e.g. KitVisualizer)
-        already does so in its own step().
+        every physics step).  The actual RTX render pump (Kit ``app.update()``) is
+        handled lazily by camera sensors (see
+        :meth:`~isaaclab.sensors.TiledCamera._ensure_render_update`) before they
+        read annotator data, keeping this method backend-agnostic.
         """
         self.update_visualizers(self.get_rendering_dt())
-
-        # Check if a visualizer (e.g. KitVisualizer) already pumps the Kit app
-        # loop in its step(). If so, we skip to avoid a redundant double render.
-        visualizer_pumps_app = any(viz.pumps_app_update() for viz in self._visualizers)
-
-        if self.is_rendering and not visualizer_pumps_app:
-            # Sync physics results → Fabric so RTX sees updated positions.
-            # physics_manager.step() only runs simulate()/fetch_results() and does NOT
-            # call _update_fabric(), so without this the render would lag one frame behind.
-            self.physics_manager.forward()
-
-            import omni.kit.app
-
-            self.set_setting("/app/player/playSimulations", False)
-            omni.kit.app.get_app().update()
-            self.set_setting("/app/player/playSimulations", True)
 
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):

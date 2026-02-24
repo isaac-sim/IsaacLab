@@ -31,6 +31,12 @@ if TYPE_CHECKING:
 
 class TiledCamera(Camera):
     SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
+
+    # Class-level dedup stamp: tracks the last physics step at which
+    # `app.update()` was pumped.  Shared across all TiledCamera instances so
+    # only the first camera per step triggers the render.
+    _last_render_update_step: int = -1
+
     r"""The tiled rendering based camera sensor for acquiring the same data as the Camera class.
 
     This class inherits from the :class:`Camera` class but uses the tiled-rendering API to acquire
@@ -281,6 +287,11 @@ class TiledCamera(Camera):
                 self.renderer.write_output(self.render_data, output_name, output_data)
             return
 
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
+
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
             # check whether returned data is a dict (used for segmentation)
@@ -358,6 +369,53 @@ class TiledCamera(Camera):
     """
     Private Helpers
     """
+
+    def _ensure_render_update(self) -> None:
+        """Ensure the Kit RTX renderer has been pumped for the current physics step.
+
+        This keeps the Kit-specific ``app.update()`` logic inside the camera sensor
+        rather than in the backend-agnostic ``SimulationContext``.
+
+        Safe to call from multiple ``TiledCamera`` instances per step — only the
+        first call triggers ``app.update()``.  Subsequent calls are no-ops because
+        the class-level ``_last_render_update_step`` stamp already matches the
+        current ``SimulationContext._physics_step_count``.
+
+        No-op conditions:
+            * Already called this step (dedup across camera instances).
+            * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+            * Rendering is not active.
+        """
+        import isaaclab.sim as sim_utils
+
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            return
+
+        step_count = sim._physics_step_count
+        if TiledCamera._last_render_update_step >= step_count:
+            return  # Already pumped this step (by another camera or a visualizer)
+
+        # If a visualizer already pumps the Kit app loop, mark as done and skip.
+        if any(viz.pumps_app_update() for viz in sim.visualizers):
+            TiledCamera._last_render_update_step = step_count
+            return
+
+        if not sim.is_rendering:
+            return
+
+        # Sync physics results → Fabric so RTX sees updated positions.
+        # physics_manager.step() only runs simulate()/fetch_results() and does NOT
+        # call _update_fabric(), so without this the render would lag one frame behind.
+        sim.physics_manager.forward()
+
+        import omni.kit.app
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
+
+        TiledCamera._last_render_update_step = step_count
 
     def _check_supported_data_types(self, cfg: TiledCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
