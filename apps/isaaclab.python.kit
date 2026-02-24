@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "2.3.2"
+version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -161,8 +161,8 @@ indent_all_ticks = false
 show_menu_titles = true
 
 [settings.app]
-name = "Isaac-Sim"
-version = "6.0.0"
+name = "Isaac Lab"
+version = "3.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -248,6 +248,9 @@ rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
+
+# NuRec
+omni.rtx.nre.compositing.rendererHints = 3
 
 [settings.app.livestream]
 outDirectory = "${data}"
