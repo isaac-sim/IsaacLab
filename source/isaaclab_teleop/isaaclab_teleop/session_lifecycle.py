@@ -62,6 +62,7 @@ class TeleopSessionLifecycle:
         self._retargeting_ui = None
 
         try:
+            # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
             import isaacsim.kit.xr.teleop.bridge as bridge
 
             subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
@@ -490,10 +491,9 @@ class TeleopSessionLifecycle:
             extension is not available (e.g. running outside Isaac Sim).
         """
         try:
-            import isaacsim.kit.xr.teleop.bridge  # Performs polyfill of openxr functions.
             import omni.kit.xr.system.openxr as openxr
         except (ImportError, ModuleNotFoundError):
-            logger.info("omni.kit.xr.system.openxr or isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
+            logger.info("omni.kit.xr.system.openxr not available; IsaacTeleop will create its own OpenXR session")
             return None
 
         instance = openxr.get_instance_handle()
