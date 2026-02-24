@@ -19,7 +19,7 @@ from isaaclab.sim.views import XformPrimView
 from ..sensor_base import SensorBase
 from .camera import Camera
 
-from isaaclab.renderers import create_renderer
+from isaaclab.renderers import Renderer
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class TiledCamera(Camera):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        self.renderer = create_renderer(cfg.renderer_cfg)
+        self.renderer = Renderer(cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)
         self.render_data = None
         super().__init__(cfg)
