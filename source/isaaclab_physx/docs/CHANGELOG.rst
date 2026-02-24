@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.5.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned asset API with the multi-backend architecture. Base class abstract methods
+  in :class:`~isaaclab.assets.BaseArticulation` and :class:`~isaaclab.assets.BaseRigidObject`
+  have been refined so that PhysX and Newton backends share a consistent interface.
+
+* Improved docstrings across all asset classes with precise shape and dtype annotations
+  for warp array properties and write methods.
+
+* Migrated tests to use the new ``_index`` / ``_mask`` write method APIs, removing
+  usage of deprecated write methods.
+
+
 0.4.1 (2026-02-18)
 ~~~~~~~~~~~~~~~~~~
 
