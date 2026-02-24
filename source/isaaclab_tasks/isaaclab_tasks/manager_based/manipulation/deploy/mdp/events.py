@@ -342,7 +342,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             joint_pos = joint_pos + delta_dof_pos
 
             # Wrap arm joint positions to fall within robot's actual joint limits
-            joint_pos_limits = self.robot_asset.data.joint_pos_limits[env_ids, :self.num_arm_joints, :]
+            joint_pos_limits = wp.to_torch(self.robot_asset.data.joint_pos_limits)[env_ids, :self.num_arm_joints, :]
             joint_min = joint_pos_limits[:, :, 0]
             joint_max = joint_pos_limits[:, :, 1]
             joint_range = joint_max - joint_min
@@ -365,7 +365,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         # Reset joint velocities to zero after IK convergence
-        joint_vel = torch.zeros_like(self.robot_asset.data.joint_vel[env_ids])
+        joint_vel = torch.zeros_like(wp.to_torch(self.robot_asset.data.joint_vel)[env_ids])
 
         # Set gripper to grasp position
         joint_pos = self.robot_asset.data.joint_pos.torch[env_ids].clone()
