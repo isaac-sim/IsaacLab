@@ -17,9 +17,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 
 from isaaclab.rendering.rendering_quality.rendering_quality_presets import get_kit_rendering_preset
+from isaaclab.rendering.visualizers import KitVisualizerCfg
 from isaaclab.sim.simulation_cfg import RenderingQualityCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.rendering.visualizers import KitVisualizerCfg
 
 
 # @pytest.mark.isaacsim_ci

@@ -182,7 +182,9 @@ class RerunVisualizer(Visualizer):
         bind_host = self.cfg.bind_address
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
-        if not self._is_bind_port_available(bind_host, grpc_port) or not self._is_bind_port_available(bind_host, web_port):
+        if not self._is_bind_port_available(bind_host, grpc_port) or not self._is_bind_port_available(
+            bind_host, web_port
+        ):
             # If ports are already occupied, reuse any existing rerun server and avoid noisy subprocess crashes.
             logger.warning(
                 "[RerunVisualizer] Requested bind %s (gRPC=%d, web=%d) is already in use. "

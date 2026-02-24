@@ -157,7 +157,8 @@ class PhysxSceneDataProvider:
                 self._newton_model, ["body_key", "body_keys", "body_label", "body_labels"]
             )
             self._articulation_paths = self._extract_model_path_list(
-                self._newton_model, ["articulation_key", "articulation_keys", "articulation_label", "articulation_labels"]
+                self._newton_model,
+                ["articulation_key", "articulation_keys", "articulation_label", "articulation_labels"],
             )
             if not self._rigid_body_paths or not self._articulation_paths:
                 rigid_fallback, art_fallback = self._discover_physics_paths_from_stage()
@@ -280,8 +281,7 @@ class PhysxSceneDataProvider:
 
         if rigid_paths or articulation_paths:
             logger.warning(
-                "[PhysxSceneDataProvider] Falling back to USD-discovered physics paths "
-                "(rigid=%d, articulations=%d).",
+                "[PhysxSceneDataProvider] Falling back to USD-discovered physics paths (rigid=%d, articulations=%d).",
                 len(rigid_paths),
                 len(articulation_paths),
             )

@@ -61,7 +61,7 @@ class VisualizerCfg:
     Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
     """
 
-    rendering_quality: str | None = None
+    rendering_quality: str | None = "balanced"
     """Name of the rendering quality profile for this visualizer.
 
     Selects an entry from 'isaaclab.sim.SimulationCfg.rendering_quality_cfgs'.
