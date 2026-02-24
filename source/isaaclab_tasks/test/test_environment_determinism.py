@@ -18,8 +18,7 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-import omni.usd
+import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -29,8 +28,9 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 def setup_environment():
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    from isaaclab.app.settings_manager import get_settings_manager
+
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ def _test_environment_determinism(task_name: str, device: str):
 def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_steps: int) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     try:
         # parse configuration
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)

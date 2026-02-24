@@ -57,7 +57,7 @@ def test_create_multiple_stages():
 
 def test_create_new_stage_in_memory():
     """Test creating a new stage in memory (Isaac Sim 5.0+)."""
-    stage = sim_utils.create_new_stage_in_memory()
+    stage = sim_utils.create_new_stage()
 
     # Should return a valid stage
     assert stage is not None
@@ -70,16 +70,17 @@ def test_create_new_stage_in_memory():
 
 def test_is_current_stage_in_memory():
     """Test checking if current stage is in memory."""
-    # Create a regular stage (attached to context)
+    # Create a stage - in kitless mode, this creates an in-memory stage
     sim_utils.create_new_stage()
     is_in_memory = sim_utils.is_current_stage_in_memory()
 
     # Should return a boolean
     assert isinstance(is_in_memory, bool)
-    assert is_in_memory is False
+    # With kitless mode support, create_new_stage() creates an in-memory stage
+    assert is_in_memory is True
 
-    # Create a stage in memory
-    stage = sim_utils.create_new_stage_in_memory()
+    # Create a stage in memory explicitly
+    stage = sim_utils.create_new_stage()
     with sim_utils.use_stage(stage):
         is_in_memory = sim_utils.is_current_stage_in_memory()
         assert isinstance(is_in_memory, bool)
@@ -103,11 +104,10 @@ def test_save_and_open_stage():
         assert save_path.exists()
 
         # Open the saved stage
-        open_result = sim_utils.open_stage(str(save_path))
-        assert open_result is True
+        opened_stage = sim_utils.open_stage(str(save_path))
+        assert isinstance(opened_stage, Usd.Stage)
 
         # Verify content was preserved
-        opened_stage = sim_utils.get_current_stage()
         test_cube = opened_stage.GetPrimAtPath("/World/TestCube")
         assert test_cube.IsValid()
         assert test_cube.GetTypeName() == "Cube"
@@ -214,25 +214,6 @@ def test_close_stage():
     assert isinstance(result, bool)
 
 
-def test_close_stage_with_callback():
-    """Test closing stage with a callback function."""
-    # Create a stage
-    sim_utils.create_new_stage()
-
-    # Track callback invocations
-    callback_called = []
-
-    def callback(success: bool, error_msg: str):
-        callback_called.append((success, error_msg))
-
-    # Close with callback
-    result = sim_utils.close_stage(callback_fn=callback)
-
-    # Callback might be called or not depending on implementation
-    # Just verify no exceptions were raised
-    assert isinstance(result, bool)
-
-
 def test_clear_stage():
     """Test clearing the stage."""
     # Create a new stage
@@ -248,21 +229,6 @@ def test_clear_stage():
 
     # Stage should still exist but prims should be removed
     assert stage is not None
-
-
-def test_is_stage_loading():
-    """Test checking if stage is loading."""
-    # Create a new stage
-    sim_utils.create_new_stage()
-
-    # Check loading status
-    is_loading = sim_utils.is_stage_loading()
-
-    # Should return a boolean
-    assert isinstance(is_loading, bool)
-
-    # After creation, should not be loading
-    assert is_loading is False
 
 
 def test_get_current_stage():
@@ -287,3 +253,108 @@ def test_get_current_stage_id():
     # Should be a valid integer ID
     assert isinstance(stage_id, int)
     assert stage_id >= 0
+
+
+def test_resolve_paths():
+    """Test resolve_paths helper for asset path resolution."""
+    from isaaclab.sim.utils.stage import resolve_paths
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a source stage with a sublayer reference
+        source_path = Path(temp_dir) / "source" / "source_stage.usd"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Create source stage with some content
+        source_stage = Usd.Stage.CreateNew(str(source_path))
+        source_stage.DefinePrim("/World", "Xform")
+        source_stage.DefinePrim("/World/Cube", "Cube")
+        source_stage.GetRootLayer().Save()
+
+        # Copy to a different location using layer transfer
+        dest_path = Path(temp_dir) / "dest" / "dest_stage.usd"
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        from pxr import Sdf
+
+        dest_layer = Sdf.Layer.CreateNew(str(dest_path))
+        dest_layer.TransferContent(source_stage.GetRootLayer())
+
+        # Resolve paths (should not raise any errors)
+        resolve_paths(str(source_path), str(dest_path))
+        dest_layer.Save()
+
+        # Open destination stage and verify content was preserved
+        dest_stage = Usd.Stage.Open(str(dest_path))
+        cube_prim = dest_stage.GetPrimAtPath("/World/Cube")
+        assert cube_prim.IsValid()
+        assert cube_prim.GetTypeName() == "Cube"
+
+
+def test_stage_context_tracking():
+    """Test that stage context is properly tracked across operations."""
+    # Create initial stage
+    stage1 = sim_utils.create_new_stage()
+    stage1.DefinePrim("/Stage1Marker", "Xform")
+
+    # Verify it's the current stage
+    current = sim_utils.get_current_stage()
+    assert current.GetPrimAtPath("/Stage1Marker").IsValid()
+
+    # Create another stage - should become current
+    stage2 = sim_utils.create_new_stage()
+    stage2.DefinePrim("/Stage2Marker", "Xform")
+
+    current = sim_utils.get_current_stage()
+    assert current.GetPrimAtPath("/Stage2Marker").IsValid()
+    assert not current.GetPrimAtPath("/Stage1Marker").IsValid()
+
+    # Use stage context manager to temporarily switch
+    with sim_utils.use_stage(stage1):
+        current = sim_utils.get_current_stage()
+        assert current.GetPrimAtPath("/Stage1Marker").IsValid()
+
+    # After context manager, should be back to stage2
+    current = sim_utils.get_current_stage()
+    assert current.GetPrimAtPath("/Stage2Marker").IsValid()
+
+
+def test_is_prim_deletable():
+    """Test _is_prim_deletable with various prim types."""
+    from isaaclab.sim.utils.stage import _is_prim_deletable
+
+    stage = sim_utils.create_new_stage()
+
+    # Create a locally authored prim - should be deletable
+    local_prim = stage.DefinePrim("/World/LocalPrim", "Xform")
+    assert _is_prim_deletable(local_prim) is True
+
+    # Create another deletable prim
+    another_prim = stage.DefinePrim("/World/AnotherPrim", "Cube")
+    assert _is_prim_deletable(another_prim) is True
+
+    # Root prim should not be deletable
+    root_prim = stage.GetPseudoRoot()
+    assert _is_prim_deletable(root_prim) is False
+
+
+def test_open_stage_sets_current():
+    """Test that open_stage sets the opened stage as current."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create and save a stage
+        stage = sim_utils.create_new_stage()
+        stage.DefinePrim("/TestPrim", "Xform")
+
+        save_path = Path(temp_dir) / "test.usd"
+        sim_utils.save_stage(str(save_path), save_and_reload_in_place=False)
+
+        # Create a different stage
+        sim_utils.create_new_stage()
+        sim_utils.get_current_stage().DefinePrim("/DifferentPrim", "Xform")
+
+        # Open the saved stage
+        opened = sim_utils.open_stage(str(save_path))
+
+        # Opened stage should now be current
+        current = sim_utils.get_current_stage()
+        assert current == opened
+        assert current.GetPrimAtPath("/TestPrim").IsValid()

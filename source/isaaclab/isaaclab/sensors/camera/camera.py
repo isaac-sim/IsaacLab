@@ -15,12 +15,11 @@ import numpy as np
 import torch
 from packaging import version
 
-import carb
-import omni.usd
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
@@ -132,8 +131,8 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
         isaac_sim_version = get_isaac_sim_version()
@@ -141,11 +140,11 @@ class Camera(SensorBase):
             # Set RTX flag to enable fast path if only depth or albedo is requested
             supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
             if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
 
             # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if carb_settings_iface.get("/isaaclab/has_gui"):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+            if settings.get("/isaaclab/has_gui"):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
             if "albedo" in self.cfg.data_types:
                 logger.warning(
@@ -160,7 +159,7 @@ class Camera(SensorBase):
         # Set simple shading mode (if requested) before rendering
         simple_shading_mode = self._resolve_simple_shading_mode()
         if simple_shading_mode is not None:
-            carb_settings_iface.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -315,11 +314,8 @@ class Camera(SensorBase):
                 # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
                 if isinstance(param_value, np.floating):
                     param_value = float(param_value)
-                # set value
-                # note: We have to do it this way because the camera might be on a different
-                #   layer (default cameras are on session layer), and this is the simplest
-                #   way to set the property on the right layer.
-                omni.usd.set_prop_val(param_attr(), param_value)
+                # set value using pure USD API
+                param_attr().Set(param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
 
@@ -434,8 +430,7 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."

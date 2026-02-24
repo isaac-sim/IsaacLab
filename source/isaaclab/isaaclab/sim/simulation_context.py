@@ -16,14 +16,13 @@ from typing import Any
 import toml
 import torch
 
-import carb
-import omni.usd
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
+from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.utils import create_new_stage_in_memory
+from isaaclab.sim.utils import create_new_stage
 from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 
 from .scene_data_providers import SceneDataProvider
@@ -37,13 +36,13 @@ _VISUALIZER_TYPES = ("newton", "rerun", "kit")
 
 
 class SettingsHelper:
-    """Helper for typed Carbonite settings access."""
+    """Helper for typed settings access via SettingsManager."""
 
-    def __init__(self, settings: carb.settings.ISettings):
+    def __init__(self, settings: SettingsManager):
         self._settings = settings
 
     def set(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting with automatic type routing."""
+        """Set a setting with automatic type routing."""
         if isinstance(value, bool):
             self._settings.set_bool(name, value)
         elif isinstance(value, int):
@@ -58,7 +57,7 @@ class SettingsHelper:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
 
     def get(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings.get(name)
 
 
@@ -104,32 +103,37 @@ class SimulationContext:
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
         if self.cfg.create_stage_in_memory:
-            # Create a fresh in-memory stage
-            self.stage = create_new_stage_in_memory()
+            self.stage = create_new_stage()
         else:
-            # Use existing stage from USD context, or create a new one
-            self.stage = omni.usd.get_context().get_stage()
-            if self.stage is None:
-                omni.usd.get_context().new_stage()
-                self.stage = omni.usd.get_context().get_stage()
+            # Prefer the thread-local current stage (set by create_new_stage / test fixtures)
+            # over cache lookup, since the cache may contain stale stages from prior tests.
+            current = getattr(stage_utils._context, "stage", None)
+            if current is not None:
+                self.stage = current
+            else:
+                all_stages = stage_cache.GetAllStages() if stage_cache.Size() > 0 else []  # type: ignore[union-attr]
+                self.stage = all_stages[0] if all_stages else create_new_stage()
 
-        # Ensure stage is in USD cache and get its ID
-        cached_id = stage_cache.GetId(self.stage)  # type: ignore[union-attr]
-        if not cached_id.IsValid():
-            cached_id = stage_cache.Insert(self.stage)  # type: ignore[union-attr]
-        stage_id = cached_id.ToLongInt()
+        # Ensure stage is in the USD cache
+        stage_id = stage_cache.GetId(self.stage).ToLongInt()  # type: ignore[union-attr]
+        if stage_id < 0:
+            stage_cache.Insert(self.stage)  # type: ignore[union-attr]
 
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        # Attach in-memory stage to USD context immediately to ensure proper lifecycle events
-        # This allows PhysX and viewport to receive stage events and prevents cleanup issues
-        if self.cfg.create_stage_in_memory:
-            omni.usd.get_context().attach_stage_with_callback(stage_id)
+        # When Kit is running, attach the stage to Kit's USD context so that
+        # Kit extensions (PhysX views, Articulation, viewport) can discover it.
+        if sim_utils.has_kit():
+            import omni.usd
 
-        # Acquire settings interface and create helper
-        self._carb_settings = carb.settings.get_settings()
-        self._settings_helper = SettingsHelper(self._carb_settings)
+            kit_context = omni.usd.get_context()
+            if kit_context is not None and kit_context.get_stage() is not self.stage:
+                kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
+
+        # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
+        self.settings = SettingsManager.instance()
+        self._settings_helper = SettingsHelper(self.settings)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -194,20 +198,20 @@ class SimulationContext:
                 with open(preset_filename) as file:
                     preset_dict = toml.load(file)
 
-                def _apply_nested_carb_settings(data: dict[str, Any], path: str = "") -> None:
+                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
                     for key, value in data.items():
                         key_path = f"{path}/{key}" if path else f"/{key}"
                         if isinstance(value, dict):
-                            _apply_nested_carb_settings(value, key_path)
+                            _apply_nested(value, key_path)
                         else:
                             self.set_setting(key_path.replace(".", "/"), value)
 
-                _apply_nested_carb_settings(preset_dict)
+                _apply_nested(preset_dict)
             else:
                 logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
 
-        # Friendly RenderCfg fields mapped to native carb settings.
-        field_to_carb = {
+        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
+        field_to_setting = {
             "enable_translucency": "/rtx/translucency/enabled",
             "enable_reflections": "/rtx/reflections/enabled",
             "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
@@ -224,21 +228,23 @@ class SimulationContext:
         for key, value in vars(render_cfg).items():
             if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
                 continue
-            carb_key = field_to_carb.get(key)
-            if carb_key is not None:
-                self.set_setting(carb_key, value)
+            setting_path = field_to_setting.get(key)
+            if setting_path is not None:
+                self.set_setting(setting_path, value)
 
-        # Raw carb overrides have highest priority.
-        carb_settings = getattr(render_cfg, "carb_settings", None)
-        if carb_settings:
-            for key, value in carb_settings.items():
+        # Raw overrides from render_cfg (stored via SettingsManager)
+        extra_settings = getattr(render_cfg, "carb_settings", None)
+        if extra_settings:
+            for key, value in extra_settings.items():
                 if "_" in key:
-                    key = "/" + key.replace("_", "/")
+                    path = "/" + key.replace("_", "/")
                 elif "." in key:
-                    key = "/" + key.replace(".", "/")
-                self.set_setting(key, value)
+                    path = "/" + key.replace(".", "/")
+                else:
+                    path = key
+                self.set_setting(path, value)
 
-        # Optional anti-aliasing mode handling via Replicator (best-effort).
+        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
         antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
         if antialiasing_mode is not None:
             try:
@@ -340,7 +346,7 @@ class SimulationContext:
         return default_configs
 
     def _get_cli_visualizer_types(self) -> list[str]:
-        """Return list of visualizer types requested via CLI (carb setting)."""
+        """Return list of visualizer types requested via CLI (setting)."""
         requested = self.get_setting("/isaaclab/visualizer")
         if not requested:
             return []
@@ -394,13 +400,7 @@ class SimulationContext:
         if not visualizer_cfgs:
             return
 
-        from .scene_data_providers import PhysxSceneDataProvider
-
-        # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-        # switch provider selection to route by physics backend:
-        # - Omni/PhysX -> PhysxSceneDataProvider
-        # - Newton/Warp -> NewtonSceneDataProvider
-        self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        self.initialize_scene_data_provider(visualizer_cfgs)
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -417,6 +417,17 @@ class SimulationContext:
             if callable(close_provider):
                 close_provider()
             self._scene_data_provider = None
+
+    def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
+        if self._scene_data_provider is None:
+            from .scene_data_providers import PhysxSceneDataProvider
+
+            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
+            # switch provider selection to route by physics backend:
+            # - Omni/PhysX -> PhysxSceneDataProvider
+            # - Newton/Warp -> NewtonSceneDataProvider
+            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+        return self._scene_data_provider
 
     @property
     def visualizers(self) -> list[Visualizer]:
@@ -480,19 +491,7 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        if self._should_forward_before_visualizer_update():
-            self.physics_manager.forward()
-        self._visualizer_step_counter += 1
-        if self._scene_data_provider is None:
-            return
-        provider = self._scene_data_provider
-        env_ids_union: list[int] = []
-        for viz in self._visualizers:
-            ids = viz.get_visualized_env_ids()
-            if ids is not None:
-                env_ids_union.extend(ids)
-        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-        provider.update(env_ids)
+        self.update_scene_data_provider()
 
         visualizers_to_remove = []
         for viz in self._visualizers:
@@ -521,6 +520,21 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+
+    def update_scene_data_provider(self, force_require_forward: bool = False):
+        if force_require_forward or self._should_forward_before_visualizer_update():
+            self.physics_manager.forward()
+        self._visualizer_step_counter += 1
+        if self._scene_data_provider is None:
+            return
+        provider = self._scene_data_provider
+        env_ids_union: list[int] = []
+        for viz in self._visualizers:
+            ids = viz.get_visualized_env_ids()
+            if ids is not None:
+                env_ids_union.extend(ids)
+        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
+        provider.update(env_ids)
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
@@ -558,11 +572,11 @@ class SimulationContext:
         return self._is_stopped
 
     def set_setting(self, name: str, value: Any) -> None:
-        """Set a Carbonite setting value."""
+        """Set a setting value."""
         self._settings_helper.set(name, value)
 
     def get_setting(self, name: str) -> Any:
-        """Get a Carbonite setting value."""
+        """Get a setting value."""
         return self._settings_helper.get(name)
 
     @classmethod
@@ -586,18 +600,8 @@ class SimulationContext:
                     close_provider()
                 cls._instance._scene_data_provider = None
 
-            # Remove stage from cache
-            stage_cache = UsdUtils.StageCache.Get()
-            stage_id = stage_cache.GetId(cls._instance.stage).ToLongInt()  # type: ignore[union-attr]
-            if stage_id > 0:
-                stage_cache.Erase(cls._instance.stage)  # type: ignore[union-attr]
-
-            # Clear thread-local stage context
-            if hasattr(stage_utils._context, "stage"):
-                delattr(stage_utils._context, "stage")
-
-            # Close the USD context stage (symmetric with attach in __init__)
-            omni.usd.get_context().close_stage()
+            # Close the stage (clears cache, thread-local context, and Kit USD context)
+            stage_utils.close_stage()
 
             # Clear instance
             cls._instance = None
@@ -655,7 +659,7 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
-            stage_utils.create_new_stage()
+            sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)

@@ -15,11 +15,10 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import carb
 import omni.physics.tensors.impl.api as physx
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 
@@ -92,8 +91,7 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
@@ -267,7 +265,7 @@ class ContactSensor(BaseContactSensor):
         body_names = list()
         for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
             # check if prim has contact reporter API
-            if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+            if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
                 prim_path = prim.GetPath().pathString
                 body_names.append(prim_path.rsplit("/", 1)[-1])
         # check that there is at least one body with contact reporter API
