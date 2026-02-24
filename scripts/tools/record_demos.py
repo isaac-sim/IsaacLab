@@ -90,6 +90,7 @@ simulation_app = app_launcher.app
 import logging
 import os
 import time
+from collections.abc import Callable
 
 import gymnasium as gym
 import torch
@@ -100,16 +101,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
-
-import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
-
-from collections.abc import Callable
-
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.ui import EmptyWindow
 from isaaclab.managers import DatasetExportMode
+
+import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
