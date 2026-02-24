@@ -261,4 +261,9 @@ class SimulationCfg:
     """
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = None
+    # from isaaclab.visualizers import KitVisualizerCfg, VisualizerCfg
+    # visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None = KitVisualizerCfg(
+    #     camera_position=(0.0, 0.0, 100.0),
+    #     camera_target=(0.0, 0.0, 0.0),
+    # )
     """The list of visualizer configurations. Default is None."""

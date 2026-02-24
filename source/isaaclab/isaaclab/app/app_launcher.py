@@ -44,6 +44,17 @@ class ExplicitAction(argparse.Action):
         setattr(namespace, f"{self.dest}_explicit", True)
 
 
+class ExplicitTrueAction(argparse.Action):
+    """Custom action to track explicit use of boolean flags."""
+
+    def __init__(self, option_strings, dest, default=False, required=False, help=None):
+        super().__init__(option_strings=option_strings, dest=dest, nargs=0, default=default, required=required, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, True)
+        setattr(namespace, f"{self.dest}_explicit", True)
+
+
 class AppLauncher:
     """A utility class to launch Isaac Sim application based on command-line arguments and environment variables.
 
@@ -280,9 +291,9 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--headless",
-            action="store_true",
+            action=ExplicitTrueAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
-            help="Force display off at all times.",
+            help="[DEPRECATED] Force display off at all times. Prefer omitting '--visualizer'.",
         )
         arg_group.add_argument(
             "--livestream",
@@ -313,6 +324,7 @@ class AppLauncher:
         arg_group.add_argument(
             "--visualizer",
             type=str,
+            action=ExplicitAction,
             nargs="+",
             default=None,
             help="Visualizer backends to enable (e.g., kit, newton, rerun).",
@@ -586,12 +598,28 @@ class AppLauncher:
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
         headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
+        headless_arg_explicit = launcher_args.pop("headless_explicit", False)
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
                 f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
+
+        visualizers_arg = launcher_args.get("visualizer")
+        if headless_arg and headless_arg_explicit:
+            print(
+                "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated, but still supported."
+                " It will be removed in a future release. Prefer omitting '--visualizer' for headless execution."
+            )
+            if visualizers_arg:
+                print(
+                    "[WARN][AppLauncher]: Both '--headless' and '--visualizer' were provided."
+                    " Deprecated '--headless' takes precedence and overrides '--visualizer'."
+                )
+                # Prevent downstream visualizer initialization when headless override is requested.
+                launcher_args["visualizer"] = []
+
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
@@ -614,18 +642,23 @@ class AppLauncher:
             # Headless needs to be a bool to be ingested by SimulationApp
             self._headless = bool(headless_env)
 
-        # If visualizers are explicitly requested and Kit viewport is not among them,
-        # force headless mode so Isaac Sim GUI does not launch unnecessarily.
+        # Visualizer-driven headless behavior:
+        # - If no visualizer is requested, run headless by default.
+        # - If visualizers are requested but "kit" is not among them, also run headless.
+        # This prevents launching Isaac Sim GUI unless explicitly requested via "--visualizer kit"
+        # (or when livestream is enabled).
         visualizers_arg = launcher_args.get("visualizer")
+        requested_visualizers = set()
         if visualizers_arg:
             requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
-            if requested_visualizers and "kit" not in requested_visualizers and self._livestream == 0:
-                if not self._headless:
-                    print(
-                        "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
-                        "'kit' and livestream is disabled."
-                    )
-                self._headless = True
+
+        if self._livestream == 0 and (not requested_visualizers or "kit" not in requested_visualizers):
+            if not self._headless:
+                print(
+                    "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' is not set "
+                    "to include 'kit' and livestream is disabled."
+                )
+            self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
@@ -944,10 +977,8 @@ class AppLauncher:
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
         """Store visualizer selection in settings."""
         visualizers = launcher_args.get("visualizer")
-        if not visualizers:
-            return
         with contextlib.suppress(Exception):
-            visualizer_str = " ".join(visualizers)
+            visualizer_str = " ".join(visualizers) if visualizers else ""
             get_settings_manager().set_string("/isaaclab/visualizer", visualizer_str)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
