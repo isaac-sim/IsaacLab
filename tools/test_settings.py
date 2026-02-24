@@ -47,6 +47,8 @@ PER_TEST_TIMEOUTS = {
     "test_rigid_object_collection.py": 1000,
     "test_scale_randomization.py": 500,
     "test_texture_randomization.py": 500,
+    "test_env_rendering_logic.py": 500,
+    "test_manager_based_rl_env_ui.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

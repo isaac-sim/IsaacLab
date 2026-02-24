@@ -73,12 +73,13 @@ class KitVisualizer(Visualizer):
         self._sim_time += dt
         self._step_counter += 1
         try:
-            import carb
             import omni.kit.app
+
+            from isaaclab.app.settings_manager import get_settings_manager
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                settings = carb.settings.get_settings()
+                settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()
                 settings.set_bool("/app/player/playSimulations", True)
