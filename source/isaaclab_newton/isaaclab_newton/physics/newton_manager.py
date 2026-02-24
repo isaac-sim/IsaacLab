@@ -445,8 +445,6 @@ class NewtonManager(PhysicsManager):
 
         Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.
 
-        Note: Only one contact sensor can be active at a time.
-
         Args:
             body_names_expr: Regex expression for body names to sense.
             shape_names_expr: Regex expression for shape names to sense.

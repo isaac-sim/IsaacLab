@@ -64,7 +64,7 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     primitives and the filter shapes.
 
     Mutually exclusive with :attr:`ContactSensorCfg.filter_prim_paths_expr`; only one
-    should be set.
+    must be set.
 
     .. note::
         Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
@@ -76,20 +76,23 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     def __post_init__(self):
         if self.track_contact_points:
             warnings.warn(
-                "NewtonContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring."
+                "NewtonContactSensorCfg: 'track_contact_points' is not supported by the Newton backend. Ignoring.",
+                stacklevel=2,
             )
             self.track_contact_points = False
 
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
                 "NewtonContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton"
-                " backend. Ignoring."
+                " backend. Ignoring.",
+                stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
 
         if self.track_friction_forces:
             warnings.warn(
-                "NewtonContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring."
+                "NewtonContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
+                stacklevel=2,
             )
             self.track_friction_forces = False
 
@@ -99,7 +102,7 @@ class NewtonContactSensorCfg(ContactSensorCfg):
 
         Args:
             base_cfg: The base contact sensor configuration to copy from.
-            **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_*"]``.
+            **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_.*"]``.
 
         Returns:
             A new :class:`NewtonContactSensorCfg` instance.

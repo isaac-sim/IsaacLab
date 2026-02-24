@@ -17,7 +17,6 @@ from isaaclab_newton.physics import NewtonManager
 from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
 from isaaclab.utils.helpers import deprecated
 
@@ -393,37 +392,9 @@ class ContactSensor(BaseContactSensor):
         #    pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
         #    self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
-    def _set_debug_vis_impl(self, debug_vis: bool):
-        # set visibility of markers
-        # note: parent only deals with callbacks. not their visibility
-        if debug_vis:
-            # create markers if necessary for the first tome
-            if not hasattr(self, "contact_visualizer"):
-                self.contact_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-            # set their visibility to true
-            self.contact_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "contact_visualizer"):
-                self.contact_visualizer.set_visibility(False)
-
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
         return
-        # note: this invalidity happens because of isaac sim view callbacks
-        # if self.body_physx_view is None:
-        #    return
-        # marker indices
-        # 0: contact, 1: no contact
-        # net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
-        # marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
-        # check if prim is visualized
-        # if self.cfg.track_pose:
-        #    frame_origins: torch.Tensor = self._data.pos_w
-        # else:
-        #    pose = self.body_physx_view.get_transforms()
-        #    frame_origins = pose.view(-1, self._num_sensors, 7)[:, :, :3]
-        # visualize
-        # self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
 
     """
     Internal simulation callbacks.
