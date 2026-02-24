@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering domain package (renderers, visualizers, quality config/presets)."""
+"""Rendering domain package (renderers, visualizers, rendering quality)."""
 
-from .rendering_quality_cfg import RenderingQualityCfg
-from .rendering_quality_presets import get_kit_rendering_preset
+from .quality import RenderingQualityCfg, get_kit_rendering_preset
 from .renderers import RTXRendererCfg, RendererCfg, WarpRendererCfg
 
 __all__ = [
