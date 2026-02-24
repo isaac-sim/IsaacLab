@@ -5,7 +5,7 @@
 
 """Rendering domain package (renderers, visualizers, rendering quality)."""
 
-from .quality import RenderingQualityCfg, get_kit_rendering_preset
+from .rendering_quality import RenderingQualityCfg, get_kit_rendering_preset
 from .renderers import RTXRendererCfg, RendererCfg, WarpRendererCfg
 
 __all__ = [
