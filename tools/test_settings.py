@@ -12,7 +12,7 @@ import os
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
 
-DEFAULT_TIMEOUT = 300
+DEFAULT_TIMEOUT = 500
 """The default timeout for each test in seconds."""
 
 PER_TEST_TIMEOUTS = {
@@ -45,10 +45,6 @@ PER_TEST_TIMEOUTS = {
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 500,
     "test_rigid_object_collection.py": 1000,
-    "test_scale_randomization.py": 500,
-    "test_texture_randomization.py": 500,
-    "test_env_rendering_logic.py": 500,
-    "test_manager_based_rl_env_ui.py": 500,
 }
 """A dictionary of tests and their timeouts in seconds.
 

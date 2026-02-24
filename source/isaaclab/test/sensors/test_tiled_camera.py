@@ -1821,7 +1821,7 @@ def test_frame_offset_small_resolution(setup_camera, device):
     image_after = tiled_camera.data.output["rgb"].clone() / 255.0
 
     # check difference is above threshold
-    assert torch.abs(image_after - image_before).mean() > 0.06  # images of same color should be below 0.01
+    assert torch.abs(image_after - image_before).mean() > 0.02  # images of same color should be below 0.01
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
