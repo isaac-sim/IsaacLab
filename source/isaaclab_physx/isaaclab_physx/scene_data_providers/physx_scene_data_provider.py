@@ -410,8 +410,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         if rigid_paths or articulation_paths:
             logger.warning(
-                "[PhysxSceneDataProvider] Falling back to USD-discovered physics paths "
-                "(rigid=%d, articulations=%d).",
+                "[PhysxSceneDataProvider] Falling back to USD-discovered physics paths (rigid=%d, articulations=%d).",
                 len(rigid_paths),
                 len(articulation_paths),
             )
