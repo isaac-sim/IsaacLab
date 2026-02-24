@@ -15,7 +15,7 @@ from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.rendering.renderers import RendererCfg
-from isaaclab.rendering.rendering_quality.rendering_quality_cfg import RenderingQualityCfg
+from isaaclab.rendering.rendering_mode.rendering_mode_cfg import RenderingModeCfg
 from isaaclab.rendering.visualizers import VisualizerCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
@@ -93,10 +93,10 @@ class SimulationCfg:
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
     """
 
-    rendering_quality_cfgs: dict[str, RenderingQualityCfg] = {
-        "performance": RenderingQualityCfg(kit_rendering_preset="performance"),
-        "balanced": RenderingQualityCfg(kit_rendering_preset="balanced"),
-        "high": RenderingQualityCfg(kit_rendering_preset="high"),
+    rendering_quality_cfgs: dict[str, RenderingModeCfg] = {
+        "performance": RenderingModeCfg(kit_rendering_preset="performance"),
+        "balanced": RenderingModeCfg(kit_rendering_preset="balanced"),
+        "quality": RenderingModeCfg(kit_rendering_preset="quality"),
     }
     """Named rendering quality profiles available to visualizers/renderers."""
 

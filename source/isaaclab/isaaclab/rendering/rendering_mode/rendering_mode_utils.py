@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .rendering_quality_cfg import RenderingQualityCfg
-from .rendering_quality_presets import get_kit_rendering_preset
+from .rendering_mode_cfg import RenderingModeCfg
+from .rendering_mode_presets import get_kit_rendering_preset
 
 
 def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
@@ -20,7 +20,7 @@ def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
         set_setting(key, value)
 
 
-def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingQualityCfg) -> None:
+def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingModeCfg) -> None:
     """Apply kit-specific quality fields."""
     if quality_cfg.kit_rendering_preset:
         apply_kit_rendering_preset(set_setting, quality_cfg.kit_rendering_preset)
@@ -52,7 +52,7 @@ def apply_kit_rendering_quality_cfg(set_setting: Any, quality_cfg: RenderingQual
             pass
 
 
-def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg: RenderingQualityCfg) -> None:
+def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg: RenderingModeCfg) -> None:
     """Apply Newton quality values to a visualizer cfg object."""
     override_fields = {
         "newton_enable_shadows": "enable_shadows",
@@ -68,7 +68,7 @@ def apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg: Any, quality_cfg:
             setattr(visualizer_cfg, viz_field, value)
 
 
-def apply_newton_quality_cfg_to_viewer(viewer: Any, quality_cfg: RenderingQualityCfg) -> None:
+def apply_newton_quality_cfg_to_viewer(viewer: Any, quality_cfg: RenderingModeCfg) -> None:
     """Apply Newton quality values to a live Newton viewer renderer, if available."""
     if viewer is None or not hasattr(viewer, "renderer"):
         return
@@ -89,8 +89,8 @@ def apply_newton_quality_cfg_to_viewer(viewer: Any, quality_cfg: RenderingQualit
 
 def resolve_rendering_quality_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
     """Resolve effective quality profile name for a visualizer cfg."""
-    cli_quality_explicit = bool(get_setting("/isaaclab/rendering/rendering_quality/explicit"))
-    cli_quality = get_setting("/isaaclab/rendering/rendering_quality")
+    cli_quality_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
+    cli_quality = get_setting("/isaaclab/rendering/rendering_mode")
     if cli_quality_explicit:
         return cli_quality if cli_quality else None
     quality_name = getattr(visualizer_cfg, "rendering_quality", None)
@@ -98,8 +98,8 @@ def resolve_rendering_quality_name_for_visualizer_cfg(get_setting: Any, visualiz
 
 
 def resolve_rendering_quality_cfg(
-    quality_name: str | None, quality_cfgs: dict[str, RenderingQualityCfg], logger: Any
-) -> RenderingQualityCfg | None:
+    quality_name: str | None, quality_cfgs: dict[str, RenderingModeCfg], logger: Any
+) -> RenderingModeCfg | None:
     """Fetch quality cfg by name and log if missing."""
     if not quality_name:
         return None
@@ -117,7 +117,7 @@ def apply_quality_profile_to_visualizer_cfg(
     get_setting: Any,
     set_setting: Any,
     visualizer_cfg: Any,
-    quality_cfgs: dict[str, RenderingQualityCfg],
+    quality_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
     """Resolve and apply quality profile to a visualizer config."""
@@ -138,7 +138,7 @@ def apply_runtime_quality_profile_to_visualizer(
     set_setting: Any,
     viz: Any,
     visualizer_quality_keys: dict[int, str | None],
-    quality_cfgs: dict[str, RenderingQualityCfg],
+    quality_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
     force: bool = False,
 ) -> None:
