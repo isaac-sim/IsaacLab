@@ -381,7 +381,7 @@ class TeleopSessionLifecycle:
         return external_inputs if external_inputs else None
 
     # ------------------------------------------------------------------
-    # Tracker discovery
+    # Controller tracker discovery
     # ------------------------------------------------------------------
 
     @staticmethod
