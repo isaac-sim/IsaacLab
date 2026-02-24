@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+import warp as wp
 from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import omni.kit.app
@@ -165,7 +166,7 @@ class SensorBase(ABC):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the sensor internals.
 
         Args:
