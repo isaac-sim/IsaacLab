@@ -372,6 +372,9 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 def close_stage() -> bool:
     """Closes the current USD stage by clearing the stage cache.
 
+    If Kit is running, this also closes the stage attached to the Kit USD context
+    (``omni.usd.get_context().close_stage()``).
+
     .. note::
 
         Once the stage is closed, it is necessary to open a new stage or create a
@@ -389,6 +392,12 @@ def close_stage() -> bool:
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Clear()
     _context.stage = None
+
+    if has_kit():
+        import omni.usd
+
+        omni.usd.get_context().close_stage()
+
     return True
 
 

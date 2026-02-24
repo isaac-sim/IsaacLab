@@ -21,22 +21,35 @@ import tempfile
 import time
 from typing import Literal
 
-import carb
 import omni.client
 
-# import logger
 logger = logging.getLogger(__name__)
 
-NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
+
+def _parse_kit_asset_root() -> str:
+    """Parse ``persistent.isaac.asset_root.cloud`` from ``apps/isaaclab.python.kit``."""
+    import re
+
+    _ISAACLAB_ROOT = os.path.join(os.path.dirname(__file__), *([".."] * 4))
+    kit_path = os.path.normpath(os.path.join(_ISAACLAB_ROOT, "apps", "isaaclab.python.kit"))
+    with open(kit_path) as f:
+        for line in reversed(f.readlines()):  # read from the last line since it's the last setting defined
+            m = re.match(r'\s*persistent\.isaac\.asset_root\.cloud\s*=\s*"([^"]*)"', line)
+            if m:
+                return m.group(1)
+    return ""
+
+
+NUCLEUS_ASSET_ROOT_DIR: str = _parse_kit_asset_root()
 """Path to the root directory on the Nucleus Server."""
 
-NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
+NVIDIA_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
 
-ISAAC_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
+ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 """Path to the ``Isaac`` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
+ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
 
