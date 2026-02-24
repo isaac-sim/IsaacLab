@@ -47,13 +47,16 @@ class IsaacRtxRenderData:
 
 
 class IsaacRtxRenderer:
-    """Renderer that uses Omniverse Replicator for tiled camera rendering."""
+    """Isaac RTX backend using Omniverse Replicator for tiled camera rendering.
+
+    Requires Isaac Sim.
+    """
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
 
     def create_render_data(self, sensor: SensorBase) -> IsaacRtxRenderData:
-        """Create render product and annotators for the tiled camera."""
+        """Create render product and annotators for the tiled camera. See :meth:`~.renderer.Renderer.create_render_data`."""
         import omni.replicator.core as rep
 
         from pxr import UsdGeom
@@ -148,7 +151,7 @@ class IsaacRtxRenderer:
         return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
-        """Store reference to output buffers for writing during render."""
+        """Store reference to output buffers for writing during render. See :meth:`~.renderer.Renderer.set_outputs`."""
         render_data.output_data = output_data
 
     def update_camera(
@@ -158,11 +161,11 @@ class IsaacRtxRenderer:
         orientations: torch.Tensor,
         intrinsics: torch.Tensor,
     ):
-        """No-op for Replicator - uses USD camera prims directly."""
+        """No-op for Replicator - uses USD camera prims directly. See :meth:`~.renderer.Renderer.update_camera`."""
         pass
 
     def render(self, render_data: IsaacRtxRenderData):
-        """Extract data from annotators and write to output buffers."""
+        """Extract data from annotators and write to output buffers. See :meth:`~.renderer.Renderer.render`."""
         sensor = render_data.sensor
         output_data = render_data.output_data
         if output_data is None:
@@ -261,11 +264,11 @@ class IsaacRtxRenderer:
     def write_output(
         self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor
     ):
-        """No-op for Isaac RTX - all outputs written in render()."""
+        """No-op for Isaac RTX - all outputs written in render(). See :meth:`~.renderer.Renderer.write_output`."""
         pass
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
-        """Detach annotators from render product."""
+        """Detach annotators from render product. See :meth:`~.renderer.Renderer.cleanup`."""
         if render_data:
             for annotator in render_data.annotators.values():
                 annotator.detach(render_data.render_product_paths)
