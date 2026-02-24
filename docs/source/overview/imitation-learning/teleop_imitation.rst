@@ -227,7 +227,7 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --headless --num_envs 10 --generation_num_trials 1000 \
+         --device cpu --num_envs 10 --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
 
    .. tab-item:: Visuomotor policy
@@ -236,7 +236,7 @@ Inspect the output of generated data (filename: ``generated_dataset_small.hdf5``
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
+         --device cpu --enable_cameras --num_envs 10 --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/generated_dataset.hdf5
 
 
@@ -486,7 +486,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
+   --device cpu --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
    --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
 
 Train a policy
@@ -636,7 +636,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
+   --device cpu --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
    --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
 
 
@@ -828,7 +828,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --device cpu \
-      --headless \
+      \
       --enable_pinocchio \
       --enable_cameras \
       --rendering_mode balanced \

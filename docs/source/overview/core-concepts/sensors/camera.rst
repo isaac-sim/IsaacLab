@@ -50,7 +50,7 @@ When working with rendering, make sure to add the ``--enable_cameras`` argument 
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+    python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --enable_cameras
 
 
 Annotators

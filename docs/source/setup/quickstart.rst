@@ -160,7 +160,7 @@ Invoking these scripts will require a **Task Name** and a corresponding **Entry 
 
     python scripts/reinforcement_learning/skrl/train.py --task=Isaac-Ant-v0
 
-This will train the mujoco ant to "run".  You can see the various launch option available to you with the ``--help`` flag.  Note specifically the ``--num_envs`` option and the ``--headless`` flag,
+This will train the mujoco ant to "run". You can see the various launch options with the ``--help`` flag. Note specifically the ``--num_envs`` option and whether you pass ``--visualizer``,
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
 (so long as those definitions are part of a ``@configclass``, see below).
 

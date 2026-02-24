@@ -28,7 +28,7 @@ To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the co
 
 .. code:: bash
 
-    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true" --headless
+    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
 Checking the internal logs from the simulator
@@ -73,7 +73,7 @@ For instance, to run a standalone script with verbose logging, you can use the f
 .. code-block:: bash
 
     # Run the standalone script with info logging
-    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

@@ -349,7 +349,7 @@ To run an example within the container, run:
 
 .. code:: bash
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py --headless
+  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
 
 
 .. _`NVIDIA Software License Agreement`: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement

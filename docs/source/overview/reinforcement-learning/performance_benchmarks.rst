@@ -11,7 +11,7 @@ Multi-GPU and multi-node training performance results are also outlined.
 Benchmark Results
 -----------------
 
-All benchmarking results were performed with the RL Games library with ``--headless`` flag on Ubuntu 22.04.
+All benchmarking results were performed with the RL Games library without a ``--visualizer`` argument on Ubuntu 22.04.
 ``Isaac-Velocity-Rough-G1-v0`` environment benchmarks were performed with the RSL RL library.
 
 
@@ -137,13 +137,13 @@ Example scripts can be run similarly to training scripts:
 .. code-block:: bash
 
    # benchmark with RSL RL
-   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole-v0
 
    # benchmark with RL Games
-   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole-v0
 
    # benchmark without RL libraries
-   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole-v0 --headless
+   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole-v0
 
 Each script will generate a set of KPI files at the end of the run, which includes data on the
 startup times, runtime statistics, such as the time taken for each simulation or rendering step,

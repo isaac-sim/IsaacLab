@@ -92,11 +92,11 @@ The output will be a file, ``log.txt``, with the ``sim_time`` written on a newli
 Executing the Script
 ~~~~~~~~~~~~~~~~~~~~
 
-We will execute the script to produce a log, adding a ``--headless`` flag to our execution to prevent a GUI:
+We will execute the script to produce a log while omitting the ``--visualizer`` argument to prevent a GUI:
 
 .. code-block:: bash
 
-  isaaclab -p scripts/tutorials/00_sim/log_time.py --headless
+  isaaclab -p scripts/tutorials/00_sim/log_time.py
 
 
 Now ``log.txt`` will have been produced at ``/workspace/isaaclab/logs/docker_tutorial``. If we exit the container

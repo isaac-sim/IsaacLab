@@ -32,15 +32,15 @@ we are introducing cuda-graphing support for direct rl tasks. This drastically r
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Ant-Direct-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Ant-Direct-Warp-v0 --num_envs 4096
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Humanoid-Direct-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Humanoid-Direct-Warp-v0 --num_envs 4096
 
 
 What's Next?

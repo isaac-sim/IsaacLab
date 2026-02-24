@@ -113,7 +113,7 @@ Measure environment stepping performance without training:
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --num_frames 100 \
-       --headless \
+       \
        --benchmark_backend json \
        --output_path ./results
 
@@ -132,7 +132,7 @@ Measure training performance with RSL-RL:
        --task Isaac-Cartpole-v0 \
        --num_envs 4096 \
        --max_iterations 500 \
-       --headless \
+       \
        --benchmark_backend json \
        --output_path ./results
 
@@ -173,7 +173,7 @@ Common Arguments
    * - ``--output_path``
      - ``./``
      - Directory for output files
-   * - ``--headless``
+   * - no ``--visualizer`` argument
      - ``false``
      - Run without rendering
 

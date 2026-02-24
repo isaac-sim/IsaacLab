@@ -92,7 +92,7 @@ To run the accompanying script, execute the following command:
    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --enable_cameras
 
    # Usage with saving only in headless mode
-   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --save --headless --enable_cameras
+   ./isaaclab.sh -p scripts/tutorials/04_sensors/run_usd_camera.py --save --enable_cameras
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created
