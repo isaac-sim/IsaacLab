@@ -550,7 +550,7 @@ class Camera(SensorBase):
         self._create_buffers()
         self._update_intrinsic_matrices(self._ALL_INDICES)
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return

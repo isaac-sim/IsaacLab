@@ -295,7 +295,7 @@ class RayCaster(SensorBase):
         self._ray_starts_w[env_ids] = ray_starts_w
         self._ray_directions_w[env_ids] = ray_directions_w
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:

@@ -267,7 +267,7 @@ class RayCasterCamera(RayCaster):
         self._offset_quat = quat_w.repeat(self._view.count, 1)
         self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:

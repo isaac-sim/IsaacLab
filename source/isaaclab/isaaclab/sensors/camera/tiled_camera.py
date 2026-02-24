@@ -266,7 +266,7 @@ class TiledCamera(Camera):
                 self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return

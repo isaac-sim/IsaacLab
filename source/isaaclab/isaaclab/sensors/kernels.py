@@ -20,7 +20,7 @@ def update_timestamp_kernel(
         is_outdated: Boolean array indicating which envs need update.
         timestamp: Current timestamp per env.
         timestamp_last_update: Last update timestamp per env.
-        dt: Time step per env.
+        dt: Simulation time step (scalar).
         update_period: Period after which sensor should be updated.
     """
     env = wp.tid()

@@ -169,7 +169,10 @@ class SensorBase(ABC):
         """Resets the sensor internals.
 
         Args:
-            env_ids: The sensor ids to reset. Defaults to None.
+            env_ids: The environment indices to reset. Defaults to None, in which case all
+                environments are reset.
+            env_mask: A boolean warp array indicating which environments to reset. If provided,
+                takes priority over ``env_ids``. Defaults to None.
         """
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         wp.launch(
@@ -219,15 +222,12 @@ class SensorBase(ABC):
         env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
-        # Create warp env index and mask arrays for "all envs" cases and resets.
-        self._ALL_ENV_INDICES = wp.from_torch(
-            torch.arange(self._num_envs, dtype=torch.int32, device=self._device), dtype=wp.int32
-        )
+        # Create warp env mask arrays for "all envs" cases and resets.
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
         # timestamp and outdated flags
-        self._is_outdated = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
@@ -237,7 +237,7 @@ class SensorBase(ABC):
             self.set_debug_vis(self.cfg.debug_vis)
 
     @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the sensor data for provided environment ids.
 
         This function does not perform any time-based checks and directly fills the data into the
@@ -312,10 +312,10 @@ class SensorBase(ABC):
         if not self._is_initialized:
             try:
                 self._initialize_impl()
+                self._is_initialized = True
             except Exception as e:
                 # Store exception to be raised after callback completes
                 PhysxManager.store_callback_exception(e)
-            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
