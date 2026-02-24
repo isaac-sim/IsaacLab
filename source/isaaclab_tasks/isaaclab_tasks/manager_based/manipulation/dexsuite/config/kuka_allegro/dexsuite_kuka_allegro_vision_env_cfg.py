@@ -25,7 +25,7 @@ Scene variant convention (local / self-learning use):
   TiledCameraCfg without any extra logic in KukaAllegroSingleTiledCameraSceneCfg.
 """
 
-from dataclasses import MISSING
+from dataclasses import MISSING, fields
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -76,10 +76,24 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.height = self.height
         # Set renderer type: "rtx" means None (default RTX), "warp_renderer" passes through
         self.base_camera.renderer_type = None if self.renderer_type == "rtx" else self.renderer_type
+        # Remove so InteractiveScene._add_entities_from_cfg() does not treat them as assets
         del self.camera_type
         del self.width
         del self.height
         del self.renderer_type
+
+    def __repr__(self):
+        # Deleted fields (camera_type, width, height, renderer_type) would break default dataclass __repr__
+        parts = []
+        for f in fields(self):
+            if f.name in ("camera_type", "width", "height", "renderer_type"):
+                continue
+            try:
+                val = getattr(self, f.name)
+            except AttributeError:
+                continue
+            parts.append(f"{f.name}={val!r}")
+        return f"{type(self).__name__}({', '.join(parts)})"
 
 
 @configclass
@@ -210,6 +224,17 @@ class KukaAllegroSingleCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg)
         super().__post_init__()
         self.variants.setdefault("scene", {}).update(single_camera_variants)
 
+    def __repr__(self):
+        # Hydra may delete 'variants'; avoid AttributeError in dataclass __repr__
+        parts = []
+        for f in fields(self):
+            try:
+                val = getattr(self, f.name)
+            except AttributeError:
+                continue
+            parts.append(f"{f.name}={val!r}")
+        return f"{type(self).__name__}({', '.join(parts)})"
+
 
 @configclass
 class KukaAllegroDuoCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
@@ -221,13 +246,37 @@ class KukaAllegroDuoCameraMixinCfg(kuka_allegro_dexsuite.KukaAllegroMixinCfg):
         super().__post_init__()
         self.variants.setdefault("scene", {}).update(duo_camera_variants)
 
+    def __repr__(self):
+        # Hydra may delete 'variants'; avoid AttributeError in dataclass __repr__
+        parts = []
+        for f in fields(self):
+            try:
+                val = getattr(self, f.name)
+            except AttributeError:
+                continue
+            parts.append(f"{f.name}={val!r}")
+        return f"{type(self).__name__}({', '.join(parts)})"
+
+
+def _safe_env_cfg_repr(self) -> str:
+    """Repr that skips missing attributes (e.g. variants deleted by Hydra)."""
+    parts = []
+    for f in fields(self):
+        try:
+            val = getattr(self, f.name)
+        except AttributeError:
+            continue
+        parts.append(f"{f.name}={val!r}")
+    return f"{type(self).__name__}({', '.join(parts)})"
+
 
 # SingleCamera
 @configclass
 class DexsuiteKukaAllegroLiftSingleCameraEnvCfg(
     KukaAllegroSingleCameraMixinCfg, dexsuite_state_impl.DexsuiteLiftEnvCfg
 ):
-    pass
+    def __repr__(self):
+        return _safe_env_cfg_repr(self)
 
 
 @configclass
@@ -235,14 +284,16 @@ class DexsuiteKukaAllegroLiftSingleCameraEnvCfg_PLAY(
     KukaAllegroSingleCameraMixinCfg,
     dexsuite_state_impl.DexsuiteLiftEnvCfg_PLAY,
 ):
-    pass
+    def __repr__(self):
+        return _safe_env_cfg_repr(self)
 
 
 @configclass
 class DexsuiteKukaAllegroReorientSingleCameraEnvCfg(
     KukaAllegroSingleCameraMixinCfg, dexsuite_state_impl.DexsuiteReorientEnvCfg
 ):
-    pass
+    def __repr__(self):
+        return _safe_env_cfg_repr(self)
 
 
 @configclass
@@ -250,7 +301,8 @@ class DexsuiteKukaAllegroReorientSingleCameraEnvCfg_PLAY(
     KukaAllegroSingleCameraMixinCfg,
     dexsuite_state_impl.DexsuiteReorientEnvCfg_PLAY,
 ):
-    pass
+    def __repr__(self):
+        return _safe_env_cfg_repr(self)
 
 
 # DuoCamera

@@ -1,408 +1,573 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton Warp renderer: Warp-based ray tracing using a Newton model.
+"""Newton Warp renderer — plug-and-chug style (PR #4608).
 
-Used when ``TiledCameraCfg(renderer_type="warp_renderer", ...)``. PhysX runs simulation;
-state is synced from PhysX into the Newton model before each render via
-:class:`~isaaclab.sim._impl.newton_manager.NewtonManager`.
+Usage:
+    renderer = NewtonWarpRenderer()
+    tiled_camera = TiledCamera(tiled_camera_cfg, renderer)
+
+Requires Newton from git (e.g. 35657fc) with 4D API; install via isaaclab -i (setup.py).
 """
+
+from __future__ import annotations
 
 import logging
 import math
+import os
+import re
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+import newton
 import torch
+import warp as wp
+
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.math import convert_camera_frame_orientation_convention
+
+from .camera_renderer import Renderer
+
+if TYPE_CHECKING:
+    from isaaclab.sensors import SensorBase
+
+    from ..sim.scene_data_providers import SceneDataProvider
+
 
 logger = logging.getLogger(__name__)
-import warp as wp
-from newton.sensors import SensorTiledCamera
 
-from isaaclab.sim._impl.newton_manager import NewtonManager
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
-from isaaclab.utils.timer import Timer
-
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
-from .renderer import RendererBase
+# Scene variant keys are typically "<width>x<height>..." (e.g. 64x64rgb, 128x128warp_rgb)
+_SCENE_KEY_RESOLUTION_PATTERN = re.compile(r"^(\d+)x(\d+)")
 
 
-@wp.kernel
-def _create_camera_transforms_kernel(
-    positions: wp.array(dtype=wp.vec3),
-    orientations: wp.array(dtype=wp.quatf),
-    transforms: wp.array(dtype=wp.transformf, ndim=2),
-):
-    """Kernel to create camera transforms from positions and orientations.
-
-    Args:
-        positions: Array of camera positions, shape (num_cameras,)
-        orientations: Array of camera orientations, shape (num_cameras,)
-        transforms: Output array of camera transforms, shape (num_cameras, 1)
+def _resolution_from_scene_variant() -> tuple[int | None, int | None]:
+    """Try to get width and height from the selected env.scene variant (primary source of truth).
+    Returns (width, height) if the variant key parses, else (None, None); caller should fall back to sensor config.
     """
-    i = wp.tid()
-    transforms[i, 0] = wp.transformf(positions[i], orientations[i])
+    try:
+        from hydra.core.hydra_config import HydraConfig
+        cfg = HydraConfig.get()
+        if cfg is None:
+            return (None, None)
+        choices = getattr(getattr(cfg, "runtime", None), "choices", None)
+        if not isinstance(choices, dict):
+            return (None, None)
+        scene_key = choices.get("env.scene") or choices.get("env/scene")
+        if not isinstance(scene_key, str):
+            return (None, None)
+        m = _SCENE_KEY_RESOLUTION_PATTERN.match(scene_key.strip())
+        if not m:
+            return (None, None)
+        return (int(m.group(1)), int(m.group(2)))
+    except Exception:  # noqa: BLE001
+        return (None, None)
 
 
-@wp.kernel
-def _detile_rgba_kernel(
-    tiled_image: wp.array(dtype=wp.uint8, ndim=3),  # shape: (tiled_H, tiled_W, 4)
-    output: wp.array(dtype=wp.uint8, ndim=4),  # shape: (num_envs, H, W, 4)
-    tiles_per_side: int,
-    tile_height: int,
-    tile_width: int,
-):
-    """Detile a tiled RGBA image into separate environment images."""
-    env_id, y, x = wp.tid()
-
-    # Calculate which tile this environment corresponds to
-    tile_y = env_id // tiles_per_side
-    tile_x = env_id % tiles_per_side
-
-    # Calculate position in tiled image
-    tiled_y = tile_y * tile_height + y
-    tiled_x = tile_x * tile_width + x
-
-    # Copy RGBA channels
-    output[env_id, y, x, 0] = tiled_image[tiled_y, tiled_x, 0]  # R
-    output[env_id, y, x, 1] = tiled_image[tiled_y, tiled_x, 1]  # G
-    output[env_id, y, x, 2] = tiled_image[tiled_y, tiled_x, 2]  # B
-    output[env_id, y, x, 3] = tiled_image[tiled_y, tiled_x, 3]  # A
+class _NewtonVizCfg:
+    """Minimal config so PhysxSceneDataProvider enables Newton sync."""
+    visualizer_type = "newton"
 
 
-@wp.kernel
-def _detile_depth_kernel(
-    tiled_depth: wp.array(dtype=wp.float32, ndim=2),  # shape: (tiled_H, tiled_W)
-    output: wp.array(dtype=wp.float32, ndim=4),  # shape: (num_envs, H, W, 1)
-    tiles_per_side: int,
-    tile_height: int,
-    tile_width: int,
-):
-    """Detile a tiled depth image into separate environment depth images."""
-    env_id, y, x = wp.tid()
-
-    # Calculate which tile this environment corresponds to
-    tile_y = env_id // tiles_per_side
-    tile_x = env_id % tiles_per_side
-
-    # Calculate position in tiled image
-    tiled_y = tile_y * tile_height + y
-    tiled_x = tile_x * tile_width + x
-
-    # Copy depth value
-    output[env_id, y, x, 0] = tiled_depth[tiled_y, tiled_x]
+def _world_count(render_context) -> int:
+    """Newton uses num_worlds; upstream IsaacLab may use world_count."""
+    return getattr(render_context, "world_count", None) or getattr(render_context, "num_worlds", 1)
 
 
-@wp.kernel
-def _copy_depth_with_channel(
-    src: wp.array(dtype=wp.float32, ndim=3),  # shape: (num_envs, H, W)
-    dst: wp.array(dtype=wp.float32, ndim=4),  # shape: (num_envs, H, W, 1)
-):
-    """Copy depth values and add channel dimension."""
-    env_id, y, x = wp.tid()
-    dst[env_id, y, x, 0] = src[env_id, y, x]
+class RenderData:
+    class OutputNames:
+        RGB = "rgb"
+        RGBA = "rgba"
+        ALBEDO = "albedo"
+        DEPTH = "depth"
+        DISTANCE_TO_IMAGE_PLANE = "distance_to_image_plane"
+        NORMALS = "normals"
+        INSTANCE_SEGMENTATION = "instance_segmentation_fast"
 
+    @dataclass
+    class CameraOutputs:
+        color_image: wp.array(dtype=wp.uint32, ndim=4) = None
+        albedo_image: wp.array(dtype=wp.uint32, ndim=4) = None
+        depth_image: wp.array(dtype=wp.float32, ndim=4) = None
+        normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
+        instance_segmentation_image: wp.array(dtype=wp.uint32, ndim=4) = None
 
-class NewtonWarpRenderer(RendererBase):
-    """Renderer using Newton's Warp-based tiled camera for RGB and depth.
+    def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
+        self.render_context = render_context
+        self.sensor = sensor
+        self.num_cameras = 1
+        self._world_count = _world_count(render_context)
+        self._output_ndim = 4  # 4D (n,nc,H,W); prebundle Newton uses 3D (n,nc,H*W)
+        self._outputs_3d = None  # lazy: dict of 3D wp arrays when _output_ndim==3
 
-    Works with PhysX simulation: state is synced from PhysX into the Newton model
-    (via NewtonManager) before each render. Supports the same tiled layout as RTX
-    (one tile per environment). Requires the ``newton`` package.
-    """
+        self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
+        self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
+        self.outputs = RenderData.CameraOutputs()
+        self.width = getattr(sensor.cfg, "width", 100)
+        self.height = getattr(sensor.cfg, "height", 100)
 
-    _model = None
+    def set_outputs(self, output_data: dict[str, torch.Tensor]):
+        for output_name, tensor_data in output_data.items():
+            if output_name == RenderData.OutputNames.RGBA:
+                self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderData.OutputNames.ALBEDO:
+                self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name in (RenderData.OutputNames.DEPTH, RenderData.OutputNames.DISTANCE_TO_IMAGE_PLANE):
+                self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
+            elif output_name == RenderData.OutputNames.NORMALS:
+                self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
+            elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+                self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderData.OutputNames.RGB:
+                pass
+            else:
+                logger.warning("NewtonWarpRenderer - output type %s is not yet supported", output_name)
 
-    # tiled camerae sensor from warp trace
-    _tiled_camera_sensor = None
+    def get_output(self, output_name: str) -> wp.array:
+        if output_name == RenderData.OutputNames.RGBA:
+            return self.outputs.color_image
+        if output_name == RenderData.OutputNames.ALBEDO:
+            return self.outputs.albedo_image
+        if output_name in (RenderData.OutputNames.DEPTH, RenderData.OutputNames.DISTANCE_TO_IMAGE_PLANE):
+            return self.outputs.depth_image
+        if output_name == RenderData.OutputNames.NORMALS:
+            return self.outputs.normals_image
+        if output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+            return self.outputs.instance_segmentation_image
+        return None
 
-    def __init__(self, cfg: NewtonWarpRendererCfg):
-        super().__init__(cfg)
-        self.cfg = cfg
-        self._render_call_count = 0
-        self._last_num_envs = getattr(self, "_num_envs", 1)  # updated each render(); used for save_image tiled grid
+    def _ensure_outputs_3d(self):
+        """Allocate 3D buffers (n, nc, H*W) for prebundle Newton and copy 4D -> 3D."""
+        if self._outputs_3d is not None:
+            return
+        n, nc = self._world_count, self.num_cameras
+        h, w = self.height, self.width
+        device = getattr(self.render_context, "device", None) or wp.get_device("cuda:0")
+        self._outputs_3d = {}
+        if self.outputs.color_image is not None:
+            self._outputs_3d["color"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
+        if self.outputs.albedo_image is not None:
+            self._outputs_3d["albedo"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
+        if self.outputs.depth_image is not None:
+            self._outputs_3d["depth"] = wp.empty((n, nc, h * w), dtype=wp.float32, device=device)
+        if self.outputs.normals_image is not None:
+            self._outputs_3d["normal"] = wp.empty((n, nc, h * w), dtype=wp.vec3f, device=device)
+        if self.outputs.instance_segmentation_image is not None:
+            self._outputs_3d["shape_index"] = wp.empty((n, nc, h * w), dtype=wp.uint32, device=device)
 
-        # Create save directory (will be cleaned up on shutdown)
-        import os
-        import shutil
-
-        self._save_dir = "/tmp/newton_renders"
-        if os.path.exists(self._save_dir):
-            shutil.rmtree(self._save_dir)
-        os.makedirs(self._save_dir, exist_ok=True)
-
-    def initialize(self):
-        """Initialize the renderer."""
-        import sys
-
-        print(
-            "[NewtonWarpRenderer] initialize() called — Newton Warp renderer active (debug + timing enabled).",
-            flush=True,
-        )
-        sys.stdout.flush()
-        self._model = NewtonManager.get_model()
-
-        # Create tiled camera sensor. With one Newton model (one world) and num_cameras=num_envs,
-        # each tile is one camera view of the same full scene, so each tile shows all envs.
-        # To get one env per tile (like Newton-Warp reference), the pipeline would need
-        # num_worlds=num_envs and num_cameras=1 (one camera per world); that requires the
-        # Newton model to expose per-env worlds (e.g. replicated scenes).
-        self._tiled_camera_sensor = SensorTiledCamera(
-            model=self._model,
-            num_cameras=self._num_envs,
-            width=self._width,
-            height=self._height,
-            options=SensorTiledCamera.Options(colors_per_shape=True),
-        )
-
-        # Note: camera rays will be computed when we have access to TiledCamera
-        # for now use default 45 degree FOV
-        self._camera_rays = None
-
-        # Initialize output buffers
-        self._initialize_output()
-
-    def set_camera_rays_from_intrinsics(self, intrinsic_matrices: torch.Tensor):
-        """Set camera FOV from intrinsic matrices (vectorized for all cameras).
-
-        Args:
-            intrinsic_matrices: Camera intrinsic matrices of shape (num_cameras, 3, 3)
-                             Format: [[f_x,   0, c_x],
-                                     [  0, f_y, c_y],
-                                     [  0,   0,   1]]
-        """
-        # Extract vertical focal lengths for all cameras (vectorized)
-        # Shape: (num_cameras,)
-        f_y_all = intrinsic_matrices[:, 1, 1]  # All cameras' vertical focal lengths in pixels
-
-        # Calculate vertical FOV for all cameras (vectorized)
-        # fov = 2 * atan(height / (2 * f_y))
-        # Shape: (num_cameras,)
-        fov_radians_all = 2.0 * torch.atan(self._height / (2.0 * f_y_all))
-
-        # Convert to warp array
-        fov_radians_wp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-
-        # Compute camera rays with per-camera FOVs (vectorized)
-        # SensorTiledCamera.compute_pinhole_camera_rays accepts array of FOVs
-        self._camera_rays = self._tiled_camera_sensor.compute_pinhole_camera_rays(fov_radians_wp)
-
-    def _initialize_output(self):
-        """Initialize the output of the renderer."""
-        self._data_types = ["rgba", "rgb", "depth"]
-        self._num_tiles_per_side = math.ceil(math.sqrt(self._num_envs))
-
-        # Raw buffers from tiled camera sensor; output buffers are views set each frame in _copy_outputs_to_buffers()
-        self._raw_output_rgb_buffer = self._tiled_camera_sensor.create_color_image_output()
-        self._raw_output_depth_buffer = self._tiled_camera_sensor.create_depth_image_output()
-
-    def _prepare_camera_transforms(
-        self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor
-    ):
-        """Convert torch camera data to Warp camera_transforms (for timing: this is pre-kernel setup)."""
-        if self._camera_rays is None:
-            self.set_camera_rays_from_intrinsics(intrinsic_matrices)
-        num_envs = camera_positions.shape[0]
-        camera_positions_wp = wp.from_torch(camera_positions.contiguous(), dtype=wp.vec3)
-        camera_quats_converted = convert_camera_frame_orientation_convention(
-            camera_orientations, origin="world", target="opengl"
-        )
-        camera_orientations_wp = wp.from_torch(camera_quats_converted, dtype=wp.quat)
-        camera_transforms = wp.empty((num_envs, 1), dtype=wp.transformf, device=camera_positions_wp.device)
-        wp.launch(
-            kernel=_create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[camera_positions_wp, camera_orientations_wp, camera_transforms],
-            device=camera_positions_wp.device,
-        )
-        return camera_transforms
-
-    def _render_warp_kernel_only(self, camera_transforms: wp.array):
-        """Run only SensorTiledCamera.render() (Warp ray trace). Use this for apples-to-apples timing vs Newton-Warp."""
-        self._tiled_camera_sensor.render(
-            state=NewtonManager.get_state_0(),
-            camera_transforms=camera_transforms,
-            camera_rays=self._camera_rays,
-            color_image=self._raw_output_rgb_buffer,
-            depth_image=self._raw_output_depth_buffer,
-        )
-
-    def _copy_outputs_to_buffers(self, num_envs: int):
-        """Copy raw sensor output into output buffers using views (zero-copy; avoids per-env wp.copy)."""
-        rgb_reshaped = self._raw_output_rgb_buffer.reshape((num_envs, self._height * self._width))
-        rgba_uint8 = wp.array(
-            ptr=rgb_reshaped.ptr,
-            shape=(num_envs, self._height, self._width, 4),
-            dtype=wp.uint8,
-            device=rgb_reshaped.device,
-        )
-        self._output_data_buffers["rgba"] = rgba_uint8
-        self._output_data_buffers["rgb"] = rgba_uint8[:, :, :, :3]
-        self._output_data_buffers["depth"] = self._raw_output_depth_buffer.reshape(
-            (num_envs, self._height, self._width, 1)
-        )
-
-    def render(
-        self, camera_positions: torch.Tensor, camera_orientations: torch.Tensor, intrinsic_matrices: torch.Tensor
-    ):
-        """Render the scene.
-
-        Args:
-            camera_positions: Tensor of shape (num_envs, 3) - camera positions in world frame
-            camera_orientations: Tensor of shape (num_envs, 4) - camera quaternions (x, y, z, w) in world frame
-            intrinsic_matrices: Tensor of shape (num_envs, 3, 3) - camera intrinsic matrices
-
-        Note:
-            This call is timed as ``newton_warp_render_full`` (prep + kernel + buffer copy).
-            PhysX→Newton state sync is done in TiledCamera before calling render and is timed separately.
-        """
-        if self._render_call_count == 0:
-            logger.info(
-                "NewtonWarpRenderer.render() called (first time); backend confirmed warp_renderer.",
+    def _copy_4d_to_3d(self):
+        """Copy 4D outputs to 3D buffers for prebundle render."""
+        n, nc = self._world_count, self.num_cameras
+        h, w = self.height, self.width
+        dim = n * nc * h * w
+        inp = [n, nc, w, h]
+        if self.outputs.color_image is not None:
+            wp.launch(
+                RenderData._copy_4d_to_3d_uint32,
+                dim=dim,
+                inputs=[self.outputs.color_image, self._outputs_3d["color"]] + inp,
+                device=self.outputs.color_image.device,
             )
-        num_envs = camera_positions.shape[0]
+        if self.outputs.albedo_image is not None:
+            wp.launch(
+                RenderData._copy_4d_to_3d_uint32,
+                dim=dim,
+                inputs=[self.outputs.albedo_image, self._outputs_3d["albedo"]] + inp,
+                device=self.outputs.albedo_image.device,
+            )
+        if self.outputs.depth_image is not None:
+            wp.launch(
+                RenderData._copy_4d_to_3d_float,
+                dim=dim,
+                inputs=[self.outputs.depth_image, self._outputs_3d["depth"]] + inp,
+                device=self.outputs.depth_image.device,
+            )
+        if self.outputs.normals_image is not None:
+            wp.launch(
+                RenderData._copy_4d_to_3d_vec3,
+                dim=dim,
+                inputs=[self.outputs.normals_image, self._outputs_3d["normal"]] + inp,
+                device=self.outputs.normals_image.device,
+            )
+        if self.outputs.instance_segmentation_image is not None:
+            wp.launch(
+                RenderData._copy_4d_to_3d_uint32,
+                dim=dim,
+                inputs=[
+                    self.outputs.instance_segmentation_image,
+                    self._outputs_3d["shape_index"],
+                ]
+                + inp,
+                device=self.outputs.instance_segmentation_image.device,
+            )
 
-        # Full render timer (apples-to-apples with Newton+Warp: prep + kernel + buffer copy)
-        with Timer(name="newton_warp_render_full", msg="Newton Warp full render took"):
-            with Timer(name="newton_warp_prep", msg="Newton Warp prep took"):
-                camera_transforms = self._prepare_camera_transforms(
-                    camera_positions, camera_orientations, intrinsic_matrices
+    def _copy_3d_to_4d(self):
+        """Copy 3D buffers back to 4D outputs after prebundle render."""
+        n, nc = self._world_count, self.num_cameras
+        h, w = self.height, self.width
+        dim = n * nc * h * w
+        inp = [n, nc, w, h]
+        if self.outputs.color_image is not None:
+            wp.launch(
+                RenderData._copy_3d_to_4d_uint32,
+                dim=dim,
+                inputs=[self._outputs_3d["color"], self.outputs.color_image] + inp,
+                device=self.outputs.color_image.device,
+            )
+        if self.outputs.albedo_image is not None:
+            wp.launch(
+                RenderData._copy_3d_to_4d_uint32,
+                dim=dim,
+                inputs=[self._outputs_3d["albedo"], self.outputs.albedo_image] + inp,
+                device=self.outputs.albedo_image.device,
+            )
+        if self.outputs.depth_image is not None:
+            wp.launch(
+                RenderData._copy_3d_to_4d_float,
+                dim=dim,
+                inputs=[self._outputs_3d["depth"], self.outputs.depth_image] + inp,
+                device=self.outputs.depth_image.device,
+            )
+        if self.outputs.normals_image is not None:
+            wp.launch(
+                RenderData._copy_3d_to_4d_vec3,
+                dim=dim,
+                inputs=[self._outputs_3d["normal"], self.outputs.normals_image] + inp,
+                device=self.outputs.normals_image.device,
+            )
+        if self.outputs.instance_segmentation_image is not None:
+            wp.launch(
+                RenderData._copy_3d_to_4d_uint32,
+                dim=dim,
+                inputs=[
+                    self._outputs_3d["shape_index"],
+                    self.outputs.instance_segmentation_image,
+                ]
+                + inp,
+                device=self.outputs.instance_segmentation_image.device,
+            )
+
+    def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
+        converted_orientations = convert_camera_frame_orientation_convention(
+            orientations, origin="world", target="opengl"
+        )
+        n = self._world_count
+        device = getattr(self.render_context, "device", None) or wp.get_device("cuda:0")
+        self.camera_transforms = wp.empty((1, n), dtype=wp.transformf, device=device)
+        wp.launch(
+            RenderData._update_transforms,
+            n,
+            [positions, converted_orientations, self.camera_transforms],
+        )
+        if self.render_context is not None:
+            if intrinsics is not None:
+                first_focal_length = intrinsics[:, 1, 1][0:1]
+                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            else:
+                # Default ~60° vertical FOV when intrinsics not yet available (e.g. before _update_intrinsic_matrices)
+                fov_radians_all = torch.tensor(
+                    [math.radians(60.0)], device=positions.device, dtype=torch.float32
                 )
-            with Timer(name="newton_warp_kernel_only", msg="Newton Warp kernel only took"):
-                self._render_warp_kernel_only(camera_transforms)
-            with Timer(name="newton_warp_copy_buffers", msg="Newton Warp copy buffers took"):
-                self._copy_outputs_to_buffers(num_envs)
-
-        self._last_num_envs = num_envs  # for save_image tiled grid (buffer.numpy() shape may not match)
-        # Debug save every 50 frames (outside timed region)
-        self._render_call_count += 1
-        if self._render_call_count % 50 == 0:
-            import os
-            import sys
-
-            frame_dir = os.path.join(self._save_dir, f"frame_{self._render_call_count:06d}")
-            os.makedirs(frame_dir, exist_ok=True)
-            tiled_rgb = os.path.join(frame_dir, "all_envs_tiled_rgb.png")
-            self.save_image(tiled_rgb, env_index=None, data_type="rgb")
-            print(f"[NewtonWarpRenderer] Saved tiled RGB → {frame_dir}/", flush=True)
+            fov_wp = wp.from_torch(fov_radians_all, dtype=wp.float32)
             try:
-                for timer_name in (
-                    "newton_warp_render_full",
-                    "newton_warp_prep",
-                    "newton_warp_kernel_only",
-                    "newton_warp_copy_buffers",
-                ):
-                    stats = Timer.get_timer_statistics(timer_name)
-                    msg = f"{timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}"
-                    print(f"[NewtonWarpRenderer] {msg}", flush=True)
-                for timer_name in ("newton_state_sync_usdrt", "newton_state_sync_tensors"):
-                    try:
-                        stats = Timer.get_timer_statistics(timer_name)
-                        msg = f"{timer_name}: mean={stats['mean']:.6f}s std={stats['std']:.6f}s n={stats['n']}"
-                        print(f"[NewtonWarpRenderer] {msg}", flush=True)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            sys.stdout.flush()
+                self.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(
+                    self.width, self.height, fov_wp
+                )
+            except TypeError:
+                # Some Newton versions: compute_pinhole_camera_rays(fov_only); width/height from context
+                self.camera_rays = self.render_context.utils.compute_pinhole_camera_rays(fov_wp)
 
-    def save_image(self, filename: str, env_index: int | None = 0, data_type: str = "rgb"):
-        """Save a single environment or a tiled grid of environments to disk.
+    def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
+        torch_array = wp.from_torch(tensor)
+        n, nc = self._world_count, self.num_cameras
+        if tensor.is_contiguous():
+            return wp.array(
+                ptr=torch_array.ptr,
+                dtype=dtype,
+                shape=(n, nc, self.height, self.width),
+                device=torch_array.device,
+                copy=False,
+            )
+        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
+        return wp.zeros(
+            (n, nc, self.height, self.width),
+            dtype=dtype,
+            device=torch_array.device,
+        )
 
-        Args:
-            filename: Path to save the image (should end with .png).
-            env_index: Environment index to save, or None for tiled grid of all envs.
-            data_type: Which data to save - "rgb", "rgba", or "depth". Default: "rgb".
-        """
-        import numpy as np
-        from PIL import Image
+    @wp.kernel
+    def _update_transforms(
+        positions: wp.array(dtype=wp.vec3f),
+        orientations: wp.array(dtype=wp.quatf),
+        output: wp.array(dtype=wp.transformf, ndim=2),
+    ):
+        tid = wp.tid()
+        output[0, tid] = wp.transformf(positions[tid], orientations[tid])
 
-        if data_type == "rgb" and "rgb" in self._output_data_buffers:
-            buffer = self._output_data_buffers["rgb"]
-            mode = "RGB"
-        elif data_type == "rgba" and "rgba" in self._output_data_buffers:
-            buffer = self._output_data_buffers["rgba"]
-            mode = "RGBA"
-        elif data_type == "depth" and "depth" in self._output_data_buffers:
-            buffer = self._output_data_buffers["depth"]
-            mode = "L"
-        else:
-            raise ValueError(f"Data type '{data_type}' not available in output buffers.")
+    @staticmethod
+    @wp.kernel
+    def _copy_4d_to_3d_uint32(
+        src: wp.array(dtype=wp.uint32, ndim=4),
+        dst: wp.array(dtype=wp.uint32, ndim=3),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, idx] = src[i, j, py, px]
 
-        buffer_np = buffer.numpy()
-        num_envs_from_buffer = buffer_np.shape[0] if len(buffer_np.shape) >= 4 else 1
-        num_envs_for_tile = getattr(self, "_last_num_envs", None)
-        if num_envs_for_tile is None:
-            num_envs_for_tile = num_envs_from_buffer
-        n_expected = int(num_envs_for_tile)
-        channels = 1 if data_type == "depth" else (4 if data_type == "rgba" else 3)
-        expected_size = n_expected * self._height * self._width * channels
-        if buffer_np.size == expected_size and num_envs_from_buffer != n_expected and buffer_np.size > 0:
-            try:
-                buffer_np = buffer_np.reshape((n_expected, self._height, self._width, channels))
-                num_envs_from_buffer = n_expected
-            except (ValueError, AttributeError):
-                pass
+    @staticmethod
+    @wp.kernel
+    def _copy_3d_to_4d_uint32(
+        src: wp.array(dtype=wp.uint32, ndim=3),
+        dst: wp.array(dtype=wp.uint32, ndim=4),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, py, px] = src[i, j, idx]
 
-        if env_index is None:
-            num_envs = min(int(num_envs_for_tile), num_envs_from_buffer)
-            tiles_per_side = int(np.ceil(np.sqrt(num_envs)))
-            tiled_height = tiles_per_side * self._height
-            tiled_width = tiles_per_side * self._width
+    @staticmethod
+    @wp.kernel
+    def _copy_4d_to_3d_float(
+        src: wp.array(dtype=wp.float32, ndim=4),
+        dst: wp.array(dtype=wp.float32, ndim=3),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, idx] = src[i, j, py, px]
 
-            if data_type == "depth":
-                tiled_image = np.zeros((tiled_height, tiled_width), dtype=np.uint8)
-                for idx in range(num_envs):
-                    tile_y = idx // tiles_per_side
-                    tile_x = idx % tiles_per_side
-                    y_start = tile_y * self._height
-                    y_end = y_start + self._height
-                    x_start = tile_x * self._width
-                    x_end = x_start + self._width
-                    depth_data = buffer_np[idx, :, :, 0]
-                    d_min, d_max = depth_data.min(), depth_data.max()
-                    if d_max > d_min:
-                        depth_vis = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
-                    else:
-                        depth_vis = np.zeros_like(depth_data, dtype=np.uint8)
-                    tiled_image[y_start:y_end, x_start:x_end] = depth_vis
-            else:
-                channels = 3 if mode == "RGB" else 4
-                tiled_image = np.zeros((tiled_height, tiled_width, channels), dtype=np.uint8)
-                for idx in range(num_envs):
-                    tile_y = idx // tiles_per_side
-                    tile_x = idx % tiles_per_side
-                    y_start = tile_y * self._height
-                    y_end = y_start + self._height
-                    x_start = tile_x * self._width
-                    x_end = x_start + self._width
-                    tiled_image[y_start:y_end, x_start:x_end] = buffer_np[idx]
+    @staticmethod
+    @wp.kernel
+    def _copy_3d_to_4d_float(
+        src: wp.array(dtype=wp.float32, ndim=3),
+        dst: wp.array(dtype=wp.float32, ndim=4),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, py, px] = src[i, j, idx]
 
-            img = Image.fromarray(tiled_image, mode=mode)
-            img.save(filename)
-            print(f"[NewtonWarpRenderer] Saved tiled {data_type} image: {filename}", flush=True)
-        else:
-            if data_type == "depth":
-                depth_data = buffer_np[env_index, :, :, 0]
-                d_min, d_max = depth_data.min(), depth_data.max()
-                if d_max > d_min:
-                    img_data = ((depth_data - d_min) / (d_max - d_min) * 255).astype(np.uint8)
-                else:
-                    img_data = np.zeros_like(depth_data, dtype=np.uint8)
-            else:
-                img_data = buffer_np[env_index]
-            img = Image.fromarray(img_data, mode=mode)
-            img.save(filename)
-            print(f"[NewtonWarpRenderer] Saved env {env_index} {data_type} image: {filename}", flush=True)
+    @staticmethod
+    @wp.kernel
+    def _copy_4d_to_3d_vec3(
+        src: wp.array(dtype=wp.vec3f, ndim=4),
+        dst: wp.array(dtype=wp.vec3f, ndim=3),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, idx] = src[i, j, py, px]
 
-    def step(self):
-        """Step the renderer."""
-        pass
+    @staticmethod
+    @wp.kernel
+    def _copy_3d_to_4d_vec3(
+        src: wp.array(dtype=wp.vec3f, ndim=3),
+        dst: wp.array(dtype=wp.vec3f, ndim=4),
+        n: wp.int32,
+        nc: wp.int32,
+        width: wp.int32,
+        height: wp.int32,
+    ):
+        tid = wp.tid()
+        pixels_per_view = width * height
+        idx = tid % pixels_per_view
+        j = (tid // pixels_per_view) % nc
+        i = tid // (pixels_per_view * nc)
+        py, px = idx // width, idx % width
+        dst[i, j, py, px] = src[i, j, idx]
+
+
+class NewtonWarpRenderer(Renderer):
+    """Newton Warp renderer: plug-and-chug with TiledCamera(cfg, renderer=NewtonWarpRenderer())."""
+
+    RenderData = RenderData
+
+    def __init__(self):
+        self._scene_data_provider = self._create_scene_data_provider()
+        self._newton_sensor = None  # created in _get_newton_sensor() when we have width/height
+
+    def _get_newton_sensor(self, width: int, height: int, num_cameras: int = 1):
+        """Create Newton SensorTiledCamera once we have width/height (from camera cfg). Supports both (model) and (model, num_cameras, width, height) APIs."""
+        if self._newton_sensor is not None:
+            return self._newton_sensor
+        model = self._scene_data_provider.get_newton_model()
+        if model is None:
+            raise RuntimeError("NewtonWarpRenderer: get_newton_model() returned None. Ensure PhysxSceneDataProvider is set up for Newton.")
+        try:
+            self._newton_sensor = newton.sensors.SensorTiledCamera(model)
+        except TypeError:
+            self._newton_sensor = newton.sensors.SensorTiledCamera(model, num_cameras, width, height)
+        return self._newton_sensor
+
+    @property
+    def newton_sensor(self):
+        """Newton sensor; valid after create_render_data() has been called."""
+        return self._newton_sensor
+
+    def _create_scene_data_provider(self) -> SceneDataProvider:
+        sim = SimulationContext.instance()
+        if getattr(sim, "_scene_data_provider", None) is not None:
+            return sim._scene_data_provider
+        from ..sim.scene_data_providers import PhysxSceneDataProvider
+        import isaaclab.sim as isaaclab_sim
+        stage = isaaclab_sim.get_current_stage()
+        provider = PhysxSceneDataProvider([_NewtonVizCfg()], stage, sim)
+        sim._scene_data_provider = provider
+        return provider
+
+    def create_render_data(self, sensor: SensorBase) -> RenderData:
+        # Prefer width/height from the scene variant (e.g. env.scene=64x64rgb); fall back to sensor config
+        w_from_variant, h_from_variant = _resolution_from_scene_variant()
+        width = w_from_variant if w_from_variant is not None else getattr(sensor.cfg, "width", 64)
+        height = h_from_variant if h_from_variant is not None else getattr(sensor.cfg, "height", 64)
+        num_cameras = 1  # one camera per world; Newton 4D is (num_worlds, num_cameras, H, W)
+        newton_sensor = self._get_newton_sensor(width, height, num_cameras)
+        return RenderData(newton_sensor.render_context, sensor)
+
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+        render_data.set_outputs(output_data)
+
+    def update_transforms(self):
+        self._scene_data_provider.update()
 
     def reset(self):
-        """Reset the renderer."""
-        pass
+        """Sync Newton state from PhysX after env reset. Called by TiledCamera.reset()."""
+        self.update_transforms()
 
-    def close(self):
-        """Close the renderer."""
-        pass
+    def update_camera(
+        self,
+        render_data: RenderData,
+        positions: torch.Tensor,
+        orientations: torch.Tensor,
+        intrinsics: torch.Tensor,
+    ):
+        render_data.update(positions, orientations, intrinsics)
+
+    def render(self, render_data: RenderData):
+        self._get_newton_sensor(render_data.width, render_data.height)
+        if render_data._output_ndim == 3:
+            render_data._copy_4d_to_3d()
+            self._newton_sensor.render(
+                self._scene_data_provider.get_newton_state(),
+                render_data.camera_transforms,
+                render_data.camera_rays,
+                color_image=render_data._outputs_3d.get("color"),
+                albedo_image=render_data._outputs_3d.get("albedo"),
+                depth_image=render_data._outputs_3d.get("depth"),
+                normal_image=render_data._outputs_3d.get("normal"),
+                shape_index_image=render_data._outputs_3d.get("shape_index"),
+            )
+            render_data._copy_3d_to_4d()
+            return
+        try:
+            self._newton_sensor.render(
+                self._scene_data_provider.get_newton_state(),
+                render_data.camera_transforms,
+                render_data.camera_rays,
+                color_image=render_data.outputs.color_image,
+                albedo_image=render_data.outputs.albedo_image,
+                depth_image=render_data.outputs.depth_image,
+                normal_image=render_data.outputs.normals_image,
+                shape_index_image=render_data.outputs.instance_segmentation_image,
+            )
+        except RuntimeError as e:
+            if "3 dimension" in str(e) or "expects an array with 3" in str(e):
+                logger.info(
+                    "NewtonWarpRenderer: Newton expects 3D outputs (prebundle); using 3D buffers."
+                )
+                render_data._output_ndim = 3
+                render_data._ensure_outputs_3d()
+                render_data._copy_4d_to_3d()
+                self._newton_sensor.render(
+                    self._scene_data_provider.get_newton_state(),
+                    render_data.camera_transforms,
+                    render_data.camera_rays,
+                    color_image=render_data._outputs_3d.get("color"),
+                    albedo_image=render_data._outputs_3d.get("albedo"),
+                    depth_image=render_data._outputs_3d.get("depth"),
+                    normal_image=render_data._outputs_3d.get("normal"),
+                    shape_index_image=render_data._outputs_3d.get("shape_index"),
+                )
+                render_data._copy_3d_to_4d()
+            else:
+                raise
+
+    def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
+        image_data = render_data.get_output(output_name)
+        if image_data is not None and image_data.ptr != output_data.data_ptr():
+            wp.copy(wp.from_torch(output_data), image_data)
+
+    def rgba_to_rgb_channels(self) -> str:
+        """Return 'rgba' (use :3 for rgb). Newton 4D API outputs RGBA."""
+        return "rgba"
+
+
+def save_data(camera, filename: str):
+    """Save the current Newton Warp color buffer to a PNG (Daniela's approach).
+
+    Uses the renderer's flatten_color_image_to_rgba so the saved image matches
+    what Newton outputs. Call after a render; camera must be a TiledCamera
+    using NewtonWarpRenderer.
+
+    Args:
+        camera: TiledCamera instance (must have ._renderer and ._render_data set).
+        filename: Path for the PNG (e.g. "path/to/frame.png").
+    """
+    if not isinstance(camera._renderer, NewtonWarpRenderer):
+        return
+    render_data = getattr(camera, "_render_data", None)
+    if not isinstance(render_data, NewtonWarpRenderer.RenderData):
+        return
+    # Prebundle Newton expects 3D (n, nc, H*W); our 4D is (n, nc, H, W). Use 3D buffer when we have it.
+    color_image = (
+        render_data._outputs_3d.get("color")
+        if getattr(render_data, "_output_ndim", 4) == 3 and getattr(render_data, "_outputs_3d", None)
+        else render_data.outputs.color_image
+    )
+    if color_image is None:
+        return
+    color_data = camera._renderer.newton_sensor.render_context.utils.flatten_color_image_to_rgba(
+        color_image
+    )
+    from PIL import Image
+
+    dirname = os.path.dirname(filename)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
+    arr = color_data.numpy() if hasattr(color_data, "numpy") else color_data
+    Image.fromarray(arr).save(filename)

@@ -59,6 +59,17 @@ def _hydra_arg_priority(arg: str) -> tuple[int, str]:
 hydra_args_sorted = sorted(hydra_args, key=_hydra_arg_priority)
 sys.argv = [sys.argv[0]] + hydra_args_sorted
 
+# Load env's warp and newton before the app launches (no isaaclab/carb deps here).
+# When using warp_renderer this avoids DeviceLike/torch conflicts with Isaac Sim's bundled warp.
+import os
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+import warp_bootstrap
+
+warp_bootstrap.ensure_warp_newton_ready()
+
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -233,6 +244,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # Print average sim/render timing when available; also written to run_artifacts/<timestamp>/timing_summary.txt.
     # Warp renderer timers (newton_warp_sync_plus_render, etc.) only appear when using the warp_renderer backend.
+    # TODO: Instrument newton_warp_render_full and newton_warp_kernel_only in the Newton Warp renderer/tiled_camera
+    #       (e.g. around _newton_sensor.render() and optionally 4D<->3D copies) so these show data instead of "(no data)".
     try:
         timers = [
             ("simulate", "Sim (physics step)"),

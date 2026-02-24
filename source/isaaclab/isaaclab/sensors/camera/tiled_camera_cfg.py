@@ -19,4 +19,6 @@ class TiledCameraCfg(CameraCfg):
     """Renderer backend. Default is ``None`` (RTX). If ``"warp_renderer"``, uses Warp ray tracing
     (PhysX sim + Newton state sync). If ``None`` or anything else, uses Omniverse RTX
     tiled rendering (Replicator annotators). Set by the task's scene variant; pass
-    ``env.scene=64x64rtx_rgb`` for RTX or ``env.scene=64x64warp_rgb`` for Warp."""
+    ``env.scene=64x64rtx_rgb`` for RTX or ``env.scene=64x64warp_rgb`` for Warp.
+    Alternatively, pass a renderer instance to ``TiledCamera(cfg, renderer=NewtonWarpRenderer())``
+    to use Newton from setup.py (e.g. isaaclab.sh --install) without creating from cfg."""

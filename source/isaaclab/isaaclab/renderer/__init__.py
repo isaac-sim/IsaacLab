@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 # Import base classes first
+from .camera_renderer import Renderer as CameraRenderer
 from .renderer import RendererBase
 from .renderer_cfg import RendererCfg
 
@@ -36,6 +37,13 @@ from .renderer_cfg import RendererCfg
 
 
 # from .ov_rtx_renderer_cfg import OVRTXRendererCfg
+
+# Camera-path renderer (TiledCamera inject pattern; lazy to avoid heavy deps at import)
+def __getattr__(name: str):
+    if name == "NewtonWarpRenderer":
+        from .newton_warp_renderer import NewtonWarpRenderer
+        return NewtonWarpRenderer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if TYPE_CHECKING:
@@ -50,9 +58,11 @@ if TYPE_CHECKING:
 _RENDERER_REGISTRY: dict[str, Any] = {}
 
 __all__ = [
+    "CameraRenderer",
     "RendererBase",
     "RendererCfg",
     "NewtonWarpRendererCfg",
+    "NewtonWarpRenderer",
     "get_renderer_class",
 ]
 
@@ -82,11 +92,11 @@ def get_renderer_class(name: str) -> type[RendererBase] | None:
     # Lazy-load visualizer on first access
     try:
         if name in ("newton_warp", "warp_renderer"):
-            from .newton_warp_renderer import NewtonWarpRenderer
+            from .newton_warp_renderer import NewtonWarpRenderer as _NewtonWarpRenderer
 
-            _RENDERER_REGISTRY["newton_warp"] = NewtonWarpRenderer
-            _RENDERER_REGISTRY["warp_renderer"] = NewtonWarpRenderer
-            return NewtonWarpRenderer
+            _RENDERER_REGISTRY["newton_warp"] = _NewtonWarpRenderer
+            _RENDERER_REGISTRY["warp_renderer"] = _NewtonWarpRenderer
+            return _NewtonWarpRenderer
         elif name == "ov_rtx":
             from .ov_rtx_renderer import OVRTXRenderer
 

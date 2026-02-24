@@ -140,12 +140,12 @@ class ManagerBasedEnv:
                 self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        try:
-            from isaaclab.sim._impl.newton_manager import NewtonManager
+        # Load Newton/Warp renderer stack before sim.reset() so env's warp is used (not Isaac Sim's).
+        # Previously NewtonManager.set_scene() triggered this import here; with Daniela's renderer we
+        # must trigger it explicitly or warp would be imported later during sensor init and resolve to isaacsim.
+        from isaaclab.renderer import get_renderer_class
 
-            NewtonManager.set_scene(self.scene)
-        except ImportError:
-            pass  # Newton not installed
+        get_renderer_class("warp_renderer")
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning

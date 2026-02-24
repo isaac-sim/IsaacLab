@@ -93,11 +93,15 @@ class TiledCamera(Camera):
     cfg: TiledCameraCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: TiledCameraCfg):
+    def __init__(self, cfg: TiledCameraCfg, renderer=None):
         """Initializes the tiled camera sensor.
 
         Args:
             cfg: The configuration parameters.
+            renderer: Optional renderer instance (e.g. NewtonWarpRenderer()). When provided,
+                this renderer is used for Warp-based rendering instead of creating one from
+                cfg.renderer_type. Use Newton from setup.py (isaaclab.sh --install) by
+                passing ``renderer=NewtonWarpRenderer()``.
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
@@ -106,6 +110,7 @@ class TiledCamera(Camera):
         self.renderer: Renderer | None = None
         self.render_data = None
         super().__init__(cfg)
+        self._renderer_passed = renderer
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
@@ -157,6 +162,16 @@ class TiledCamera(Camera):
     Implementation.
     """
 
+    def _update_poses(self, env_ids: Sequence[int]):
+        super()._update_poses(env_ids)
+        if self._renderer is not None and getattr(self, "_render_data", None) is not None:
+            self._renderer.update_camera(
+                self._render_data,
+                self._data.pos_w,
+                self._data.quat_w_world,
+                self._data.intrinsic_matrices,
+            )
+
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
@@ -199,45 +214,42 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # Initialize renderer based on renderer_type (None or "rtx" -> RTX; "warp_renderer" -> Warp)
-        _renderer_type = self.cfg.renderer_type if self.cfg.renderer_type is not None else "rtx"
-        if _renderer_type == "warp_renderer":
+        # Use passed renderer (e.g. NewtonWarpRenderer()) or create from cfg.renderer_type.
+        if self._renderer_passed is not None:
             logger.info(
-                "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_type=%s)",
+                "TiledCamera %s: using passed renderer %s",
                 self.cfg.prim_path,
-                self.cfg.renderer_type,
+                type(self._renderer_passed).__name__,
             )
-            # Use Newton Warp renderer
-            from isaaclab.renderer import NewtonWarpRendererCfg, get_renderer_class
-            from isaaclab.sim._impl.newton_manager import NewtonManager
-
-            # Initialize Newton Manager if not already initialized
-            if not hasattr(NewtonManager, "_is_initialized") or not NewtonManager._is_initialized:
-                device_str = str(self.device).replace("cuda:", "cuda:")
-                NewtonManager.initialize(num_envs=self._num_envs, device=device_str)
-
-        self.render_data = self.renderer.create_render_data(self)
-            renderer_cfg = NewtonWarpRendererCfg(
-                width=self.cfg.width,
-                height=self.cfg.height,
-                num_cameras=self._view.count,
-                num_envs=self._num_envs,
-                data_types=self.cfg.data_types,
-            )
-            renderer_cls = get_renderer_class(_renderer_type)
-            if renderer_cls is None:
-                raise RuntimeError("Failed to load Newton Warp renderer class.")
-            self._renderer = renderer_cls(renderer_cfg)
-            self._renderer.initialize()
+            self._renderer = self._renderer_passed
+            self._render_data = self._renderer.create_render_data(self)
             self._render_product_paths = []  # Not used with Newton Warp
             self._annotators = dict()  # Not used with Newton Warp
+            self._warp_save_frame_count = 0
+            self._warp_save_interval = 50
         else:
-            self._renderer = None
-            logger.info(
-                "TiledCamera %s: using renderer backend rtx (default); cfg.renderer_type=%s",
-                self.cfg.prim_path,
-                self.cfg.renderer_type,
-            )
+            _renderer_type = self.cfg.renderer_type if self.cfg.renderer_type is not None else "rtx"
+            if _renderer_type == "warp_renderer":
+                logger.info(
+                    "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_type=%s)",
+                    self.cfg.prim_path,
+                    self.cfg.renderer_type,
+                )
+                from isaaclab.renderer import NewtonWarpRenderer
+
+                self._renderer = NewtonWarpRenderer()
+                self._render_data = self._renderer.create_render_data(self)
+                self._render_product_paths = []  # Not used with Newton Warp
+                self._annotators = dict()  # Not used with Newton Warp
+                self._warp_save_frame_count = 0
+                self._warp_save_interval = 50  # save every N frames
+            else:
+                self._renderer = None
+                logger.info(
+                    "TiledCamera %s: using renderer backend rtx (default); cfg.renderer_type=%s",
+                    self.cfg.prim_path,
+                    self.cfg.renderer_type,
+                )
 
         if self._renderer is None:
             # Create replicator tiled render product (RTX path)
@@ -316,19 +328,28 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        # Newton Warp path: sync PhysX→Newton then render; whole block timed as newton_warp_sync_plus_render
+        # Newton Warp path (PhysxSceneDataProvider sync + render + write_output)
         if self._renderer is not None:
-            from isaaclab.sim._impl.newton_manager import NewtonManager
-
-            with Timer(name="newton_warp_sync_plus_render", msg="Newton Warp (sync + render) took"):
-                NewtonManager.update_state_from_physx_tensors_gpu()
-                self._renderer.render(self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices)
-
-            output = self._renderer.get_output()
-            for data_type in self.cfg.data_types:
-                key = "depth" if data_type in ("depth", "distance_to_image_plane") else data_type
-                if key in output:
-                    self._data.output[data_type] = wp.to_torch(output[key])
+            with Timer(name="newton_warp_sync_plus_render"):
+                self._renderer.update_transforms()  # PhysX -> Newton state sync
+                self._renderer.render(self._render_data)
+                for output_name, output_data in self._data.output.items():
+                    if output_name == "rgb":
+                        continue
+                    self._renderer.write_output(self._render_data, output_name, output_data)
+                if "rgba" in self._data.output and "rgb" in self._data.output:
+                    # use-variants branch used rgba[..., :3]. Set NEWTON_WARP_BGRA=1 only if your Newton outputs BGRA.
+                    import os
+                    order = self._renderer.rgba_to_rgb_channels() if hasattr(self._renderer, "rgba_to_rgb_channels") else "rgba"
+                    self._data.output["rgb"] = (
+                        self._data.output["rgba"][..., [2, 1, 0]] if order == "bgra" else self._data.output["rgba"][..., :3]
+                    )
+                # Daniela's save_data: save flattened color image to /tmp/newton_renders every N frames
+                n = getattr(self, "_warp_save_frame_count", 0)
+                if getattr(self, "_warp_save_interval", 50) and n % getattr(self, "_warp_save_interval", 50) == 0:
+                    from isaaclab.renderer.newton_warp_renderer import save_data
+                    save_data(self, f"/tmp/newton_renders/frame_{n:06d}/rgb_tiled.png")
+                self._warp_save_frame_count = n + 1
             return
 
         # Extract the flattened image buffer (RTX rendering path)
@@ -436,6 +457,9 @@ class TiledCamera(Camera):
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
+        # -- intrinsic matrix (allocate and fill before _update_poses so renderer.update_camera gets valid intrinsics)
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         self._update_poses(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
         # -- output data
@@ -506,7 +530,8 @@ class TiledCamera(Camera):
 
         self._data.output = data_dict
         self._data.info = dict()
-        self.renderer.set_outputs(self.render_data, self._data.output)
+        if getattr(self, "_renderer", None) is not None and getattr(self, "_render_data", None) is not None:
+            self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _tiled_image_shape(self) -> tuple[int, int]:
         """Returns a tuple containing the dimension of the tiled image."""
