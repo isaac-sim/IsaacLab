@@ -39,6 +39,10 @@ class ContactSensorCfg(SensorBaseCfg):
 
         """
 
+    history_length: int = 0
+    """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
+    the current data is stored (no history)."""
+
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
 

@@ -155,10 +155,10 @@ class ContactSensor(BaseContactSensor):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        # reset the timers and counters
-        super().reset(env_ids, env_mask)
         # resolve env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        # reset the timers and counters
+        super().reset(None, env_mask)
 
         wp.launch(
             reset_contact_sensor_kernel,
@@ -355,15 +355,7 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-        # Create warp env index and mask arrays for "all envs" cases and resets.
-        self._ALL_ENV_INDICES = wp.from_torch(
-            torch.arange(self._num_envs, dtype=torch.int32, device=self._device), dtype=wp.int32
-        )
-        self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
-        self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
-        self._reset_mask_torch = wp.to_torch(self._reset_mask)
-
-    def _update_buffers_impl(self, env_ids: Sequence[int], env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         # Convert env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -504,18 +496,3 @@ class ContactSensor(BaseContactSensor):
         # set all existing views to None to invalidate them
         self._body_physx_view = None
         self._contact_view = None
-
-    """
-    Helper methods.
-    """
-
-    def _resolve_indices_and_mask(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> wp.array:
-        """Resolve environment indices to a warp array and mask."""
-        if env_ids is None and env_mask is None:
-            return self._ALL_ENV_MASK
-        elif env_mask is not None:
-            return env_mask
-        else:
-            self._reset_mask.zero_()
-            self._reset_mask_torch[env_ids] = True
-            return self._reset_mask

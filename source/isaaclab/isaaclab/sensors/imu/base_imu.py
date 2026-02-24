@@ -9,6 +9,8 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 from ..sensor_base import SensorBase
 from .base_imu_data import BaseImuData
 
@@ -82,5 +84,5 @@ class BaseImu(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         raise NotImplementedError

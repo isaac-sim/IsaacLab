@@ -117,12 +117,11 @@ class FrameTransformer(BaseFrameTransformer):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve indices and mask
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
-            env_ids = ...
+        super().reset(None, env_mask)
 
     """
     Implementation.
@@ -397,8 +396,10 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
+        # Resolve mask
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # Get raw transforms from PhysX view and reinterpret as transformf
         raw_transforms = self._frame_physx_view.get_transforms().view(wp.transformf)
 
@@ -406,6 +407,7 @@ class FrameTransformer(BaseFrameTransformer):
             frame_transformer_update_kernel,
             dim=(self._num_envs, self._num_target_frames),
             inputs=[
+                env_mask,
                 raw_transforms,
                 self._source_raw_indices,
                 self._target_raw_indices,
