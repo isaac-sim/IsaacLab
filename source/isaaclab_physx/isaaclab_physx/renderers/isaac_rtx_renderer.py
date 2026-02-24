@@ -58,7 +58,6 @@ class IsaacRtxRenderer:
     def create_render_data(self, sensor: SensorBase) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
-
         from pxr import UsdGeom
 
         # Get camera prim paths from sensor view
@@ -265,9 +264,7 @@ class IsaacRtxRenderer:
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
-    def write_output(
-        self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor
-    ):
+    def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
         """No-op for Isaac RTX - all outputs written in render(). See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
         pass
 

@@ -11,15 +11,15 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
+
 from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.renderers import Renderer
 from isaaclab.sim.views import XformPrimView
 
 from ..sensor_base import SensorBase
 from .camera import Camera
-
-from isaaclab.renderers import Renderer
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,6 @@ class TiledCamera(Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
-
 
         self.render_data = self.renderer.create_render_data(self)
 

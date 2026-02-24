@@ -5,9 +5,8 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
-from isaaclab.utils import configclass
-
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.utils import configclass
 
 
 @configclass
