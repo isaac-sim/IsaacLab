@@ -242,9 +242,7 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
