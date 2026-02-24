@@ -7,11 +7,12 @@
 
 from .rendering_quality_cfg import RenderingQualityCfg
 from .rendering_quality_presets import get_kit_rendering_preset
-from .renderers import RTXRendererCfg, WarpRendererCfg
+from .renderers import RTXRendererCfg, RendererCfg, WarpRendererCfg
 
 __all__ = [
     "RenderingQualityCfg",
     "get_kit_rendering_preset",
+    "RendererCfg",
     "RTXRendererCfg",
     "WarpRendererCfg",
 ]
