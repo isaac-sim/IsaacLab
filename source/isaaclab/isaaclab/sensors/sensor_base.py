@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import torch
 import warp as wp
 from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
