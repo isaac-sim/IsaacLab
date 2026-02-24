@@ -281,6 +281,11 @@ class TiledCamera(Camera):
                 self.renderer.write_output(self.render_data, output_name, output_data)
             return
 
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
+
         # Extract the flattened image buffer
         for data_type, annotator in self._annotators.items():
             # check whether returned data is a dict (used for segmentation)
