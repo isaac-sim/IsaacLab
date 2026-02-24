@@ -89,6 +89,15 @@ class Visualizer(ABC):
         """Whether simulation should run forward() before step()."""
         return False
 
+    def pumps_app_update(self) -> bool:
+        """Whether this visualizer calls omni.kit.app.get_app().update() in step().
+
+        Returns True for visualizers (e.g. KitVisualizer) that already pump the Kit
+        app loop, so SimulationContext.render() can skip its own app.update() call
+        and avoid double-rendering.
+        """
+        return False
+
     def get_visualized_env_ids(self) -> list[int] | None:
         """Return env IDs this visualizer is displaying, if any."""
         return getattr(self, "_env_ids", None)

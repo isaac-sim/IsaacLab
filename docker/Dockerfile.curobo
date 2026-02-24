@@ -149,6 +149,9 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
     "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
 
+# Install isaaclab_teleop (needed by Pink IK tests and related env configs)
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --editable ${ISAACLAB_PATH}/source/isaaclab_teleop
+
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
