@@ -54,7 +54,6 @@ def test_render_cfg_presets():
 
         carb_settings_iface = carb.settings.get_settings()
         for setting_name, val in preset_dict.items():
-
             if setting_name == dlss_mode[0]:
                 # grab groundtruth from user-friendly setting overrides
                 setting_gt = dlss_mode[1]

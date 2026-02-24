@@ -105,7 +105,7 @@ class Visualizer(ABC):
         if num_envs <= 0:
             logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled.")
             return None
-        if filter_mode == "env_ids":
+        if filter_mode == "env_filter_ids":
             env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)
             if env_ids_cfg is not None and len(env_ids_cfg) > 0:
                 return [i for i in env_ids_cfg if 0 <= i < num_envs]
