@@ -645,58 +645,6 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def write_joint_state_to_sim_index(
-        self,
-        *,
-        position: torch.Tensor | wp.array,
-        velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Write joint positions and velocities over selected environment indices into the simulation.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
-            joint_ids: The joint indices to set the state for. Defaults to None (all joints).
-            env_ids: The environment indices to set the state for. Defaults to None (all instances).
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def write_joint_state_to_sim_mask(
-        self,
-        *,
-        position: torch.Tensor | wp.array,
-        velocity: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Write joint positions and velocities over selected environment mask into the simulation.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
-
-        Args:
-            position: Joint positions. Shape is (num_instances, num_joints).
-            velocity: Joint velocities. Shape is (num_instances, num_joints).
-            joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
     def write_joint_position_to_sim_index(
         self,
         *,
