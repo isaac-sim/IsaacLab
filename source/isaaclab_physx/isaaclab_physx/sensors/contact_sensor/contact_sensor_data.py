@@ -11,6 +11,7 @@ import math
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
+
 from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_kernel
 
 logger = logging.getLogger(__name__)
@@ -237,6 +238,8 @@ class ContactSensorData(BaseContactSensorData):
 
         # Track friction forces if requested
         if track_friction_forces:
-            self._friction_forces_w = wp.zeros((num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device)
+            self._friction_forces_w = wp.zeros(
+                (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
+            )
         else:
             self._friction_forces_w = None

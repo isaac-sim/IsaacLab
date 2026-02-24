@@ -28,7 +28,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.stage import get_current_stage
 
-from .kernels import reset_envs_kernel, update_timestamp_kernel, update_outdated_envs_kernel
+from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -220,7 +220,9 @@ class SensorBase(ABC):
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
         # Create warp env index and mask arrays for "all envs" cases and resets.
-        self._ALL_ENV_INDICES = wp.from_torch(torch.arange(self._num_envs, dtype=torch.int32, device=self._device), dtype=wp.int32)
+        self._ALL_ENV_INDICES = wp.from_torch(
+            torch.arange(self._num_envs, dtype=torch.int32, device=self._device), dtype=wp.int32
+        )
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
@@ -373,7 +375,9 @@ class SensorBase(ABC):
             device=self._device,
         )
 
-    def _resolve_indices_and_mask(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> wp.array:
+    def _resolve_indices_and_mask(
+        self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
+    ) -> wp.array:
         """Resolve environment indices to a warp array and mask."""
         if env_ids is None and env_mask is None:
             return self._ALL_ENV_MASK

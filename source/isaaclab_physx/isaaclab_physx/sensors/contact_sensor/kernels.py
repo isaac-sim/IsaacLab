@@ -36,6 +36,7 @@ def split_flat_pose_to_pos_quat(
     dst_pos[env, sensor] = wp.transform_get_translation(src[src_idx])
     dst_quat[env, sensor] = wp.transform_get_rotation(src[src_idx])
 
+
 # ---- Unpack contact buffer data kernel ----
 
 
@@ -84,6 +85,7 @@ def unpack_contact_buffer_data(
         dst[env, sensor, contact] = accum
     else:
         dst[env, sensor, contact] = wp.vec3f(default_val, default_val, default_val)
+
 
 @wp.kernel
 def reset_contact_sensor_kernel(
@@ -245,7 +247,7 @@ def update_net_forces_kernel(
         for i in range(history_length - 1, 0, -1):
             net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
         net_forces_w_history[env, 0, sensor] = net_forces_w[env, sensor]
-    
+
     # update force matrix
     if net_forces_matrix_flat:
         for f in range(num_filter_shapes):
@@ -271,6 +273,7 @@ def update_net_forces_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
 
 @wp.kernel
 def concat_pos_and_quat_to_pose_kernel(

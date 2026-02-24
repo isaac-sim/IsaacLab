@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -26,11 +25,11 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
-    update_net_forces_kernel,
-    reset_contact_sensor_kernel,
     compute_first_transition_kernel,
+    reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
+    update_net_forces_kernel,
 )
 
 if TYPE_CHECKING:
@@ -202,7 +201,7 @@ class ContactSensor(BaseContactSensor):
             words :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true
             if the sensor is updated by the physics or the environment stepping time-step and the sensor
             is read by the environment stepping time-step.
-        
+
         .. caution::
             The tensor returned by this function is only valid when called. If compute_first_air is called after
             compute_first_contact, the tensor returned by this method will be have changed values. To avoid this,
@@ -370,12 +369,12 @@ class ContactSensor(BaseContactSensor):
 
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
-            # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
+        # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
         if len(self.cfg.filter_prim_paths_expr) != 0:
             force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
         else:
             force_matrix_flat = None
-        # 
+        #
         wp.launch(
             update_net_forces_kernel,
             dim=(self._num_envs, self._num_sensors),
@@ -388,7 +387,7 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update
+                self._timestamp_last_update,
             ],
             outputs=[
                 self._data._net_forces_w,
