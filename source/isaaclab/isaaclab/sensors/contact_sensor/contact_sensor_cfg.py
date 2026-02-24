@@ -16,7 +16,7 @@ class ContactSensorCfg(SensorBaseCfg):
     """Configuration for the contact sensor.
 
     Sensing bodies are selected via :attr:`SensorBaseCfg.prim_path`. Filter bodies for
-    per-partner force reporting are selected via :attr:`filter_body_prim_expr`.
+    per-partner force reporting are selected via :attr:`filter_prim_paths_expr`.
 
     Only body-level sensing and filtering are supported. For shape-level granularity, use
     :class:`~isaaclab_newton.sensors.contact_sensor.NewtonContactSensorCfg`.
@@ -29,6 +29,9 @@ class ContactSensorCfg(SensorBaseCfg):
 
     track_contact_points: bool = False
     """Whether to track the contact point locations. Defaults to False."""
+
+    track_friction_forces: bool = False
+    """Whether to track the friction forces at the contact points. Defaults to False."""
 
     max_contact_data_count_per_prim: int | None = None
     """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4, where supported.
@@ -57,7 +60,7 @@ class ContactSensorCfg(SensorBaseCfg):
     """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
     the current data is stored (no history)."""
 
-    filter_body_prim_expr: list[str] | None = None
+    filter_prim_paths_expr: list[str] | None = None
     """List of body prim path expressions to filter contacts against. Defaults to None,
     meaning contacts with all bodies are aggregated into the net force.
 

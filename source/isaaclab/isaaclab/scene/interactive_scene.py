@@ -615,9 +615,9 @@ class InteractiveScene:
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 if isinstance(asset_cfg, ContactSensorCfg):
-                    if asset_cfg.filter_body_prim_expr is not None:
-                        asset_cfg.filter_body_prim_expr = [
-                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_body_prim_expr
+                    if asset_cfg.filter_prim_paths_expr is not None:
+                        asset_cfg.filter_prim_paths_expr = [
+                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_prim_paths_expr
                         ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr is not None:
                         asset_cfg.filter_shape_prim_expr = [

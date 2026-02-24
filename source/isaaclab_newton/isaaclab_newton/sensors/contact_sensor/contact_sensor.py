@@ -44,7 +44,7 @@ class ContactSensor(BaseContactSensor):
     The contact sensor reports the normal contact forces on a rigid body or shape in the world frame.
 
     The sensor can be configured to report the contact forces on a set of sensors (bodies or shapes)
-    against specific filter objects using the :attr:`ContactSensorCfg.filter_body_prim_expr`. This is
+    against specific filter objects using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is
     useful when you want to report the contact forces between the sensors and a specific set of objects
     in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
 
@@ -265,13 +265,13 @@ class ContactSensor(BaseContactSensor):
         """Initializes the sensor-related handles and internal buffers."""
 
         self._generate_force_matrix = (
-            self.cfg.filter_body_prim_expr is not None or self.cfg.filter_shape_prim_expr is not None
+            self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_prim_expr is not None
         )
 
         self._sensor_key = NewtonManager.add_contact_sensor(
             body_names_expr=self.cfg.prim_path if self.cfg.sensor_shape_prim_expr is None else None,
             shape_names_expr=self.cfg.sensor_shape_prim_expr,
-            contact_partners_body_expr=self.cfg.filter_body_prim_expr,
+            contact_partners_body_expr=self.cfg.filter_prim_paths_expr,
             contact_partners_shape_expr=self.cfg.filter_shape_prim_expr,
             prune_noncolliding=True,
         )

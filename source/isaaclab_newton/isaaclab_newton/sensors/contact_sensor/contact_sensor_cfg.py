@@ -27,7 +27,7 @@ class NewtonContactSensorCfg(ContactSensorCfg):
 
     Filter partners (what to measure forces against):
 
-    - :attr:`filter_body_prim_expr` — body-level filter (inherited from :class:`ContactSensorCfg`).
+    - :attr:`filter_prim_paths_expr` — body-level filter (inherited from :class:`ContactSensorCfg`).
     - :attr:`filter_shape_prim_expr` — shape-level filter.
 
     An instance can be created from an existing :class:`ContactSensorCfg` via
@@ -66,12 +66,12 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     filter_shape_prim_expr: list[str] | None = None
     """List of shape prim path expressions to filter contacts against at the shape level.
     Defaults to None, meaning filter partners are resolved at the body level only
-    (via :attr:`ContactSensorCfg.filter_body_prim_expr`).
+    (via :attr:`ContactSensorCfg.filter_prim_paths_expr`).
 
     If provided, the force matrix reports per-shape contact forces between the sensing
     primitives and the filter shapes.
 
-    Mutually exclusive with :attr:`ContactSensorCfg.filter_body_prim_expr`; only one
+    Mutually exclusive with :attr:`ContactSensorCfg.filter_prim_paths_expr`; only one
     should be set.
 
     .. note::

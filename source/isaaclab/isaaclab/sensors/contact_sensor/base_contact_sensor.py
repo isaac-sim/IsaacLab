@@ -35,7 +35,7 @@ class BaseContactSensor(SensorBase):
     in the asset.
 
     The sensor can be configured to report the contact forces on a set of bodies with a given
-    filter pattern using the :attr:`ContactSensorCfg.filter_body_prim_expr`. This is useful
+    filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful
     when you want to report the contact forces between the sensor bodies and a specific set of
     bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
     Please check the documentation on `RigidContact`_ for more details.
@@ -47,7 +47,7 @@ class BaseContactSensor(SensorBase):
 
     As an example, suppose you want to report the contact forces for all the feet of a robot against an object
     exclusively. In that case, setting the :attr:`ContactSensorCfg.prim_path` and
-    :attr:`ContactSensorCfg.filter_body_prim_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``
+    :attr:`ContactSensorCfg.filter_prim_paths_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``
     respectively will not work. Instead, you need to create a separate sensor for each foot and filter
     it against the object.
 
