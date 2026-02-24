@@ -22,13 +22,11 @@ import importlib
 import numpy as np
 import pytest
 import torch
+from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 
 import carb
-import omni.usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.devices import OpenXRDevice, OpenXRDeviceCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -141,7 +139,7 @@ def mock_xrcore(mocker):
     head_mock.get_virtual_world_pose.return_value = pose_matrix_mock
 
     # Patch the modules
-    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
+    device_mod = importlib.import_module("isaaclab_teleop.deprecated.openxr.openxr_device")
     mocker.patch.object(device_mod, "XRCore", xr_core_mock)
     mocker.patch.object(device_mod, "XRPoseValidityFlags", xr_pose_validity_flags_mock)
 
@@ -160,7 +158,7 @@ def mock_xrcore(mocker):
 def empty_env():
     """Fixture to create and cleanup an empty environment."""
     # Create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # Create environment with config
     env_cfg = EmptyEnvCfg()
     env = ManagerBasedEnv(cfg=env_cfg)

@@ -3,16 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import tempfile
 
+try:
+    from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+    _TELEOP_AVAILABLE = True
+except ImportError:
+    _TELEOP_AVAILABLE = False
+    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+
 import isaaclab.controllers.utils as ControllerUtils
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.devices.openxr import OpenXRDeviceCfg, XrCfg
-from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 
-from .pickplace_gr1t2_env_cfg import ActionsCfg, EventCfg, ObjectTableSceneCfg, ObservationsCfg, TerminationsCfg
+from .pickplace_gr1t2_env_cfg import (
+    ActionsCfg,
+    EventCfg,
+    ObjectTableSceneCfg,
+    ObservationsCfg,
+    TerminationsCfg,
+    _build_gr1t2_pickplace_pipeline,
+)
 
 
 @configclass
@@ -32,15 +45,6 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     commands = None
     rewards = None
     curriculum = None
-
-    # Position of the XR anchor in the world frame
-    xr: XrCfg = XrCfg(
-        anchor_pos=(0.0, 0.0, 0.0),
-        anchor_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-
-    # OpenXR hand tracking has 26 joints per hand
-    NUM_OPENXR_HAND_JOINTS = 26
 
     # Temporary directory for URDF files
     temp_urdf_dir = tempfile.gettempdir()
@@ -68,20 +72,15 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.urdf_path = temp_urdf_output_path
         self.actions.upper_body_ik.controller.mesh_path = temp_urdf_meshes_output_path
 
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        GR1T2RetargeterCfg(
-                            enable_visualization=True,
-                            # number of joints in both hands
-                            num_open_xr_hand_joints=2 * self.NUM_OPENXR_HAND_JOINTS,
-                            sim_device=self.sim.device,
-                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-            }
-        )
+        # IsaacTeleop-based teleoperation pipeline
+        if _TELEOP_AVAILABLE:
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            pipeline = _build_gr1t2_pickplace_pipeline()
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

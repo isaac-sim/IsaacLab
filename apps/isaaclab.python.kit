@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python"
 description = "An app for running Isaac Lab"
-version = "2.3.2"
+version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -13,7 +13,7 @@ keywords = ["experience", "app", "usd"]
 [dependencies]
 # Isaac Sim extensions
 "isaacsim.app.about" = {}
-"isaacsim.asset.browser" = {}
+"isaacsim.examples.browser" = {}
 "isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
 "isaacsim.core.nodes" = {}
@@ -101,6 +101,7 @@ keywords = ["experience", "app", "usd"]
 # Load Isaac Lab extensions last
 "isaaclab" = {order = 1000}
 "isaaclab_physx" = {order = 1000}
+"isaaclab_newton" = {order = 1000}
 "isaaclab_assets" = {order = 1000}
 "isaaclab_tasks" = {order = 1000}
 "isaaclab_mimic" = {order = 1000}
@@ -160,8 +161,8 @@ indent_all_ticks = false
 show_menu_titles = true
 
 [settings.app]
-name = "Isaac-Sim"
-version = "6.0.0"
+name = "Isaac Lab"
+version = "3.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -248,6 +249,9 @@ rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
+# NuRec
+omni.rtx.nre.compositing.rendererHints = 3
+
 [settings.app.livestream]
 outDirectory = "${data}"
 
@@ -255,7 +259,7 @@ outDirectory = "${data}"
 ###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/${kit_version_short}/shared" },
     { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
     { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]

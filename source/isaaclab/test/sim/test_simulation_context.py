@@ -67,17 +67,13 @@ def test_init(device):
     # verify no RTX sensors are available
     assert not sim.get_setting("/isaaclab/render/rtx_sensors")
 
-    # obtain physics scene from USD
+    # obtain physics scene from USD (string-based schema: physxScene:*)
     from pxr import UsdPhysics
-    from pxr.PhysxSchema import PhysxSceneAPI
 
     physics_scene_prim = sim.stage.GetPrimAtPath("/Physics/PhysX")
     assert physics_scene_prim.IsValid()
     physics_scene = UsdPhysics.Scene(physics_scene_prim)
-    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
-
-    # check valid settings
-    physics_hz = physx_scene_api.GetTimeStepsPerSecondAttr().Get()
+    physics_hz = physics_scene_prim.GetAttribute("physxScene:timeStepsPerSecond").Get()
     physics_dt = 1.0 / physics_hz
     assert physics_dt == cfg.dt
 
@@ -346,17 +342,13 @@ Physics Configuration Tests
 @pytest.mark.parametrize("solver_type", [0, 1])  # 0=PGS, 1=TGS
 def test_solver_type(solver_type):
     """Test different solver types."""
-    from pxr.PhysxSchema import PhysxSceneAPI
-
     cfg = SimulationCfg(physics=PhysxCfg(solver_type=solver_type))
     sim = SimulationContext(cfg)
 
-    # obtain physics scene api from USD
+    # obtain physics scene from USD (string-based: physxScene:solverType)
     physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_prim_path)
-    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
-    # check solver type is set
     solver_type_str = "PGS" if solver_type == 0 else "TGS"
-    assert physx_scene_api.GetSolverTypeAttr().Get() == solver_type_str
+    assert physics_scene_prim.GetAttribute("physxScene:solverType").Get() == solver_type_str
 
 
 @pytest.mark.isaacsim_ci
@@ -374,16 +366,12 @@ def test_fabric_setting(use_fabric):
 @pytest.mark.parametrize("dt", [0.01, 0.02, 0.005])
 def test_physics_dt(dt):
     """Test that physics time step is properly configured."""
-    from pxr.PhysxSchema import PhysxSceneAPI
-
     cfg = SimulationCfg(dt=dt)
     sim = SimulationContext(cfg)
 
-    # obtain physics scene api from USD
+    # obtain physics scene from USD (string-based: physxScene:timeStepsPerSecond)
     physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_prim_path)
-    physx_scene_api = PhysxSceneAPI(physics_scene_prim)
-    # check physics dt
-    physics_hz = physx_scene_api.GetTimeStepsPerSecondAttr().Get()
+    physics_hz = physics_scene_prim.GetAttribute("physxScene:timeStepsPerSecond").Get()
     physics_dt = 1.0 / physics_hz
     assert abs(physics_dt - dt) < 1e-6
 

@@ -18,7 +18,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from pxr import PhysxSchema, UsdPhysics
+from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -3531,30 +3531,6 @@ class Articulation(BaseArticulation):
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
-            # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
-
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
-            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
-            self.write_joint_dynamic_friction_coefficient_to_sim_index(
-                actuator.dynamic_friction, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_viscous_friction_coefficient_to_sim_index(
-                actuator.viscous_friction, joint_ids=actuator.joint_indices
-            )
-
             # Store the configured values from the actuator model
             # note: this is the value configured in the actuator model (for implicit and explicit actuators)
             joint_ids = actuator.joint_indices
@@ -3644,6 +3620,29 @@ class Articulation(BaseArticulation):
                 ],
                 device=self.device,
             )
+            # set the passed gains and limits into the simulation
+            if isinstance(actuator, ImplicitActuator):
+                self._has_implicit_actuators = True
+                # the gains and limits are set into the simulation since actuator model is implicit
+                self.write_joint_stiffness_to_sim_index(actuator.stiffness, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(actuator.damping, joint_ids=actuator.joint_indices)
+            else:
+                # the gains and limits are processed by the actuator model
+                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+                self.write_joint_stiffness_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+                self.write_joint_damping_to_sim_index(0.0, joint_ids=actuator.joint_indices)
+
+            # Set common properties into the simulation
+            self.write_joint_effort_limit_to_sim_index(actuator.effort_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_velocity_limit_to_sim_index(actuator.velocity_limit_sim, joint_ids=actuator.joint_indices)
+            self.write_joint_armature_to_sim_index(actuator.armature, joint_ids=actuator.joint_indices)
+            self.write_joint_friction_coefficient_to_sim_index(actuator.friction, joint_ids=actuator.joint_indices)
+            self.write_joint_dynamic_friction_coefficient_to_sim_index(
+                actuator.dynamic_friction, joint_ids=actuator.joint_indices
+            )
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                actuator.viscous_friction, joint_ids=actuator.joint_indices
+            )
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -3680,14 +3679,14 @@ class Articulation(BaseArticulation):
                 usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._fixed_tendon_names.append(joint_name)
-                elif joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or joint.GetPrim().HasAPI(
-                    PhysxSchema.PhysxTendonAttachmentLeafAPI
+                joint_applied_str = str(joint.GetPrim().GetAppliedSchemas())
+                if "PhysxTendonAxisRootAPI" in joint_applied_str:
+                    self._fixed_tendon_names.append(usd_joint_path.split("/")[-1])
+                elif (
+                    "PhysxTendonAttachmentRootAPI" in joint_applied_str
+                    or "PhysxTendonAttachmentLeafAPI" in joint_applied_str
                 ):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._spatial_tendon_names.append(joint_name)
+                    self._spatial_tendon_names.append(usd_joint_path.split("/")[-1])
 
             # store the fixed tendon names
             self._data.fixed_tendon_names = self._fixed_tendon_names

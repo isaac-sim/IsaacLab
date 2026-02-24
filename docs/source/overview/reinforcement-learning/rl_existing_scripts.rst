@@ -269,6 +269,66 @@ Stable-Baselines3
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
             isaaclab.bat -p scripts\reinforcement_learning\sb3\play.py --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
+RLinf
+-----
+
+`RLinf <https://github.com/RLinf/RLinf>`__ is a distributed RL infrastructure for fine-tuning
+Vision-Language-Action (VLA) models such as `GR00T <https://github.com/NVIDIA/Isaac-GR00T>`__.
+It uses Ray for distributed computing and FSDP for model parallelism, enabling RL training of
+large VLA models that don't fit on a single GPU.
+
+-  Installation and setup:
+
+   .. code:: bash
+
+      # Step 1: Install RLinf and its dependencies (from isaaclab_contrib)
+      pip install -e "source/isaaclab_contrib[rlinf]"
+
+      # Step 2: Clone and install Isaac-GR00T (for VLA model support)
+      cd scripts/reinforcement_learning/rlinf
+      git clone https://github.com/NVIDIA/Isaac-GR00T.git
+      pip install -e Isaac-GR00T/.[base] --no-deps
+
+      # Step 3: Install flash-attn (must be built against the correct PyTorch)
+      pip install --no-build-isolation flash-attn==2.7.1.post4
+
+-  Training a VLA agent with RLinf:
+
+   .. code:: bash
+
+      # Train with default config (assemble trocar task with GR00T)
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py
+
+      # Train with a specific config
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py \
+          --config_name isaaclab_ppo_gr00t_assemble_trocar
+
+      # Train with task override and custom settings
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py \
+          --config_name isaaclab_ppo_gr00t_assemble_trocar \
+          --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0 \
+          --num_envs 64 --max_epochs 1000
+
+      # List available tasks
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/train.py --list_tasks
+
+-  Evaluating a trained VLA agent:
+
+   .. code:: bash
+
+      # Evaluate a trained checkpoint
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
+          --model_path /path/to/checkpoint
+
+      # Evaluate with video recording
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
+          --model_path /path/to/checkpoint --video
+
+      # Evaluate with specific number of environments and episodes
+      ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/play.py \
+          --model_path /path/to/checkpoint --num_envs 8 --num_episodes 10
+
+
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
 is the name of the learning framework, ``<task>`` is the task name, and ``<date-time>`` is the timestamp at
