@@ -308,7 +308,11 @@ class ContactSensor(BaseContactSensor):
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
         # convert regex expressions to glob expressions for PhysX
         body_names_glob = body_names_regex.replace(".*", "*")
-        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+        filter_prim_paths_glob = (
+            [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+            if self.cfg.filter_prim_paths_expr is not None
+            else []
+        )
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
@@ -329,7 +333,7 @@ class ContactSensor(BaseContactSensor):
 
         # check if filter paths are valid
         if self.cfg.track_contact_points or self.cfg.track_friction_forces:
-            if len(self.cfg.filter_prim_paths_expr) == 0:
+            if self.cfg.filter_prim_paths_expr is None:
                 raise ValueError(
                     "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
                     f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
@@ -345,7 +349,7 @@ class ContactSensor(BaseContactSensor):
 
     def _create_buffers(self) -> None:
         # Store filter shapes count
-        self._num_filter_shapes = self.contact_view.filter_count if len(self.cfg.filter_prim_paths_expr) != 0 else 0
+        self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr is not None else 0
         # Store effective history length (always >= 1 for consistent buffer shapes)
         self._history_length = max(self.cfg.history_length, 1)
 
@@ -370,7 +374,7 @@ class ContactSensor(BaseContactSensor):
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
         # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
-        if len(self.cfg.filter_prim_paths_expr) != 0:
+        if self.cfg.filter_prim_paths_expr is not None:
             force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
         else:
             force_matrix_flat = None
