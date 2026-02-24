@@ -11,6 +11,30 @@ import warp as wp
 from pxr import Usd, UsdGeom
 
 
+def _proto_env_mappings(
+    sources: list[str],
+    destinations: list[str],
+    mapping: torch.Tensor,
+    env_ids: torch.Tensor,
+) -> list[tuple[str, str, dict[int, int]]]:
+    """Map each prototype source to its destination template and per-world env IDs.
+
+    Returns one ``(src_prefix, dest_template, world_to_env)`` tuple per source,
+    where *world_to_env* maps Newton world IDs to environment IDs for worlds
+    that contain that source.  Used by both :func:`_cl_inject_sites` (to
+    translate sensor body patterns into prototype-local paths) and the rename
+    loop (to rewrite labels from prototype paths to per-env paths).
+    """
+    result: list[tuple[str, str, dict[int, int]]] = []
+    for i, src_path in enumerate(sources):
+        src_prefix = src_path.rstrip("/")
+        dest_template = destinations[i]
+        world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
+        world_to_env = {c: int(env_ids[c]) for c in world_cols}
+        result.append((src_prefix, dest_template, world_to_env))
+    return result
+
+
 def newton_replicate(
     stage: Usd.Stage,
     sources: list[str],
@@ -33,13 +57,13 @@ def newton_replicate(
         quaternions[:, 3] = 1.0
 
     # load empty stage
-    builder = ModelBuilder(up_axis=up_axis)
+    builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(stage, ignore_paths=["/World/envs"] + sources)
 
     # build a prototype for each source
-    protos: dict[str, ModelBuilder] = {}
+    proto_builders: dict[str, ModelBuilder] = {}
     for src_path in sources:
-        p = ModelBuilder(up_axis=up_axis)
+        p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         inverse_env_xform = get_inverse_env_xform(stage, src_path)
         p.add_usd(
@@ -51,39 +75,34 @@ def newton_replicate(
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
-        protos[src_path] = p
+        proto_builders[src_path] = p
+
+    # Shared mapping used by both site injection and renaming
+    proto_env_map = _proto_env_mappings(sources, destinations, mapping, env_ids)
+
+    # Inject registered sites into prototypes (and global sites into main builder)
+    NewtonManager._cl_inject_sites(builder, proto_builders, proto_env_map)
 
     # create a separate world for each environment (heterogeneous spawning)
-    # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
-    newton_world_to_env_id = {}
     for col, env_id in enumerate(env_ids.tolist()):
-        # begin a new world context (Newton assigns world ID = col)
         builder.begin_world()
-        newton_world_to_env_id[col] = env_id
 
-        # add all active sources for this world
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             builder.add_builder(
-                protos[sources[row]],
+                proto_builders[sources[row]],
                 xform=wp.transform(positions[col].tolist(), quaternions[col].tolist()),
             )
 
-        # end the world context
         builder.end_world()
 
-    # per-source, per-world renaming (strict prefix swap), compact style preserved
-    for i, src_path in enumerate(sources):
-        src_prefix_len = len(src_path.rstrip("/"))
-        swap = lambda name, new_root: new_root + name[src_prefix_len:]  # noqa: E731
-        world_cols = torch.nonzero(mapping[i], as_tuple=True)[0].tolist()
-        # Map Newton world IDs (sequential) to destination paths using env_ids
-        world_roots = {int(env_ids[c]): destinations[i].format(int(env_ids[c])) for c in world_cols}
-
+    # per-source, per-world renaming (strict prefix swap)
+    for src_prefix, dest_template, world_to_env in proto_env_map:
+        src_len = len(src_prefix)
         for t in ("body", "joint", "shape", "articulation"):
             keys, worlds_arr = getattr(builder, f"{t}_label"), getattr(builder, f"{t}_world")
             for k, w in enumerate(worlds_arr):
-                if w in world_roots and keys[k].startswith(src_path):
-                    keys[k] = swap(keys[k], world_roots[w])
+                if w in world_to_env and keys[k].startswith(src_prefix):
+                    keys[k] = dest_template.format(world_to_env[w]) + keys[k][src_len:]
 
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)

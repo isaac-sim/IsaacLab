@@ -30,8 +30,8 @@ def approach_ee_handle(env: ManagerBasedRLEnv, threshold: float) -> torch.Tensor
         \end{cases}
 
     """
-    ee_tcp_pos = env.scene["ee_frame"].data.target_pos_w[..., 0, :]
-    handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
+    ee_tcp_pos = wp.to_torch(env.scene["ee_frame"].data.target_pos_w)[..., 0, :]
+    handle_pos = wp.to_torch(env.scene["cabinet_frame"].data.target_pos_w)[..., 0, :]
 
     # Compute the distance of the end-effector to the handle
     distance = torch.norm(handle_pos - ee_tcp_pos, dim=-1, p=2)
@@ -54,8 +54,8 @@ def align_ee_handle(env: ManagerBasedRLEnv) -> torch.Tensor:
     where :math:`align_z` is the dot product of the z direction of the gripper and the -x direction of the handle
     and :math:`align_x` is the dot product of the x direction of the gripper and the -y direction of the handle.
     """
-    ee_tcp_quat = env.scene["ee_frame"].data.target_quat_w[..., 0, :]
-    handle_quat = env.scene["cabinet_frame"].data.target_quat_w[..., 0, :]
+    ee_tcp_quat = wp.to_torch(env.scene["ee_frame"].data.target_quat_w)[..., 0, :]
+    handle_quat = wp.to_torch(env.scene["cabinet_frame"].data.target_quat_w)[..., 0, :]
 
     ee_tcp_rot_mat = matrix_from_quat(ee_tcp_quat)
     handle_mat = matrix_from_quat(handle_quat)
@@ -80,9 +80,9 @@ def align_grasp_around_handle(env: ManagerBasedRLEnv) -> torch.Tensor:
     The correct hand orientation is when the left finger is above the handle and the right finger is below the handle.
     """
     # Target object position: (num_envs, 3)
-    handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
+    handle_pos = wp.to_torch(env.scene["cabinet_frame"].data.target_pos_w)[..., 0, :]
     # Fingertips position: (num_envs, n_fingertips, 3)
-    ee_fingertips_w = env.scene["ee_frame"].data.target_pos_w[..., 1:, :]
+    ee_fingertips_w = wp.to_torch(env.scene["ee_frame"].data.target_pos_w)[..., 1:, :]
     lfinger_pos = ee_fingertips_w[..., 0, :]
     rfinger_pos = ee_fingertips_w[..., 1, :]
 
@@ -100,9 +100,9 @@ def approach_gripper_handle(env: ManagerBasedRLEnv, offset: float = 0.04) -> tor
     (i.e., the left finger is above the handle and the right finger is below the handle). Otherwise, it returns zero.
     """
     # Target object position: (num_envs, 3)
-    handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
+    handle_pos = wp.to_torch(env.scene["cabinet_frame"].data.target_pos_w)[..., 0, :]
     # Fingertips position: (num_envs, n_fingertips, 3)
-    ee_fingertips_w = env.scene["ee_frame"].data.target_pos_w[..., 1:, :]
+    ee_fingertips_w = wp.to_torch(env.scene["ee_frame"].data.target_pos_w)[..., 1:, :]
     lfinger_pos = ee_fingertips_w[..., 0, :]
     rfinger_pos = ee_fingertips_w[..., 1, :]
 
@@ -127,8 +127,8 @@ def grasp_handle(
     Note:
         It is assumed that zero joint position corresponds to the fingers being closed.
     """
-    ee_tcp_pos = env.scene["ee_frame"].data.target_pos_w[..., 0, :]
-    handle_pos = env.scene["cabinet_frame"].data.target_pos_w[..., 0, :]
+    ee_tcp_pos = wp.to_torch(env.scene["ee_frame"].data.target_pos_w)[..., 0, :]
+    handle_pos = wp.to_torch(env.scene["cabinet_frame"].data.target_pos_w)[..., 0, :]
     gripper_joint_pos = wp.to_torch(env.scene[asset_cfg.name].data.joint_pos)[:, asset_cfg.joint_ids]
 
     distance = torch.norm(handle_pos - ee_tcp_pos, dim=-1, p=2)

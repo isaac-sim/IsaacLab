@@ -583,6 +583,11 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):
         """Add scene entities from the config."""
+
+        def resolve_env_ns(path: str, ns: str) -> str:
+            """Normalize ``{ENV_REGEX_NS}`` (or a literal env-regex) and substitute *ns*."""
+            return path.replace(self.env_regex_ns, "{ENV_REGEX_NS}").format(ENV_REGEX_NS=ns)
+
         # parse the entire scene config and resolve regex
         for asset_name, asset_cfg in self.cfg.__dict__.items():
             # skip keywords
@@ -595,11 +600,12 @@ class InteractiveScene:
                 # In order to compose cloner behavior more flexibly, we ask each spawner to spawn prototypes in
                 # prepared /World/template path, once all template is ready, cloner can determine what rules to follow
                 # to combine, and distribute the templates to cloned environments.
-                asset_cfg.prim_path = asset_cfg.prim_path.replace(self.env_regex_ns, "{ENV_REGEX_NS}")
-                destinations_regex_ns = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                if self.env_regex_ns[:-2] in destinations_regex_ns:
+                # Sensors are excluded — they don't spawn prims and need env-regex
+                # paths during __init__ for cl_register_site.
+                destinations_regex_ns = resolve_env_ns(asset_cfg.prim_path, self.env_regex_ns)
+                if not isinstance(asset_cfg, SensorBaseCfg) and self.env_regex_ns[:-2] in destinations_regex_ns:
                     require_clone = True
-                    prototype_root = asset_cfg.prim_path.format(ENV_REGEX_NS=self.cloner_cfg.template_root)
+                    prototype_root = resolve_env_ns(asset_cfg.prim_path, self.cloner_cfg.template_root)
                     asset_cfg.prim_path = f"{prototype_root}/{self.cloner_cfg.template_prototype_identifier}_.*"
                 else:
                     asset_cfg.prim_path = destinations_regex_ns
@@ -617,20 +623,20 @@ class InteractiveScene:
                 if isinstance(asset_cfg, ContactSensorCfg):
                     if asset_cfg.filter_prim_paths_expr is not None:
                         asset_cfg.filter_prim_paths_expr = [
-                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_prim_paths_expr
+                            resolve_env_ns(e, self.env_regex_ns) for e in asset_cfg.filter_prim_paths_expr
                         ]
                     if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr is not None:
                         asset_cfg.sensor_shape_prim_expr = [
-                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.sensor_shape_prim_expr
+                            resolve_env_ns(e, self.env_regex_ns) for e in asset_cfg.sensor_shape_prim_expr
                         ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr is not None:
                         asset_cfg.filter_shape_prim_expr = [
-                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_shape_prim_expr
+                            resolve_env_ns(e, self.env_regex_ns) for e in asset_cfg.filter_shape_prim_expr
                         ]
                 elif isinstance(asset_cfg, FrameTransformerCfg):
                     if asset_cfg.target_frames is not None:
                         for target_frame in asset_cfg.target_frames:
-                            target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                            target_frame.prim_path = resolve_env_ns(target_frame.prim_path, self.env_regex_ns)
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset
