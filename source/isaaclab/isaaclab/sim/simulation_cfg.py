@@ -14,8 +14,8 @@ from __future__ import annotations
 from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.rendering.rendering_quality_cfg import RenderingQualityCfg
 from isaaclab.rendering.renderers import RendererCfg
+from isaaclab.rendering.rendering_quality_cfg import RenderingQualityCfg
 from isaaclab.rendering.visualizers import VisualizerCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass

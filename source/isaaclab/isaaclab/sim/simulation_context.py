@@ -20,13 +20,9 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.physics import PhysicsManager
-from isaaclab.rendering.rendering_quality_cfg import RenderingQualityCfg
 from isaaclab.rendering.rendering_quality_utils import (
-    apply_kit_rendering_preset,
-    apply_kit_rendering_quality_cfg,
-    apply_newton_quality_cfg_to_visualizer_cfg,
-    resolve_rendering_quality_cfg,
-    resolve_rendering_quality_name_for_visualizer_cfg,
+    apply_quality_profile_to_visualizer_cfg,
+    apply_runtime_quality_profile_to_visualizer,
 )
 from isaaclab.rendering.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVisualizerCfg, Visualizer
 from isaaclab.sim.utils import create_new_stage_in_memory
@@ -159,66 +155,27 @@ class SimulationContext:
         self._is_stopped = True
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_kit_rendering_preset(self, preset_name: str) -> None:
-        apply_kit_rendering_preset(self.set_setting, preset_name)
-
-    def _apply_kit_rendering_quality_cfg(self, quality_cfg: RenderingQualityCfg) -> None:
-        apply_kit_rendering_quality_cfg(self.set_setting, quality_cfg)
-
-    def _apply_newton_quality_cfg_to_visualizer_cfg(
-        self, visualizer_cfg: Any, quality_cfg: RenderingQualityCfg
-    ) -> None:
-        apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg, quality_cfg)
-
-    def _resolve_rendering_quality_name_for_visualizer_cfg(self, visualizer_cfg: Any) -> str | None:
-        return resolve_rendering_quality_name_for_visualizer_cfg(self.get_setting, visualizer_cfg)
-
-    def _resolve_rendering_quality_cfg(self, quality_name: str | None) -> RenderingQualityCfg | None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        return resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
-
     def _apply_quality_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
-        quality_name = self._resolve_rendering_quality_name_for_visualizer_cfg(visualizer_cfg)
-        quality_cfg = self._resolve_rendering_quality_cfg(quality_name)
-        if quality_cfg is None:
-            return
-        if getattr(visualizer_cfg, "visualizer_type", None) == "kit":
-            self._apply_kit_rendering_quality_cfg(quality_cfg)
-        elif getattr(visualizer_cfg, "visualizer_type", None) == "newton":
-            self._apply_newton_quality_cfg_to_visualizer_cfg(visualizer_cfg, quality_cfg)
+        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
+        apply_quality_profile_to_visualizer_cfg(
+            self.get_setting,
+            self.set_setting,
+            visualizer_cfg,
+            quality_cfgs,
+            logger,
+        )
 
     def _apply_runtime_quality_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
-        quality_name = self._resolve_rendering_quality_name_for_visualizer_cfg(viz.cfg)
-        viz_id = id(viz)
-        if not force and self._visualizer_quality_keys.get(viz_id) == quality_name:
-            return
-        quality_cfg = self._resolve_rendering_quality_cfg(quality_name)
-        if quality_cfg is None:
-            self._visualizer_quality_keys[viz_id] = quality_name
-            return
-
-        viz_type = getattr(viz.cfg, "visualizer_type", None)
-        if viz_type == "kit":
-            self._apply_kit_rendering_quality_cfg(quality_cfg)
-        elif viz_type == "newton":
-            self._apply_newton_quality_cfg_to_visualizer_cfg(viz.cfg, quality_cfg)
-            viewer = getattr(viz, "_viewer", None)
-            if viewer is not None and hasattr(viewer, "renderer"):
-                if quality_cfg.newton_enable_shadows is not None:
-                    viewer.renderer.draw_shadows = quality_cfg.newton_enable_shadows
-                if quality_cfg.newton_enable_sky is not None:
-                    viewer.renderer.draw_sky = quality_cfg.newton_enable_sky
-                if quality_cfg.newton_enable_wireframe is not None:
-                    viewer.renderer.draw_wireframe = quality_cfg.newton_enable_wireframe
-                if quality_cfg.newton_sky_upper_color is not None:
-                    viewer.renderer.sky_upper = quality_cfg.newton_sky_upper_color
-                if quality_cfg.newton_sky_lower_color is not None:
-                    viewer.renderer.sky_lower = quality_cfg.newton_sky_lower_color
-                if quality_cfg.newton_light_color is not None:
-                    viewer.renderer._light_color = quality_cfg.newton_light_color
-
-        # Store last applied quality key so runtime hot swapping can be detected per visualizer.
-        self._visualizer_quality_keys[viz_id] = quality_name
+        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
+        apply_runtime_quality_profile_to_visualizer(
+            self.get_setting,
+            self.set_setting,
+            viz,
+            self._visualizer_quality_keys,
+            quality_cfgs,
+            logger,
+            force=force,
+        )
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
