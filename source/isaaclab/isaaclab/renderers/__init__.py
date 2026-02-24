@@ -21,6 +21,8 @@ from .renderer_cfg import RendererCfg
 _RENDERER_REGISTRY: dict[type[RendererCfg], type[Renderer]] = {}
 
 __all__ = [
+    "Renderer",
+    "RendererCfg",
     "IsaacRtxRendererCfg",
     "NewtonWarpRendererCfg",
     "create_renderer",
