@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -97,20 +98,30 @@ class FrameTransformer(BaseFrameTransformer):
     def num_bodies(self) -> int:
         """Returns the number of target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        .. deprecated::
+            Use ``len(data.target_frame_names)`` instead. This property will be removed in a future release.
         """
+        warnings.warn(
+            "The `num_bodies` property will be deprecated in a future release."
+            " Please use `len(data.target_frame_names)` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return len(self._target_frame_body_names)
 
     @property
     def body_names(self) -> list[str]:
         """Returns the names of the target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`data.target_frame_names` to access the target frame names.
+        .. deprecated::
+            Use ``data.target_frame_names`` instead. This property will be removed in a future release.
         """
+        warnings.warn(
+            "The `body_names` property will be deprecated in a future release."
+            " Please use `data.target_frame_names` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self._target_frame_body_names
 
     """

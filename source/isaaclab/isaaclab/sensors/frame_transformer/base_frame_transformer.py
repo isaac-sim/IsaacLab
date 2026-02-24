@@ -72,9 +72,8 @@ class BaseFrameTransformer(SensorBase):
     def num_bodies(self) -> int:
         """Returns the number of target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        .. deprecated::
+            Use ``len(data.target_frame_names)`` instead. This property will be removed in a future release.
         """
         raise NotImplementedError
 
@@ -83,9 +82,8 @@ class BaseFrameTransformer(SensorBase):
     def body_names(self) -> list[str]:
         """Returns the names of the target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`data.target_frame_names` to access the target frame names.
+        .. deprecated::
+            Use ``data.target_frame_names`` instead. This property will be removed in a future release.
         """
         raise NotImplementedError
 

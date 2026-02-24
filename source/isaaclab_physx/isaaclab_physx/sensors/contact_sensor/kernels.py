@@ -22,7 +22,7 @@ def split_flat_pose_to_pos_quat(
 
     Args:
         src: Flat source array of transforms from PhysX view. Shape is (N*B,).
-        env_ids: Environment indices to update. Shape is (num_env_ids,).
+        mask: Boolean mask for which environments to update. Shape is (N,).
         num_bodies: Number of bodies per environment.
         dst_pos: Destination position buffer. Shape is (N, B).
         dst_quat: Destination quaternion buffer. Shape is (N, B).
@@ -60,7 +60,7 @@ def unpack_contact_buffer_data(
         contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
         buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
         buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
-        env_ids: Environment indices. Shape is (num_env_ids,).
+        mask: Boolean mask for which environments to update. Shape is (N,).
         num_bodies: Number of bodies per environment.
         avg: If True, average the data; if False, sum it.
         default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
@@ -271,3 +271,19 @@ def update_net_forces_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
+@wp.kernel
+def concat_pos_and_quat_to_pose_kernel(
+    pos: wp.array2d(dtype=wp.vec3f),
+    quat: wp.array2d(dtype=wp.quatf),
+    pose: wp.array2d(dtype=wp.transformf),
+):
+    """Concatenate position and quaternion to pose.
+
+    Args:
+        pos: Position array. Shape is (N, B).
+        quat: Quaternion array. Shape is (N, B).
+        pose: Pose array. Shape is (N, B).
+    """
+    env, sensor = wp.tid()
+    pose[env, sensor] = wp.transform(pos[env, sensor], quat[env, sensor])

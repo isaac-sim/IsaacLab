@@ -96,6 +96,14 @@ class ContactSensor(BaseContactSensor):
         self._ALL_ENV_MASK: wp.array | None = None
         self._reset_mask: wp.array | None = None
 
+        # check if max_contact_data_count_per_prim is set
+        if self.cfg.max_contact_data_count_per_prim is None:
+            self.cfg.max_contact_data_count_per_prim = 4
+
+        # check if force_threshold is set
+        if self.cfg.force_threshold is None:
+            self.cfg.force_threshold = 1.0
+
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (

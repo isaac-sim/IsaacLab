@@ -41,7 +41,7 @@ class Imu(BaseImu):
     .. note::
 
         We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        IMU sensor accuracy depends on the chosen phsyx timestep. For a sufficient accuracy, we recommend to keep the
+        IMU sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
         timestep at least as 200Hz.
 
     .. note::

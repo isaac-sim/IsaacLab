@@ -128,6 +128,11 @@ class BaseContactSensor(SensorBase):
             if the sensor is updated by the physics or the environment stepping time-step and the sensor
             is read by the environment stepping time-step.
 
+        .. caution::
+            This method and :meth:`compute_first_air` share an internal output buffer. Calling one
+            after the other will overwrite the previous result. To avoid data loss, consume or clone
+            the returned array before calling the other method.
+
         Args:
             dt: The time period since the contact was established.
             abs_tol: The absolute tolerance for the comparison.
@@ -154,6 +159,11 @@ class BaseContactSensor(SensorBase):
             :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true if
             the sensor is updated by the physics or the environment stepping time-step and the sensor
             is read by the environment stepping time-step.
+
+        .. caution::
+            This method and :meth:`compute_first_contact` share an internal output buffer. Calling one
+            after the other will overwrite the previous result. To avoid data loss, consume or clone
+            the returned array before calling the other method.
 
         Args:
             dt: The time period since the contract is broken.
