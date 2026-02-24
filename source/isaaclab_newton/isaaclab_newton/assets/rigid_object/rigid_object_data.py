@@ -79,6 +79,7 @@ class RigidObjectData(BaseRigidObjectData):
         self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.vec3f)
         self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.vec3f)
 
+        self._create_simulation_bindings()
         self._create_buffers()
 
     @property
@@ -670,39 +671,6 @@ class RigidObjectData(BaseRigidObjectData):
         """
         return self._get_quat_from_transform(self._body_com_quat_b, self.body_com_pose_b)
 
-    def _create_buffers(self) -> None:
-        super()._create_buffers()
-        # Initialize the lazy buffers.
-        # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_link_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
-        # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self._num_instances, 1), self.device, wp.transformf)
-        # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
-        self._body_com_acc_w = TimestampedBuffer((self._num_instances, 1), self.device, wp.spatial_vectorf)
-        # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_link_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_com_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
-        self._root_link_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_link_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-
-        # -- Default state
-        self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
-        self._default_root_state = None
-
-        # -- Body properties
-        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
-
     def _create_simulation_bindings(self) -> None:
         """Create simulation bindings for the root data.
 
@@ -738,12 +706,13 @@ class RigidObjectData(BaseRigidObjectData):
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
+        super()._create_buffers()
         self._num_instances = self._root_view.count
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
             logger.warning(
-                "Failed to get root com velocity. If the rigid object is fixed, this is expected."
+                "Failed to get root com velocity. If the rigid object is fixed, this is expected. "
                 "Setting root com velocity to zeros."
             )
             self._sim_bind_root_com_vel_w = wp.zeros(
@@ -755,6 +724,10 @@ class RigidObjectData(BaseRigidObjectData):
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+
+        # -- Body properties
+        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
+        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
 
         # Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(SimulationManager.get_state_0()))[

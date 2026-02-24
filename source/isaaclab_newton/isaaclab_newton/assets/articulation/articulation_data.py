@@ -1286,8 +1286,8 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_velocity_target = wp.zeros((n_view, 0), dtype=wp.float32, device=self.device)
 
     def _create_buffers(self) -> None:
-        super()._create_buffers()
         """Create buffers for the root data."""
+        super()._create_buffers()
 
         # Short-hand for the number of instances, number of links, and number of joints.
         self._num_instances = self._root_view.count
@@ -1300,7 +1300,7 @@ class ArticulationData(BaseArticulationData):
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
             logger.warning(
-                "Failed to get root com velocity. If the articulation is fixed, this is expected."
+                "Failed to get root com velocity. If the articulation is fixed, this is expected. "
                 "Setting root com velocity to zeros."
             )
             self._sim_bind_root_com_vel_w = wp.zeros(

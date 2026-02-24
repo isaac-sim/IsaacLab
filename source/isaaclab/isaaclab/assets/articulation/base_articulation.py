@@ -244,7 +244,7 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def find_bodies(
         self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str], wp.array]:
+    ) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
@@ -255,7 +255,7 @@ class BaseArticulation(AssetBase):
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices, names, and warp mask.
+            A tuple of lists containing the body indices and names.
         """
         raise NotImplementedError()
 
