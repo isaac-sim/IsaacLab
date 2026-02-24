@@ -113,6 +113,58 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
     assert viewer.calls[2] == ("end_frame",)
 
 
+@pytest.mark.parametrize(
+    ("cfg_max_worlds", "expected_max_worlds"),
+    [
+        (None, None),
+        (0, None),
+        (3, 3),
+    ],
+)
+def test_viser_visualizer_create_viewer_forwards_max_worlds(
+    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+):
+    captured = {}
+
+    class _FakeNewtonViewerViser:
+        def __init__(
+            self,
+            *,
+            port: int,
+            label: str | None,
+            verbose: bool,
+            share: bool,
+            record_to_viser: str | None,
+            metadata: dict | None = None,
+        ):
+            captured["init"] = {
+                "port": port,
+                "label": label,
+                "verbose": verbose,
+                "share": share,
+                "record_to_viser": record_to_viser,
+                "metadata": metadata,
+            }
+
+        def set_model(self, model: Any, max_worlds: int | None) -> None:
+            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+
+    monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
+    monkeypatch.setattr(
+        viser_visualizer.ViserVisualizer,
+        "_resolve_initial_camera_pose",
+        lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
+    )
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+
+    cfg = ViserVisualizerCfg(max_worlds=cfg_max_worlds)
+    visualizer = viser_visualizer.ViserVisualizer(cfg)
+    visualizer._model = "dummy-model"
+    visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
+
+    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+
+
 def test_viser_visualizer_close_uses_recording_flag(monkeypatch: pytest.MonkeyPatch):
     cfg = ViserVisualizerCfg(record_to_viser="record.viser")
     visualizer = viser_visualizer.ViserVisualizer(cfg)
