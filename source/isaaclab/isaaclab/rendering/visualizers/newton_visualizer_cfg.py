@@ -3,4 +3,37 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.visualizers.newton_visualizer_cfg import *  # noqa: F401, F403
+"""Configuration for Newton OpenGL Visualizer."""
+
+from isaaclab.utils import configclass
+
+from .visualizer_cfg import VisualizerCfg
+
+
+@configclass
+class NewtonVisualizerCfg(VisualizerCfg):
+    """Configuration for Newton OpenGL visualizer."""
+
+    visualizer_type: str = "newton"
+    """Type identifier for Newton visualizer."""
+
+    window_width: int = 1920
+    """Window width in pixels."""
+
+    window_height: int = 1080
+    """Window height in pixels."""
+
+    update_frequency: int = 1
+    """Visualizer update frequency (updates every N frames)."""
+
+    show_joints: bool = False
+    """Show joint visualization."""
+
+    show_contacts: bool = False
+    """Show contact visualization."""
+
+    show_springs: bool = False
+    """Show spring visualization."""
+
+    show_com: bool = False
+    """Show center of mass visualization."""

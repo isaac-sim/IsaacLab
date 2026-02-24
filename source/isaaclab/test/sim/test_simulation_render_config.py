@@ -18,10 +18,10 @@ import pytest
 
 import carb
 
-from isaaclab.renderer.rendering_quality_presets import get_kit_rendering_preset
+from isaaclab.rendering.rendering_quality_presets import get_kit_rendering_preset
 from isaaclab.sim.simulation_cfg import RenderingQualityCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.visualizers import KitVisualizerCfg
+from isaaclab.rendering.visualizers import KitVisualizerCfg
 
 
 # @pytest.mark.isaacsim_ci
