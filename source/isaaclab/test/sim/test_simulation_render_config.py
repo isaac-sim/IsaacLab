@@ -39,7 +39,7 @@ def test_render_cfg_presets():
 
         profile_name = f"profile_{rendering_mode}"
         quality_cfg = RenderingModeCfg(
-            kit_rendering_preset=rendering_mode,
+            rendering_mode_preset=rendering_mode,
             kit_dlss_mode=dlss_mode[1],
         )
         cfg = SimulationCfg(

@@ -77,7 +77,7 @@ There are 2 ways to provide settings that overwrite presets.
    .. code-block:: python
 
       quality_cfg = sim_utils.RenderingQualityCfg(
-         kit_rendering_preset="performance",
+         rendering_mode_preset="performance",
          # explicit field overrides
          kit_enable_translucency=True,  # defaults to False in performance mode
          kit_enable_reflections=True,  # defaults to False in performance mode
