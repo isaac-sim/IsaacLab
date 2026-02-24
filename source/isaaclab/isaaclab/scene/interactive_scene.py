@@ -15,7 +15,6 @@ from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, Surface
 
 import carb
 from isaacsim.core.cloner import GridCloner
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import (
@@ -326,7 +325,7 @@ class InteractiveScene:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
             for prim in self.stage.Traverse():
-                if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+                if "PhysxSceneAPI" in prim.GetAppliedSchemas():
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break

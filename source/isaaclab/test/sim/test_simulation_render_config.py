@@ -16,8 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 
-import carb
-
 from isaaclab.rendering.rendering_quality.rendering_quality_presets import get_kit_rendering_preset
 from isaaclab.sim.simulation_cfg import RenderingQualityCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
@@ -52,16 +50,13 @@ def test_render_cfg_presets():
         sim = SimulationContext(cfg)
         sim.reset()
 
-        carb_settings_iface = carb.settings.get_settings()
         for setting_name, val in preset_dict.items():
             if setting_name == dlss_mode[0]:
-                # grab groundtruth from user-friendly setting overrides
                 setting_gt = dlss_mode[1]
             else:
-                # grab groundtruth from preset
                 setting_gt = val
 
-            setting_val = carb_settings_iface.get(setting_name)
+            setting_val = sim.get_setting(setting_name)
 
             assert setting_gt == setting_val, (
                 f"Mismatch for '{setting_name}' in mode '{rendering_mode}': "
@@ -96,15 +91,14 @@ def test_rendering_quality_cfg_field_overrides():
     sim = SimulationContext(cfg)
     sim.reset()
 
-    carb_settings_iface = carb.settings.get_settings()
-    assert carb_settings_iface.get("/rtx/translucency/enabled") is True
-    assert carb_settings_iface.get("/rtx/reflections/enabled") is True
-    assert carb_settings_iface.get("/rtx/indirectDiffuse/enabled") is True
-    assert carb_settings_iface.get("/rtx-transient/dlssg/enabled") is True
-    assert carb_settings_iface.get("/rtx-transient/dldenoiser/enabled") is True
-    assert carb_settings_iface.get("/rtx/post/dlss/execMode") == 0
-    assert carb_settings_iface.get("/rtx/directLighting/enabled") is True
-    assert carb_settings_iface.get("/rtx/directLighting/sampledLighting/samplesPerPixel") == 4
-    assert carb_settings_iface.get("/rtx/shadows/enabled") is True
-    assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") is True
-    assert carb_settings_iface.get("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
+    assert sim.get_setting("/rtx/translucency/enabled") is True
+    assert sim.get_setting("/rtx/reflections/enabled") is True
+    assert sim.get_setting("/rtx/indirectDiffuse/enabled") is True
+    assert sim.get_setting("/rtx-transient/dlssg/enabled") is True
+    assert sim.get_setting("/rtx-transient/dldenoiser/enabled") is True
+    assert sim.get_setting("/rtx/post/dlss/execMode") == 0
+    assert sim.get_setting("/rtx/directLighting/enabled") is True
+    assert sim.get_setting("/rtx/directLighting/sampledLighting/samplesPerPixel") == 4
+    assert sim.get_setting("/rtx/shadows/enabled") is True
+    assert sim.get_setting("/rtx/ambientOcclusion/enabled") is True
+    assert sim.get_setting("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4

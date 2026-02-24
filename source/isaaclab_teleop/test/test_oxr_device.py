@@ -25,7 +25,6 @@ import torch
 from isaaclab_teleop.deprecated.openxr import OpenXRDevice, OpenXRDeviceCfg, XrCfg
 
 import carb
-import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
@@ -159,7 +158,7 @@ def mock_xrcore(mocker):
 def empty_env():
     """Fixture to create and cleanup an empty environment."""
     # Create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     # Create environment with config
     env_cfg = EmptyEnvCfg()
     env = ManagerBasedEnv(cfg=env_cfg)

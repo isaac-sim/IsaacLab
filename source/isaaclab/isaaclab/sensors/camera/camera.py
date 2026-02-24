@@ -15,12 +15,11 @@ import numpy as np
 import torch
 from packaging import version
 
-import carb
-import omni.usd
 from pxr import Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.array import convert_to_torch
@@ -97,6 +96,12 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
+    # Class-level dedup stamp: tracks the last (sim instance, physics step) at
+    # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
+    # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
+    # any stale stamp from a previous instance.
+    _last_render_update_key: tuple[int, int] = (0, -1)
+
     SIMPLE_SHADING_MODES: dict[str, int] = {
         "simple_shading_constant_diffuse": 0,
         "simple_shading_diffuse_mdl": 1,
@@ -132,8 +137,8 @@ class Camera(SensorBase):
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        settings = get_settings_manager()
+        settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
         # This is only introduced in isaac sim 6.0
         isaac_sim_version = get_isaac_sim_version()
@@ -141,11 +146,11 @@ class Camera(SensorBase):
             # Set RTX flag to enable fast path if only depth or albedo is requested
             supported_fast_types = {"distance_to_camera", "distance_to_image_plane", "depth", "albedo"}
             if all(data_type in supported_fast_types for data_type in self.cfg.data_types):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", True)
+                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
 
             # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-            if carb_settings_iface.get("/isaaclab/has_gui"):
-                carb_settings_iface.set_bool("/rtx/sdg/force/disableColorRender", False)
+            if settings.get("/isaaclab/has_gui"):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
             if "albedo" in self.cfg.data_types:
                 logger.warning(
@@ -160,7 +165,7 @@ class Camera(SensorBase):
         # Set simple shading mode (if requested) before rendering
         simple_shading_mode = self._resolve_simple_shading_mode()
         if simple_shading_mode is not None:
-            carb_settings_iface.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
+            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -315,11 +320,8 @@ class Camera(SensorBase):
                 # convert numpy scalar to Python float for USD compatibility (NumPy 2.0+)
                 if isinstance(param_value, np.floating):
                     param_value = float(param_value)
-                # set value
-                # note: We have to do it this way because the camera might be on a different
-                #   layer (default cameras are on session layer), and this is the simplest
-                #   way to set the property on the right layer.
-                omni.usd.set_prop_val(param_attr(), param_value)
+                # set value using pure USD API
+                param_attr().Set(param_value)
         # update the internal buffers
         self._update_intrinsic_matrices(env_ids)
 
@@ -434,8 +436,7 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        carb_settings_iface = carb.settings.get_settings()
-        if not carb_settings_iface.get("/isaaclab/cameras_enabled"):
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -559,6 +560,10 @@ class Camera(SensorBase):
         # -- pose
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        self._ensure_render_update()
         # -- read the data from annotator registry
         # check if buffer is called for the first time. If so then, allocate the memory
         if len(self._data.output) == 0:
@@ -595,6 +600,55 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _ensure_render_update(self) -> None:
+        """Ensure the Kit RTX renderer has been pumped for the current physics step.
+
+        This keeps the Kit-specific ``app.update()`` logic inside the camera sensor
+        rather than in the backend-agnostic ``SimulationContext``.
+
+        Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+        only the first call triggers ``app.update()``.  Subsequent calls are no-ops
+        because the class-level ``_last_render_update_key`` already matches the
+        current ``(id(sim), step_count)`` pair.
+
+        The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
+        ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
+        any stale stamp left over from a previous instance.
+
+        No-op conditions:
+            * Already called this step (dedup across camera instances).
+            * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+            * Rendering is not active.
+        """
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            return
+
+        key = (id(sim), sim._physics_step_count)
+        if Camera._last_render_update_key == key:
+            return  # Already pumped this step (by another camera or a visualizer)
+
+        # If a visualizer already pumps the Kit app loop, mark as done and skip.
+        if any(viz.pumps_app_update() for viz in sim.visualizers):
+            Camera._last_render_update_key = key
+            return
+
+        if not sim.is_rendering:
+            return
+
+        # Sync physics results → Fabric so RTX sees updated positions.
+        # physics_manager.step() only runs simulate()/fetch_results() and does NOT
+        # call _update_fabric(), so without this the render would lag one frame behind.
+        sim.physics_manager.forward()
+
+        import omni.kit.app
+
+        sim.set_setting("/app/player/playSimulations", False)
+        omni.kit.app.get_app().update()
+        sim.set_setting("/app/player/playSimulations", True)
+
+        Camera._last_render_update_key = key
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""

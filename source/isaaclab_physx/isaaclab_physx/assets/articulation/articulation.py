@@ -18,7 +18,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from pxr import PhysxSchema, UsdPhysics
+from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -3679,14 +3679,14 @@ class Articulation(BaseArticulation):
                 usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._fixed_tendon_names.append(joint_name)
-                elif joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAttachmentRootAPI) or joint.GetPrim().HasAPI(
-                    PhysxSchema.PhysxTendonAttachmentLeafAPI
+                joint_applied_str = str(joint.GetPrim().GetAppliedSchemas())
+                if "PhysxTendonAxisRootAPI" in joint_applied_str:
+                    self._fixed_tendon_names.append(usd_joint_path.split("/")[-1])
+                elif (
+                    "PhysxTendonAttachmentRootAPI" in joint_applied_str
+                    or "PhysxTendonAttachmentLeafAPI" in joint_applied_str
                 ):
-                    joint_name = usd_joint_path.split("/")[-1]
-                    self._spatial_tendon_names.append(joint_name)
+                    self._spatial_tendon_names.append(usd_joint_path.split("/")[-1])
 
             # store the fixed tendon names
             self._data.fixed_tendon_names = self._fixed_tendon_names

@@ -5,6 +5,12 @@
 
 """Unit tests for mock sensor interfaces."""
 
+from isaaclab.app import AppLauncher
+
+# launch the simulator
+app_launcher = AppLauncher(headless=True)
+simulation_app = app_launcher.app
+
 import pytest
 import torch
 

@@ -12,9 +12,8 @@ import gymnasium as gym
 import pytest
 import torch
 
-import carb
-import omni.usd
-
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
@@ -82,8 +81,8 @@ def setup_environment(
     # sort environments alphabetically
     registered_tasks.sort()
 
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomy when running many environments
-    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -139,6 +138,11 @@ def _run_environments(
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
         return
 
+    # skip skillgen environments as they require cuRobo installation;
+    # tested separately via test_environments_skillgen.py
+    if "Skillgen" in task_name:
+        return
+
     # Check if this is the teddy bear environment and if it's being called from the right test file
     if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
         # Get the calling frame to check which test file is calling this function
@@ -190,10 +194,10 @@ def _check_random_actions(
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
 
-    # reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # reset the rtx sensors setting to False
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
         # parse config
@@ -262,7 +266,7 @@ def _check_random_actions(
         if env is not None:
             env.close()
 
-        # Always clear the simulation context singleton to allow next test to run
+        # Clear the simulation context singleton (also closes the USD context stage)
         SimulationContext.clear_instance()
 
 

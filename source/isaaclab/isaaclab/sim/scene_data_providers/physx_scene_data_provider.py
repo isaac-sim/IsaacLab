@@ -143,7 +143,11 @@ class PhysxSceneDataProvider:
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
-            builder.add_usd(self._stage)
+            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
+            for env_id in range(self.get_num_envs()):
+                builder.begin_world()
+                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
+                builder.end_world()
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
@@ -193,7 +197,9 @@ class PhysxSceneDataProvider:
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
+                builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
+                builder.end_world()
             self._filtered_newton_model = builder.finalize(device=self._device)
             self._filtered_newton_state = self._filtered_newton_model.state()
 
@@ -220,6 +226,11 @@ class PhysxSceneDataProvider:
                 "Install the Newton backend to use newton/rerun visualizers."
             )
             logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
+            self._filtered_newton_model = None
+            self._filtered_newton_state = None
+            self._filtered_body_indices = []
+        except Exception as exc:
+            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
             self._filtered_newton_model = None
             self._filtered_newton_state = None
             self._filtered_body_indices = []
@@ -275,11 +286,6 @@ class PhysxSceneDataProvider:
                 len(articulation_paths),
             )
         return rigid_paths, articulation_paths
-        except Exception as exc:
-            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
-            self._filtered_newton_model = None
-            self._filtered_newton_state = None
-            self._filtered_body_indices = []
 
     def _build_env_id_to_body_indices(self) -> None:
         """Build mapping env_id -> list of body indices from rigid_body_paths."""
