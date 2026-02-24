@@ -830,26 +830,6 @@ class Articulation(BaseArticulation):
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
-    def write_joint_state_to_sim(
-        self,
-        *,
-        position: torch.Tensor | wp.array,
-        velocity: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
-
     def write_joint_state_to_sim_mask(
         self,
         *,
@@ -4318,3 +4298,22 @@ class Articulation(BaseArticulation):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
         self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
         self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+
+    def write_joint_state_to_sim(
+        self,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ):
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
+        warnings.warn(
+            "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # set into simulation
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
