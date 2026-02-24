@@ -116,8 +116,7 @@ import random
 import gymnasium as gym
 import torch
 
-import omni.kit
-
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
@@ -663,7 +662,7 @@ def replay(
     if draw_visualization:
         occupancy_map_add_to_stage(
             occupancy_map,
-            stage=omni.usd.get_context().get_stage(),
+            stage=sim_utils.get_current_stage(),
             path="/OccupancyMap",
             z_offset=0.01,
             draw_path=base_path_helper.points,

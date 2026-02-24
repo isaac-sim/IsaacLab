@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 import omni.kit.commands
-import omni.usd
 from isaacsim.core.cloner import Cloner
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
