@@ -16,5 +16,6 @@ __getattr__, __dir__, __all__ = lazy.attach(
         "camera_data": ["CameraData"],
         "tiled_camera": ["TiledCamera"],
         "tiled_camera_cfg": ["TiledCameraCfg"],
+        "utils": ["save_images_to_file"],
     },
 )

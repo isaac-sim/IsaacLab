@@ -43,7 +43,7 @@ __getattr__, __dir__, __all__ = lazy.attach(
     submod_attrs={
         "sensor_base": ["SensorBase"],
         "sensor_base_cfg": ["SensorBaseCfg"],
-        "camera": ["Camera", "CameraCfg", "CameraData", "TiledCamera", "TiledCameraCfg"],
+        "camera": ["Camera", "CameraCfg", "CameraData", "TiledCamera", "TiledCameraCfg", "save_images_to_file"],
         "contact_sensor": [
             "BaseContactSensor",
             "BaseContactSensorData",

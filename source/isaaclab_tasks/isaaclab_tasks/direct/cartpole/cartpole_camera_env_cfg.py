@@ -12,9 +12,18 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_newton.sensors import TiledCameraCfg as NewtonTiledCameraCfg
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
+
+@configclass
+class PhysicsCfg:
+    presets = {
+        "default": PhysxCfg(),
+        "newton": NewtonCfg(),
+    }
 
 @configclass
 class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
@@ -24,7 +33,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     action_scale = 100.0  # [N]
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
