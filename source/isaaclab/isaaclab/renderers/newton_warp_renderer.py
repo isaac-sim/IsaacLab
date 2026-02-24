@@ -46,7 +46,6 @@ class RenderData:
 
     def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
         self.render_context = render_context
-        self.sensor = sensor
         self.num_cameras = 1
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
@@ -94,7 +93,7 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.render_context.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [wp.from_torch(positions).view(wp.vec3f), converted_orientations, self.camera_transforms],
         )
 
         if self.render_context is not None:
