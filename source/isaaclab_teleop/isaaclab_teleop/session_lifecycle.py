@@ -174,18 +174,14 @@ class TeleopSessionLifecycle:
         Returns:
             A list of required extensions.
         """
-        from isaacteleop import deviceio
+        from isaacteleop.teleop_session_manager.helpers import get_required_oxr_extensions_from_pipeline
 
-        trackers = self._collect_trackers_from_pipeline(self._pipeline)
+        required_extensions = (
+            get_required_oxr_extensions_from_pipeline(self._pipeline) if self._pipeline is not None else []
+        )
 
-        # Include fallback/manual tracker when present and not already collected.
-        if self._controller_tracker is not None and all(t is not self._controller_tracker for t in trackers):
-            trackers.append(self._controller_tracker)
-
-        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
         logger.info(f"Required extensions: {required_extensions}")
-        # Keep extension order deterministic while removing duplicates.
-        return list(dict.fromkeys(required_extensions))
+        return required_extensions
 
     # ------------------------------------------------------------------
     # Deferred session creation
@@ -387,40 +383,6 @@ class TeleopSessionLifecycle:
     # ------------------------------------------------------------------
     # Tracker discovery
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _collect_trackers_from_pipeline(pipeline) -> list:
-        """Collect all tracker objects from pipeline DeviceIO source nodes.
-
-        Returns:
-            A de-duplicated list of trackers discovered in pipeline leaf nodes.
-        """
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSource
-
-        if pipeline is None:
-            return []
-
-        try:
-            leaf_nodes = pipeline.get_leaf_nodes()
-        except AttributeError:
-            return []
-
-        trackers = []
-        for node in leaf_nodes:
-            if isinstance(node, IDeviceIOSource):
-                tracker = node.get_tracker()
-                if tracker is not None:
-                    trackers.append(tracker)
-
-        # De-duplicate by object identity while preserving discovery order.
-        deduped_trackers = []
-        seen_ids: set[int] = set()
-        for tracker in trackers:
-            tracker_id = id(tracker)
-            if tracker_id not in seen_ids:
-                seen_ids.add(tracker_id)
-                deduped_trackers.append(tracker)
-        return deduped_trackers
 
     @staticmethod
     def _find_controller_tracker_in(pipeline):
