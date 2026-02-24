@@ -17,7 +17,6 @@ import torch
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.renderer.rendering_quality_presets import get_kit_rendering_preset
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
@@ -190,13 +189,10 @@ class SimulationContext:
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
     def _apply_kit_rendering_preset(self, preset_name: str) -> None:
-        preset = get_kit_rendering_preset(preset_name)
-        for key, value in preset.items():
-            self.set_setting(key, value)
+        apply_kit_rendering_preset(self.set_setting, preset_name)
 
     def _apply_kit_rendering_quality_cfg(self, quality_cfg: RenderingQualityCfg) -> None:
-        if quality_cfg.kit_rendering_preset:
-            self._apply_kit_rendering_preset(quality_cfg.kit_rendering_preset)
+        apply_kit_rendering_quality_cfg(self.set_setting, quality_cfg)
 
         if rendering_mode:
             supported_rendering_modes = {"performance", "balanced", "quality"}
@@ -288,25 +284,11 @@ class SimulationContext:
                 setattr(visualizer_cfg, viz_field, value)
 
     def _resolve_rendering_quality_name_for_visualizer_cfg(self, visualizer_cfg: Any) -> str | None:
-        cli_quality_explicit = bool(self.get_setting("/isaaclab/rendering/rendering_quality/explicit"))
-        cli_quality = self.get_setting("/isaaclab/rendering/rendering_quality")
-        if cli_quality_explicit:
-            return cli_quality if cli_quality else None
-        quality_name = getattr(visualizer_cfg, "rendering_quality", None)
-        return quality_name if quality_name else None
+        return resolve_rendering_quality_name_for_visualizer_cfg(self.get_setting, visualizer_cfg)
 
     def _resolve_rendering_quality_cfg(self, quality_name: str | None) -> RenderingQualityCfg | None:
-        if not quality_name:
-            return None
         quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        quality_cfg = quality_cfgs.get(quality_name)
-        if quality_cfg is None:
-            logger.warning(
-                "[SimulationContext] Rendering quality '%s' not found in SimulationCfg.rendering_quality_cfgs.",
-                quality_name,
-            )
-            return None
-        return quality_cfg
+        return resolve_rendering_quality_cfg(quality_name, quality_cfgs, logger)
 
     def _apply_quality_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
         quality_name = self._resolve_rendering_quality_name_for_visualizer_cfg(visualizer_cfg)
