@@ -141,8 +141,7 @@ class ManagerBasedEnv:
         print("[INFO]: Scene manager: ", self.scene)
 
         # Load Newton/Warp renderer stack before sim.reset() so env's warp is used (not Isaac Sim's).
-        # Previously NewtonManager.set_scene() triggered this import here; with Daniela's renderer we
-        # must trigger it explicitly or warp would be imported later during sensor init and resolve to isaacsim.
+        # Trigger warp renderer import here so the correct stack is used before sensor init.
         from isaaclab.renderer import get_renderer_class
 
         get_renderer_class("warp_renderer")

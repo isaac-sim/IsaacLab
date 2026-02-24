@@ -14,18 +14,21 @@ Supported visualizers:
 - Omniverse RTX Renderer: High-fidelity Omniverse-based renderer.
 - Kit App Renderer: Renderer that uses the Kit App to render the scene.
 
-Visualizer Registry
--------------------
-This module uses a registry pattern to decouple renderer instantiation from specific types.
-Renderer implementations can register themselves using the `register_renderer` decorator,
-and configs can create renderers via the `create_renderer()` factory method.
+Renderer registry and string/config resolution
+----------------------------------------------
+- **get_renderer_class(name_or_cfg)** accepts either a string or a RendererCfg. When given a config,
+  dispatches by type (e.g. isinstance(cfg, IsaacRtxRendererCfg) / NewtonWarpRendererCfg); otherwise
+  falls back to name string. Returns Renderer class or None.
+- **renderer_cfg_from_type(renderer_type)** maps string → Renderer *config* instance
+  ("warp_renderer" → NewtonWarpRendererCfg(), "rtx"/None → IsaacRtxRendererCfg()).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 # Import config classes (no circular dependency)
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 # Import base classes first
@@ -61,35 +64,63 @@ __all__ = [
     "CameraRenderer",
     "RendererBase",
     "RendererCfg",
+    "IsaacRtxRendererCfg",
     "NewtonWarpRendererCfg",
     "NewtonWarpRenderer",
     "get_renderer_class",
+    "renderer_cfg_from_type",
 ]
 
 
-# Register only selected renderers to reduce unnecessary imports
-def get_renderer_class(name: str) -> type[RendererBase] | None:
-    """Get a renderer class by name (lazy-loaded).
+def renderer_cfg_from_type(renderer_type: str | None) -> RendererCfg | None:
+    """Map Hydra/CLI renderer_type string to a renderer config.
 
-    Renderer classes are imported only when requested to avoid loading
-    unnecessary dependencies.
+    Used by scene configs so that ``env.scene.base_camera.renderer_type=warp_renderer``
+    (or ``=rtx``) still works: set ``base_camera.renderer_cfg = renderer_cfg_from_type(...)``.
 
     Args:
-        name: Renderer type name (e.g., 'warp_renderer', 'ov_rtx', 'kit_app').
+        renderer_type: ``"warp_renderer"`` -> NewtonWarpRendererCfg();
+            ``"rtx"`` or ``None`` -> IsaacRtxRendererCfg() (RTX path).
 
     Returns:
-        Renderer class if found, None otherwise.
-
-    Example:
-        >>> renderer_cls = get_renderer_class('warp_renderer')
-        >>> if renderer_cls:
-        >>>     renderer = renderer_cls(cfg)
+        NewtonWarpRendererCfg() for ``"warp_renderer"``, IsaacRtxRendererCfg() for ``"rtx"`` or ``None``.
     """
+    if renderer_type == "warp_renderer":
+        return NewtonWarpRendererCfg()
+    return IsaacRtxRendererCfg()  # "rtx" or None -> RTX path
+
+
+# Register only selected renderers to reduce unnecessary imports
+def get_renderer_class(name_or_cfg: Union[str, RendererCfg]) -> type[RendererBase] | None:
+    """Get a renderer class by name or by config type.
+
+    When given a RendererCfg, dispatches with isinstance() so we align with IsaacLab
+    renderer refactor; when given a string, uses the lazy-loaded name registry.
+
+    Args:
+        name_or_cfg: Renderer type name (e.g. 'warp_renderer') or a RendererCfg instance.
+
+    Returns:
+        Renderer class if found, None otherwise (e.g. IsaacRtxRendererCfg → None; we use
+        built-in RTX path and do not instantiate an IsaacRtxRenderer).
+    """
+    # Config-based dispatch
+    if isinstance(name_or_cfg, RendererCfg):
+        if isinstance(name_or_cfg, IsaacRtxRendererCfg):
+            return None  # RTX path: no renderer instance, TiledCamera uses Replicator
+        if isinstance(name_or_cfg, NewtonWarpRendererCfg):
+            from .newton_warp_renderer import NewtonWarpRenderer as _Cls
+
+            return _Cls
+        # Unknown config subclass: fall back to renderer_type string
+        name_or_cfg = name_or_cfg.renderer_type
+
+    name = name_or_cfg
     # Check if already loaded
     if name in _RENDERER_REGISTRY:
         return _RENDERER_REGISTRY[name]
 
-    # Lazy-load visualizer on first access
+    # Lazy-load by name
     try:
         if name in ("newton_warp", "warp_renderer"):
             from .newton_warp_renderer import NewtonWarpRenderer as _NewtonWarpRenderer
@@ -105,7 +136,6 @@ def get_renderer_class(name: str) -> type[RendererBase] | None:
         else:
             return None
     except ImportError as e:
-        # Log import error but don't crash - renderer just won't be available
         import warnings
 
         warnings.warn(f"Failed to load renderer '{name}': {e}", ImportWarning)

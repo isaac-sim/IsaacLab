@@ -66,9 +66,13 @@ class RendererCfg:
         """Create a renderer instance from this config."""
         from . import get_renderer_class
 
-        renderer_class = get_renderer_class(self.renderer_type)
+        # Dispatch by config type when possible; otherwise by renderer_type string
+        renderer_class = get_renderer_class(self)
 
         if renderer_class is None:
-            raise ValueError(f"Renderer type '{self.renderer_type}' is not registered.")
+            raise ValueError(
+                f"Renderer type '{self.renderer_type}' is not registered "
+                "(e.g. IsaacRtxRendererCfg has no renderer instance; use RTX path)."
+            )
 
         return renderer_class(self)

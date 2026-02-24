@@ -1,7 +1,7 @@
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers.
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton Warp renderer — plug-and-chug style (PR #4608).
+"""Newton Warp renderer for TiledCamera.
 
 Usage:
     renderer = NewtonWarpRenderer()
@@ -41,7 +41,7 @@ _SCENE_KEY_RESOLUTION_PATTERN = re.compile(r"^(\d+)x(\d+)")
 
 
 def _resolution_from_scene_variant() -> tuple[int | None, int | None]:
-    """Try to get width and height from the selected env.scene variant (primary source of truth).
+    """Try to get width and height from the selected env.scene variant.
     Returns (width, height) if the variant key parses, else (None, None); caller should fall back to sensor config.
     """
     try:
@@ -413,11 +413,13 @@ class RenderData:
 
 
 class NewtonWarpRenderer(Renderer):
-    """Newton Warp renderer: plug-and-chug with TiledCamera(cfg, renderer=NewtonWarpRenderer())."""
+    """Newton Warp renderer for TiledCamera (optional: pass renderer=NewtonWarpRenderer() to the camera)."""
 
     RenderData = RenderData
 
-    def __init__(self):
+    def __init__(self, cfg=None):
+        """Optional cfg for create_renderer() compatibility (e.g. NewtonWarpRendererCfg)."""
+        self.cfg = cfg
         self._scene_data_provider = self._create_scene_data_provider()
         self._newton_sensor = None  # created in _get_newton_sensor() when we have width/height
 
@@ -538,7 +540,7 @@ class NewtonWarpRenderer(Renderer):
 
 
 def save_data(camera, filename: str):
-    """Save the current Newton Warp color buffer to a PNG (Daniela's approach).
+    """Save the current Newton Warp color buffer to a PNG.
 
     Uses the renderer's flatten_color_image_to_rgba so the saved image matches
     what Newton outputs. Call after a render; camera must be a TiledCamera

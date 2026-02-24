@@ -3,10 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
 
 from .camera_cfg import CameraCfg
 from .tiled_camera import TiledCamera
+
+if TYPE_CHECKING:
+    from isaaclab.renderer import RendererCfg
 
 
 @configclass
@@ -15,10 +22,11 @@ class TiledCameraCfg(CameraCfg):
 
     class_type: type = TiledCamera
 
+    renderer_cfg: RendererCfg | None = None
+    """Renderer config (e.g. IsaacRtxRendererCfg, NewtonWarpRendererCfg). If ``None``, RTX is used.
+    Set by the scene from ``renderer_type`` string; Hydra override:
+    ``env.scene.base_camera.renderer_type=warp_renderer`` or ``=rtx``."""
+
     renderer_type: str | None = None
-    """Renderer backend. Default is ``None`` (RTX). If ``"warp_renderer"``, uses Warp ray tracing
-    (PhysX sim + Newton state sync). If ``None`` or anything else, uses Omniverse RTX
-    tiled rendering (Replicator annotators). Set by the task's scene variant; pass
-    ``env.scene=64x64rtx_rgb`` for RTX or ``env.scene=64x64warp_rgb`` for Warp.
-    Alternatively, pass a renderer instance to ``TiledCamera(cfg, renderer=NewtonWarpRenderer())``
-    to use Newton from setup.py (e.g. isaaclab.sh --install) without creating from cfg."""
+    """Legacy / Hydra: ``"rtx"`` or ``None`` = RTX, ``"warp_renderer"`` = Warp. When set (e.g. by
+    Hydra), the scene sets ``renderer_cfg`` from this. Prefer setting ``renderer_cfg`` directly."""

@@ -80,7 +80,7 @@ class PhysxSceneDataProvider:
 =======
 >>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)
 
-        # Single source of truth: discovered from stage and cached once available.
+        # Discovered from stage and cached once available.
         self._num_envs: int | None = None
 
         viz_types = {getattr(cfg, "visualizer_type", None) for cfg in (visualizer_cfgs or [])}
@@ -154,11 +154,15 @@ class PhysxSceneDataProvider:
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
+<<<<<<< HEAD
             # Extract scene structure from Newton model (single source of truth)
 <<<<<<< HEAD
             self._rigid_body_paths = list(self._newton_model.body_label)
             self._articulation_paths = list(self._newton_model.articulation_label)
 =======
+=======
+            # Extract scene structure from Newton model
+>>>>>>> cf9e41a50f5 (Incorporate passing of renderer config classes to tiled camera from PR 4704)
             self._rigid_body_paths = list(self._newton_model.body_key)
             self._articulation_paths = list(self._newton_model.articulation_key)
 >>>>>>> 9c5c8124278 (Swap for new Warp renderer from PR 4608)

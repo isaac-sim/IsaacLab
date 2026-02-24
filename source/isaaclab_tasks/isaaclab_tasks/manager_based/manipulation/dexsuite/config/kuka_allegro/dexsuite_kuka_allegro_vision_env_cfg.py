@@ -18,11 +18,11 @@ Scene variant convention (local / self-learning use):
     env.scene.base_camera.renderer_type = rtx | warp_renderer
     Default renderer for neutral keys is rtx. train.py sorts CLI so env.scene= comes first.
 
-  Workflow: You do not need to wire renderer_type inside the config classes. Hydra merges
-  env.scene.base_camera.renderer_type=... into the composed config; train.py then calls
-  env_cfg.from_dict(hydra_env_cfg["env"]), which recursively updates env_cfg (including
-  env_cfg.scene.base_camera.renderer_type) from that merged dict. So the value reaches
-  TiledCameraCfg without any extra logic in KukaAllegroSingleTiledCameraSceneCfg.
+  Workflow: Hydra merges env.scene.base_camera.renderer_type=... into the composed config;
+  train.py calls env_cfg.from_dict(hydra_env_cfg["env"]), which sets scene.base_camera.renderer_type
+  (e.g. "warp_renderer"). We do *not* set base_camera.renderer_cfg in the scene so validation
+  and Hydra override work. TiledCamera resolves the string to a renderer at runtime:
+  renderer_type "warp_renderer" -> NewtonWarpRendererCfg().create_renderer(), "rtx"/None -> RTX path.
 """
 
 from dataclasses import MISSING, fields
@@ -53,7 +53,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
     camera_type: str = "rgb"
     width: int = 64
     height: int = 64
-    renderer_type: str = "rtx"  # "rtx" for RTX rendering, "warp_renderer" for Warp ray tracing
+    renderer_type: str = "rtx"  # Hydra: env.scene.base_camera.renderer_type=warp_renderer or =rtx
 
     base_camera = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
@@ -66,7 +66,7 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type=MISSING,
+        renderer_type=None,  # set in __post_init__ from scene; Hydra may override via env.scene.base_camera.renderer_type=
     )
 
     def __post_init__(self):
@@ -74,8 +74,11 @@ class KukaAllegroSingleTiledCameraSceneCfg(kuka_allegro_dexsuite.KukaAllegroScen
         self.base_camera.data_types = [self.camera_type]
         self.base_camera.width = self.width
         self.base_camera.height = self.height
-        # Set renderer type: "rtx" means None (default RTX), "warp_renderer" passes through
-        self.base_camera.renderer_type = None if self.renderer_type == "rtx" else self.renderer_type
+        # renderer_type; Hydra may override via env.scene.base_camera.renderer_type=.
+        # We do NOT set base_camera.renderer_cfg here (so validation and Hydra override work).
+        # TiledCamera resolves the string to NewtonWarpRendererCfg/IsaacRtxRendererCfg at runtime.
+        renderer_type_str = getattr(self.base_camera, "renderer_type", None) or self.renderer_type
+        self.base_camera.renderer_type = None if renderer_type_str == "rtx" else renderer_type_str
         # Remove so InteractiveScene._add_entities_from_cfg() does not treat them as assets
         del self.camera_type
         del self.width
@@ -111,7 +114,7 @@ class KukaAllegroDuoTiledCameraSceneCfg(KukaAllegroSingleTiledCameraSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
         width=MISSING,
         height=MISSING,
-        renderer_type=MISSING,
+        renderer_type=None,  # set in __post_init__ from base_camera
     )
 
     def __post_init__(self):

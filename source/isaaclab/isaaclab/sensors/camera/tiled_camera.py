@@ -214,7 +214,7 @@ class TiledCamera(Camera):
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-        # Use passed renderer (e.g. NewtonWarpRenderer()) or create from cfg.renderer_type.
+        # Use passed renderer (e.g. NewtonWarpRenderer()) or create from cfg.renderer_cfg / cfg.renderer_type.
         if self._renderer_passed is not None:
             logger.info(
                 "TiledCamera %s: using passed renderer %s",
@@ -228,27 +228,40 @@ class TiledCamera(Camera):
             self._warp_save_frame_count = 0
             self._warp_save_interval = 50
         else:
-            _renderer_type = self.cfg.renderer_type if self.cfg.renderer_type is not None else "rtx"
-            if _renderer_type == "warp_renderer":
+            # Prefer renderer_cfg; fall back to renderer_type string (e.g. from Hydra).
+            _cfg = getattr(self.cfg, "renderer_cfg", None)
+            _type_str = getattr(self.cfg, "renderer_type", None)
+            use_warp = False
+            if _cfg is not None and _cfg.get_renderer_type() == "warp_renderer":
+                use_warp = True
+            elif _type_str == "warp_renderer":
+                use_warp = True
+            if use_warp:
                 logger.info(
-                    "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_type=%s)",
+                    "TiledCamera %s: using renderer backend warp_renderer (from cfg.renderer_cfg=%s)",
                     self.cfg.prim_path,
-                    self.cfg.renderer_type,
+                    type(_cfg).__name__ if _cfg else "renderer_type",
                 )
-                from isaaclab.renderer import NewtonWarpRenderer
-
-                self._renderer = NewtonWarpRenderer()
+                # Resolve to renderer instance: either from existing config or from string.
+                # String → config is resolved in isaaclab.renderer.renderer_cfg_from_type()
+                # ("warp_renderer" → NewtonWarpRendererCfg, "rtx"/None → IsaacRtxRendererCfg).
+                # Config → instance uses config.create_renderer() → get_renderer_class(renderer_type).
+                if _cfg is not None:
+                    self._renderer = _cfg.create_renderer()
+                else:
+                    from isaaclab.renderer import renderer_cfg_from_type
+                    self._renderer = renderer_cfg_from_type(_type_str).create_renderer()
                 self._render_data = self._renderer.create_render_data(self)
-                self._render_product_paths = []  # Not used with Newton Warp
-                self._annotators = dict()  # Not used with Newton Warp
+                self._render_product_paths = []
+                self._annotators = dict()
                 self._warp_save_frame_count = 0
-                self._warp_save_interval = 50  # save every N frames
+                self._warp_save_interval = 50
             else:
                 self._renderer = None
                 logger.info(
-                    "TiledCamera %s: using renderer backend rtx (default); cfg.renderer_type=%s",
+                    "TiledCamera %s: using renderer backend rtx (default); renderer_cfg=%s",
                     self.cfg.prim_path,
-                    self.cfg.renderer_type,
+                    type(_cfg).__name__ if _cfg else _type_str,
                 )
 
         if self._renderer is None:
@@ -344,7 +357,7 @@ class TiledCamera(Camera):
                     self._data.output["rgb"] = (
                         self._data.output["rgba"][..., [2, 1, 0]] if order == "bgra" else self._data.output["rgba"][..., :3]
                     )
-                # Daniela's save_data: save flattened color image to /tmp/newton_renders every N frames
+                # Save flattened color image to /tmp/newton_renders every N frames
                 n = getattr(self, "_warp_save_frame_count", 0)
                 if getattr(self, "_warp_save_interval", 50) and n % getattr(self, "_warp_save_interval", 50) == 0:
                     from isaaclab.renderer.newton_warp_renderer import save_data
