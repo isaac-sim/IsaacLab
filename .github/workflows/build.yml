@@ -151,8 +151,70 @@ jobs:
           exit 1
         fi
 
+  test-curobo:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    - name: Build Docker Image (cuRobo)
+      uses: ./.github/actions/docker-build
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        dockerfile-path: 'docker/Dockerfile.curobo'
+
+    - name: Run cuRobo and SkillGen Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "curobo-tests-report.xml"
+        container-name: "isaac-lab-curobo-test-$$"
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        pytest-options: ""
+        filter-pattern: ""
+        curobo-only: "true"
+
+    - name: Copy Test Results from cuRobo Container
+      run: |
+        CONTAINER_NAME="isaac-lab-curobo-test-$$"
+        if docker ps -a | grep -q $CONTAINER_NAME; then
+          echo "Copying test results from cuRobo container..."
+          docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/curobo-tests-report.xml reports/ 2>/dev/null || echo "No test results to copy from cuRobo container"
+        fi
+
+    - name: Upload cuRobo Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: curobo-test-results
+        path: reports/curobo-tests-report.xml
+        retention-days: 1
+        compression-level: 9
+
+    - name: Check Test Results for Fork PRs
+      if: github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        if [ -f "reports/curobo-tests-report.xml" ]; then
+          # Check if the test results contain any failures
+          if grep -q 'failures="[1-9]' reports/curobo-tests-report.xml || grep -q 'errors="[1-9]' reports/curobo-tests-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
   combine-results:
-    needs: [test-isaaclab-tasks, test-general]
+    needs: [test-isaaclab-tasks, test-general, test-curobo]
     runs-on: [self-hosted, gpu]
     if: always()
 
@@ -179,6 +241,13 @@ jobs:
       with:
         name: general-test-results
         path: reports/
+
+    - name: Download cuRobo Test Results
+      uses: actions/download-artifact@v4
+      with:
+        name: curobo-test-results
+        path: reports/
+      continue-on-error: true
 
     - name: Combine All Test Results
       uses: ./.github/actions/combine-results
