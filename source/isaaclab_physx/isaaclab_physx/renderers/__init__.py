@@ -7,7 +7,8 @@
 
 from .isaac_rtx_renderer import IsaacRtxRenderer
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-from .renderer import Renderer
+
+Renderer = IsaacRtxRenderer
 
 __all__ = [
     "IsaacRtxRenderer",
