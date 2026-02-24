@@ -407,7 +407,7 @@ Collect five demonstrations by running the following command:
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --teleop_device handtracking \
    --dataset_file ./datasets/dataset_gr1.hdf5 \
-   --num_demos 5 --enable_pinocchio
+   --num_demos 5
 
 .. note::
    We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``.
@@ -425,7 +425,7 @@ You can replay the collected demonstrations by running the following command:
    ./isaaclab.sh -p scripts/tools/replay_demos.py \
    --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
-   --dataset_file ./datasets/dataset_gr1.hdf5 --enable_pinocchio
+   --dataset_file ./datasets/dataset_gr1.hdf5
 
 .. note::
    Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
@@ -454,7 +454,7 @@ Annotate the demonstrations by running the following command:
    --device cpu \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
    --input_file ./datasets/dataset_gr1.hdf5 \
-   --output_file ./datasets/dataset_annotated_gr1.hdf5 --enable_pinocchio
+   --output_file ./datasets/dataset_annotated_gr1.hdf5
 
 .. note::
 
@@ -486,7 +486,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
+   --device cpu --headless --num_envs 20 --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_gr1.hdf5 --output_file ./datasets/generated_dataset_gr1.hdf5
 
 Train a policy
@@ -517,7 +517,6 @@ Visualize the results of the trained policy by running the following command, us
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
-   --enable_pinocchio \
    --task Isaac-PickPlace-GR1T2-Abs-v0 \
    --num_rollouts 50 \
    --horizon 400 \
@@ -603,7 +602,7 @@ Follow the same data collection, annotation, and generation process as demonstra
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
       --teleop_device handtracking \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
-      --num_demos 5 --enable_pinocchio
+      --num_demos 5
 
    .. note::
 
@@ -616,7 +615,7 @@ Follow the same data collection, annotation, and generation process as demonstra
       ./isaaclab.sh -p scripts/tools/replay_demos.py \
       --device cpu \
       --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
-      --dataset_file ./datasets/dataset_g1_locomanip.hdf5 --enable_pinocchio
+      --dataset_file ./datasets/dataset_g1_locomanip.hdf5
 
    To annotate the demonstrations:
 
@@ -626,7 +625,7 @@ Follow the same data collection, annotation, and generation process as demonstra
       --device cpu \
       --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
       --input_file ./datasets/dataset_g1_locomanip.hdf5 \
-      --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --enable_pinocchio
+      --output_file ./datasets/dataset_annotated_g1_locomanip.hdf5
 
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_g1_locomanip.hdf5`` from
@@ -636,7 +635,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-   --device cpu --headless --num_envs 20 --generation_num_trials 1000 --enable_pinocchio \
+   --device cpu --headless --num_envs 20 --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
 
 
@@ -661,7 +660,6 @@ Visualize the trained policy performance:
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
-   --enable_pinocchio \
    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
    --num_rollouts 50 \
    --horizon 400 \
@@ -722,7 +720,6 @@ To generate the locomanipulation dataset, use the following command:
        --num_runs 1 \
        --lift_step 60 \
        --navigate_step 130 \
-       --enable_pinocchio \
        --output_file ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 \
        --enable_cameras
 
@@ -801,7 +798,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
       --teleop_device handtracking \
       --dataset_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
-      --num_demos 5 --enable_pinocchio
+      --num_demos 5
 
    Since this is a visuomotor environment, the ``--enable_cameras`` flag must be added to the annotation and data generation commands.
 
@@ -815,7 +812,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       --rendering_mode balanced \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
       --input_file ./datasets/dataset_gr1_nut_pouring.hdf5 \
-      --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5 --enable_pinocchio
+      --output_file ./datasets/dataset_annotated_gr1_nut_pouring.hdf5
 
    .. warning::
       There are multiple right eef annotations for this task. Annotations for subtasks for the same eef cannot have the same action index.
@@ -829,7 +826,6 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
       ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --device cpu \
       --headless \
-      --enable_pinocchio \
       --enable_cameras \
       --rendering_mode balanced \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
@@ -873,7 +869,6 @@ Visualize the results of the trained policy by running the following command, us
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
-   --enable_pinocchio \
    --enable_cameras \
    --rendering_mode balanced \
    --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
