@@ -34,6 +34,7 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+requested_visualizers = {str(v).strip().lower() for v in (args_cli.visualizer or []) if str(v).strip()}
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -143,7 +144,7 @@ def main():
         mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         attach_yaw_only=True,
-        debug_vis=not args_cli.headless,
+        debug_vis="kit" in requested_visualizers,
     )
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls

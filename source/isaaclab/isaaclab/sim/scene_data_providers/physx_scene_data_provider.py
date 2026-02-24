@@ -143,11 +143,7 @@ class PhysxSceneDataProvider:
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
-            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
-            for env_id in range(self.get_num_envs()):
-                builder.begin_world()
-                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
+            builder.add_usd(self._stage)
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
 
@@ -194,9 +190,7 @@ class PhysxSceneDataProvider:
             builder = ModelBuilder(up_axis=self._up_axis)
             builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
             for env_id in env_ids:
-                builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
             self._filtered_newton_model = builder.finalize(device=self._device)
             self._filtered_newton_state = self._filtered_newton_model.state()
 

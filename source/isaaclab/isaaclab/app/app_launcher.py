@@ -323,11 +323,16 @@ class AppLauncher:
         )
         arg_group.add_argument(
             "--visualizer",
+            "--viz",
             type=str,
             action=ExplicitAction,
             nargs="+",
             default=None,
-            help="Visualizer backends to enable (e.g., kit, newton, rerun).",
+            help=(
+                "Visualizer backends to enable (kit, newton, rerun). Use `--visualizer none` to explicitly"
+                " disable all visualizers (including SimulationCfg.visualizer_cfgs). If omitted, visualizers"
+                " are resolved from SimulationCfg.visualizer_cfgs."
+            ),
         )
         # Add the deprecated cpu flag to raise an error if it is used
         arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
@@ -607,18 +612,41 @@ class AppLauncher:
             )
 
         visualizers_arg = launcher_args.get("visualizer")
+        visualizer_arg_explicit = bool(launcher_args.get("visualizer_explicit", False))
+        if visualizers_arg is not None and not visualizer_arg_explicit:
+            visualizer_arg_explicit = True
+            launcher_args["visualizer_explicit"] = True
+        requested_visualizers: list[str] = []
+        if visualizers_arg is not None:
+            requested_visualizers = []
+            for viz in visualizers_arg:
+                viz_type = str(viz).strip().lower()
+                if not viz_type:
+                    continue
+                if viz_type == "none":
+                    if len(visualizers_arg) > 1:
+                        raise ValueError(
+                            "Invalid '--visualizer' argument: 'none' cannot be combined with other visualizers."
+                        )
+                    continue
+                requested_visualizers.append(viz_type)
+
+            # dedupe while preserving order
+            requested_visualizers = list(dict.fromkeys(requested_visualizers))
+            launcher_args["visualizer"] = requested_visualizers
         if headless_arg and headless_arg_explicit:
             print(
                 "[WARN][AppLauncher]: The '--headless' CLI argument is deprecated, but still supported."
                 " It will be removed in a future release. Prefer omitting '--visualizer' for headless execution."
             )
-            if visualizers_arg:
+            if visualizer_arg_explicit:
                 print(
                     "[WARN][AppLauncher]: Both '--headless' and '--visualizer' were provided."
                     " Deprecated '--headless' takes precedence and overrides '--visualizer'."
                 )
                 # Prevent downstream visualizer initialization when headless override is requested.
                 launcher_args["visualizer"] = []
+                requested_visualizers = []
 
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
@@ -643,20 +671,15 @@ class AppLauncher:
             self._headless = bool(headless_env)
 
         # Visualizer-driven headless behavior:
-        # - If no visualizer is requested, run headless by default.
-        # - If visualizers are requested but "kit" is not among them, also run headless.
-        # This prevents launching Isaac Sim GUI unless explicitly requested via "--visualizer kit"
-        # (or when livestream is enabled).
-        visualizers_arg = launcher_args.get("visualizer")
-        requested_visualizers = set()
-        if visualizers_arg:
-            requested_visualizers = {str(v).strip().lower() for v in visualizers_arg if str(v).strip()}
-
-        if self._livestream == 0 and (not requested_visualizers or "kit" not in requested_visualizers):
+        # - If visualizers are explicitly requested but "kit" is not among them, run headless.
+        # - If no --visualizer arg is provided, do not force headless here: this allows
+        #   SimulationCfg.visualizer_cfgs (e.g., KitVisualizerCfg) to drive GUI launches.
+        requested_visualizer_set = set(requested_visualizers)
+        if self._livestream == 0 and visualizer_arg_explicit and "kit" not in requested_visualizer_set:
             if not self._headless:
                 print(
-                    "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' is not set "
-                    "to include 'kit' and livestream is disabled."
+                    "[INFO][AppLauncher]: Forcing headless mode because '--visualizer' excludes "
+                    "'kit' and livestream is disabled."
                 )
             self._headless = True
         # Headless needs to be passed to the SimulationApp so we keep it here
@@ -913,6 +936,13 @@ class AppLauncher:
         # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 
+        # cache whether a local GUI window is available for downstream render gating
+        # (SimulationContext.is_rendering / manager env loops rely on this flag).
+        has_gui = settings.get("/app/window/enabled")
+        if has_gui is None:
+            has_gui = not self._headless
+        settings.set_bool("/isaaclab/has_gui", bool(has_gui))
+
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
@@ -979,7 +1009,13 @@ class AppLauncher:
         visualizers = launcher_args.get("visualizer")
         with contextlib.suppress(Exception):
             visualizer_str = " ".join(visualizers) if visualizers else ""
-            get_settings_manager().set_string("/isaaclab/visualizer", visualizer_str)
+            settings = get_settings_manager()
+            settings.set_string("/isaaclab/visualizer", visualizer_str)
+            settings.set_bool("/isaaclab/visualizer_cli/explicit", bool(launcher_args.get("visualizer_explicit", False)))
+            settings.set_bool(
+                "/isaaclab/visualizer_cli/disable_all",
+                bool(launcher_args.get("visualizer_explicit", False)) and not bool(visualizers),
+            )
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
