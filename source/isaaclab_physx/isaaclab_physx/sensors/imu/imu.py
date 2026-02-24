@@ -201,9 +201,9 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
 
         # Fetch view data as warp typed arrays
         transforms = self._view.get_transforms().view(wp.transformf)

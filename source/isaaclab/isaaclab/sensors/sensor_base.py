@@ -236,14 +236,14 @@ class SensorBase(ABC):
             self.set_debug_vis(self.cfg.debug_vis)
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the sensor data for provided environment ids.
 
         This function does not perform any time-based checks and directly fills the data into the
         data container.
 
         Args:
-            env_ids: The indices of the sensors that are ready to capture.
+            env_mask: The mask of the environments that are ready to capture.
         """
         raise NotImplementedError
 
@@ -364,7 +364,7 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self):
         """Fills the sensor data for the outdated sensors."""
-        self._update_buffers_impl(None, self._is_outdated)
+        self._update_buffers_impl(self._is_outdated)
         # update timestamps and clear outdated flags
         wp.launch(
             update_outdated_envs_kernel,

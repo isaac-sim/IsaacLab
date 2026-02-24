@@ -355,10 +355,10 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
-        # Convert env_ids to warp array
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        # Convert env_mask to warp array
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
 
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)

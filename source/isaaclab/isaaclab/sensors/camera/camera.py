@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
+import warp as wp
 from packaging import version
 
 from pxr import Sdf, UsdGeom
@@ -399,16 +400,17 @@ class Camera(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError(
                 "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
             )
         # reset the timestamps
-        super().reset(env_ids)
-        # resolve None
-        # note: cannot do smart indexing here since we do a for loop over data.
-        if env_ids is None:
+        super().reset(env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None:
             env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
@@ -548,7 +550,10 @@ class Camera(SensorBase):
         self._create_buffers()
         self._update_intrinsic_matrices(self._ALL_INDICES)
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         # Increment frame count
         self._frame[env_ids] += 1
         # -- pose

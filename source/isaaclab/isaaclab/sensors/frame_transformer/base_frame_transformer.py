@@ -118,7 +118,7 @@ class BaseFrameTransformer(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         raise NotImplementedError
 
     def _invalidate_initialize_callback(self, event):

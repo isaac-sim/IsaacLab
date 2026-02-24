@@ -396,10 +396,10 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         # Resolve mask
-        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
         # Get raw transforms from PhysX view and reinterpret as transformf
         raw_transforms = self._frame_physx_view.get_transforms().view(wp.transformf)
 

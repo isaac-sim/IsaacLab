@@ -122,15 +122,17 @@ class TiledCamera(Camera):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError(
                 "TiledCamera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
             )
         # reset the timestamps
-        SensorBase.reset(self, env_ids)
-        # resolve None
-        if env_ids is None:
+        SensorBase.reset(self, env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None:
             env_ids = slice(None)
         # reset the frame count
         self._frame[env_ids] = 0
@@ -264,7 +266,10 @@ class TiledCamera(Camera):
                 self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         # Increment frame count
         self._frame[env_ids] += 1
 

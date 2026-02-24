@@ -115,15 +115,18 @@ class RayCaster(SensorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
+        super().reset(env_ids, env_mask)
+        # resolve to indices for torch indexing
+        if env_ids is not None:
+            num_envs_ids = len(env_ids)
+        elif env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+            num_envs_ids = len(env_ids)
+        else:
             env_ids = slice(None)
             num_envs_ids = self._view.count
-        else:
-            num_envs_ids = len(env_ids)
         # resample the drift
         r = torch.empty(num_envs_ids, 3, device=self.device)
         self.drift[env_ids] = r.uniform_(*self.cfg.drift_range)
@@ -292,8 +295,11 @@ class RayCaster(SensorBase):
         self._ray_starts_w[env_ids] = ray_starts_w
         self._ray_directions_w[env_ids] = ray_directions_w
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         self._update_ray_infos(env_ids)
 
         # ray cast and store the hits
