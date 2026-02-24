@@ -5,8 +5,12 @@
 
 """Sub-module for PhysX renderer backends (Isaac RTX / Omniverse Replicator)."""
 
+from .isaac_rtx_renderer import IsaacRtxRenderer
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 from .renderer import Renderer
 
 __all__ = [
+    "IsaacRtxRenderer",
+    "IsaacRtxRendererCfg",
     "Renderer",
 ]

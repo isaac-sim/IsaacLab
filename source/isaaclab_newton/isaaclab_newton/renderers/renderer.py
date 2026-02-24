@@ -5,6 +5,6 @@
 
 """Newton Warp renderer backend."""
 
-from isaaclab.renderers.newton_warp_renderer import NewtonWarpRenderer as Renderer
+from .newton_warp_renderer import NewtonWarpRenderer as Renderer
 
 __all__ = ["Renderer"]

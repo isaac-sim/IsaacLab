@@ -7,7 +7,7 @@
 
 from isaaclab.utils import configclass
 
-from .renderer_cfg import RendererCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
 
 
 @configclass

@@ -12,8 +12,6 @@ different renderer backends that can be used with Isaac Lab.
 from __future__ import annotations
 
 from .base_renderer import BaseRenderer
-from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .renderer import Renderer
 from .renderer_cfg import RendererCfg
 
@@ -21,6 +19,4 @@ __all__ = [
     "BaseRenderer",
     "Renderer",
     "RendererCfg",
-    "IsaacRtxRendererCfg",
-    "NewtonWarpRendererCfg",
 ]

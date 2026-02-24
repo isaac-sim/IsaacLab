@@ -559,7 +559,7 @@ class Camera(SensorBase):
         # For now the Camera implementation works only with Isaac RTX Renderer.
         # Future consideration should be to move Renderer from TiledCamera up the hierarchy to Camera
         # to make the Camera backend-agnostic.
-        from isaaclab.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
         ensure_isaac_rtx_render_update()
 
         # -- read the data from annotator registry

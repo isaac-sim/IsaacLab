@@ -17,15 +17,13 @@ import warp as wp
 
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.visualizers import VisualizerCfg
 
-from ..visualizers import VisualizerCfg
+from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
-
-    from ..sim.scene_data_providers import SceneDataProvider
-
-    from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+    from isaaclab.sim.scene_data_providers import SceneDataProvider
 
 logger = logging.getLogger(__name__)
 
@@ -145,25 +143,25 @@ class NewtonWarpRenderer:
         self.newton_sensor = newton.sensors.SensorTiledCamera(self.get_scene_data_provider().get_newton_model())
 
     def create_render_data(self, sensor: SensorBase) -> RenderData:
-        """Create render data for the Newton tiled camera. See :meth:`~.base_renderer.BaseRenderer.create_render_data`."""
+        """Create render data for the Newton tiled camera. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         return RenderData(self.newton_sensor.render_context, sensor)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
-        """Store output buffers. See :meth:`~.base_renderer.BaseRenderer.set_outputs`."""
+        """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
     def update_transforms(self):
-        """Sync Newton scene state before rendering. See :meth:`~.base_renderer.BaseRenderer.update_transforms`."""
+        """Sync Newton scene state before rendering. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
         SimulationContext.instance().update_scene_data_provider(True)
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
     ):
-        """Update camera poses and intrinsics. See :meth:`~.base_renderer.BaseRenderer.update_camera`."""
+        """Update camera poses and intrinsics. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
 
     def render(self, render_data: RenderData):
-        """Render and write to output buffers. See :meth:`~.base_renderer.BaseRenderer.render`."""
+        """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
         self.newton_sensor.render(
             self.get_scene_data_provider().get_newton_state(),
             render_data.camera_transforms,
@@ -176,14 +174,14 @@ class NewtonWarpRenderer:
         )
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
-        """Copy a specific output to the given buffer. See :meth:`~.base_renderer.BaseRenderer.write_output`."""
+        """Copy a specific output to the given buffer. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
         image_data = render_data.get_output(output_name)
         if image_data is not None:
             if image_data.ptr != output_data.data_ptr():
                 wp.copy(wp.from_torch(output_data), image_data)
 
     def cleanup(self, render_data: RenderData | None):
-        """Release resources. No-op for Newton Warp. See :meth:`~.base_renderer.BaseRenderer.cleanup`."""
+        """Release resources. No-op for Newton Warp. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         pass
 
     def get_scene_data_provider(self) -> SceneDataProvider:

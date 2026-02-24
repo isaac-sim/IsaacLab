@@ -14,7 +14,8 @@ from isaaclab.utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera import Camera
 
-from isaaclab.renderers import IsaacRtxRendererCfg, RendererCfg
+from isaaclab.renderers import RendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
 @configclass

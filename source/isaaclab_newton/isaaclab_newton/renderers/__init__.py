@@ -5,8 +5,12 @@
 
 """Sub-module for Newton renderer backends (Newton Warp)."""
 
+from .newton_warp_renderer import NewtonWarpRenderer
+from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .renderer import Renderer
 
 __all__ = [
+    "NewtonWarpRenderer",
+    "NewtonWarpRendererCfg",
     "Renderer",
 ]
