@@ -19,6 +19,8 @@ import warp as wp
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
+from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
@@ -165,6 +167,11 @@ class IsaacRtxRenderer:
         output_data = render_data.output_data
         if output_data is None:
             return
+
+        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
+        # This is a no-op if another camera instance already triggered the update
+        # for the current physics step, or if a visualizer already pumped it.
+        ensure_isaac_rtx_render_update()
 
         view_count = sensor._view.count
         cfg = sensor.cfg
