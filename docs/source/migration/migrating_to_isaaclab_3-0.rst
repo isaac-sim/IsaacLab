@@ -811,16 +811,16 @@ New Settings
 
 The following new settings were added to :class:`~sim.converters.MjcfConverterCfg`:
 
-+----------------------------------------------------+------------------------------------------------------+
-| Setting                                            | Description                                          |
-+====================================================+======================================================+
-| :attr:`~sim.converters.MjcfConverterCfg.merge_mesh`| Merge meshes where possible to optimize the model.   |
-+----------------------------------------------------+------------------------------------------------------+
-| :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.|
-+----------------------------------------------------+------------------------------------------------------+
-| :attr:`~sim.converters.MjcfConverterCfg.collision_type` | Type of collision geometry (e.g. ``"default"``,  |
-|                                                    | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
-+----------------------------------------------------+------------------------------------------------------+
++-----------------------------------------------------------------+------------------------------------------------------+
+| Setting                                                         | Description                                          |
++=================================================================+======================================================+
+| :attr:`~sim.converters.MjcfConverterCfg.merge_mesh`             | Merge meshes where possible to optimize the model.   |
++-----------------------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.            |
++-----------------------------------------------------------------+------------------------------------------------------+
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"default"``,      |
+|                                                                 | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
++-----------------------------------------------------------------+------------------------------------------------------+
 
 
 Renamed Settings
