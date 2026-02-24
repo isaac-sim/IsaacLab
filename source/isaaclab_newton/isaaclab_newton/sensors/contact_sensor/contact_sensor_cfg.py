@@ -8,7 +8,7 @@ import warnings
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg
 from isaaclab.utils import configclass
 
-from .contact_sensor import ContactSensor as NewtonContactSensor
+from .contact_sensor import ContactSensor
 
 
 @configclass
@@ -34,7 +34,7 @@ class NewtonContactSensorCfg(ContactSensorCfg):
     :meth:`from_base_cfg`.
     """
 
-    class_type: type = NewtonContactSensor
+    class_type: type = ContactSensor
 
     force_threshold: float = 0.0
     """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
@@ -118,8 +118,6 @@ class NewtonContactSensorCfg(ContactSensorCfg):
         if "class_type" in kwargs:
             raise ValueError("Cannot override 'class_type' via from_base_cfg.")
         base_fields = {
-            field: getattr(base_cfg, field)
-            for field in base_cfg.__dataclass_fields__
-            if field != "class_type" and hasattr(base_cfg, field)
+            field: getattr(base_cfg, field) for field in base_cfg.__dataclass_fields__ if field != "class_type"
         }
         return cls(**base_fields, **kwargs)

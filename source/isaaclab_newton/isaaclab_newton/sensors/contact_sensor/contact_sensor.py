@@ -111,6 +111,7 @@ class ContactSensor(BaseContactSensor):
 
     @property
     def filter_object_names(self) -> list[str] | None:
+        """Ordered names of filter objects (counterparts) for contact filtering."""
         return self._filter_object_names
 
     @property
@@ -197,9 +198,10 @@ class ContactSensor(BaseContactSensor):
             abs_tol: The absolute tolerance for the comparison.
 
         Returns:
-            A boolean array indicating the sensors that have established contact within the last
-            :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is the
-            number of sensors.
+            A float array (1.0/0.0) indicating the sensors that have established contact within the
+            last :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is
+            the number of sensors. The returned array is a shared internal buffer; it is invalidated
+            by the next call to :meth:`compute_first_contact` or :meth:`compute_first_air`.
 
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
@@ -237,8 +239,10 @@ class ContactSensor(BaseContactSensor):
             abs_tol: The absolute tolerance for the comparison.
 
         Returns:
-            A boolean array indicating the sensors that have broken contact within the last :attr:`dt` seconds.
-            Shape is (N, S), where N is the number of environments and S is the number of sensors.
+            A float array (1.0/0.0) indicating the sensors that have broken contact within the last
+            :attr:`dt` seconds. Shape is (N, S), where N is the number of environments and S is the
+            number of sensors. The returned array is a shared internal buffer; it is invalidated by
+            the next call to :meth:`compute_first_contact` or :meth:`compute_first_air`.
 
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
@@ -264,8 +268,8 @@ class ContactSensor(BaseContactSensor):
     """
 
     def _initialize_impl(self):
-        super()._initialize_impl()
         """Initializes the sensor-related handles and internal buffers."""
+        super()._initialize_impl()
 
         self._generate_force_matrix = (
             self.cfg.filter_prim_paths_expr is not None or self.cfg.filter_shape_prim_expr is not None

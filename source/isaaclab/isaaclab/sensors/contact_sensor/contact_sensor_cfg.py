@@ -18,8 +18,8 @@ class ContactSensorCfg(SensorBaseCfg):
     Sensing bodies are selected via :attr:`SensorBaseCfg.prim_path`. Filter bodies for
     per-partner force reporting are selected via :attr:`filter_prim_paths_expr`.
 
-    Only body-level sensing and filtering are supported. For shape-level granularity, use
-    :class:`~isaaclab_newton.sensors.contact_sensor.NewtonContactSensorCfg`.
+    Only body-level sensing and filtering are supported. For shape-level granularity,
+    see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
     """
 
     class_type: type = ContactSensor
@@ -67,8 +67,7 @@ class ContactSensorCfg(SensorBaseCfg):
     reported in addition to the net force. Each expression is matched against body prim paths
     in the scene.
 
-    For shape-level filtering, use
-    :class:`~isaaclab_newton.sensors.contact_sensor.NewtonContactSensorCfg`.
+    For shape-level filtering, see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
 
     .. note::
         Expressions can contain the environment namespace regex ``{ENV_REGEX_NS}``, which
@@ -78,8 +77,8 @@ class ContactSensorCfg(SensorBaseCfg):
 
     .. attention::
         Filtered contact reporting only works when :attr:`SensorBaseCfg.prim_path` matches a
-        single primitive per environment. For many-to-many filtering, use
-        :class:`~isaaclab_newton.sensors.contact_sensor.NewtonContactSensorCfg`.
+        single primitive per environment. For many-to-many filtering, see
+        ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

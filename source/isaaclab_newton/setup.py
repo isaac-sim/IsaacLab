@@ -32,7 +32,7 @@ INSTALL_REQUIRES = [
     # newton
     "mujoco>=3.5.0",
     "mujoco-warp>=3.5.0",
-    "newton @ git+https://github.com/newton-physics/newton.git@51ce35e8def843377546764033edc33a0b479d65",
+    "newton @ git+https://github.com/newton-physics/newton.git@492a0a865a7d20b41051e77fea3ab78700066885",
     "imgui-bundle==1.92.0",
     "PyOpenGL-accelerate==3.1.10",
 ]
