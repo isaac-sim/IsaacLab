@@ -68,7 +68,7 @@ class ContactSensor(BaseContactSensor):
         elif isinstance(cfg, ContactSensorCfg):
             cfg = NewtonContactSensorCfg.from_base_cfg(cfg)
         else:
-            raise TypeError("Invalid config: {cfg}")
+            raise TypeError(f"Invalid config: {cfg}")
 
         super().__init__(cfg)
 

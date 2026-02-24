@@ -619,6 +619,10 @@ class InteractiveScene:
                         asset_cfg.filter_prim_paths_expr = [
                             expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_prim_paths_expr
                         ]
+                    if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr is not None:
+                        asset_cfg.sensor_shape_prim_expr = [
+                            expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.sensor_shape_prim_expr
+                        ]
                     if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr is not None:
                         asset_cfg.filter_shape_prim_expr = [
                             expr.format(ENV_REGEX_NS=self.env_regex_ns) for expr in asset_cfg.filter_shape_prim_expr

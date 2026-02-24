@@ -95,6 +95,12 @@ class NewtonContactSensorCfg(ContactSensorCfg):
             )
             self.max_contact_data_count_per_prim = None
 
+        if self.track_friction_forces:
+            warnings.warn(
+                "NewtonContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring."
+            )
+            self.track_friction_forces = False
+
     @classmethod
     def from_base_cfg(cls, base_cfg: ContactSensorCfg, **kwargs) -> "NewtonContactSensorCfg":
         """Creates a :class:`NewtonContactSensorCfg` from an existing :class:`ContactSensorCfg`.

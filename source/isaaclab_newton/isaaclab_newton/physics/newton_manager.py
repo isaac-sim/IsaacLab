@@ -440,7 +440,7 @@ class NewtonManager(PhysicsManager):
         contact_partners_shape_expr: str | list[str] | None = None,
         prune_noncolliding: bool = True,
         verbose: bool = False,
-    ):
+    ) -> tuple:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
         Regex expressions are resolved to ``list[int]`` indices before being forwarded to the Newton sensor.

@@ -43,8 +43,7 @@ class ContactSensorCfg(SensorBaseCfg):
 
         If the environment is very contact rich it is suggested to increase this parameter to avoid out of bounds memory
         errors and loss of contact data leading to inaccurate measurements.
-
-        """
+    """
 
     track_air_time: bool = False
     """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
