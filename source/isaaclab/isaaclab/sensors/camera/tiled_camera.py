@@ -93,6 +93,7 @@ class TiledCamera(Camera):
         """
         self.renderer = renderer
         self.render_data = None
+        self._annotators = None
         super().__init__(cfg)
 
     def __del__(self):
@@ -100,8 +101,9 @@ class TiledCamera(Camera):
         # unsubscribe from callbacks
         SensorBase.__del__(self)
         # detach from the replicator registry
-        for annotator in self._annotators.values():
-            annotator.detach(self.render_product_paths)
+        if self._annotators is not None:
+            for annotator in self._annotators.values():
+                annotator.detach(self.render_product_paths)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
