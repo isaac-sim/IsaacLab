@@ -322,10 +322,18 @@ class MockNewtonArticulationView:
         Args:
             state: Newton state object (unused in mock).
             transforms: Warp array with dtype=wp.transformf matching root shape.
+
+        Raises:
+            ValueError: If the transforms shape does not match the expected root shape.
         """
         if self._noop_setters:
             return
-        self._ensure_root_transforms().assign(transforms)
+        expected = self._ensure_root_transforms()
+        if transforms.shape != expected.shape:
+            raise ValueError(
+                f"Root transforms shape mismatch: expected {expected.shape}, got {transforms.shape}"
+            )
+        expected.assign(transforms)
 
     def set_root_velocities(self, state, velocities: wp.array) -> None:
         """Set velocities of root links.

@@ -20,7 +20,7 @@ Added
     ``create_mock_quadruped_view()``, ``create_mock_humanoid_view()`` for
     convenient test setup.
 
-* Added unit tests for mock interfaces (46 tests):
+* Added unit tests for mock interfaces:
   ``test_mock_articulation_view.py`` and ``test_factories.py``.
 
 Changed

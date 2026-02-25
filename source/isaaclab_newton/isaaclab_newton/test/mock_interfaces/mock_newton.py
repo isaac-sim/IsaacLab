@@ -20,8 +20,8 @@ import warp as wp
 class MockNewtonModel:
     """Mock Newton model that provides gravity."""
 
-    def __init__(self, gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)):
-        self._gravity = wp.array([gravity], dtype=wp.vec3f, device="cuda:0")
+    def __init__(self, gravity: tuple[float, float, float] = (0.0, 0.0, -9.81), device: str = "cpu"):
+        self._gravity = wp.array([gravity], dtype=wp.vec3f, device=device)
 
     @property
     def gravity(self):
