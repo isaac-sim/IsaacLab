@@ -24,8 +24,8 @@ from isaaclab.rendering_mode.rendering_mode_utils import (
     apply_quality_profile_to_visualizer_cfg,
     apply_runtime_quality_profile_to_visualizer,
 )
-from isaaclab.visualizers import Visualizer
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.visualizers import Visualizer
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
