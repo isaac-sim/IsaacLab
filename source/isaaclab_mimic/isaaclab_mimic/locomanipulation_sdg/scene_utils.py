@@ -7,8 +7,10 @@ import random
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.sim.views import XformPrimView
 
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
 from .transform_utils import transform_mul
@@ -83,7 +85,8 @@ class SceneBody(HasPose):
 
     def get_pose(self):
         """Get the 3D pose of the entity."""
-        pose = self.scene[self.entity_name].data.body_link_state_w[
+        body_link_state_w = wp.to_torch(self.scene[self.entity_name].data.body_link_state_w)
+        pose = body_link_state_w[
             :,
             self.scene[self.entity_name].data.body_names.index(self.body_name),
             :7,
@@ -98,16 +101,25 @@ class SceneAsset(HasPose):
         self.scene = scene
         self.entity_name = entity_name
 
+    def _get_xform_view(self) -> XformPrimView:
+        """Return the XformPrimView for this asset, refreshing it if prims were not yet cloned."""
+        xform_prim = self.scene[self.entity_name]
+        if xform_prim.count == 0:
+            # The view was created before environment cloning; rebuild it now that prims exist.
+            xform_prim = XformPrimView(xform_prim._prim_path, device=xform_prim.device)
+            self.scene.extras[self.entity_name] = xform_prim
+        return xform_prim
+
     def get_pose(self):
         """Get the 3D pose of the entity."""
-        xform_prim = self.scene[self.entity_name]
+        xform_prim = self._get_xform_view()
         position, orientation = xform_prim.get_world_poses()
         pose = torch.cat([position, orientation], dim=-1)
         return pose
 
     def set_pose(self, pose: torch.Tensor):
         """Set the 3D pose of the entity."""
-        xform_prim = self.scene[self.entity_name]
+        xform_prim = self._get_xform_view()
         position = pose[..., :3]
         orientation = pose[..., 3:]
         xform_prim.set_world_poses(position, orientation, None)
@@ -124,8 +136,9 @@ class RelativePose(HasPose):
         """Get the 3D pose of the entity."""
 
         parent_pose = self.parent.get_pose()
+        relative_pose = self.relative_pose.to(parent_pose.device)
 
-        pose = transform_mul(parent_pose, self.relative_pose)
+        pose = transform_mul(parent_pose, relative_pose)
 
         return pose
 
@@ -146,6 +159,10 @@ class SceneFixture(SceneAsset, HasOccupancyMap):
         )
 
         transform = self.get_transform_2d().detach().cpu().numpy()
+        # get_world_poses() may return a batched (num_envs, 3, 3) or empty (0, 3, 3) tensor.
+        # For a fixed background asset placed at the world origin, fall back to identity when empty.
+        if transform.ndim == 3:
+            transform = transform[0] if transform.shape[0] > 0 else np.eye(3)
 
         occupancy_map = local_occupancy_map.transformed(transform)
 

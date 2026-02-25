@@ -119,6 +119,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
@@ -285,7 +286,8 @@ def setup_navigation_scene(
         parent=env.get_end_fixture(),
     )
     base_goal_approach = RelativePose(
-        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]), parent=base_goal
+        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=env.device),
+        parent=base_goal,
     )
 
     # Plan navigation path
@@ -321,7 +323,7 @@ def handle_grasp_state(
     # Set control targets - robot stays stationary during grasping
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.GRASP_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to object
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -369,7 +371,7 @@ def handle_lift_state(
     # Set control targets - robot stays stationary during lifting
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.LIFT_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -428,7 +430,7 @@ def handle_navigate_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.NAVIGATE)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -482,7 +484,7 @@ def handle_approach_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.APPROACH)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -543,7 +545,7 @@ def handle_drop_off_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to end fixture
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -640,7 +642,9 @@ def replay(
     """
 
     # Initialize environment to starting state
-    env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0]), is_relative=True)
+    env.reset_to(
+        state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0], device=env.device), is_relative=True
+    )
 
     # Create navigation control configuration
     config = LocomanipulationSDGControlConfig(
@@ -742,6 +746,7 @@ if __name__ == "__main__":
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
+        is_legacy_quat_format = input_dataset_file_handler.is_legacy_quaternion_format()
 
         for i in range(args_cli.num_runs):
             if args_cli.demo is None:
@@ -750,6 +755,14 @@ if __name__ == "__main__":
                 demo = args_cli.demo
 
             input_episode_data = input_dataset_file_handler.load_episode(demo, args_cli.device)
+
+            # Convert action quaternions from legacy WXYZ to XYZW format if needed.
+            # load_episode() auto-converts root_pose state keys, but not action data.
+            # The action format is: [left_pos(3), left_quat(4), right_pos(3), right_quat(4), joints(14)]
+            if is_legacy_quat_format and input_episode_data is not None and "actions" in input_episode_data.data:
+                actions = input_episode_data.data["actions"]
+                actions[:, 3:7] = convert_quat(actions[:, 3:7], to="xyzw")  # left hand quat
+                actions[:, 10:14] = convert_quat(actions[:, 10:14], to="xyzw")  # right hand quat
 
             replay(
                 env=env,

@@ -160,16 +160,17 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
 
         object_pose = dataset_state["rigid_object"]["object"]["root_pose"]
 
+        base_pose = episode_data.get_initial_state()["articulation"]["robot"]["root_pose"]
         data = LocomanipulationSDGInputData(
             left_hand_pose_target=dataset_action[0:7],
             right_hand_pose_target=dataset_action[7:14],
             left_hand_joint_positions_target=dataset_action[14:21],
             right_hand_joint_positions_target=dataset_action[21:28],
-            base_pose=episode_data.get_initial_state()["articulation"]["robot"]["root_pose"],
+            base_pose=base_pose,
             object_pose=object_pose,
             fixture_pose=torch.tensor(
-                [0.0, 0.55, -0.3, 1.0, 0.0, 0.0, 0.0]
-            ),  # Table pose is not recorded for this env.
+                [0.0, 0.55, -0.3, 0.0, 0.0, 0.0, 1.0], device=base_pose.device
+            ),  # Table pose is not recorded for this env. Quaternion in XYZW format (identity).
         )
 
         return data
