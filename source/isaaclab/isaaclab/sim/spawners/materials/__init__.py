@@ -52,7 +52,14 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from .physics_materials import spawn_deformable_body_material, spawn_rigid_body_material
-from .physics_materials_cfg import DeformableBodyMaterialCfg, PhysicsMaterialCfg, RigidBodyMaterialCfg
-from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
-from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "physics_materials": ["spawn_deformable_body_material", "spawn_rigid_body_material"],
+        "physics_materials_cfg": ["DeformableBodyMaterialCfg", "PhysicsMaterialCfg", "RigidBodyMaterialCfg"],
+        "visual_materials": ["spawn_from_mdl_file", "spawn_preview_surface"],
+        "visual_materials_cfg": ["GlassMdlCfg", "MdlFileCfg", "PreviewSurfaceCfg", "VisualMaterialCfg"],
+    },
+)

@@ -10,9 +10,7 @@ import logging
 import math
 from typing import Any
 
-import omni.physx.scripts.utils as physx_utils
-from omni.physx.scripts import deformableUtils as deformable_utils
-from pxr import Usd, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
@@ -156,7 +154,7 @@ def modify_articulation_root_properties(
     # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
-    # ensure PhysX articulation API is applied
+    # ensure PhysX articulation API is applied (string-based, no PhysxSchema import)
     applied_schemas = articulation_prim.GetAppliedSchemas()
     if "PhysxArticulationAPI" not in applied_schemas:
         articulation_prim.AddAppliedSchema("PhysxArticulationAPI")
@@ -199,7 +197,7 @@ def modify_articulation_root_properties(
                 )
 
             # create a fixed joint between the root link and the world frame
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+            create_joint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
             # instead, it is treated as a part of the maximal coordinate tree.
@@ -318,7 +316,7 @@ def modify_rigid_body_properties(
         return False
     # retrieve the USD rigid-body api
     usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-    # ensure PhysX rigid body API is applied
+    # ensure PhysX rigid body API is applied (string-based, no PhysxSchema import)
     applied_schemas = rigid_body_prim.GetAppliedSchemas()
     if "PhysxRigidBodyAPI" not in applied_schemas:
         rigid_body_prim.AddAppliedSchema("PhysxRigidBodyAPI")
@@ -415,7 +413,7 @@ def modify_collision_properties(
         return False
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
-    # ensure PhysX collision API is applied
+    # ensure PhysX collision API is applied (string-based, no PhysxSchema import)
     applied_schemas = collider_prim.GetAppliedSchemas()
     if "PhysxCollisionAPI" not in applied_schemas:
         collider_prim.AddAppliedSchema("PhysxCollisionAPI")
@@ -569,14 +567,13 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
         # if a prim has a rigid body API, it is a rigid body and we don't need to
         # check its children
         if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            # set sleep threshold to zero
+            # set sleep threshold to zero (string-based, no PhysxSchema import)
             child_applied = child_prim.GetAppliedSchemas()
             if "PhysxRigidBodyAPI" not in child_applied:
                 child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
             safe_set_attribute_on_usd_prim(child_prim, "physxRigidBody:sleepThreshold", 0.0, camel_case=False)
             # add contact report API with threshold of zero
             if "PhysxContactReportAPI" not in child_applied:
-                logger.debug(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
                 child_prim.AddAppliedSchema("PhysxContactReportAPI")
             safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
             # increment number of contact sensors
@@ -651,9 +648,9 @@ def modify_joint_drive_properties(
         drive_api_name = "linear"
     else:
         return False
-    # check that prim is not a tendon child prim
-    applied_schemas_str = str(prim.GetAppliedSchemas())
-    if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
+    # check that prim is not a tendon child prim (string-based, no PhysxSchema import)
+    applied_schemas = prim.GetAppliedSchemas()
+    if "PhysxTendonAxisAPI" in applied_schemas and "PhysxTendonAxisRootAPI" not in applied_schemas:
         return False
 
     # check if prim has joint drive applied on it
@@ -661,7 +658,7 @@ def modify_joint_drive_properties(
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
     # ensure PhysX joint API is applied
-    if "PhysxJointAPI" not in applied_schemas_str:
+    if "PhysxJointAPI" not in applied_schemas:
         prim.AddAppliedSchema("PhysxJointAPI")
 
     # mapping from configuration name to USD attribute name
@@ -744,7 +741,7 @@ def modify_fixed_tendon_properties(
 
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it
+    # check if prim has fixed tendon applied on it (string-based, no PhysxSchema import)
     applied_schemas = tendon_prim.GetAppliedSchemas()
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
         return False
@@ -809,7 +806,7 @@ def modify_spatial_tendon_properties(
         stage = get_current_stage()
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has spatial tendon applied on it
+    # check if prim has spatial tendon applied on it (string-based, no PhysxSchema import)
     applied_schemas = tendon_prim.GetAppliedSchemas()
     has_spatial = any(
         "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in applied_schemas
@@ -884,7 +881,7 @@ def define_deformable_body_properties(
 
     # get deformable-body USD prim
     mesh_prim = matching_prims[0]
-    # ensure PhysX deformable body API is applied
+    # ensure PhysX deformable body API is applied (string-based, no PhysxSchema import)
     mesh_applied = mesh_prim.GetAppliedSchemas()
     if "PhysxDeformableBodyAPI" not in mesh_applied:
         mesh_prim.AddAppliedSchema("PhysxDeformableBodyAPI")
@@ -943,7 +940,7 @@ def modify_deformable_body_properties(
     # get deformable-body USD prim
     deformable_body_prim = stage.GetPrimAtPath(prim_path)
 
-    # check if the prim is valid and has the deformable-body API
+    # check if the prim is valid and has the deformable-body API (string-based, no PhysxSchema import)
     if not deformable_body_prim.IsValid():
         return False
     if "PhysxDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas():
@@ -971,6 +968,7 @@ def modify_deformable_body_properties(
             "self_collision_filter_distance",
         ]
     }
+    from omni.physx.scripts import deformableUtils as deformable_utils
     status = deformable_utils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
     # check if the deformable body was successfully added
     if not status:
@@ -1158,3 +1156,115 @@ def modify_mesh_collision_properties(
 
     # success
     return True
+
+
+"""
+Joint creation utilities.
+"""
+
+MAX_FLOAT = 3.40282347e38
+
+
+def create_unused_path(stage: Usd.Stage, base_path: str, path: str) -> str:
+    """Create an unused path for a joint."""
+    if stage.GetPrimAtPath(base_path + "/" + path).IsValid():
+        uniquifier = 0
+        while stage.GetPrimAtPath(base_path + "/" + path + str(uniquifier)).IsValid():
+            uniquifier += 1
+        path = path + str(uniquifier)
+    return path
+
+
+def create_joint(
+    stage: Usd.Stage,
+    joint_type: str,
+    from_prim: Usd.Prim | None,
+    to_prim: Usd.Prim | None,
+    joint_name: str | None = None,
+    joint_base_path: str | None = None,
+) -> Usd.Prim:
+    """Create a joint between two prims."""
+    if to_prim is None:
+        to_prim = from_prim
+        from_prim = None
+
+    from_path = from_prim.GetPath().pathString if from_prim is not None and from_prim.IsValid() else ""
+    to_path = to_prim.GetPath().pathString if to_prim is not None and to_prim.IsValid() else ""
+    single_selection = from_path == "" or to_path == ""
+
+    if joint_base_path is None:
+        joint_base_path = to_path
+    else:
+        if not stage.GetPrimAtPath(joint_base_path):
+            stage.DefinePrim(joint_base_path)
+
+    base_prim = stage.GetPrimAtPath(joint_base_path)
+    while base_prim != stage.GetPseudoRoot():
+        if base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable():
+            base_prim = base_prim.GetParent()
+        else:
+            break
+    joint_base_path = str(base_prim.GetPrimPath())
+    if joint_base_path == "/":
+        joint_base_path = ""
+    if joint_name is None:
+        joint_name = "/" + create_unused_path(stage, joint_base_path, joint_type + "Joint")
+    else:
+        joint_name = "/" + create_unused_path(stage, joint_base_path, joint_name)
+    joint_path = joint_base_path + joint_name
+
+    if joint_type == "Fixed":
+        component = UsdPhysics.FixedJoint.Define(stage, joint_path)
+    elif joint_type == "Revolute":
+        component = UsdPhysics.RevoluteJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Prismatic":
+        component = UsdPhysics.PrismaticJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Spherical":
+        component = UsdPhysics.SphericalJoint.Define(stage, joint_path)
+        component.CreateAxisAttr("X")
+    elif joint_type == "Distance":
+        component = UsdPhysics.DistanceJoint.Define(stage, joint_path)
+        component.CreateMinDistanceAttr(0.0)
+        component.CreateMaxDistanceAttr(0.0)
+    else:
+        component = UsdPhysics.Joint.Define(stage, joint_path)
+        prim = component.GetPrim()
+        for limit_name in ["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]:
+            limit_api = UsdPhysics.LimitAPI.Apply(prim, limit_name)
+            limit_api.CreateLowAttr(1.0)
+            limit_api.CreateHighAttr(-1.0)
+
+    xfCache = UsdGeom.XformCache()
+
+    if not single_selection:
+        to_pose = xfCache.GetLocalToWorldTransform(to_prim)
+        from_pose = xfCache.GetLocalToWorldTransform(from_prim)
+        rel_pose = to_pose * from_pose.GetInverse()
+        rel_pose = rel_pose.RemoveScaleShear()
+        pos1 = Gf.Vec3f(rel_pose.ExtractTranslation())
+        rot1 = Gf.Quatf(rel_pose.ExtractRotationQuat())
+
+        component.CreateBody0Rel().SetTargets([Sdf.Path(from_path)])
+        component.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+        component.CreateLocalPos0Attr().Set(pos1)
+        component.CreateLocalRot0Attr().Set(rot1)
+        component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+        component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    else:
+        to_pose = xfCache.GetLocalToWorldTransform(to_prim)
+        to_pose = to_pose.RemoveScaleShear()
+        pos1 = Gf.Vec3f(to_pose.ExtractTranslation())
+        rot1 = Gf.Quatf(to_pose.ExtractRotationQuat())
+
+        component.CreateBody1Rel().SetTargets([Sdf.Path(to_path)])
+        component.CreateLocalPos0Attr().Set(pos1)
+        component.CreateLocalRot0Attr().Set(rot1)
+        component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+        component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+
+    component.CreateBreakForceAttr().Set(MAX_FLOAT)
+    component.CreateBreakTorqueAttr().Set(MAX_FLOAT)
+
+    return stage.GetPrimAtPath(joint_base_path + joint_name)

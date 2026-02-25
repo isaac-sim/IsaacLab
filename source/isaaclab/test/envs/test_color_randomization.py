@@ -30,7 +30,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
@@ -138,7 +138,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 def test_color_randomization(device):
     """Test color randomization for cartpole environment."""
     # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
+    if has_kit() and get_isaac_sim_version().major < 5:
         pytest.skip("Color randomization test hangs in this version of Isaac Sim")
 
     # Create a new stage

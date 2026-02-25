@@ -32,27 +32,8 @@ Locally, the schemas are defined in the following files:
 
 """
 
-from .schemas import (
-    MESH_APPROXIMATION_TOKENS,
-    PHYSX_MESH_COLLISION_CFGS,
-    USD_MESH_COLLISION_CFGS,
-    activate_contact_sensors,
-    define_articulation_root_properties,
-    define_collision_properties,
-    define_deformable_body_properties,
-    define_mass_properties,
-    define_mesh_collision_properties,
-    define_rigid_body_properties,
-    modify_articulation_root_properties,
-    modify_collision_properties,
-    modify_deformable_body_properties,
-    modify_fixed_tendon_properties,
-    modify_joint_drive_properties,
-    modify_mass_properties,
-    modify_mesh_collision_properties,
-    modify_rigid_body_properties,
-    modify_spatial_tendon_properties,
-)
+import lazy_loader as lazy
+
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
     BoundingCubePropertiesCfg,
@@ -72,56 +53,47 @@ from .schemas_cfg import (
     TriangleMeshSimplificationPropertiesCfg,
 )
 
-__all__ = [
-    # articulation root
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "schemas": [
+            "MESH_APPROXIMATION_TOKENS",
+            "PHYSX_MESH_COLLISION_CFGS",
+            "USD_MESH_COLLISION_CFGS",
+            "activate_contact_sensors",
+            "define_articulation_root_properties",
+            "define_collision_properties",
+            "define_deformable_body_properties",
+            "define_mass_properties",
+            "define_mesh_collision_properties",
+            "define_rigid_body_properties",
+            "modify_articulation_root_properties",
+            "modify_collision_properties",
+            "modify_deformable_body_properties",
+            "modify_fixed_tendon_properties",
+            "modify_joint_drive_properties",
+            "modify_mass_properties",
+            "modify_mesh_collision_properties",
+            "modify_rigid_body_properties",
+            "modify_spatial_tendon_properties",
+        ],
+    },
+)
+__all__ += [
     "ArticulationRootPropertiesCfg",
-    "define_articulation_root_properties",
-    "modify_articulation_root_properties",
-    # rigid bodies
-    "RigidBodyPropertiesCfg",
-    "define_rigid_body_properties",
-    "modify_rigid_body_properties",
-    "activate_contact_sensors",
-    # colliders
-    "CollisionPropertiesCfg",
-    "define_collision_properties",
-    "modify_collision_properties",
-    # deformables
-    "DeformableBodyPropertiesCfg",
-    "define_deformable_body_properties",
-    "modify_deformable_body_properties",
-    # joints
-    "JointDrivePropertiesCfg",
-    "modify_joint_drive_properties",
-    # mass
-    "MassPropertiesCfg",
-    "define_mass_properties",
-    "modify_mass_properties",
-    # mesh colliders
-    "MeshCollisionPropertiesCfg",
-    "define_mesh_collision_properties",
-    "modify_mesh_collision_properties",
-    # bounding cube
     "BoundingCubePropertiesCfg",
-    # bounding sphere
     "BoundingSpherePropertiesCfg",
-    # convex decomposition
+    "CollisionPropertiesCfg",
     "ConvexDecompositionPropertiesCfg",
-    # convex hull
     "ConvexHullPropertiesCfg",
-    # sdf mesh
-    "SDFMeshPropertiesCfg",
-    # triangle mesh
-    "TriangleMeshPropertiesCfg",
-    # triangle mesh simplification
-    "TriangleMeshSimplificationPropertiesCfg",
-    # tendons
+    "DeformableBodyPropertiesCfg",
     "FixedTendonPropertiesCfg",
+    "JointDrivePropertiesCfg",
+    "MassPropertiesCfg",
+    "MeshCollisionPropertiesCfg",
+    "RigidBodyPropertiesCfg",
+    "SDFMeshPropertiesCfg",
     "SpatialTendonPropertiesCfg",
-    "modify_fixed_tendon_properties",
-    "modify_spatial_tendon_properties",
-    # Constants for configs that use PhysX vs USD API
-    "PHYSX_MESH_COLLISION_CFGS",
-    "USD_MESH_COLLISION_CFGS",
-    "MESH_APPROXIMATION_TOKENS",
+    "TriangleMeshPropertiesCfg",
+    "TriangleMeshSimplificationPropertiesCfg",
 ]

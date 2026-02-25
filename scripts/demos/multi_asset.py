@@ -260,7 +260,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
                 wp.to_torch(robot.data.default_joint_pos).clone(),
                 wp.to_torch(robot.data.default_joint_vel).clone(),
             )
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting scene state...")

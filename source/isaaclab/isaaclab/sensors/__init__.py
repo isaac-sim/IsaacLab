@@ -35,10 +35,55 @@ interpretation of the prim paths for different sensor types:
 
 """
 
-from .camera import *  # noqa: F401, F403
-from .contact_sensor import *  # noqa: F401, F403
-from .frame_transformer import *  # noqa: F401
-from .imu import *  # noqa: F401, F403
-from .ray_caster import *  # noqa: F401, F403
-from .sensor_base import SensorBase  # noqa: F401
-from .sensor_base_cfg import SensorBaseCfg  # noqa: F401
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["camera", "contact_sensor", "frame_transformer", "imu", "ray_caster"],
+    submod_attrs={
+        "sensor_base": ["SensorBase"],
+        "sensor_base_cfg": ["SensorBaseCfg"],
+        "camera": ["Camera", "CameraCfg", "CameraData", "TiledCamera", "TiledCameraCfg", "save_images_to_file"],
+        "contact_sensor": [
+            "BaseContactSensor",
+            "BaseContactSensorData",
+            "ContactSensor",
+            "ContactSensorCfg",
+            "ContactSensorData",
+        ],
+        "frame_transformer": [
+            "BaseFrameTransformer",
+            "BaseFrameTransformerData",
+            "FrameTransformer",
+            "FrameTransformerCfg",
+            "FrameTransformerData",
+            "OffsetCfg",
+        ],
+        "imu": ["BaseImu", "BaseImuData", "Imu", "ImuCfg", "ImuData"],
+        "ray_caster": [
+            "MultiMeshRayCaster",
+            "MultiMeshRayCasterCamera",
+            "MultiMeshRayCasterCameraCfg",
+            "MultiMeshRayCasterCameraData",
+            "MultiMeshRayCasterCfg",
+            "MultiMeshRayCasterData",
+            "RayCaster",
+            "RayCasterCamera",
+            "RayCasterCameraCfg",
+            "RayCasterCfg",
+            "RayCasterData",
+        ],
+    },
+)
+
+# Re-export patterns submodule from ray_caster for backward compat
+# (from isaaclab.sensors import patterns)
+_lazy_getattr = __getattr__
+
+
+def __getattr__(name):
+    if name == "patterns":
+        from isaaclab.sensors.ray_caster import patterns
+
+        return patterns
+    return _lazy_getattr(name)

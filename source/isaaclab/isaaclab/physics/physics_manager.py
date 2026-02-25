@@ -156,8 +156,6 @@ class PhysicsManager(ABC):
                 callback(payload)
             except ReferenceError:
                 cls.deregister_callback(cid)
-            except Exception as e:
-                logger.error(f"Callback {cid} for {event.value} failed: {e}")
 
     @classmethod
     def clear_callbacks(cls) -> None:

@@ -17,10 +17,10 @@ from isaaclab_physx.assets.articulation.kernels import update_default_joint_valu
 from isaacsim.core.utils.extensions import enable_extension
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, AssetBase
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -73,7 +73,7 @@ def randomize_joint_by_gaussian_offset(
     # Set into the physics simulation
     asset.set_joint_position_target(joint_pos, env_ids=env_ids)
     asset.set_joint_velocity_target(joint_vel, env_ids=env_ids)
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    asset.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
 
 
 def sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):

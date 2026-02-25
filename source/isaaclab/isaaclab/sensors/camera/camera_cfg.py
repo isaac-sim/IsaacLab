@@ -9,10 +9,9 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .camera import Camera
 
 
 @configclass
@@ -39,7 +38,7 @@ class CameraCfg(SensorBaseCfg):
 
         """
 
-    class_type: type = Camera
+    class_type: type | DeferredClass = DeferredClass("isaaclab.sensors.camera.camera:Camera")
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.

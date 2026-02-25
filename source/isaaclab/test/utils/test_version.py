@@ -17,11 +17,13 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 from packaging.version import Version
 
-from isaaclab.utils.version import compare_versions, get_isaac_sim_version
+from isaaclab.utils.version import compare_versions, get_isaac_sim_version, has_kit
 
 
 def test_get_isaac_sim_version():
     """Test that get_isaac_sim_version returns cached Version object."""
+    if not has_kit():
+        pytest.skip("Isaac Sim app not running")
     # Call twice to ensure caching works
     version1 = get_isaac_sim_version()
     version2 = get_isaac_sim_version()
@@ -42,6 +44,8 @@ def test_get_isaac_sim_version():
 
 def test_get_isaac_sim_version_format():
     """Test that get_isaac_sim_version returns correct format."""
+    if not has_kit():
+        pytest.skip("Isaac Sim app not running")
     isaac_version = get_isaac_sim_version()
 
     # Should be able to convert to string
@@ -60,6 +64,8 @@ def test_get_isaac_sim_version_format():
 
 def test_version_caching_performance():
     """Test that caching improves performance for version checks."""
+    if not has_kit():
+        pytest.skip("Isaac Sim app not running")
     # First call (will cache)
     version1 = get_isaac_sim_version()
 
@@ -72,6 +78,8 @@ def test_version_caching_performance():
 
 def test_version_comparison_operators():
     """Test that Version objects support natural comparisons."""
+    if not has_kit():
+        pytest.skip("Isaac Sim app not running")
     isaac_version = get_isaac_sim_version()
 
     # Should support comparison operators

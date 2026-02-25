@@ -27,7 +27,6 @@ from isaaclab.visualizers import KitVisualizerCfg, NewtonVisualizerCfg, RerunVis
 
 from .scene_data_providers import SceneDataProvider
 from .simulation_cfg import SimulationCfg
-from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,14 @@ class SimulationContext:
 
             self.cfg.physics = PhysxCfg()
         self._physics = self.cfg.physics
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        _class_type = self._physics.class_type
+        if isinstance(_class_type, str):
+            from isaaclab.utils.string import string_to_callable
+
+            _class_type = string_to_callable(_class_type)
+        elif hasattr(_class_type, "resolve"):
+            _class_type = _class_type.resolve()
+        self.physics_manager: type[PhysicsManager] = _class_type  # type: ignore[assignment]
         self.physics_manager.initialize(self)
         self._apply_render_cfg_settings()
 
@@ -193,9 +199,9 @@ class SimulationContext:
                 )
 
             isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
+            from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
-            if get_isaac_sim_version().major < 6:
+            if has_kit() and get_isaac_sim_version().major < 6:
                 isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
@@ -425,13 +431,22 @@ class SimulationContext:
 
     def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
         if self._scene_data_provider is None:
-            from .scene_data_providers import PhysxSceneDataProvider
+            from .scene_data_providers import NewtonSceneDataProvider, PhysxSceneDataProvider
 
-            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-            # switch provider selection to route by physics backend:
-            # - Omni/PhysX -> PhysxSceneDataProvider
-            # - Newton/Warp -> NewtonSceneDataProvider
-            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+            # Route by physics backend: Newton -> NewtonSceneDataProvider (reads live
+            # model/state from NewtonManager), PhysX -> PhysxSceneDataProvider.
+            _use_newton = False
+            try:
+                from isaaclab_newton.physics import NewtonManager
+
+                _use_newton = NewtonManager.get_model() is not None
+            except ImportError:
+                pass
+
+            if _use_newton:
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self)
+            else:
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property
@@ -682,10 +697,14 @@ def build_simulation_context(
         sim = SimulationContext(sim_cfg)
 
         if add_ground_plane:
+            from .spawners import GroundPlaneCfg
+
             cfg = GroundPlaneCfg()
             cfg.func("/World/defaultGroundPlane", cfg)
 
         if add_lighting or (auto_add_lighting and sim.get_setting("/isaaclab/has_gui")):
+            from .spawners import DomeLightCfg
+
             cfg = DomeLightCfg(
                 color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=10000
             )

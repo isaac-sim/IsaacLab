@@ -119,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
                     wp.to_torch(robot.data.default_joint_pos).clone(),
                     wp.to_torch(robot.data.default_joint_vel).clone(),
                 )
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
+                robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
                 # reset the internal state
                 robot.reset()
             print("[INFO]: Resetting robots state...")

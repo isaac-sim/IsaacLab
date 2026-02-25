@@ -5,8 +5,12 @@
 
 """This sub-module contains the functions that are specific to the lift environments."""
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+import isaaclab.envs.mdp as _parent_mdp
 
 from .observations import *  # noqa: F401, F403
 from .pick_place_events import *  # noqa: F401, F403
 from .terminations import *  # noqa: F401, F403
+
+
+def __getattr__(name):
+    return getattr(_parent_mdp, name)

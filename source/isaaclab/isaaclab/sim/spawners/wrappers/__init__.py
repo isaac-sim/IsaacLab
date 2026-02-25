@@ -10,5 +10,12 @@ into a single configuration. This is useful when the user wants to spawn multipl
 different configurations.
 """
 
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file
-from .wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "wrappers": ["spawn_multi_asset", "spawn_multi_usd_file"],
+        "wrappers_cfg": ["MultiAssetSpawnerCfg", "MultiUsdFileCfg"],
+    },
+)

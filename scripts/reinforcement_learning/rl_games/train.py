@@ -56,9 +56,36 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+# Register tasks and resolve config with Hydra (presets applied)
+import isaaclab_tasks  # noqa: F401
+from isaaclab.sim.backend_detection import physics_backend_requires_kit
+from isaaclab_tasks.utils.hydra import finalize_task_config, resolve_task_config
+
+env_cfg, agent_cfg, hydra_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+
+# Only launch Isaac Sim Kit when the task's physics backend requires it
+_requires_kit = physics_backend_requires_kit(env_cfg)
+if _requires_kit:
+    app_launcher = AppLauncher(args_cli)
+    simulation_app = app_launcher.app
+else:
+    class _DummySimulationApp:
+        def close(self):
+            pass
+
+    class _AppLauncherStub:
+        """Minimal stand-in for AppLauncher when Kit is not launched (e.g. Newton backend)."""
+
+        def __init__(self):
+            self.app = _DummySimulationApp()
+            self.local_rank = 0
+            self.global_rank = 0
+
+    app_launcher = _AppLauncherStub()
+    simulation_app = app_launcher.app
+
+# Now that Kit is running (if needed), resolve callable strings in the configs
+env_cfg, agent_cfg = finalize_task_config(env_cfg, agent_cfg, hydra_cfg)
 
 """Rest everything follows."""
 
@@ -87,16 +114,12 @@ from isaaclab.utils.io import dump_yaml
 
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
-
 # import logger
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
-@hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with RL-Games agent."""
     # override configurations with non-hydra CLI arguments
@@ -256,6 +279,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
 if __name__ == "__main__":
     # run the main function
-    main()
+    main(env_cfg, agent_cfg)
     # close sim app
     simulation_app.close()

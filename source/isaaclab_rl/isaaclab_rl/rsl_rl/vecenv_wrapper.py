@@ -3,12 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import gymnasium as gym
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
 
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -38,7 +43,9 @@ class RslRlVecEnvWrapper(VecEnv):
         """
 
         # check that input is valid
-        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        _valid_bases = {"ManagerBasedRLEnv", "DirectRLEnv", "ManagerBasedEnv", "DirectMARLEnv"}
+        _mro_names = {c.__name__ for c in type(env.unwrapped).__mro__}
+        if not _valid_bases & _mro_names:
             raise ValueError(
                 "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
                 f" {type(env)}"

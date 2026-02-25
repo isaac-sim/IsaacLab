@@ -9,15 +9,16 @@ from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import DEFORMABLE_TARGET_MARKER_CFG
 from isaaclab.utils import configclass
-
-from .deformable_object import DeformableObject
+from isaaclab.utils.string import DeferredClass
 
 
 @configclass
 class DeformableObjectCfg(AssetBaseCfg):
     """Configuration parameters for a deformable object."""
 
-    class_type: type = DeformableObject
+    class_type: type | DeferredClass = DeferredClass(
+        "isaaclab_physx.assets.deformable_object.deformable_object:DeformableObject"
+    )
 
     visualizer_cfg: VisualizationMarkersCfg = DEFORMABLE_TARGET_MARKER_CFG.replace(
         prim_path="/Visuals/DeformableTarget"

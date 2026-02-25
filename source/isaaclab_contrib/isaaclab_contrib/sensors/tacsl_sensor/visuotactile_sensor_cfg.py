@@ -12,10 +12,8 @@ from dataclasses import MISSING
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import SensorBaseCfg, TiledCameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
-from .visuotactile_sensor import VisuoTactileSensor
 
 ##
 # GelSight Render Configuration
@@ -109,7 +107,9 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     It can capture tactile RGB/depth images and compute penalty-based contact forces.
     """
 
-    class_type: type = VisuoTactileSensor
+    class_type: type | DeferredClass = DeferredClass(
+        "isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor:VisuoTactileSensor"
+    )
 
     # Sensor type and capabilities
     render_cfg: GelSightRenderCfg = MISSING

@@ -390,7 +390,7 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self.pick_and_place.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.pick_and_place.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, joint_ids=None, env_ids=env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome

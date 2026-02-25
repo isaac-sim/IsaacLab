@@ -152,8 +152,14 @@ class DeformableObject(AssetBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
-        # Think: Should we reset the kinematic targets when resetting the object?
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        """Reset the deformable object.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        # TODO: Should we reset the kinematic targets when resetting the object?
         #  This is not done in the current implementation. We assume users will reset the kinematic targets.
         pass
 

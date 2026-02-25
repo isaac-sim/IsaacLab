@@ -5,6 +5,13 @@
 
 """TacSL Tactile Sensor implementation for IsaacLab."""
 
-from .visuotactile_sensor import VisuoTactileSensor
-from .visuotactile_sensor_cfg import GelSightRenderCfg, VisuoTactileSensorCfg
-from .visuotactile_sensor_data import VisuoTactileSensorData
+import lazy_loader as lazy
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submod_attrs={
+        "visuotactile_sensor": ["VisuoTactileSensor"],
+        "visuotactile_sensor_cfg": ["GelSightRenderCfg", "VisuoTactileSensorCfg"],
+        "visuotactile_sensor_data": ["VisuoTactileSensorData"],
+    },
+)

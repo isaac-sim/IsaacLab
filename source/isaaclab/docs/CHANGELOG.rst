@@ -25,7 +25,6 @@ Added
   (different prototypes across envs), replication switches to per-object instead of whole-env cloning.
   This reduces PhysX cloning time in heterogeneous scenes.
 
-
 4.0.0 (2026-02-22)
 ~~~~~~~~~~~~~~~~~~
 

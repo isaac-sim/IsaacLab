@@ -149,7 +149,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset joint state
             joint_pos = robot.data.default_joint_pos.clone()
             joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             robot.reset()
             # reset actions
             ik_commands[:] = ee_goals[current_goal_idx]

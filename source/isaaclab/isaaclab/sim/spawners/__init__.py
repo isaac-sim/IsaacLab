@@ -54,11 +54,31 @@ For example:
 
 """
 
-from .from_files import *  # noqa: F401, F403
-from .lights import *  # noqa: F401, F403
-from .materials import *  # noqa: F401, F403
-from .meshes import *  # noqa: F401, F403
-from .sensors import *  # noqa: F401, F403
-from .shapes import *  # noqa: F401, F403
-from .spawner_cfg import *  # noqa: F401, F403
-from .wrappers import *  # noqa: F401, F403
+import lazy_loader as lazy
+
+from .spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
+
+__getattr__, __dir__, __all__ = lazy.attach(
+    __name__,
+    submodules=["from_files", "lights", "materials", "meshes", "sensors", "shapes", "wrappers"],
+)
+__all__ += ["SpawnerCfg", "RigidObjectSpawnerCfg", "DeformableObjectSpawnerCfg"]
+
+_lazy_getattr = __getattr__
+_SUBPACKAGES = ("from_files", "lights", "materials", "meshes", "sensors", "shapes", "wrappers")
+
+
+def __getattr__(name):
+    try:
+        return _lazy_getattr(name)
+    except AttributeError:
+        pass
+    import importlib
+
+    for subpkg in _SUBPACKAGES:
+        try:
+            submod = importlib.import_module(f"{__name__}.{subpkg}")
+            return getattr(submod, name)
+        except (ImportError, AttributeError):
+            continue
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

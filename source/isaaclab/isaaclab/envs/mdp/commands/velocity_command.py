@@ -18,6 +18,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -169,6 +170,9 @@ class UniformVelocityCommand(CommandTerm):
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
+        # Skip visualization markers in non-Kit environments (e.g., Newton standalone)
+        if not has_kit():
+            return
         if debug_vis:
             # create markers if necessary for the first time
             if not hasattr(self, "goal_vel_visualizer"):
@@ -188,6 +192,9 @@ class UniformVelocityCommand(CommandTerm):
         # check if robot is initialized
         # note: this is needed in-case the robot is de-initialized. we can't access the data
         if not self.robot.is_initialized:
+            return
+        # Skip if visualizers aren't available (e.g., non-Kit environments)
+        if not hasattr(self, "goal_vel_visualizer"):
             return
         # get marker location
         # -- base state

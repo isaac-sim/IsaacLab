@@ -18,16 +18,16 @@ from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils import configclass
+from isaaclab.utils.string import DeferredClass
 
 from .sub_terrain_cfg import SubTerrainBaseCfg
-from .terrain_generator import TerrainGenerator
 
 
 @configclass
 class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
-    class_type: type = TerrainGenerator
+    class_type: type | DeferredClass = DeferredClass("isaaclab.terrains.terrain_generator:TerrainGenerator")
     """The class to use for the terrain generator.
 
     Defaults to :class:`isaaclab.terrains.terrain_generator.TerrainGenerator`.

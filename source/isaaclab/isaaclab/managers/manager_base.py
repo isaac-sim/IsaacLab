@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import inspect
 import logging
@@ -13,9 +14,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import omni.timeline
-
 import isaaclab.utils.string as string_utils
+from isaaclab.physics import PhysicsEvent
 from isaaclab.utils import class_to_dict, string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
@@ -156,18 +156,24 @@ class ManagerBase(ABC):
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
-        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
-        #   callback and resolve the scene entities directly inside `_prepare_terms`.
         if not self._env.sim.is_playing():
             # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
-            # is called
-            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
-            # are resolved. Those have the order 10.
-            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-            self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.PLAY),
-                lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
-                order=20,
+            # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
+            # scene entities are resolved. Those have the order 10.
+
+            def safe_callback(obj_ref):
+                """Safely invoke _resolve_terms_callback on a weakly-referenced object."""
+                with contextlib.suppress(ReferenceError):
+                    obj_ref._resolve_terms_callback(None)
+
+            obj_ref = weakref.proxy(self)
+
+            def callback_func(payload):
+                safe_callback(obj_ref)
+
+            physics_mgr_cls = self._env.sim.physics_manager
+            self._resolve_terms_handle = physics_mgr_cls.register_callback(
+                callback_func, PhysicsEvent.PHYSICS_READY, order=20
             )
         else:
             self._resolve_terms_handle = None
@@ -178,8 +184,8 @@ class ManagerBase(ABC):
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_terms_handle:
-            self._resolve_terms_handle.unsubscribe()
+        if self._resolve_terms_handle is not None:
+            self._resolve_terms_handle.deregister()
             self._resolve_terms_handle = None
 
     """

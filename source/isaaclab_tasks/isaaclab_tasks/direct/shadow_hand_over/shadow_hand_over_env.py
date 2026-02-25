@@ -347,7 +347,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.right_hand_dof_targets[env_ids] = dof_pos
 
         self.right_hand.set_joint_position_target(dof_pos, env_ids=env_ids)
-        self.right_hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
+        self.right_hand.write_joint_state_to_sim(position=dof_pos, velocity=dof_vel, env_ids=env_ids)
 
         # reset left hand
         delta_max = self.hand_dof_upper_limits[env_ids] - wp.to_torch(self.left_hand.data.default_joint_pos)[env_ids]
@@ -369,7 +369,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
         self.left_hand_dof_targets[env_ids] = dof_pos
 
         self.left_hand.set_joint_position_target(dof_pos, env_ids=env_ids)
-        self.left_hand.write_joint_state_to_sim(dof_pos, dof_vel, env_ids=env_ids)
+        self.left_hand.write_joint_state_to_sim(position=dof_pos, velocity=dof_vel, env_ids=env_ids)
 
         self._compute_intermediate_values()
 

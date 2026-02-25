@@ -13,6 +13,7 @@ import torch
 import trimesh
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import grid_transforms
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 

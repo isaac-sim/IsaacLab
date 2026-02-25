@@ -182,22 +182,5 @@ class BaseContactSensor(SensorBase):
         return wp.from_torch(currently_detached * less_than_dt_detached)
 
     """
-    Implementation - Abstract methods to be implemented by backend-specific subclasses.
+    Implementation - Methods to be implemented by backend-specific subclasses.
     """
-
-    @abstractmethod
-    def _initialize_impl(self):
-        """Initializes the sensor handles and internal buffers.
-
-        Subclasses should call ``super()._initialize_impl()`` first to initialize
-        the common sensor infrastructure from :class:`SensorBase`.
-        """
-        super()._initialize_impl()
-
-    @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
-        raise NotImplementedError
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        super()._invalidate_initialize_callback(event)

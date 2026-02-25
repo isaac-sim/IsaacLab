@@ -10,8 +10,6 @@ import numpy as np
 import torch
 import warp as wp
 
-import carb
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
@@ -719,7 +717,7 @@ class AssemblyEnv(DirectRLEnv):
 
             self.ctrl_target_joint_pos[env_ids, 0:7] = self.joint_pos[env_ids, 0:7]
             # Update dof state.
-            self._robot.write_joint_state_to_sim(self.joint_pos, self.joint_vel)
+            self._robot.write_joint_state_to_sim(position=self.joint_pos, velocity=self.joint_vel)
             self._robot.reset()
             self._robot.set_joint_position_target(self.ctrl_target_joint_pos)
 
@@ -739,7 +737,7 @@ class AssemblyEnv(DirectRLEnv):
         joint_effort = torch.zeros_like(joint_pos)
         self.ctrl_target_joint_pos[env_ids, :] = joint_pos
         self._robot.set_joint_position_target(self.ctrl_target_joint_pos[env_ids], env_ids=env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+        self._robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
         self._robot.reset()
         self._robot.set_joint_effort_target(joint_effort, env_ids=env_ids)
 
@@ -820,6 +818,8 @@ class AssemblyEnv(DirectRLEnv):
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
+        import carb
+
         # Disable gravity.
         physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
         physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))

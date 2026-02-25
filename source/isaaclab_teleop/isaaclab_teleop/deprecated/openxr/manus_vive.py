@@ -24,7 +24,7 @@ import carb
 
 from isaaclab.devices.device_base import DeviceBase, DeviceCfg
 from isaaclab.devices.retargeter_base import RetargeterBase
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from .common import HAND_JOINT_NAMES
 from .xr_cfg import XrCfg
@@ -83,9 +83,10 @@ class ManusVive(DeviceBase):
         )
         super().__init__(retargeters)
         # Enforce minimum Isaac Sim version (>= 5.1)
-        isaac_sim_version = get_isaac_sim_version()
-        if isaac_sim_version < version.parse("5.1"):
-            raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version: '{isaac_sim_version}'.")
+        if has_kit():
+            isaac_sim_version = get_isaac_sim_version()
+            if isaac_sim_version < version.parse("5.1"):
+                raise RuntimeError(f"ManusVive requires Isaac Sim >= 5.1. Detected version: '{isaac_sim_version}'.")
         self._xr_cfg = cfg.xr_cfg or XrCfg()
         self._additional_callbacks = dict()
         self._vc_subscription = (

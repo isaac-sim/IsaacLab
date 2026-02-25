@@ -8,10 +8,9 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 
 from .patterns import PinholeCameraPatternCfg
-from .ray_caster_camera import RayCasterCamera
 from .ray_caster_cfg import RayCasterCfg
 
 
@@ -39,7 +38,7 @@ class RayCasterCameraCfg(RayCasterCfg):
 
         """
 
-    class_type: type = RayCasterCamera
+    class_type: type | DeferredClass = DeferredClass("isaaclab.sensors.ray_caster.ray_caster_camera:RayCasterCamera")
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""

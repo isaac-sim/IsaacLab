@@ -5,16 +5,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-from . import from_files
 
 
 @configclass
@@ -96,7 +93,7 @@ class UsdFileCfg(FileCfg):
         This is done by calling the respective function with the specified properties.
     """
 
-    func: Callable = from_files.spawn_from_usd
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.from_files.from_files:spawn_from_usd")
 
     usd_path: str = MISSING
     """Path to the USD file to spawn asset from."""
@@ -129,7 +126,7 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
 
     """
 
-    func: Callable = from_files.spawn_from_urdf
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.from_files.from_files:spawn_from_urdf")
 
 
 @configclass
@@ -151,7 +148,7 @@ class MjcfFileCfg(FileCfg, converters.MjcfConverterCfg):
 
     """
 
-    func: Callable = from_files.spawn_from_mjcf
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.from_files.from_files:spawn_from_mjcf")
 
 
 """
@@ -169,7 +166,7 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
     material application.
     """
 
-    func: Callable = from_files.spawn_from_usd_with_compliant_contact_material
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.from_files.from_files:spawn_from_usd_with_compliant_contact_material")
 
     compliant_contact_stiffness: float | None = None
     """Stiffness of the compliant contact. Defaults to None.
@@ -201,7 +198,7 @@ class GroundPlaneCfg(SpawnerCfg):
     This uses the USD for the standard grid-world ground plane from Isaac Sim by default.
     """
 
-    func: Callable = from_files.spawn_ground_plane
+    func: DeferredClass = DeferredClass("isaaclab.sim.spawners.from_files.from_files:spawn_ground_plane")
 
     usd_path: str = f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd"
     """Path to the USD file to spawn asset from. Defaults to the grid-world ground plane."""

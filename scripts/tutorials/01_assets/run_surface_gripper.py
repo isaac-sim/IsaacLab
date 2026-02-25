@@ -118,7 +118,7 @@ def run_simulator(
                 wp.to_torch(robot.data.default_joint_vel).clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # clear internal buffers
             robot.reset()
             print("[INFO]: Resetting robot state...")

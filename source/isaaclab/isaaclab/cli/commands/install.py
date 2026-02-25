@@ -145,6 +145,8 @@ def _install_isaaclab_extensions() -> None:
                     "install",
                     "--editable",
                     str(item),
+                    "--extra-index-url",
+                    "https://pypi.nvidia.com",
                 ]
             )
 

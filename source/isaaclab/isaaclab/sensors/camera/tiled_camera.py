@@ -16,6 +16,7 @@ import warp as wp
 
 from pxr import UsdGeom
 
+from isaaclab.utils.version import has_kit
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -149,13 +150,11 @@ class TiledCamera(Camera):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
             RuntimeError: If replicator was not found.
         """
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        if has_kit() and not get_settings_manager().get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
             )
-
-        import omni.replicator.core as rep
 
         # Initialize parent class
         SensorBase._initialize_impl(self)
@@ -189,6 +188,8 @@ class TiledCamera(Camera):
             self.render_data = self.renderer.create_render_data(self)
 
         else:
+            # Kit/RTX path: replicator and annotators are only available when Kit is running
+            import omni.replicator.core as rep
             # Create replicator tiled render product
             rp = rep.create.render_product_tiled(
                 cameras=cam_prim_paths, tile_resolution=(self.cfg.width, self.cfg.height)

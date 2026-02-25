@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import logging
 import warnings
 from collections.abc import Sequence
@@ -20,11 +19,12 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from source.isaaclab.isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -101,10 +101,6 @@ class ManagerBasedEnv:
             # since it gets confused with Isaac Sim's SimulationContext class
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
-            # simulation context should only be created before the environment
-            # when in extension mode
-            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
             self.sim: SimulationContext = SimulationContext.instance()
 
         # make sure torch is running on the correct device
@@ -133,7 +129,7 @@ class ManagerBasedEnv:
         # allocate dictionary to store metrics
         self.extras = {}
 
-        # generate scene
+
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
@@ -144,7 +140,8 @@ class ManagerBasedEnv:
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.has_gui:
+        if has_kit() and self.sim.has_gui:
+            from .ui import ViewportCameraController
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -158,28 +155,27 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
-        # play the simulator to activate physics handles
-        # note: this activates the physics simulation view that exposes TensorAPIs
-        # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.stage):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments
-                # so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
-            # add timeline event to load managers
-            self.load_managers()
+        # play the simulator to activate physics handles and load managers
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            self.scene.update(dt=self.physics_dt)
+        self.load_managers()
 
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
+            if hasattr(self.cfg.ui_window_class_type, "resolve"):
+                self.cfg.ui_window_class_type = self.cfg.ui_window_class_type.resolve()
+            elif isinstance(self.cfg.ui_window_class_type, str):
+                from isaaclab.utils.string import string_to_callable
+
+                self.cfg.ui_window_class_type = string_to_callable(self.cfg.ui_window_class_type)
             # setup live visualizers
             self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
@@ -325,7 +321,6 @@ class ManagerBasedEnv:
 
     def setup_manager_visualizers(self):
         """Creates live visualizers for manager terms."""
-
         self.manager_visualizers = {
             "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
             "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),

@@ -88,7 +88,7 @@ def run_simulator(sim: sim_utils.SimulationContext, robot: Articulation):
             ep_step_count = 0
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_state_to_sim(position=joint_pos, velocity=joint_vel)
             # reset internals
             robot.reset()
             # reset command

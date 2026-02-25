@@ -3,14 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 
 from .camera_cfg import CameraCfg
-from .tiled_camera import TiledCamera
 
 
 @configclass
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor."""
 
-    class_type: type = TiledCamera
+    class_type: type | DeferredClass = DeferredClass("isaaclab.sensors.camera.tiled_camera:TiledCamera")

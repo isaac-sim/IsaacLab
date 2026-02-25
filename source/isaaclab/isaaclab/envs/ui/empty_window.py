@@ -8,8 +8,6 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-import omni.kit.app
-
 if TYPE_CHECKING:
     import omni.ui
 

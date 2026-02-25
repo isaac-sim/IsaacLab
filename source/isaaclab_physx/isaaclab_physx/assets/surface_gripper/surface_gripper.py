@@ -17,7 +17,7 @@ from isaacsim.core.utils.extensions import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -88,7 +88,7 @@ class SurfaceGripper(AssetBase):
         self._cfg = cfg.copy()
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
-        if get_isaac_sim_version().major < 5:
+        if has_kit() and get_isaac_sim_version().major < 5:
             raise NotImplementedError(
                 "SurfaceGrippers are only supported by IsaacSim 5.0 and newer. Current version is"
                 f" '{get_isaac_sim_version()}'. Please update to IsaacSim 5.0 or newer to use this feature."

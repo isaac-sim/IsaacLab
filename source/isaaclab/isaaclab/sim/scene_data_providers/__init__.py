@@ -5,10 +5,12 @@
 
 """Scene data providers for visualizers and renderers."""
 
+from .newton_scene_data_provider import NewtonSceneDataProvider
 from .physx_scene_data_provider import PhysxSceneDataProvider
 from .scene_data_provider import SceneDataProvider
 
 __all__ = [
     "SceneDataProvider",
     "PhysxSceneDataProvider",
+    "NewtonSceneDataProvider",
 ]

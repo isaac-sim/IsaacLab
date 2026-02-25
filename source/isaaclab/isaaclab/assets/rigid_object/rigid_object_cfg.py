@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from isaaclab.utils import DeferredClass, configclass
 
 from ..asset_base_cfg import AssetBaseCfg
-from .rigid_object import RigidObject
 
 
 @configclass
@@ -26,7 +25,7 @@ class RigidObjectCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = RigidObject
+    class_type: type | DeferredClass = DeferredClass("isaaclab.assets.rigid_object.rigid_object:RigidObject")
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""

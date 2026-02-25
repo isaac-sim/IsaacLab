@@ -127,3 +127,208 @@ the post init update is as follows:
 
 Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user needs to give the updated ``env.sim.render_interval``,
 ``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
+
+
+Preset System
+-------------
+
+The preset system lets you swap out entire config sections with a single command line argument.
+Instead of overriding individual fields, you select a named preset that **completely replaces** the
+config section (no field merging).
+
+Presets are defined directly on config classes using a ``presets`` attribute. The system recursively
+discovers all presets from nested configs automatically.
+
+
+Override Order
+^^^^^^^^^^^^^^
+
+The override order is strict and deterministic:
+
+**By type** (earlier stages are overwritten by later ones):
+
+1. **Presets** — Global preset selections (``presets=noise_less``)
+2. **Groups** — Path preset selections (``env.actions.arm_action=relative_joint_position``)
+3. **Single field** — Scalar overrides (``env.sim.dt=0.001``)
+
+**Within the same type:**
+
+- **Lower depth > higher depth** — Parent paths are applied before child paths (e.g. ``env.actions`` before ``env.actions.arm_action``)
+- **Left > right** — Arguments are processed left-to-right; for the same target, the rightmost override wins
+
+**Concrete sequence:**
+
+1. Auto-default presets for paths not explicitly selected
+2. Global presets (``presets=name``)
+3. Path presets (``env.actions=name``), sorted by depth ascending
+4. Scalar overrides (both preset-path and global)
+
+
+Defining Presets
+^^^^^^^^^^^^^^^^
+
+There are three styles for defining presets:
+
+**Style 1: Inheritance** - Default values from base class, presets for alternatives:
+
+.. code-block:: python
+
+    @configclass
+    class FrankaArmActionCfg(mdp.JointPositionActionCfg):
+        """Franka arm action config with presets for different action types."""
+
+        presets = {
+            "joint_position_to_limit": mdp.JointPositionToLimitsActionCfg(
+                asset_name="robot", joint_names=["panda_joint.*"]
+            ),
+            "relative_joint_position": mdp.RelativeJointPositionActionCfg(
+                asset_name="robot", joint_names=["panda_joint.*"], scale=0.2
+            ),
+        }
+
+**Style 2: Inner class** - Self-contained with nested preset definitions:
+
+.. code-block:: python
+
+    @configclass
+    class PhysxCfg:
+        """Simulation config with physics backend presets."""
+
+        backend: str = "physx"
+
+        @configclass
+        class Newton:
+            backend: str = "newton"
+
+        presets = {"newton": Newton()}
+
+**Style 3: Preset-only with auto-default** - Pure composition, no default fields:
+
+.. code-block:: python
+
+    @configclass
+    class ObservationsCfg:
+        """Observation specifications with presets."""
+
+        presets = {
+            "default": DefaultObservationsCfg(),
+            "noise_less": NoiselessObservationsCfg(),
+        }
+
+With Style 3, the ``"default"`` preset is automatically applied when no preset is selected.
+
+
+Using Presets
+^^^^^^^^^^^^^
+
+**Path presets** - Select a specific preset for one config path:
+
+.. code-block:: bash
+
+    # Use relative joint position action
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position
+
+    # Use noiseless observations
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.observations=noise_less
+
+**Path preset + scalar override** - Select preset then modify a field:
+
+.. code-block:: bash
+
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position \
+        env.actions.arm_action.scale=0.5
+
+**Global presets** - Apply the same preset name everywhere it exists:
+
+.. code-block:: bash
+
+    # Apply "noise_less" preset to all configs that define it
+    # (e.g., env.observations in Isaac-Reach-Franka-v0)
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=noise_less
+
+**Multiple global presets** - Apply several non-conflicting presets (each applies to configs that define it):
+
+.. code-block:: bash
+
+    # Apply noise_less to env.observations and relative_joint_position to env.actions.arm_action
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=noise_less,relative_joint_position
+
+**Combined** - Global presets + path presets + scalar overrides:
+
+.. code-block:: bash
+
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=noise_less \
+        env.actions.arm_action=relative_joint_position \
+        env.actions.arm_action.scale=0.5 \
+        env.sim.dt=0.002
+
+
+Global Preset Conflict Detection
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If multiple global presets define the same path, an error is raised:
+
+.. code-block:: bash
+
+    # ERROR: both "fast" and "noise_less" define env.observations
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        presets=fast,noise_less
+
+    # ValueError: Conflicting global presets: 'fast' and 'noise_less'
+    #             both define preset for 'env.observations'
+
+
+Real-World Example
+^^^^^^^^^^^^^^^^^^
+
+The Franka Reach environment demonstrates presets in practice:
+
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/reach/config/franka/joint_pos_env_cfg.py
+    :language: python
+    :start-at: @configclass
+    :end-before: ##
+
+This allows users to switch action types:
+
+.. code-block:: bash
+
+    # Default: JointPositionActionCfg (from inheritance)
+    python train.py --task=Isaac-Reach-Franka-v0
+
+    # Switch to relative joint position
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=relative_joint_position
+
+    # Switch to joint position with limits
+    python train.py --task=Isaac-Reach-Franka-v0 \
+        env.actions.arm_action=joint_position_to_limit
+
+
+Summary
+^^^^^^^
+
+.. list-table::
+   :widths: 25 35 40
+   :header-rows: 1
+
+   * - Override Type
+     - Syntax
+     - Effect
+   * - Scalar
+     - ``env.sim.dt=0.001``
+     - Modify single field
+   * - Path preset
+     - ``env.actions.arm_action=relative``
+     - Replace entire section
+   * - Global preset
+     - ``presets=noise_less``
+     - Apply everywhere matching
+   * - Combined
+     - ``presets=noise_less env.sim.dt=0.001``
+     - Global + scalar overrides

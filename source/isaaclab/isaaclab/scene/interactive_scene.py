@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
+from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg
 
 from pxr import Sdf
+
+if TYPE_CHECKING:
+    from isaaclab_physx.assets import DeformableObject, SurfaceGripper
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -463,7 +466,7 @@ class InteractiveScene:
             # joint state
             joint_position = asset_state["joint_position"].clone()
             joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            articulation.write_joint_state_to_sim(position=joint_position, velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
             articulation.set_joint_position_target(joint_position, env_ids=env_ids)
@@ -694,8 +697,11 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, DeformableObjectCfg):
-                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg) or isinstance(asset_cfg, SurfaceGripperCfg):
+                if isinstance(asset_cfg, DeformableObjectCfg):
+                    self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                elif isinstance(asset_cfg, SurfaceGripperCfg):
+                    self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
@@ -716,9 +722,6 @@ class InteractiveScene:
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
-            elif isinstance(asset_cfg, SurfaceGripperCfg):
-                # add surface grippers to scene
-                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
@@ -728,10 +731,10 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    for attr_name in ("filter_prim_paths_expr", "shape_path", "filter_shape_paths_expr"):
+                        paths = getattr(asset_cfg, attr_name, None)
+                        if paths is not None:
+                            setattr(asset_cfg, attr_name, [p.format(ENV_REGEX_NS=self.env_regex_ns) for p in paths])
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(

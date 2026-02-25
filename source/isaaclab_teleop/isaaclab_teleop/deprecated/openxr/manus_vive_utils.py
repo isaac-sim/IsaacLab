@@ -9,8 +9,6 @@ from time import time
 
 import numpy as np
 
-from isaacsim.core.utils.extensions import enable_extension
-
 # For testing purposes, we need to mock the XRCore
 XRCore, XRPoseValidityFlags = None, None
 
@@ -62,6 +60,7 @@ HAND_JOINT_MAP = {
 
 class ManusViveIntegration:
     def __init__(self):
+        from isaacsim.core.utils.extensions import enable_extension
         enable_extension("isaacsim.xr.input_devices")
         from isaacsim.xr.input_devices.impl.manus_vive_integration import get_manus_vive_integration
 
