@@ -48,9 +48,11 @@ from isaaclab_experimental.envs.mdp.actions import (
     RelativeJointPositionAction,
     RelativeJointPositionActionCfg,
 )
+from parity_helpers import MockArticulation, MockArticulationData, MockScene, copy_np_to_wp
 
 NUM_ENVS = 32
 NUM_JOINTS = 6
+NUM_BODIES = 3
 DEVICE = "cuda:0"
 ATOL = 1e-5
 RTOL = 1e-5
@@ -62,95 +64,9 @@ JOINT_NAMES = [f"joint_{i}" for i in range(NUM_JOINTS)]
 # ============================================================================
 
 
-class MockArticulationData:
-    def __init__(self, seed=42):
-        rng = np.random.RandomState(seed)
-        self.joint_pos = wp.array(rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32), device=DEVICE)
-        self.joint_vel = wp.array(rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32), device=DEVICE)
-        self.default_joint_pos = wp.array(
-            np.tile([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], (NUM_ENVS, 1)).astype(np.float32), device=DEVICE
-        )
-        self.default_joint_vel = wp.array(np.zeros((NUM_ENVS, NUM_JOINTS), dtype=np.float32), device=DEVICE)
-
-        limits_np = np.zeros((NUM_ENVS, NUM_JOINTS, 2), dtype=np.float32)
-        limits_np[:, :, 0] = -3.14
-        limits_np[:, :, 1] = 3.14
-        self.soft_joint_pos_limits = wp.array(limits_np, dtype=wp.vec2f, device=DEVICE)
-
-        # Body quaternion for NonHolonomicAction (identity = [0,0,0,1] in xyzw)
-        num_bodies = 3
-        quat_np = np.zeros((NUM_ENVS, num_bodies, 4), dtype=np.float32)
-        quat_np[:, :, 3] = 1.0  # w=1 (identity)
-        self.body_quat_w = wp.array(quat_np, dtype=wp.quatf, device=DEVICE)
-
-        self._num_joints = NUM_JOINTS
-
-    def resolve_joint_mask(self, joint_ids=None):
-        mask = [False] * NUM_JOINTS
-        if joint_ids is None or isinstance(joint_ids, slice):
-            mask = [True] * NUM_JOINTS
-        else:
-            for j in joint_ids:
-                mask[j] = True
-        return wp.array(mask, dtype=wp.bool, device=DEVICE)
-
-
-class MockArticulation:
-    def __init__(self, data: MockArticulationData):
-        self.data = data
-        self.num_joints = NUM_JOINTS
-        self.num_bodies = 3
-        self.device = DEVICE
-        # Track what was last written for verification
-        self.last_pos_target = None
-        self.last_vel_target = None
-        self.last_effort_target = None
-        self.last_joint_mask = None
-
-    def find_joints(self, names, preserve_order=False):
-        if isinstance(names, list) and names == [".*"]:
-            return None, JOINT_NAMES, list(range(NUM_JOINTS))
-        # For specific joint names, resolve them
-        ids = []
-        resolved_names = []
-        for name in names if isinstance(names, list) else [names]:
-            for i, jn in enumerate(JOINT_NAMES):
-                if name in jn or name == jn or name == ".*":
-                    if i not in ids:
-                        ids.append(i)
-                        resolved_names.append(jn)
-        if not ids:
-            ids = list(range(NUM_JOINTS))
-            resolved_names = list(JOINT_NAMES)
-        return None, resolved_names, ids
-
-    def find_bodies(self, name):
-        return None, [name], [0]
-
-    def set_joint_position_target(self, target, joint_ids=None, joint_mask=None):
-        self.last_pos_target = target
-        self.last_joint_mask = joint_mask
-
-    def set_joint_velocity_target(self, target, joint_ids=None, joint_mask=None):
-        self.last_vel_target = target
-        self.last_joint_mask = joint_mask
-
-    def set_joint_effort_target(self, target, joint_ids=None, joint_mask=None):
-        self.last_effort_target = target
-        self.last_joint_mask = joint_mask
-
-
-class MockScene:
-    def __init__(self, asset):
-        self._asset = asset
-
-    def __getitem__(self, name):
-        return self._asset
-
-
 class MockEnv:
     def __init__(self, asset):
-        self.scene = MockScene(asset)
+        self.scene = MockScene({"robot": asset}, env_origins=None)
         self.num_envs = NUM_ENVS
         self.device = DEVICE
 
@@ -162,12 +78,23 @@ class MockEnv:
 
 @pytest.fixture()
 def art_data():
-    return MockArticulationData()
+    data = MockArticulationData(num_envs=NUM_ENVS, num_joints=NUM_JOINTS, num_bodies=NUM_BODIES)
+    # Override defaults with specific per-joint values for action tests
+    copy_np_to_wp(
+        data.default_joint_pos,
+        np.tile([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], (NUM_ENVS, 1)).astype(np.float32),
+    )
+    # Body quaternion for NonHolonomicAction (identity = [0,0,0,1] in xyzw)
+    quat_np = np.zeros((NUM_ENVS, NUM_BODIES, 4), dtype=np.float32)
+    quat_np[:, :, 3] = 1.0
+    data.body_quat_w = wp.array(quat_np, dtype=wp.quatf, device=DEVICE)
+    data._num_joints = NUM_JOINTS
+    return data
 
 
 @pytest.fixture()
 def asset(art_data):
-    return MockArticulation(art_data)
+    return MockArticulation(art_data, num_bodies=NUM_BODIES, num_joints=NUM_JOINTS)
 
 
 @pytest.fixture()

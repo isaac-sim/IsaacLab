@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import (
     generic_io_descriptor_warp,
-    record_body_names,
     record_dtype,
     record_joint_names,
     record_joint_pos_offsets,
@@ -31,7 +30,11 @@ from isaaclab_experimental.envs.utils.io_descriptors import (
     record_shape,
 )
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_experimental.utils.warp import warp_capturable
+from isaaclab_newton.kernels.state_kernels import (
+    body_ang_vel_from_root,
+    body_lin_vel_from_root,
+    rotate_vec_to_body_frame,
+)
 
 from isaaclab.assets import Articulation
 
@@ -81,7 +84,6 @@ def _base_pos_z_kernel(
     out[env_id, 0] = root_pos_w[env_id][2]
 
 
-# Reviewed(jichuanh): good
 @generic_io_descriptor_warp(
     units="m", axes=["Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
 )
@@ -96,8 +98,27 @@ def base_pos_z(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntit
     )
 
 
-# Reviewed(jichuanh): good
-@warp_capturable(False)  # accesses root_lin_vel_b → lazy TimestampedWarpBuffer (Tier 2)
+# Inline Tier 1 access: these observations derive body-frame quantities directly from
+# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf), avoiding the lazy
+# TimestampedWarpBuffer properties which are not CUDA-graph-capturable.
+# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+# If ArticulationData Tier 2 lazy update is made graph-safe in the future, these can
+# revert to reading the pre-computed .data buffers (simpler, avoids redundant rotations).
+
+
+@wp.kernel
+def _base_lin_vel_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.float32, ndim=2),
+):
+    i = wp.tid()
+    v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
+    out[i, 0] = v[0]
+    out[i, 1] = v[1]
+    out[i, 2] = v[2]
+
+
 @generic_io_descriptor_warp(
     units="m/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
 )
@@ -105,15 +126,26 @@ def base_lin_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     """Root linear velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_vec3_to_out3_kernel,
+        kernel=_base_lin_vel_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_lin_vel_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
         device=env.device,
     )
 
 
-# Reviewed(jichuanh): good
-@warp_capturable(False)  # accesses root_ang_vel_b → lazy TimestampedWarpBuffer (Tier 2)
+@wp.kernel
+def _base_ang_vel_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.float32, ndim=2),
+):
+    i = wp.tid()
+    v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
+    out[i, 0] = v[0]
+    out[i, 1] = v[1]
+    out[i, 2] = v[2]
+
+
 @generic_io_descriptor_warp(
     units="rad/s", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
 )
@@ -121,15 +153,26 @@ def base_ang_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     """Root angular velocity in the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_vec3_to_out3_kernel,
+        kernel=_base_ang_vel_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_ang_vel_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
         device=env.device,
     )
 
 
-# Reviewed(jichuanh): good
-@warp_capturable(False)  # accesses projected_gravity_b → lazy TimestampedWarpBuffer (Tier 2)
+@wp.kernel
+def _projected_gravity_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    gravity_w: wp.vec3f,
+    out: wp.array(dtype=wp.float32, ndim=2),
+):
+    i = wp.tid()
+    g = rotate_vec_to_body_frame(gravity_w, root_pose_w[i])
+    out[i, 0] = g[0]
+    out[i, 1] = g[1]
+    out[i, 2] = g[2]
+
+
 @generic_io_descriptor_warp(
     units="m/s^2", axes=["X", "Y", "Z"], observation_type="RootState", on_inspect=[record_shape, record_dtype]
 )
@@ -137,9 +180,9 @@ def projected_gravity(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = Sce
     """Gravity projection on the asset's root frame."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
-        kernel=_vec3_to_out3_kernel,
+        kernel=_projected_gravity_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.projected_gravity_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
         device=env.device,
     )
 
@@ -170,18 +213,17 @@ def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
 
 
 @wp.kernel
-def _joint_pos_rel_gather_kernel(
-    joint_pos: wp.array(dtype=wp.float32, ndim=2),
-    default_joint_pos: wp.array(dtype=wp.float32, ndim=2),
+def _joint_rel_gather_kernel(
+    values: wp.array(dtype=wp.float32, ndim=2),
+    defaults: wp.array(dtype=wp.float32, ndim=2),
     joint_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
     env_id, k = wp.tid()
     j = joint_ids[k]
-    out[env_id, k] = joint_pos[env_id, j] - default_joint_pos[env_id, j]
+    out[env_id, k] = values[env_id, j] - defaults[env_id, j]
 
 
-# Reviewed(jichuanh): good
 @generic_io_descriptor_warp(
     observation_type="JointState",
     on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_pos_offsets],
@@ -199,15 +241,13 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
-        kernel=_joint_pos_rel_gather_kernel,
+        kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_pos, asset.data.default_joint_pos, joint_ids_wp, out],
         device=env.device,
     )
 
 
-# Reviewed(jichuanh): logic is different from stable version. Even upper and lower are flipped, stable
-#                     logic should work, fix this.
 @wp.kernel
 def _joint_pos_limit_normalized_kernel(
     joint_pos: wp.array(dtype=wp.float32, ndim=2),
@@ -221,12 +261,7 @@ def _joint_pos_limit_normalized_kernel(
     lim = soft_joint_pos_limits[env_id, j]
     lower = lim.x
     upper = lim.y
-    mid = (lower + upper) * 0.5
-    half_range = (upper - lower) * 0.5
-    if half_range > 0.0:
-        out[env_id, k] = (pos - mid) / half_range
-    else:
-        out[env_id, k] = 0.0
+    out[env_id, k] = 2.0 * (pos - (lower + upper) * 0.5) / (upper - lower)
 
 
 @generic_io_descriptor_warp(observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape])
@@ -247,7 +282,6 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
     )
 
 
-# Reviewed(jichuanh): good
 @generic_io_descriptor_warp(
     observation_type="JointState", on_inspect=[record_joint_names, record_dtype, record_shape], units="rad/s"
 )
@@ -268,19 +302,6 @@ def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
     )
 
 
-# Reviewed(jichuanh): kernel impl seems duplicate, rel_gather kernel could be shared.
-@wp.kernel
-def _joint_vel_rel_gather_kernel(
-    joint_vel: wp.array(dtype=wp.float32, ndim=2),
-    default_joint_vel: wp.array(dtype=wp.float32, ndim=2),
-    joint_ids: wp.array(dtype=wp.int32),
-    out: wp.array(dtype=wp.float32, ndim=2),
-):
-    env_id, k = wp.tid()
-    j = joint_ids[k]
-    out[env_id, k] = joint_vel[env_id, j] - default_joint_vel[env_id, j]
-
-
 @generic_io_descriptor_warp(
     observation_type="JointState",
     on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_vel_offsets],
@@ -298,7 +319,7 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
             "Pass `asset_cfg` via term cfg params so it is resolved at manager init."
         )
     wp.launch(
-        kernel=_joint_vel_rel_gather_kernel,
+        kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
         inputs=[asset.data.joint_vel, asset.data.default_joint_vel, joint_ids_wp, out],
         device=env.device,
@@ -308,7 +329,6 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
 """
 Actions.
 """
-# Reviewed(jichuanh): good
 
 
 @generic_io_descriptor_warp(out_dim="action", dtype=torch.float32, observation_type="Action", on_inspect=[record_shape])
@@ -326,7 +346,6 @@ Commands.
 """
 
 
-# Reviewed(jichuanh): good
 @generic_io_descriptor_warp(
     out_dim="command", dtype=torch.float32, observation_type="Command", on_inspect=[record_shape]
 )
@@ -347,5 +366,3 @@ def generated_commands(env: ManagerBasedEnv, out, command_name: str) -> None:
             fn._cmd_wp = wp.from_torch(cmd)
         fn._cmd_name = command_name
     wp.copy(out, fn._cmd_wp)
-
-

@@ -31,7 +31,6 @@ MDP terminations.
 """
 
 
-# Reviewed(jichuanh)
 @wp.kernel
 def _time_out_kernel(episode_length: wp.array(dtype=wp.int64), max_episode_length: int, out: wp.array(dtype=wp.bool)):
     i = wp.tid()
@@ -56,7 +55,6 @@ Root terminations.
 """
 
 
-# Reviewed(jichuanh): good.
 @wp.kernel
 def _root_height_below_min_kernel(
     root_pos_w: wp.array(dtype=wp.vec3f),
@@ -85,7 +83,6 @@ Joint terminations.
 """
 
 
-# Reviewed(jichuanh): good
 @wp.kernel
 def _joint_pos_out_of_manual_limit_kernel(
     joint_pos: wp.array(dtype=wp.float32, ndim=2),
@@ -122,7 +119,6 @@ Contact sensor.
 """
 
 
-# Reviewed(jichuanh): good
 @wp.kernel
 def _illegal_contact_kernel(
     forces: wp.array(dtype=wp.vec3f, ndim=3),

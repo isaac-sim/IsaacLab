@@ -688,7 +688,7 @@ fall back to mode=1 (warp not captured) automatically via `register_manager_capt
 | `base_lin_vel` | `root_lin_vel_b` → `root_com_vel_b` (Tier 2) | Applied |
 | `base_ang_vel` | `root_ang_vel_b` → `root_com_vel_b` (Tier 2) | Applied |
 | `projected_gravity` | `projected_gravity_b` (Tier 2) | Applied |
-| `body_projected_gravity_b` | `projected_gravity_b` (Tier 2) | Applied |
+| `body_projected_gravity_b` | `projected_gravity_b` (Tier 2) | Pending (body-level, not yet in experimental module) |
 
 **Rewards — base** (`isaaclab_experimental/envs/mdp/rewards.py`):
 
@@ -715,11 +715,14 @@ fall back to mode=1 (warp not captured) automatically via `register_manager_capt
 - `joint_torques_l2`, `joint_acc_l2`, `joint_vel_l2`, etc. → `joint_pos`, `joint_vel` (Tier 1)
 - `is_alive`, `is_terminated`, `action_rate_l2`, `action_l2` → no articulation data
 
-**Pending fix:** Implement `materialize_derived()` in `ArticulationData.update()` to
-eagerly compute Tier 2 properties before captured graphs replay. Once applied, all
-`@warp_capturable(False)` annotations for Tier 2 access can be removed and these terms
-become fully capturable. See `GRAPH_CAPTURE_MIGRATION.md` in the Newton articulation
-package for the proposed implementation.
+**Applied fix (Phase 1):** Affected MDP kernels were rewritten to consume Tier 1 compound
+types directly (`root_link_pose_w` as `wp.transformf`, `root_com_vel_w` as
+`wp.spatial_vectorf`) and perform the body-frame rotation inline, eliminating the Tier 2
+dependency entirely. The `@warp_capturable(False)` annotations have been removed and these
+terms are now fully capturable. Shared `@wp.func` helpers (`body_lin_vel_from_root`,
+`body_ang_vel_from_root`, `rotate_vec_to_body_frame`) live in
+`isaaclab_newton.kernels.state_kernels`. See `GRAPH_CAPTURE_MIGRATION.md` in the Newton
+articulation package for Phase 2 plans (making Tier 2 lazy update itself graph-safe).
 
 ### Resolved Cross-Cutting Blockers
 

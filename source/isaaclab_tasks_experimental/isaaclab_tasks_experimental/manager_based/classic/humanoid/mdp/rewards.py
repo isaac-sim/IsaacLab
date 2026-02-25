@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers.manager_base import ManagerTermBase
-from isaaclab_experimental.utils.warp import warp_capturable
+from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets import Articulation
@@ -32,21 +32,26 @@ if TYPE_CHECKING:
 # Function-based reward terms
 # ---------------------------------------------------------------------------
 
-# Reviewed(jichuanh): file roughly reviewed
+
+# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w,
+# avoiding the lazy TimestampedWarpBuffer which is not CUDA-graph-capturable.
+# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+# If ArticulationData Tier 2 lazy update is made graph-safe, this can revert to
+# reading asset.data.projected_gravity_b directly.
 
 
 @wp.kernel
 def _upright_posture_bonus_kernel(
-    projected_gravity_b: wp.array(dtype=wp.vec3f),
+    root_pose_w: wp.array(dtype=wp.transformf),
+    gravity_w: wp.vec3f,
     threshold: float,
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
-    up_proj = -projected_gravity_b[i][2]
+    up_proj = -rotate_vec_to_body_frame(gravity_w, root_pose_w[i])[2]
     out[i] = wp.where(up_proj > threshold, 1.0, 0.0)
 
 
-@warp_capturable(False)  # accesses projected_gravity_b → lazy TimestampedWarpBuffer (Tier 2)
 def upright_posture_bonus(
     env: ManagerBasedRLEnv, out, threshold: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> None:
@@ -55,7 +60,7 @@ def upright_posture_bonus(
     wp.launch(
         kernel=_upright_posture_bonus_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.projected_gravity_b, threshold, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, threshold, out],
         device=env.device,
     )
 

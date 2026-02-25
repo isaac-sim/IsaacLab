@@ -88,7 +88,6 @@ class ManagerCallSwitch:
 
     def __init__(self, cfg_source: dict | str | None = None, max_modes: dict[str, int] | None = None):
         self._wp_graphs: dict[str, Any] = {}
-        self._non_capturable_managers: set[str] = set()
         self._cfg = self._load_cfg(cfg_source)
         self._max_modes = self._validate_max_modes(max_modes)
         print("[INFO] ManagerCallSwitch configuration:")
@@ -104,10 +103,18 @@ class ManagerCallSwitch:
         self._wp_graphs.clear()
 
     def register_manager_capturability(self, manager_name: str, all_terms_capturable: bool) -> None:
-        """Register whether a manager's terms are all CUDA-graph-capturable."""
+        """Register whether a manager's terms are all CUDA-graph-capturable.
+
+        Called during manager _prepare_terms(). If any term is non-capturable and the
+        manager is currently configured for mode=2 (WARP_CAPTURED), downgrades it to
+        mode=1 (WARP_NOT_CAPTURED) in-place in _cfg. This is safe because mode=1 and
+        mode=2 use the same experimental manager class (only mode=0 switches to stable).
+        """
         if not all_terms_capturable:
-            self._non_capturable_managers.add(manager_name)
-            logger.warning(f"{manager_name} has non-capturable terms — mode=2 requests will fall back to mode=1.")
+            current = self.get_mode_for_manager(manager_name)
+            if current == ManagerCallMode.WARP_CAPTURED:
+                self._cfg[manager_name] = int(ManagerCallMode.WARP_NOT_CAPTURED)
+                logger.warning(f"{manager_name} has non-capturable terms — downgraded from mode=2 to mode=1.")
 
     def call_stage(
         self,
@@ -122,8 +129,6 @@ class ManagerCallSwitch:
         mode = self.get_mode_for_manager(manager_name) if mode_override is None else ManagerCallMode(mode_override)
         if mode == ManagerCallMode.STABLE:
             return self._run_calls(stable_calls)
-        if mode == ManagerCallMode.WARP_CAPTURED and manager_name in self._non_capturable_managers:
-            mode = ManagerCallMode.WARP_NOT_CAPTURED
         if mode == ManagerCallMode.WARP_NOT_CAPTURED:
             return self._run_calls(warp_calls)
         self._wp_capture_or_launch(stage=stage, calls=warp_calls)
@@ -135,6 +140,19 @@ class ManagerCallSwitch:
         return stage.split("_", 1)[0]
 
     def get_mode_for_manager(self, manager_name: str) -> ManagerCallMode:
+        """Get the effective execution mode for a manager.
+
+        The mode is resolved from _cfg which accumulates all overrides:
+        1. Default mode from DEFAULT_CONFIG (set at init).
+        2. Per-manager overrides from manager_call_config (set at init).
+        3. max_mode cap from manager_call_max_mode (applied at query time).
+        4. Non-capturable downgrade: mode=2 → mode=1 when a manager has terms marked
+           @warp_capturable(False). Written into _cfg by register_manager_capturability()
+           during manager init, so this is reflected here automatically.
+
+        The result is always the effective runtime mode — safe to use for both
+        manager class resolution and execution dispatch.
+        """
         default_key = next(iter(self.DEFAULT_CONFIG))
         mode_value = self._cfg.get(manager_name, self._cfg[default_key])
         cap = self._max_modes.get(manager_name)

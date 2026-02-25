@@ -34,151 +34,40 @@ import pytest
 import warp as wp
 
 # ---------------------------------------------------------------------------
+# Shared utilities (from parity_helpers.py)
+# ---------------------------------------------------------------------------
+from parity_helpers import (
+    DEVICE,
+    NUM_ACTIONS,
+    NUM_ENVS,
+    NUM_JOINTS,
+    MockActionManagerTorch,
+    MockActionManagerWarp,
+    MockArticulation,
+    MockArticulationData,
+    MockScene,
+    assert_close,
+    assert_equal,
+    copy_np_to_wp,
+    mutate_root_state,
+    run_warp_obs,
+    run_warp_obs_captured,
+    run_warp_rew,
+    run_warp_rew_captured,
+    run_warp_term,
+    run_warp_term_captured,
+)
+
+# ---------------------------------------------------------------------------
 # Stable (torch) implementations
 # ---------------------------------------------------------------------------
 import isaaclab.envs.mdp.observations as stable_obs
 import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 
-# ---------------------------------------------------------------------------
-# Test constants
-# ---------------------------------------------------------------------------
-NUM_ENVS = 64
-NUM_JOINTS = 12
-NUM_ACTIONS = 6
-DEVICE = "cuda:0"
-
-# Tolerance for float32 comparison (torch vs warp may differ by FMA / instruction order)
-ATOL = 1e-5
-RTOL = 1e-5
-
-
 # ============================================================================
-# Mock objects
+# File-specific mock objects
 # ============================================================================
-
-
-class MockArticulationData:
-    """Mock articulation data backed by Warp arrays (same storage Newton uses)."""
-
-    def __init__(self, num_envs: int, num_joints: int, device: str, seed: int = 42):
-        rng = np.random.RandomState(seed)
-
-        # --- Joint state (float32 2D) ---
-        self.joint_pos = wp.array(rng.randn(num_envs, num_joints).astype(np.float32), device=device)
-        self.joint_vel = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 2.0, device=device)
-        self.joint_acc = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.5, device=device)
-        self.default_joint_pos = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.01, device=device)
-        self.default_joint_vel = wp.array(np.zeros((num_envs, num_joints), dtype=np.float32), device=device)
-        self.applied_torque = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
-        self.computed_torque = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
-
-        # --- Soft joint position limits (vec2f 2D) ---
-        limits_np = np.zeros((num_envs, num_joints, 2), dtype=np.float32)
-        limits_np[:, :, 0] = -3.14  # lower
-        limits_np[:, :, 1] = 3.14  # upper
-        self.soft_joint_pos_limits = wp.array(limits_np, dtype=wp.vec2f, device=device)
-
-        # --- Soft joint velocity limits (float32 2D) ---
-        self.soft_joint_vel_limits = wp.array(np.full((num_envs, num_joints), 10.0, dtype=np.float32), device=device)
-
-        # --- Root state ---
-        root_pos_np = rng.randn(num_envs, 3).astype(np.float32)
-        root_pos_np[:, 2] = np.abs(root_pos_np[:, 2]) + 0.1  # positive heights
-        self.root_pos_w = wp.array(root_pos_np, dtype=wp.vec3f, device=device)
-
-        self.root_lin_vel_b = wp.array(rng.randn(num_envs, 3).astype(np.float32), dtype=wp.vec3f, device=device)
-        self.root_ang_vel_b = wp.array(rng.randn(num_envs, 3).astype(np.float32), dtype=wp.vec3f, device=device)
-
-        # Gravity projection (unit-ish vectors pointing mostly down)
-        gravity_np = np.zeros((num_envs, 3), dtype=np.float32)
-        gravity_np[:, 2] = -1.0
-        gravity_np += rng.randn(num_envs, 3).astype(np.float32) * 0.1
-        gravity_np /= np.linalg.norm(gravity_np, axis=1, keepdims=True)
-        self.projected_gravity_b = wp.array(gravity_np, dtype=wp.vec3f, device=device)
-
-        # --- Additional root state for new observations ---
-        # Quaternion (random unit quaternions)
-        quat_np = rng.randn(num_envs, 4).astype(np.float32)
-        quat_np /= np.linalg.norm(quat_np, axis=1, keepdims=True)
-        self.root_quat_w = wp.array(quat_np, dtype=wp.quatf, device=device)
-
-        # World-frame velocities
-        self.root_lin_vel_w = wp.array(rng.randn(num_envs, 3).astype(np.float32), dtype=wp.vec3f, device=device)
-        self.root_ang_vel_w = wp.array(rng.randn(num_envs, 3).astype(np.float32), dtype=wp.vec3f, device=device)
-
-        # --- Event-specific data ---
-        # Spatial velocity (6-component: lin + ang)
-        self.root_vel_w = wp.array(rng.randn(num_envs, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=device)
-
-        # Default root pose (transformf = position vec3f + quaternion quatf)
-        default_pose_np = np.zeros((num_envs, 7), dtype=np.float32)
-        default_pose_np[:, 0:3] = rng.randn(num_envs, 3).astype(np.float32) * 0.1  # small position offsets
-        default_pose_np[:, 3:7] = [0.0, 0.0, 0.0, 1.0]  # identity quaternion (xyzw)
-        self.default_root_pose = wp.array(default_pose_np, dtype=wp.transformf, device=device)
-
-        # Default root velocity (spatial_vectorf)
-        self.default_root_vel = wp.array(
-            np.zeros((num_envs, 6), dtype=np.float32), dtype=wp.spatial_vectorf, device=device
-        )
-
-
-class MockArticulation:
-    def __init__(self, data: MockArticulationData):
-        self.data = data
-        self.num_bodies = 1
-        self.device = DEVICE
-
-    # Stub write APIs for events (no-ops — we verify scratch buffer contents instead)
-    def write_root_velocity_to_sim(self, root_velocity, env_ids=None, env_mask=None):
-        pass
-
-    def write_root_pose_to_sim(self, root_pose, env_ids=None, env_mask=None):
-        pass
-
-    def set_external_force_and_torque(self, forces, torques, body_ids=None, env_ids=None, env_mask=None):
-        pass
-
-
-class MockScene:
-    def __init__(self, assets: dict, env_origins: torch.Tensor):
-        self._assets = assets
-        self.env_origins = env_origins
-
-    def __getitem__(self, name: str):
-        return self._assets[name]
-
-
-class MockActionManagerWarp:
-    """Returns warp arrays (for experimental functions)."""
-
-    def __init__(self, action_wp: wp.array, prev_action_wp: wp.array):
-        self._action = action_wp
-        self._prev_action = prev_action_wp
-
-    @property
-    def action(self) -> wp.array:
-        return self._action
-
-    @property
-    def prev_action(self) -> wp.array:
-        return self._prev_action
-
-
-class MockActionManagerTorch:
-    """Returns torch tensors (for stable functions)."""
-
-    def __init__(self, action_wp: wp.array, prev_action_wp: wp.array):
-        self._action = wp.to_torch(action_wp)
-        self._prev_action = wp.to_torch(prev_action_wp)
-
-    @property
-    def action(self) -> torch.Tensor:
-        return self._action
-
-    @property
-    def prev_action(self) -> torch.Tensor:
-        return self._prev_action
 
 
 class MockSceneEntityCfg:
@@ -205,15 +94,11 @@ class MockSceneEntityCfg:
 def _clear_function_caches():
     """Clear first-call caches on warp MDP functions so each test starts fresh.
 
-    Functions like ``current_time_s`` and ``root_pos_w`` cache warp views on
-    themselves (``hasattr`` pattern).  Without clearing, a cached view from a
-    prior test's fixture would be stale when a new test creates different tensors.
+    Functions that cache warp views via the ``hasattr`` pattern need clearing
+    between tests to avoid stale references from prior fixtures.
     """
     yield
     for fn in (
-        warp_obs.root_pos_w,
-        warp_obs.current_time_s,
-        warp_obs.remaining_time_s,
         warp_evt.push_by_setting_velocity,
         warp_evt.apply_external_force_torque,
         warp_evt.reset_root_state_uniform,
@@ -304,73 +189,6 @@ def subset_cfg():
 
 
 # ============================================================================
-# Helpers
-# ============================================================================
-
-
-def _run_warp_obs(func, env, shape, device=DEVICE, **kwargs):
-    """Run a warp observation function and return the result as a torch tensor."""
-    out = wp.zeros(shape, dtype=wp.float32, device=device)
-    func(env, out, **kwargs)
-    return wp.to_torch(out)
-
-
-def _run_warp_obs_captured(func, env, shape, device=DEVICE, **kwargs):
-    """Run a warp observation function under CUDA graph capture and return the result."""
-    out = wp.zeros(shape, dtype=wp.float32, device=device)
-    # Warm-up (triggers any first-call lazy init)
-    func(env, out, **kwargs)
-    # Capture
-    with wp.ScopedCapture() as capture:
-        func(env, out, **kwargs)
-    # Replay
-    wp.capture_launch(capture.graph)
-    return wp.to_torch(out)
-
-
-def _run_warp_rew(func, env, device=DEVICE, **kwargs):
-    """Run a warp reward function and return the result as a torch tensor."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.float32, device=device)
-    func(env, out, **kwargs)
-    return wp.to_torch(out)
-
-
-def _run_warp_rew_captured(func, env, device=DEVICE, **kwargs):
-    """Run a warp reward function under CUDA graph capture."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.float32, device=device)
-    func(env, out, **kwargs)  # warm-up
-    with wp.ScopedCapture() as capture:
-        func(env, out, **kwargs)
-    wp.capture_launch(capture.graph)
-    return wp.to_torch(out)
-
-
-def _run_warp_term(func, env, device=DEVICE, **kwargs):
-    """Run a warp termination function and return the result as a torch tensor."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=device)
-    func(env, out, **kwargs)
-    return wp.to_torch(out)
-
-
-def _run_warp_term_captured(func, env, device=DEVICE, **kwargs):
-    """Run a warp termination function under CUDA graph capture."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=device)
-    func(env, out, **kwargs)  # warm-up
-    with wp.ScopedCapture() as capture:
-        func(env, out, **kwargs)
-    wp.capture_launch(capture.graph)
-    return wp.to_torch(out)
-
-
-def assert_close(actual: torch.Tensor, expected: torch.Tensor, atol: float = ATOL, rtol: float = RTOL):
-    torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
-
-
-def assert_equal(actual: torch.Tensor, expected: torch.Tensor):
-    assert torch.equal(actual, expected), f"Mismatch:\n  actual:   {actual}\n  expected: {expected}"
-
-
-# ============================================================================
 # Observation parity tests
 # ============================================================================
 
@@ -383,32 +201,32 @@ class TestObservationParity:
     def test_base_pos_z(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.base_pos_z(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.base_pos_z, warp_env, (NUM_ENVS, 1), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_base_lin_vel(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.base_lin_vel(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.base_lin_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_base_ang_vel(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.base_ang_vel(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.base_ang_vel, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_projected_gravity(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.projected_gravity(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.projected_gravity, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -417,16 +235,16 @@ class TestObservationParity:
     def test_joint_pos_all(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.joint_pos(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_joint_vel_all(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.joint_vel(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -436,8 +254,8 @@ class TestObservationParity:
         cfg = subset_cfg
         n_selected = len(cfg.joint_ids)
         expected = stable_obs.joint_pos(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.joint_pos, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -445,8 +263,8 @@ class TestObservationParity:
         cfg = subset_cfg
         n_selected = len(cfg.joint_ids)
         expected = stable_obs.joint_vel(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
+        actual = run_warp_obs(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(warp_obs.joint_vel, warp_env, (NUM_ENVS, n_selected), asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -455,8 +273,8 @@ class TestObservationParity:
     def test_joint_pos_limit_normalized(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_obs.joint_pos_limit_normalized(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_pos_limit_normalized, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(
+        actual = run_warp_obs(warp_obs.joint_pos_limit_normalized, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
+        actual_cap = run_warp_obs_captured(
             warp_obs.joint_pos_limit_normalized, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg
         )
         assert_close(actual, expected)
@@ -467,76 +285,8 @@ class TestObservationParity:
     def test_last_action(self, warp_env, stable_env, action_wp):
         # Stable last_action returns env.action_manager.action (torch tensor)
         expected = stable_obs.last_action(stable_env)
-        actual = _run_warp_obs(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
-        actual_cap = _run_warp_obs_captured(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Additional root state observations -------------------------------------
-
-    def test_root_pos_w(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.root_pos_w(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.root_pos_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.root_pos_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_root_quat_w(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.root_quat_w(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.root_quat_w, warp_env, (NUM_ENVS, 4), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.root_quat_w, warp_env, (NUM_ENVS, 4), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_root_quat_w_unique(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.root_quat_w(stable_env, make_quat_unique=True, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.root_quat_w, warp_env, (NUM_ENVS, 4), make_quat_unique=True, asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(
-            warp_obs.root_quat_w, warp_env, (NUM_ENVS, 4), make_quat_unique=True, asset_cfg=cfg
-        )
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_root_lin_vel_w(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.root_lin_vel_w(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.root_lin_vel_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.root_lin_vel_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_root_ang_vel_w(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.root_ang_vel_w(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.root_ang_vel_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.root_ang_vel_w, warp_env, (NUM_ENVS, 3), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_joint_effort(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_obs.joint_effort(stable_env, asset_cfg=cfg)
-        actual = _run_warp_obs(warp_obs.joint_effort, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        actual_cap = _run_warp_obs_captured(warp_obs.joint_effort, warp_env, (NUM_ENVS, NUM_JOINTS), asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    # -- Time observations ------------------------------------------------------
-
-    def test_current_time_s(self, warp_env, stable_env):
-        expected = stable_obs.current_time_s(stable_env)
-        actual = _run_warp_obs(warp_obs.current_time_s, warp_env, (NUM_ENVS, 1))
-        actual_cap = _run_warp_obs_captured(warp_obs.current_time_s, warp_env, (NUM_ENVS, 1))
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_remaining_time_s(self, warp_env, stable_env):
-        expected = stable_obs.remaining_time_s(stable_env)
-        actual = _run_warp_obs(warp_obs.remaining_time_s, warp_env, (NUM_ENVS, 1))
-        actual_cap = _run_warp_obs_captured(warp_obs.remaining_time_s, warp_env, (NUM_ENVS, 1))
+        actual = run_warp_obs(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
+        actual_cap = run_warp_obs_captured(warp_obs.last_action, warp_env, (NUM_ENVS, NUM_ACTIONS))
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -554,24 +304,24 @@ class TestRewardParity:
     def test_lin_vel_z_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.lin_vel_z_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.lin_vel_z_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.lin_vel_z_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.lin_vel_z_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.lin_vel_z_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_ang_vel_xy_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.ang_vel_xy_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.ang_vel_xy_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.ang_vel_xy_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.ang_vel_xy_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.ang_vel_xy_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_flat_orientation_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.flat_orientation_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.flat_orientation_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.flat_orientation_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.flat_orientation_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.flat_orientation_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -580,24 +330,24 @@ class TestRewardParity:
     def test_joint_vel_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.joint_vel_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_vel_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_vel_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.joint_vel_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.joint_vel_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_joint_acc_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.joint_acc_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_acc_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_acc_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.joint_acc_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.joint_acc_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_joint_torques_l2(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.joint_torques_l2(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_torques_l2, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_torques_l2, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.joint_torques_l2, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.joint_torques_l2, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -605,15 +355,15 @@ class TestRewardParity:
 
     def test_action_l2(self, warp_env, stable_env):
         expected = stable_rew.action_l2(stable_env)
-        actual = _run_warp_rew(warp_rew.action_l2, warp_env)
-        actual_cap = _run_warp_rew_captured(warp_rew.action_l2, warp_env)
+        actual = run_warp_rew(warp_rew.action_l2, warp_env)
+        actual_cap = run_warp_rew_captured(warp_rew.action_l2, warp_env)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
     def test_action_rate_l2(self, warp_env, stable_env):
         expected = stable_rew.action_rate_l2(stable_env)
-        actual = _run_warp_rew(warp_rew.action_rate_l2, warp_env)
-        actual_cap = _run_warp_rew_captured(warp_rew.action_rate_l2, warp_env)
+        actual = run_warp_rew(warp_rew.action_rate_l2, warp_env)
+        actual_cap = run_warp_rew_captured(warp_rew.action_rate_l2, warp_env)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -622,24 +372,8 @@ class TestRewardParity:
     def test_joint_pos_limits(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.joint_pos_limits(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_pos_limits, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_pos_limits, warp_env, asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_joint_vel_limits(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_rew.joint_vel_limits(stable_env, soft_ratio=0.9, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_vel_limits, warp_env, soft_ratio=0.9, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_vel_limits, warp_env, soft_ratio=0.9, asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_applied_torque_limits(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_rew.applied_torque_limits(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.applied_torque_limits, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.applied_torque_limits, warp_env, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.joint_pos_limits, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.joint_pos_limits, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -648,17 +382,8 @@ class TestRewardParity:
     def test_joint_deviation_l1(self, warp_env, stable_env, all_joints_cfg):
         cfg = all_joints_cfg
         expected = stable_rew.joint_deviation_l1(stable_env, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.joint_deviation_l1, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.joint_deviation_l1, warp_env, asset_cfg=cfg)
-        assert_close(actual, expected)
-        assert_close(actual_cap, expected)
-
-    def test_base_height_l2(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        target = 0.5
-        expected = stable_rew.base_height_l2(stable_env, target_height=target, asset_cfg=cfg)
-        actual = _run_warp_rew(warp_rew.base_height_l2, warp_env, target_height=target, asset_cfg=cfg)
-        actual_cap = _run_warp_rew_captured(warp_rew.base_height_l2, warp_env, target_height=target, asset_cfg=cfg)
+        actual = run_warp_rew(warp_rew.joint_deviation_l1, warp_env, asset_cfg=cfg)
+        actual_cap = run_warp_rew_captured(warp_rew.joint_deviation_l1, warp_env, asset_cfg=cfg)
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
@@ -675,56 +400,10 @@ class TestTerminationParity:
         cfg = all_joints_cfg
         min_h = 0.5
         expected = stable_term.root_height_below_minimum(stable_env, minimum_height=min_h, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.root_height_below_minimum, warp_env, minimum_height=min_h, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(
+        actual = run_warp_term(warp_term.root_height_below_minimum, warp_env, minimum_height=min_h, asset_cfg=cfg)
+        actual_cap = run_warp_term_captured(
             warp_term.root_height_below_minimum, warp_env, minimum_height=min_h, asset_cfg=cfg
         )
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
-
-    def test_bad_orientation(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        limit = 0.5  # ~29 degrees
-        expected = stable_term.bad_orientation(stable_env, limit_angle=limit, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.bad_orientation, warp_env, limit_angle=limit, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(warp_term.bad_orientation, warp_env, limit_angle=limit, asset_cfg=cfg)
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
-
-    def test_joint_pos_out_of_limit(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_term.joint_pos_out_of_limit(stable_env, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.joint_pos_out_of_limit, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(warp_term.joint_pos_out_of_limit, warp_env, asset_cfg=cfg)
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
-
-    def test_joint_vel_out_of_limit(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_term.joint_vel_out_of_limit(stable_env, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.joint_vel_out_of_limit, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(warp_term.joint_vel_out_of_limit, warp_env, asset_cfg=cfg)
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
-
-    # -- Additional joint terminations ------------------------------------------
-
-    def test_joint_vel_out_of_manual_limit(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        max_vel = 5.0
-        expected = stable_term.joint_vel_out_of_manual_limit(stable_env, max_velocity=max_vel, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.joint_vel_out_of_manual_limit, warp_env, max_velocity=max_vel, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(
-            warp_term.joint_vel_out_of_manual_limit, warp_env, max_velocity=max_vel, asset_cfg=cfg
-        )
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
-
-    def test_joint_effort_out_of_limit(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        expected = stable_term.joint_effort_out_of_limit(stable_env, asset_cfg=cfg)
-        actual = _run_warp_term(warp_term.joint_effort_out_of_limit, warp_env, asset_cfg=cfg)
-        actual_cap = _run_warp_term_captured(warp_term.joint_effort_out_of_limit, warp_env, asset_cfg=cfg)
         assert_equal(actual, expected)
         assert_equal(actual_cap, expected)
 
@@ -738,44 +417,23 @@ class TestTerminationParity:
 # ============================================================================
 
 
-def _copy_np_to_wp(dest: wp.array, src_np: np.ndarray):
-    """In-place overwrite of a warp array's contents from numpy (preserves pointer)."""
-    tmp = wp.array(src_np, dtype=dest.dtype, device=str(dest.device))
-    wp.copy(dest, tmp)
-
-
 def _mutate_art_data(art_data: MockArticulationData, warp_env, rng_seed: int = 200):
     """Mutate every data array in-place so captured graphs see fresh values."""
     rng = np.random.RandomState(rng_seed)
 
-    _copy_np_to_wp(art_data.joint_pos, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 1.5)
-    _copy_np_to_wp(art_data.joint_vel, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 3.0)
-    _copy_np_to_wp(art_data.joint_acc, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 0.8)
-    _copy_np_to_wp(art_data.default_joint_pos, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 0.02)
-    _copy_np_to_wp(art_data.applied_torque, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 12.0)
-    _copy_np_to_wp(art_data.computed_torque, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 12.0)
+    copy_np_to_wp(art_data.joint_pos, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 1.5)
+    copy_np_to_wp(art_data.joint_vel, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 3.0)
+    copy_np_to_wp(art_data.joint_acc, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 0.8)
+    copy_np_to_wp(art_data.default_joint_pos, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 0.02)
+    copy_np_to_wp(art_data.applied_torque, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 12.0)
+    copy_np_to_wp(art_data.computed_torque, rng.randn(NUM_ENVS, NUM_JOINTS).astype(np.float32) * 12.0)
 
-    root_pos_np = rng.randn(NUM_ENVS, 3).astype(np.float32)
-    root_pos_np[:, 2] = np.abs(root_pos_np[:, 2]) + 0.05
-    _copy_np_to_wp(art_data.root_pos_w, root_pos_np)
-    _copy_np_to_wp(art_data.root_lin_vel_b, rng.randn(NUM_ENVS, 3).astype(np.float32))
-    _copy_np_to_wp(art_data.root_ang_vel_b, rng.randn(NUM_ENVS, 3).astype(np.float32))
-    _copy_np_to_wp(art_data.root_lin_vel_w, rng.randn(NUM_ENVS, 3).astype(np.float32))
-    _copy_np_to_wp(art_data.root_ang_vel_w, rng.randn(NUM_ENVS, 3).astype(np.float32))
-
-    gravity_np = np.zeros((NUM_ENVS, 3), dtype=np.float32)
-    gravity_np[:, 2] = -1.0
-    gravity_np += rng.randn(NUM_ENVS, 3).astype(np.float32) * 0.15
-    gravity_np /= np.linalg.norm(gravity_np, axis=1, keepdims=True)
-    _copy_np_to_wp(art_data.projected_gravity_b, gravity_np)
-
-    quat_np = rng.randn(NUM_ENVS, 4).astype(np.float32)
-    quat_np /= np.linalg.norm(quat_np, axis=1, keepdims=True)
-    _copy_np_to_wp(art_data.root_quat_w, quat_np)
+    # Root state + Tier 1 compounds + derived body-frame (including projected_gravity_b)
+    mutate_root_state(rng, art_data)
 
     # Actions (in-place via warp copy — torch views auto-update)
-    _copy_np_to_wp(warp_env.action_manager._action, rng.randn(NUM_ENVS, NUM_ACTIONS).astype(np.float32))
-    _copy_np_to_wp(warp_env.action_manager._prev_action, rng.randn(NUM_ENVS, NUM_ACTIONS).astype(np.float32))
+    copy_np_to_wp(warp_env.action_manager._action, rng.randn(NUM_ENVS, NUM_ACTIONS).astype(np.float32))
+    copy_np_to_wp(warp_env.action_manager._prev_action, rng.randn(NUM_ENVS, NUM_ACTIONS).astype(np.float32))
 
     # Episode length (in-place torch update — warp zero-copy view auto-updates)
     warp_env.episode_length_buf[:] = torch.randint(0, 500, (NUM_ENVS,), dtype=torch.int64, device=DEVICE)
@@ -908,93 +566,6 @@ class TestCapturedDataMutation:
             (NUM_ENVS, NUM_ACTIONS),
         )
 
-    def test_root_pos_w(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.root_pos_w,
-            stable_obs.root_pos_w,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 3),
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_root_quat_w(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.root_quat_w,
-            stable_obs.root_quat_w,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 4),
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_root_quat_w_unique(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.root_quat_w,
-            stable_obs.root_quat_w,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 4),
-            make_quat_unique=True,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_root_lin_vel_w(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.root_lin_vel_w,
-            stable_obs.root_lin_vel_w,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 3),
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_root_ang_vel_w(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.root_ang_vel_w,
-            stable_obs.root_ang_vel_w,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 3),
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_effort(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_obs(
-            warp_obs.joint_effort,
-            stable_obs.joint_effort,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, NUM_JOINTS),
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_current_time_s(self, warp_env, stable_env, art_data):
-        self._capture_mutate_check_obs(
-            warp_obs.current_time_s,
-            stable_obs.current_time_s,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 1),
-        )
-
-    def test_remaining_time_s(self, warp_env, stable_env, art_data):
-        self._capture_mutate_check_obs(
-            warp_obs.remaining_time_s,
-            stable_obs.remaining_time_s,
-            warp_env,
-            stable_env,
-            art_data,
-            (NUM_ENVS, 1),
-        )
-
     # -- rewards ----------------------------------------------------------------
 
     def test_lin_vel_z_l2(self, warp_env, stable_env, art_data, all_joints_cfg):
@@ -1085,27 +656,6 @@ class TestCapturedDataMutation:
             asset_cfg=all_joints_cfg,
         )
 
-    def test_joint_vel_limits(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_rew(
-            warp_rew.joint_vel_limits,
-            stable_rew.joint_vel_limits,
-            warp_env,
-            stable_env,
-            art_data,
-            soft_ratio=0.9,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_applied_torque_limits(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_rew(
-            warp_rew.applied_torque_limits,
-            stable_rew.applied_torque_limits,
-            warp_env,
-            stable_env,
-            art_data,
-            asset_cfg=all_joints_cfg,
-        )
-
     def test_joint_deviation_l1(self, warp_env, stable_env, art_data, all_joints_cfg):
         self._capture_mutate_check_rew(
             warp_rew.joint_deviation_l1,
@@ -1113,17 +663,6 @@ class TestCapturedDataMutation:
             warp_env,
             stable_env,
             art_data,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_base_height_l2(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_rew(
-            warp_rew.base_height_l2,
-            stable_rew.base_height_l2,
-            warp_env,
-            stable_env,
-            art_data,
-            target_height=0.5,
             asset_cfg=all_joints_cfg,
         )
 
@@ -1137,58 +676,6 @@ class TestCapturedDataMutation:
             stable_env,
             art_data,
             minimum_height=0.5,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_bad_orientation(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.bad_orientation,
-            stable_term.bad_orientation,
-            warp_env,
-            stable_env,
-            art_data,
-            limit_angle=0.5,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_pos_out_of_limit(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.joint_pos_out_of_limit,
-            stable_term.joint_pos_out_of_limit,
-            warp_env,
-            stable_env,
-            art_data,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_vel_out_of_limit(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.joint_vel_out_of_limit,
-            stable_term.joint_vel_out_of_limit,
-            warp_env,
-            stable_env,
-            art_data,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_vel_out_of_manual_limit(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.joint_vel_out_of_manual_limit,
-            stable_term.joint_vel_out_of_manual_limit,
-            warp_env,
-            stable_env,
-            art_data,
-            max_velocity=5.0,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_effort_out_of_limit(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.joint_effort_out_of_limit,
-            stable_term.joint_effort_out_of_limit,
-            warp_env,
-            stable_env,
-            art_data,
             asset_cfg=all_joints_cfg,
         )
 
@@ -1228,7 +715,7 @@ class TestEventCapturedDataMutation:
 
         # Mutate defaults in-place
         new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.5, dtype=np.float32)
-        _copy_np_to_wp(art_data.default_joint_pos, new_defaults)
+        copy_np_to_wp(art_data.default_joint_pos, new_defaults)
 
         # Replay
         wp.capture_launch(cap.graph)
@@ -1255,7 +742,7 @@ class TestEventCapturedDataMutation:
             )
 
         new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.25, dtype=np.float32)
-        _copy_np_to_wp(art_data.default_joint_pos, new_defaults)
+        copy_np_to_wp(art_data.default_joint_pos, new_defaults)
 
         wp.capture_launch(cap.graph)
         wp.synchronize()
@@ -1284,7 +771,7 @@ class TestEventCapturedDataMutation:
 
         # Mutate root_vel_w
         new_vel = np.tile([1.0, 2.0, 3.0, 0.1, 0.2, 0.3], (NUM_ENVS, 1)).astype(np.float32)
-        _copy_np_to_wp(art_data.root_vel_w, new_vel)
+        copy_np_to_wp(art_data.root_vel_w, new_vel)
 
         wp.capture_launch(cap.graph)
         wp.synchronize()
@@ -1313,43 +800,6 @@ class TestEventCapturedDataMutation:
 
     # -- reset_root_state_uniform -----------------------------------------------
 
-    def test_reset_root_state_uniform(self, warp_env, art_data, all_joints_cfg, env_origins):
-        """With zero-width ranges, pose = default + env_origin, vel = default.  Mutate defaults → tracks."""
-        mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-        zero_pose = {
-            "x": (0.0, 0.0),
-            "y": (0.0, 0.0),
-            "z": (0.0, 0.0),
-            "roll": (0.0, 0.0),
-            "pitch": (0.0, 0.0),
-            "yaw": (0.0, 0.0),
-        }
-        zero_vel = dict(zero_pose)
-
-        warp_evt.reset_root_state_uniform(warp_env, mask, pose_range=zero_pose, velocity_range=zero_vel)
-        with wp.ScopedCapture() as cap:
-            warp_evt.reset_root_state_uniform(warp_env, mask, pose_range=zero_pose, velocity_range=zero_vel)
-
-        # Mutate default_root_pose: set all positions to (1, 2, 3), identity quat
-        new_pose = np.zeros((NUM_ENVS, 7), dtype=np.float32)
-        new_pose[:, 0:3] = [1.0, 2.0, 3.0]
-        new_pose[:, 3:7] = [0.0, 0.0, 0.0, 1.0]  # identity (xyzw)
-        _copy_np_to_wp(art_data.default_root_pose, new_pose)
-
-        wp.capture_launch(cap.graph)
-        wp.synchronize()
-
-        scratch_pose = wp.to_torch(warp_evt.reset_root_state_uniform._scratch_pose)
-        origins_t = wp.to_torch(env_origins)
-
-        # position = default(1,2,3) + env_origin + 0
-        expected_pos = torch.tensor([1.0, 2.0, 3.0], device=DEVICE).unsqueeze(0) + origins_t
-        assert_close(scratch_pose[:, :3], expected_pos)
-
-        # quaternion = identity * identity_delta = identity = (0,0,0,1) in xyzw
-        expected_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=DEVICE).expand(NUM_ENVS, -1)
-        assert_close(scratch_pose[:, 3:7], expected_quat)
-
     # -- env_mask selectivity ---------------------------------------------------
 
     def test_reset_joints_mask_selectivity(self, warp_env, art_data, all_joints_cfg):
@@ -1361,10 +811,10 @@ class TestEventCapturedDataMutation:
 
         # Set joint_pos to a known value
         sentinel = np.full((NUM_ENVS, NUM_JOINTS), 999.0, dtype=np.float32)
-        _copy_np_to_wp(art_data.joint_pos, sentinel)
+        copy_np_to_wp(art_data.joint_pos, sentinel)
 
         # Set defaults to 0
-        _copy_np_to_wp(art_data.default_joint_pos, np.zeros((NUM_ENVS, NUM_JOINTS), dtype=np.float32))
+        copy_np_to_wp(art_data.default_joint_pos, np.zeros((NUM_ENVS, NUM_JOINTS), dtype=np.float32))
 
         warp_evt.reset_joints_by_offset(
             warp_env, mask, position_range=(0.0, 0.0), velocity_range=(0.0, 0.0), asset_cfg=cfg

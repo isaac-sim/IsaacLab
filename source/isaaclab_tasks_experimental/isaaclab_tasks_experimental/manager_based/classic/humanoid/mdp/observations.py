@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 from isaaclab_experimental.envs.utils.io_descriptors import generic_io_descriptor_warp
 from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
 from isaaclab.assets import Articulation
 
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-# Reviewed(jichuanh): file reviewed
 @wp.kernel
 def _base_yaw_roll_kernel(
     root_quat_w: wp.array(dtype=wp.quatf),
@@ -60,14 +60,20 @@ def base_yaw_roll(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     )
 
 
+# Inline Tier 1 access: derives projected gravity directly from root_link_pose_w,
+# avoiding the lazy TimestampedWarpBuffer which is not CUDA-graph-capturable.
+# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+
+
 @wp.kernel
 def _base_up_proj_kernel(
-    projected_gravity_b: wp.array(dtype=wp.vec3f),
+    root_pose_w: wp.array(dtype=wp.transformf),
+    gravity_w: wp.vec3f,
     out: wp.array(dtype=wp.float32, ndim=2),
 ):
     """Project base up vector onto world up: -gravity_b[2]."""
     i = wp.tid()
-    out[i, 0] = -projected_gravity_b[i][2]
+    out[i, 0] = -rotate_vec_to_body_frame(gravity_w, root_pose_w[i])[2]
 
 
 @generic_io_descriptor_warp(out_dim=1, observation_type="RootState")
@@ -77,7 +83,7 @@ def base_up_proj(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     wp.launch(
         kernel=_base_up_proj_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.projected_gravity_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
         device=env.device,
     )
 

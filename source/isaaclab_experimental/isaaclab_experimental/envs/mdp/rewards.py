@@ -19,7 +19,11 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
-from isaaclab_experimental.utils.warp import warp_capturable
+from isaaclab_newton.kernels.state_kernels import (
+    body_ang_vel_from_root,
+    body_lin_vel_from_root,
+    rotate_vec_to_body_frame,
+)
 
 from isaaclab.assets import Articulation
 
@@ -65,63 +69,76 @@ Root penalties.
 """
 
 
-# Reviewed(jichuanh): opportunity to share kernel should be explored, e.g. a square_index kernel with
-#                     pre-allocated warp-ids array could be used.
+# Inline Tier 1 access: these rewards derive body-frame quantities directly from
+# root_link_pose_w (transformf) and root_com_vel_w (spatial_vectorf), avoiding the lazy
+# TimestampedWarpBuffer properties which are not CUDA-graph-capturable.
+# See GRAPH_CAPTURE_MIGRATION.md in isaaclab_newton for background.
+# If ArticulationData Tier 2 lazy update is made graph-safe in the future, these can
+# revert to reading the pre-computed .data buffers (simpler, avoids redundant rotations).
+
+
 @wp.kernel
-def _lin_vel_z_l2_kernel(root_lin_vel_b: wp.array(dtype=wp.vec3f), out: wp.array(dtype=wp.float32)):
+def _lin_vel_z_l2_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.float32),
+):
     i = wp.tid()
-    vz = root_lin_vel_b[i][2]
+    vz = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])[2]
     out[i] = vz * vz
 
 
-@warp_capturable(False)  # accesses root_lin_vel_b → lazy TimestampedWarpBuffer (Tier 2)
 def lin_vel_z_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize z-axis base linear velocity using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
         kernel=_lin_vel_z_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_lin_vel_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
         device=env.device,
     )
 
 
-# Reviewed(jichuanh): same as previous
 @wp.kernel
-def _ang_vel_xy_l2_kernel(root_ang_vel_b: wp.array(dtype=wp.vec3f), out: wp.array(dtype=wp.float32)):
+def _ang_vel_xy_l2_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    out: wp.array(dtype=wp.float32),
+):
     i = wp.tid()
-    v = root_ang_vel_b[i]
+    v = body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])
     out[i] = v[0] * v[0] + v[1] * v[1]
 
 
-@warp_capturable(False)  # accesses root_ang_vel_b → lazy TimestampedWarpBuffer (Tier 2)
 def ang_vel_xy_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize xy-axis base angular velocity using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
         kernel=_ang_vel_xy_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_ang_vel_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
         device=env.device,
     )
 
 
-# Reviewed(jichuanh): same as previous
 @wp.kernel
-def _flat_orientation_l2_kernel(projected_gravity_b: wp.array(dtype=wp.vec3f), out: wp.array(dtype=wp.float32)):
+def _flat_orientation_l2_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    gravity_w: wp.vec3f,
+    out: wp.array(dtype=wp.float32),
+):
     i = wp.tid()
-    g = projected_gravity_b[i]
+    g = rotate_vec_to_body_frame(gravity_w, root_pose_w[i])
     out[i] = g[0] * g[0] + g[1] * g[1]
 
 
-@warp_capturable(False)  # accesses projected_gravity_b → lazy TimestampedWarpBuffer (Tier 2)
 def flat_orientation_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize non-flat base orientation using L2 squared kernel."""
     asset: Articulation = env.scene[asset_cfg.name]
     wp.launch(
         kernel=_flat_orientation_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.projected_gravity_b, out],
+        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
         device=env.device,
     )
 
@@ -322,7 +339,6 @@ Contact sensor.
 """
 
 
-# Reviewed(jichuanh): good
 @wp.kernel
 def _undesired_contacts_kernel(
     forces: wp.array(dtype=wp.vec3f, ndim=3),
@@ -367,21 +383,20 @@ Velocity-tracking rewards.
 
 @wp.kernel
 def _track_lin_vel_xy_exp_kernel(
-    root_lin_vel_b: wp.array(dtype=wp.vec3f),
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     command: wp.array(dtype=wp.float32, ndim=2),
     std_sq_inv: float,
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
-    v = root_lin_vel_b[i]
+    v = body_lin_vel_from_root(root_pose_w[i], root_vel_w[i])
     dx = command[i, 0] - v[0]
     dy = command[i, 1] - v[1]
     error = dx * dx + dy * dy
     out[i] = wp.exp(-error * std_sq_inv)
 
 
-# Reviewed(jichuanh): Review if there's any gap to make term provide warp type by default.
-@warp_capturable(False)  # accesses root_lin_vel_b → lazy TimestampedWarpBuffer (Tier 2)
 def track_lin_vel_xy_exp(
     env: ManagerBasedRLEnv,
     out,
@@ -407,25 +422,31 @@ def track_lin_vel_xy_exp(
     wp.launch(
         kernel=_track_lin_vel_xy_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_lin_vel_b, track_lin_vel_xy_exp._cmd_wp, 1.0 / (std * std), out],
+        inputs=[
+            asset.data.root_link_pose_w,
+            asset.data.root_com_vel_w,
+            track_lin_vel_xy_exp._cmd_wp,
+            1.0 / (std * std),
+            out,
+        ],
         device=env.device,
     )
 
 
 @wp.kernel
 def _track_ang_vel_z_exp_kernel(
-    root_ang_vel_b: wp.array(dtype=wp.vec3f),
+    root_pose_w: wp.array(dtype=wp.transformf),
+    root_vel_w: wp.array(dtype=wp.spatial_vectorf),
     command: wp.array(dtype=wp.float32, ndim=2),
     cmd_col: int,
     std_sq_inv: float,
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
-    dz = command[i, cmd_col] - root_ang_vel_b[i][2]
+    dz = command[i, cmd_col] - body_ang_vel_from_root(root_pose_w[i], root_vel_w[i])[2]
     out[i] = wp.exp(-dz * dz * std_sq_inv)
 
 
-@warp_capturable(False)  # accesses root_ang_vel_b → lazy TimestampedWarpBuffer (Tier 2)
 def track_ang_vel_z_exp(
     env: ManagerBasedRLEnv,
     out,
@@ -450,6 +471,13 @@ def track_ang_vel_z_exp(
     wp.launch(
         kernel=_track_ang_vel_z_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_ang_vel_b, track_ang_vel_z_exp._cmd_wp, 2, 1.0 / (std * std), out],
+        inputs=[
+            asset.data.root_link_pose_w,
+            asset.data.root_com_vel_w,
+            track_ang_vel_z_exp._cmd_wp,
+            2,
+            1.0 / (std * std),
+            out,
+        ],
         device=env.device,
     )

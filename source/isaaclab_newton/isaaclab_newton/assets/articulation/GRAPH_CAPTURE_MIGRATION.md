@@ -97,104 +97,55 @@ _wp_capture_or_launch:
      - Data is stale from warmup
 ```
 
-## Proposed Fix: `materialize_derived()`
+## Key Insight: Tier 2 Kernels ARE Capturable
 
-Add a method to `ArticulationData` that unconditionally launches all Tier 2 kernels
-and updates timestamps. Call from `scene.update()` which runs outside capture scopes.
+The preparation kernels (`project_vec_from_pose_single`, `project_velocities_to_frame`,
+`compute_heading`) are plain `@wp.kernel` with no Python conditionals. They are fully
+capturable. The ONLY problem is the Python `if timestamp < sim_timestamp` guard.
 
-```python
-# ArticulationData
-def materialize_derived(self) -> None:
-    """Eagerly compute all Tier 2 derived properties.
-
-    Call before any captured graph that reads derived data.
-    Safe to call every step — cost is the same as accessing each property once.
-    """
-    # Root-level derived
-    _ = self.projected_gravity_b    # forces timestamp check → launches if stale
-    _ = self.heading_w
-    _ = self.root_link_vel_w
-    _ = self.root_link_vel_b
-    _ = self.root_com_vel_b
-    _ = self.root_com_pose_w
-    # Body-level derived
-    _ = self.body_link_vel_w
-    _ = self.body_com_pose_w
-```
-
-Integration point — `scene.update()` or `ArticulationData.update()`:
-
-```python
-def update(self, dt: float):
-    self._sim_timestamp += dt
-    # Existing: finite-difference quantities (need previous-step snapshot)
-    self.joint_acc
-    self.body_com_acc_w
-    # NEW: eagerly materialize all derived properties for graph capture
-    self.materialize_derived()
-```
-
-**Trade-off:** This removes the lazy optimization — every derived property computes
-every step, even if unused. For capture-mode envs this is the correct trade-off (the
-kernel cost is negligible vs graph replay savings). For non-capture envs, the extra
-kernels add overhead for unused properties.
-
-**Better approach — opt-in materialization:**
-
-Only materialize properties that the env actually uses. The `ManagerCallSwitch` knows
-which managers are in capture mode. The env can call `materialize_derived()` only when
-capture mode is active:
-
-```python
-# In ManagerBasedRLEnvWarp, after scene.update():
-if any_manager_in_capture_mode:
-    for articulation in self.scene.articulations.values():
-        articulation.data.materialize_derived()
-```
-
-Or more selectively, track which properties were accessed during warmup and only
-materialize those on subsequent steps.
-
-## Alternative: Use Compound Types in MDP Kernels
-
-Instead of fixing the data class, modify MDP terms to use Tier 1 compound types directly
-(`root_link_pose_w` as `wp.transformf`, `root_com_vel_w` as `wp.spatial_vectorf`) and
-extract components inside warp kernels:
-
-```python
-@wp.kernel
-def _projected_gravity_kernel(
-    pose_w: wp.array(dtype=wp.transformf),
-    gravity: wp.vec3f,
-    out: wp.array(dtype=wp.float32, ndim=2),
-):
-    i = wp.tid()
-    q = wp.transform_get_rotation(pose_w[i])
-    g_b = wp.quat_rotate_inv(q, gravity)
-    out[i, 0] = g_b[0]
-    out[i, 1] = g_b[1]
-    out[i, 2] = g_b[2]
-```
-
-**Pros:** No changes to articulation data class. Eliminates all Tier 2/3 overhead.
-**Cons:** Every MDP term must be rewritten. Duplicates split logic across terms.
+`scene.update()` runs outside any `wp.ScopedCapture` scope. Kernels launched there
+execute eagerly every step. MDP terms then read from pre-computed `.data` buffers
+(stable pointers), which is capturable.
 
 ## Affected MDP Terms
 
-See "Non-Capturable MDP Terms" section in
-`isaaclab_experimental/envs/mdp/WARP_MIGRATION_GAP_ANALYSIS.md` for the full list of
-MDP terms marked `@warp_capturable(False)` due to Tier 2 access, and the pending fix
-(`materialize_derived()`) that would make them capturable again.
+See "Non-Capturable MDP Terms" in `isaaclab_experimental/envs/mdp/WARP_MIGRATION_GAP_ANALYSIS.md`.
 
-## Recommendation
+Per-step Tier 2 access counts for tested envs:
 
-Short-term: Mark affected MDP terms `@warp_capturable(False)` so they fall back to
-mode=1 automatically. No incorrect results, modest perf regression for those terms.
+| Env | `root_com_vel_b` | `projected_gravity_b` | `body_link_vel_w` | Total |
+|-----|---:|---:|---:|---:|
+| Cartpole | 0 | 0 | 0 | 0 |
+| Reach-Franka | 0 | 0 | 0 | 0 |
+| Humanoid/Ant | 2 | 2 | 0 | 4 |
+| Quadruped velocity | 6 | 2 | 0 | 8 |
+| Biped velocity (G1/H1) | 4 | 2 | 1 | 7 |
 
-Medium-term: Add `materialize_derived()` to `ArticulationData` and call it from
-`scene.update()` when capture mode is active. Minimal changes, preserves lazy
-optimization for non-capture users. Once applied, all `@warp_capturable(False)`
-annotations for Tier 2 access can be removed and these terms become fully capturable.
+## Fix Plan
 
-Long-term: Migrate MDP kernels to use compound Tier 1 types directly. Best performance,
-no derived property overhead at all.
+### Phase 1: Inline Tier 1 access in MDP kernels (applied)
+
+Rewrite affected MDP kernels to consume Tier 1 compound types directly
+(`root_link_pose_w` as `wp.transformf`, `root_com_vel_w` as `wp.spatial_vectorf`)
+and perform the frame rotation inline. Remove `@warp_capturable(False)`.
+
+This is viable because the affected MDP terms do minimal work on top of the
+derived property — observations are pure format copies (`vec3f → float32[3]`),
+rewards extract a component and do a simple op (square, exp, threshold). Folding
+the rotation into the same kernel adds negligible cost and eliminates the Tier 2
+dependency entirely.
+
+No changes to `ArticulationData`. All managers become fully capturable.
+
+### Phase 2: Fix lazy update for graph capture (future)
+
+If `ArticulationData` Tier 2 properties are made graph-safe (e.g. via unconditional
+materialization in `update()` or selective on-demand computation), MDP terms can
+revert to the simpler pattern of reading pre-computed `.data` buffers. This would
+be preferable when many MDP terms access the same derived property per step, as it
+avoids redundant inline rotations.
+
+The Tier 2 kernels themselves are fully capturable `@wp.kernel` — only the Python
+timestamp guard needs removal. A fused kernel in `update()` computing all (or
+selectively needed) derived properties in one launch would make Tier 2 graph-safe
+with minimal overhead.
