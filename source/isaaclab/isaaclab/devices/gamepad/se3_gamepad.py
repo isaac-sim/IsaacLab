@@ -6,10 +6,9 @@
 """Gamepad controller for SE(3) control."""
 
 from __future__ import annotations
-
+from typing import TYPE_CHECKING
 import weakref
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -20,7 +19,10 @@ import omni
 
 from isaaclab.app.settings_manager import get_settings_manager
 
-from ..device_base import DeviceBase, DeviceCfg
+from ..device_base import DeviceBase
+if TYPE_CHECKING:
+    from .se3_gamepad_cfg import Se3GamepadCfg
+
 
 
 class Se3Gamepad(DeviceBase):
@@ -257,14 +259,3 @@ class Se3Gamepad(DeviceBase):
         delta_command[delta_command_sign] *= -1
 
         return delta_command
-
-
-@dataclass
-class Se3GamepadCfg(DeviceCfg):
-    """Configuration for SE3 gamepad devices."""
-
-    gripper_term: bool = True
-    dead_zone: float = 0.01  # For gamepad devices
-    pos_sensitivity: float = 1.0
-    rot_sensitivity: float = 1.6
-    class_type: type[DeviceBase] = Se3Gamepad

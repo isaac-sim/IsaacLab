@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from isaaclab_physx.assets import DeformableObject, SurfaceGripper
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
 from pxr import Sdf
 
@@ -654,6 +656,8 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
+        from isaaclab_physx.assets import DeformableObjectCfg, SurfaceGripperCfg  # noqa: PLC0415
+
         # store paths that are in global collision filter
         self._global_prim_paths = list()
         # Process non-sensor entities before sensors so that asset prims exist in the template

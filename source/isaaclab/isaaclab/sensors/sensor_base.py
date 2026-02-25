@@ -21,8 +21,6 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
-import omni.kit.app
-
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.stage import get_current_stage
@@ -152,6 +150,8 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app  # noqa: PLC0415
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

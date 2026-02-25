@@ -12,15 +12,12 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from isaaclab_physx.assets.articulation.kernels import update_default_joint_values
-
-from isaacsim.core.utils.extensions import enable_extension
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, AssetBase
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -37,6 +34,8 @@ def set_default_joint_pose(
     num_joints = len(default_pose)
     joint_ids = torch.arange(num_joints, device=env.device, dtype=torch.int32)
     # Use update_default_joint_values kernel to update all joints for all environments
+    from isaaclab_physx.assets.articulation.kernels import update_default_joint_values
+
     wp.launch(
         update_default_joint_values,
         dim=(env.num_envs, num_joints),
@@ -292,6 +291,8 @@ def randomize_visual_texture_material(
         # textures = [default_texture]
 
     # enable replicator extension if not already enabled
+    from isaacsim.core.utils.extensions import enable_extension
+
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
     import omni.replicator.core as rep

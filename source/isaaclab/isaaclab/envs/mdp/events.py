@@ -21,24 +21,19 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject
-
-import carb
-import omni.physics.tensors.impl.api as physx
-from isaacsim.core.utils.extensions import enable_extension
-from pxr import Gf, Sdf, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.assets import Articulation, BaseArticulation, BaseRigidObject, RigidObject
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.terrains import TerrainImporter
 from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
 if TYPE_CHECKING:
+    from isaaclab_physx.assets import DeformableObject
+
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.terrains import TerrainImporter
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -101,7 +96,7 @@ def randomize_rigid_body_scale(
         env_ids = env_ids.cpu()
 
     # acquire stage
-    stage = get_current_stage()
+    stage = env.sim.stage
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
@@ -123,7 +118,9 @@ def randomize_rigid_body_scale(
     elif not relative_child_path.startswith("/"):
         relative_child_path = "/" + relative_child_path
 
-    # use sdf changeblock for faster processing of USD properties
+    # use sdf changeblock for faster processing of USD properties (local: pxr only available with Kit)
+    from pxr import Gf, Sdf, UsdGeom, Vt  # noqa: PLC0415
+
     with Sdf.ChangeBlock():
         for i, env_id in enumerate(env_ids):
             # path to prim to randomize
@@ -549,7 +546,10 @@ def randomize_physics_scene_gravity(
     # unbatch the gravity tensor into a list
     gravity = gravity[0].tolist()
 
-    # set the gravity into the physics simulation
+    # set the gravity into the physics simulation (local: carb/physx only available with Kit)
+    import carb  # noqa: PLC0415
+    import omni.physics.tensors.impl.api as physx  # noqa: PLC0415
+
     physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
     physics_sim_view.set_gravity(carb.Float3(*gravity))
 
@@ -1462,11 +1462,12 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        # enable replicator extension if not already enabled
-        enable_extension("omni.replicator.core")
+        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
+        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
 
+        enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep
+        import omni.replicator.core as rep  # noqa: PLC0415
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
@@ -1531,8 +1532,8 @@ class randomize_visual_texture_material(ManagerTermBase):
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_texture_randomization()
         else:
-            # acquire stage
-            stage = get_current_stage()
+            # acquire stage from env simulation context
+            stage = env.sim.stage
             prims_group = rep.functional.get.prims(path_pattern=prim_path, stage=stage)
 
             num_prims = len(prims_group)
@@ -1623,10 +1624,12 @@ class randomize_visual_color(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # enable replicator extension if not already enabled
+        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
+        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep
+        import omni.replicator.core as rep  # noqa: PLC0415
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
@@ -1680,7 +1683,7 @@ class randomize_visual_color(ManagerTermBase):
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_color_randomization()
         else:
-            stage = get_current_stage()
+            stage = env.sim.stage
             prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
 
             num_prims = len(prims_group)

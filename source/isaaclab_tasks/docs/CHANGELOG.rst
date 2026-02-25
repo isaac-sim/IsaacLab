@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+1.2.0 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Split environment configuration from implementation for the following direct RL task environments.
+  Each environment now has a dedicated ``*_env_cfg.py`` file containing only the configuration dataclass,
+  keeping ``__init__.py`` imports cfg-only and leaving the implementation file free of cfg dependencies:
+
+* Added strict ``TYPE_CHECKING`` guards across MDP modules (observations, rewards, terminations,
+  curriculums, events) so that heavy simulation-backend imports (``pxr``, ``omni``, ``carb``,
+  ``scipy``) are not triggered when task configs are loaded without a running simulator.
+
 1.1.2 (2026-02-25)
 ~~~~~~~~~~~~~~~~~~
 
