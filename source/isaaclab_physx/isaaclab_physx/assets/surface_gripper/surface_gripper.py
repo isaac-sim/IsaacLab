@@ -165,7 +165,7 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        self.assert_shape_and_dtype(states, (env_ids.shape[0],), wp.float32)
+        self.assert_shape_and_dtype(states, (env_ids.shape[0],), wp.float32, "states")
 
         # Convert torch input to warp
         if isinstance(states, torch.Tensor):
@@ -227,14 +227,14 @@ class SurfaceGripper(AssetBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
 
-        for prop_data, prop_buf in [
-            (max_grip_distance, self._max_grip_distance),
-            (coaxial_force_limit, self._coaxial_force_limit),
-            (shear_force_limit, self._shear_force_limit),
-            (retry_interval, self._retry_interval),
+        for prop_name, prop_data, prop_buf in [
+            ("max_grip_distance", max_grip_distance, self._max_grip_distance),
+            ("coaxial_force_limit", coaxial_force_limit, self._coaxial_force_limit),
+            ("shear_force_limit", shear_force_limit, self._shear_force_limit),
+            ("retry_interval", retry_interval, self._retry_interval),
         ]:
             if prop_data is not None:
-                self.assert_shape_and_dtype(prop_data, (env_ids.shape[0],), wp.float32)
+                self.assert_shape_and_dtype(prop_data, (env_ids.shape[0],), wp.float32, prop_name)
                 wp.launch(
                     write_scalar_at_indices,
                     dim=env_ids.shape[0],
@@ -422,7 +422,7 @@ class SurfaceGripper(AssetBase):
         self.reset_index(env_ids)
 
     def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
@@ -430,21 +430,24 @@ class SurfaceGripper(AssetBase):
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             shape: The shape to assert.
             dtype: The warp dtype to assert.
+            name: Optional parameter name for error messages.
         """
         if __debug__:
-            if isinstance(tensor, float):
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
                 return
-            if isinstance(tensor, wp.array):
-                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
-                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
-            if isinstance(tensor, torch.Tensor):
-                if isinstance(dtype, wp.float32):
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                if dtype is wp.float32:
                     offset = ()
-                elif isinstance(dtype, wp.int32):
+                elif dtype is wp.int32:
                     offset = ()
                 else:
                     raise ValueError(f"Unsupported dtype: {dtype}")
-                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                assert tensor.shape == (*shape, *offset), f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     """
     Initialization.
