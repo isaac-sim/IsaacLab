@@ -23,11 +23,6 @@ INSTALL_REQUIRES = [
     "torch>=2.7",
     "prettytable==3.3.0",
     "toml",
-    # testing
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flatdict==4.0.1",
 ]
 
 
