@@ -201,20 +201,34 @@ def test_xform_prim_view_initialization_multiple_prims_order(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_xform_prim_view_initialization_invalid_prim(device):
-    """Test XformPrimView initialization fails for non-xformable prims."""
-    # check if CUDA is available
+def test_xform_prim_view_standardizes_transform_op(device):
+    """Test that XformPrimView standardizes a prim with xformOp:transform to translate/orient/scale."""
+    from pxr import Gf, UsdGeom
+
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
+    expected_pos = (3.0, -1.0, 0.5)
+    matrix = Gf.Matrix4d(1.0)
+    matrix.SetTranslateOnly(Gf.Vec3d(*expected_pos))
+
     stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/TransformPrim", "Xform")
+    UsdGeom.Xformable(prim).AddTransformOp().Set(matrix)
 
-    # Create a prim with non-standard xform operations
-    stage.DefinePrim("/World/InvalidPrim", "Xform")
+    view = XformPrimView("/World/TransformPrim", device=device)
 
-    # XformPrimView should raise ValueError because prim doesn't have standard operations
-    with pytest.raises(ValueError, match="not a xformable prim"):
-        XformPrimView("/World/InvalidPrim", device=device)
+    assert view.count == 1
+    assert sim_utils.validate_standard_xform_ops(view.prims[0])
+
+    xformable = UsdGeom.Xformable(view.prims[0])
+    ordered_ops = xformable.GetOrderedXformOps()
+    op_names = [op.GetOpName() for op in ordered_ops]
+    assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+    assert ordered_ops[0].Get() == Gf.Vec3d(*expected_pos)
+    assert ordered_ops[1].Get() == Gf.Quatd(1.0, 0.0, 0.0, 0.0)
+    assert ordered_ops[2].Get() == Gf.Vec3d(1.0, 1.0, 1.0)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
