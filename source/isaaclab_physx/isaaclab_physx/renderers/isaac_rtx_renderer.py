@@ -56,7 +56,8 @@ class IsaacRtxRenderer:
         self.cfg = cfg
 
     def create_render_data(self, sensor: SensorBase) -> IsaacRtxRenderData:
-        """Create render product and annotators for the tiled camera. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
+        """Create render product and annotators for the tiled camera.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
         from pxr import UsdGeom
 
@@ -150,11 +151,13 @@ class IsaacRtxRenderer:
         return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
-        """Store reference to output buffers for writing during render. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
+        """Store reference to output buffers for writing during render.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.output_data = output_data
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
+        """No-op for Isaac RTX - uses USD scene directly.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
         pass
 
     def update_camera(
@@ -164,11 +167,13 @@ class IsaacRtxRenderer:
         orientations: torch.Tensor,
         intrinsics: torch.Tensor,
     ):
-        """No-op for Replicator - uses USD camera prims directly. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
+        """No-op for Replicator - uses USD camera prims directly.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         pass
 
     def render(self, render_data: IsaacRtxRenderData):
-        """Extract data from annotators and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
+        """Extract data from annotators and write to output buffers.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
         sensor = render_data.sensor
         output_data = render_data.output_data
         if output_data is None:
@@ -265,11 +270,13 @@ class IsaacRtxRenderer:
                 )
 
     def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
-        """No-op for Isaac RTX - all outputs written in render(). See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
+        """No-op for Isaac RTX - all outputs written in render().
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
         pass
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
-        """Detach annotators from render product. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+        """Detach annotators from render product.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
             for annotator in render_data.annotators.values():
                 annotator.detach(render_data.render_product_paths)
