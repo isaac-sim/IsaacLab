@@ -2563,7 +2563,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_stiffness_index(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2590,7 +2590,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_stiffness_mask(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2618,7 +2618,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_damping_index(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2645,7 +2645,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_damping_mask(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2673,7 +2673,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_limit_stiffness_index(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2700,7 +2700,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_limit_stiffness_mask(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2728,7 +2728,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_index(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2755,7 +2755,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_mask(
         self,
         *,
-        limit: torch.Tensor | wp.array,
+        limit: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2783,7 +2783,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_rest_length_index(
         self,
         *,
-        rest_length: torch.Tensor | wp.array,
+        rest_length: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2810,7 +2810,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_rest_length_mask(
         self,
         *,
-        rest_length: torch.Tensor | wp.array,
+        rest_length: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2838,7 +2838,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_offset_index(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2865,7 +2865,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_offset_mask(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2927,7 +2927,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_stiffness_index(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -2954,7 +2954,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_stiffness_mask(
         self,
         *,
-        stiffness: torch.Tensor | wp.array,
+        stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -2982,7 +2982,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_damping_index(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -3009,7 +3009,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_damping_mask(
         self,
         *,
-        damping: torch.Tensor | wp.array,
+        damping: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -3037,7 +3037,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_limit_stiffness_index(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -3065,7 +3065,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_limit_stiffness_mask(
         self,
         *,
-        limit_stiffness: torch.Tensor | wp.array,
+        limit_stiffness: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
@@ -3093,7 +3093,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_offset_index(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -3120,7 +3120,7 @@ class Articulation(BaseArticulation):
     def set_spatial_tendon_offset_mask(
         self,
         *,
-        offset: torch.Tensor | wp.array,
+        offset: float | torch.Tensor | wp.array,
         spatial_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
