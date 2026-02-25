@@ -39,40 +39,43 @@ FLEXIV_RIZON4S_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
             "joint1": 0.0,
-            "joint2": -0.785,
+            "joint2": -0.698,
             "joint3": 0.0,
-            "joint4": 0.0,
+            "joint4": 1.571,
             "joint5": 0.0,
-            "joint6": 1.571,
+            "joint6": 0.698,
             "joint7": 0.0,
         },
         pos=(0.0, 0.0, 0.0),
         rot=(0.0, 0.0, 0.0, 1.0),
     ),
     actuators={
-        # Joints 1-2: Higher torque (123 Nm), lower speed (120°/s = 2.094 rad/s)
         "shoulder": ImplicitActuatorCfg(
             joint_names_expr=["joint[1-2]"],
             effort_limit_sim=123.0,
             velocity_limit_sim=2.094,
-            stiffness=None,
-            damping=None,
+            stiffness=6000.0,
+            damping=108.5,
+            friction=0.0,
+            armature=0.0,
         ),
-        # Joints 3-4: Medium torque (64 Nm), medium speed (140°/s = 2.443 rad/s)
         "elbow": ImplicitActuatorCfg(
             joint_names_expr=["joint[3-4]"],
             effort_limit_sim=64.0,
             velocity_limit_sim=2.443,
-            stiffness=None,
-            damping=None,
+            stiffness=4200.0,
+            damping=90.7,
+            friction=0.0,
+            armature=0.0,
         ),
-        # Joints 5-7: Lower torque (39 Nm), higher speed (280°/s = 4.887 rad/s)
         "wrist": ImplicitActuatorCfg(
             joint_names_expr=["joint[5-7]"],
             effort_limit_sim=39.0,
             velocity_limit_sim=4.887,
-            stiffness=None,
-            damping=None,
+            stiffness=1500.0,
+            damping=54.2,
+            friction=0.0,
+            armature=0.0,
         ),
     },
 )
