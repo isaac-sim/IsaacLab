@@ -204,6 +204,7 @@ class TiledCamera(Camera):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
+        self.renderer.update_transforms()
         self.renderer.render(self.render_data)
 
         for output_name, output_data in self._data.output.items():
