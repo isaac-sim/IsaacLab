@@ -117,12 +117,9 @@ import gymnasium as gym
 import torch
 
 import isaaclab.sim as sim_utils
-import omni.kit
-
-from isaaclab.utils.math import convert_quat
-
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
@@ -645,7 +642,9 @@ def replay(
     """
 
     # Initialize environment to starting state
-    env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0], device=env.device), is_relative=True)
+    env.reset_to(
+        state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0], device=env.device), is_relative=True
+    )
 
     # Create navigation control configuration
     config = LocomanipulationSDGControlConfig(
