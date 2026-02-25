@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.1.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all direct and manager-based task environments to use new ``_index`` write/set
+  APIs with keyword-only arguments.
+
+
 1.1.1 (2026-02-23)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ContactSensor ``body_names`` property to use ``num_sensors`` instead of
+  deprecated ``num_bodies``.
+
+
 0.5.0 (2026-02-24)
 ~~~~~~~~~~~~~~~~~~
 
