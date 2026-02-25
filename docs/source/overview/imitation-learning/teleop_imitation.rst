@@ -96,7 +96,7 @@ The next section describes how teleoperation devices can be used for data collec
 Imitation Learning with Isaac Lab Mimic
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/mimic/franka_mimic_imitation_learning.png
+.. figure:: ../../_static/mimic/franka_mimic_imitation_learning.jpg
    :width: 100%
    :align: center
    :alt: Franka robot performing a stacking task
@@ -252,7 +252,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
          --input_file ./datasets/annotated_dataset.hdf5 \
          --output_file ./datasets/generated_dataset_small.hdf5
 
-.. figure:: ../../_static/mimic/franka_datagen.png
+.. figure:: ../../_static/mimic/franka_datagen.jpg
    :width: 100%
    :align: center
    :alt: Franka robot performing a stacking task
