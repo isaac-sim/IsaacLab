@@ -502,16 +502,6 @@ Changed
 * Changed :class:`~isaaclab.utils.timer.Timer` class to use the online Welford's algorithm to compute the mean and standard deviation of the elapsed time.
 
 
-0.54.4 (2026-02-04)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Improved Docker multi-user isolation behavior by making omitted ``--suffix`` default to a
-  user-derived suffix, propagating it to Compose project naming, and adding pre-start conflict
-  detection while preserving legacy behavior for explicit ``--suffix ''``.
-
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
