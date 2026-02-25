@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -47,7 +48,12 @@ class RenderData:
 
     def __init__(self, render_context: newton.sensors.SensorTiledCamera.RenderContext, sensor: SensorBase):
         self.render_context = render_context
-        self.sensor = sensor
+
+        # Currently camera owns the renderer and render data. By holding full
+        # reference of the sensor, we create a circular reference between the
+        # sensor and the render data. Weak reference ensures proper garbage
+        # collection.
+        self.sensor = weakref.ref(sensor)
         self.num_cameras = 1
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
@@ -187,7 +193,8 @@ class NewtonWarpRenderer:
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        pass
+        if render_data:
+            render_data.sensor = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider([VisualizerCfg(visualizer_type="newton")])

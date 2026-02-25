@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -137,10 +138,14 @@ class IsaacRtxRenderer:
         for annotator in annotators.values():
             annotator.attach(render_product_paths)
 
+        # Currently camera owns the renderer and render data. By holding full
+        # reference of the sensor, we create a circular reference between the
+        # sensor and the render data. Weak reference ensures proper garbage
+        # collection.
         return IsaacRtxRenderData(
             annotators=annotators,
             render_product_paths=render_product_paths,
-            sensor=sensor,
+            sensor=weakref.ref(sensor),
         )
 
     def _resolve_simple_shading_mode(self, sensor: SensorBase) -> int | None:
@@ -174,9 +179,9 @@ class IsaacRtxRenderer:
     def render(self, render_data: IsaacRtxRenderData):
         """Extract data from annotators and write to output buffers.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        sensor = render_data.sensor
+        sensor = render_data.sensor() if render_data.sensor else None
         output_data = render_data.output_data
-        if output_data is None:
+        if output_data is None or sensor is None:
             return
 
         # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
@@ -280,3 +285,4 @@ class IsaacRtxRenderer:
         if render_data:
             for annotator in render_data.annotators.values():
                 annotator.detach(render_data.render_product_paths)
+            render_data.sensor = None
