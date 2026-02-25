@@ -878,11 +878,12 @@ class RigidObject(BaseRigidObject):
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_single_body_inertia_to_buffer,
+            shared_kernels.write_body_inertia_to_buffer,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
                 env_ids,
+                self._ALL_BODY_INDICES,
                 full_data,
             ],
             outputs=[
@@ -895,7 +896,7 @@ class RigidObject(BaseRigidObject):
             cpu_env_ids = wp.clone(env_ids, device="cpu")
         else:
             cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu").flatten(), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
