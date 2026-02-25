@@ -308,11 +308,7 @@ class ContactSensor(BaseContactSensor):
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
         # convert regex expressions to glob expressions for PhysX
         body_names_glob = body_names_regex.replace(".*", "*")
-        filter_prim_paths_glob = (
-            [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
-            if self.cfg.filter_prim_paths_expr is not None
-            else []
-        )
+        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
@@ -349,7 +345,7 @@ class ContactSensor(BaseContactSensor):
 
     def _create_buffers(self) -> None:
         # Store filter shapes count
-        self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr is not None else 0
+        self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr else 0
         # Store effective history length (always >= 1 for consistent buffer shapes)
         self._history_length = max(self.cfg.history_length, 1)
 
