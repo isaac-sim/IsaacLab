@@ -58,21 +58,21 @@ Installing dependencies
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu128
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
          .. code-block:: bash
 
-            pip install -U torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130
+            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
 
          .. note::
 
