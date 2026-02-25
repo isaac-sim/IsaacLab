@@ -5,9 +5,9 @@
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
@@ -27,7 +27,7 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 @configclass
 class UR10ReachEnvCfg(ReachEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=20,
                 nconmax=20,

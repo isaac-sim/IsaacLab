@@ -5,6 +5,8 @@
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -16,8 +18,6 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 import isaaclab_tasks.manager_based.classic.cartpole.mdp as mdp
@@ -162,7 +162,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
 
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 nconmax=5,
             ),
@@ -180,7 +180,7 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     # Simulation settings
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=5,
                 nconmax=3,

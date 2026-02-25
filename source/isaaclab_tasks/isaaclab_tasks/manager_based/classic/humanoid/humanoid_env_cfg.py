@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -12,6 +14,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -206,15 +209,23 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 16.0
         # simulation settings
-        self.sim.dt = 1 / 120.0
-        self.sim.newton_cfg.num_substeps = 2
-        self.sim.newton_cfg.solver_cfg.njmax = 100
-        self.sim.newton_cfg.solver_cfg.nconmax = 25
-        self.sim.newton_cfg.solver_cfg.ls_iterations = 15
-        self.sim.newton_cfg.solver_cfg.ls_parallel = True
-        self.sim.newton_cfg.solver_cfg.cone = "pyramidal"
-        self.sim.newton_cfg.solver_cfg.update_data_interval = 2
-        self.sim.newton_cfg.solver_cfg.impratio = 1
+        self.sim: SimulationCfg = SimulationCfg(
+            dt=1 / 120.0,
+            physics=NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(
+                    njmax=100,
+                    nconmax=25,
+                    ls_iterations=15,
+                    cone="pyramidal",
+                    ls_parallel=True,
+                    update_data_interval=2,
+                    impratio=1,
+                ),
+                num_substeps=2,
+                debug_mode=False,
+            ),
+        )
+        # self.sim.dt = 1 / 120.0
         self.sim.render_interval = self.decimation
         # default friction material
         self.sim.physics_material.static_friction = 1.0

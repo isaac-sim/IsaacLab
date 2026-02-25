@@ -149,18 +149,8 @@ class BaseEnvWindow:
             # create stack for controls
             self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
             with self.ui_window_elements["sim_vstack"]:
-                # create rendering mode dropdown
-                render_mode_cfg = {
-                    "label": "Rendering Mode",
-                    "type": "dropdown",
-                    "default_val": self.env.sim.render_mode.value,
-                    "items": [member.name for member in self.env.sim.RenderMode if member.value >= 0],
-                    "tooltip": "Select a rendering mode\n" + self.env.sim.RenderMode.__doc__,
-                    "on_clicked_fn": lambda value: self.env.sim.set_render_mode(self.env.sim.RenderMode[value]),
-                }
-                self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
-                    **render_mode_cfg
-                )
+                # create rendering mode dropdown if a visualizer supports it
+                self._build_render_mode_dropdown()
 
                 # create animation recording box
                 record_animate_cfg = {
@@ -175,7 +165,42 @@ class BaseEnvWindow:
                     **record_animate_cfg
                 )
                 # disable the button if fabric is not enabled
-                self.ui_window_elements["record_animation"].enabled = not self.env.sim.is_fabric_enabled()
+                self.ui_window_elements["record_animation"].enabled = not self.env.sim.settings.get(
+                    "/isaaclab/fabric_enabled", False
+                )
+
+    def _build_render_mode_dropdown(self):
+        """Build rendering mode dropdown if a visualizer supports it."""
+        import isaacsim
+
+        # Find first visualizer with render_mode support
+        viz = None
+        RenderMode = None
+        for v in self.env.sim.visualizers:
+            if hasattr(v, "render_mode") and hasattr(v, "set_render_mode"):
+                viz = v
+                # Get RenderMode enum from the visualizer's render_mode attribute
+                RenderMode = type(v.render_mode)
+                break
+
+        if viz is None or RenderMode is None:
+            return
+
+        def on_render_mode_changed(value: str):
+            if viz is not None and hasattr(viz, "set_render_mode"):
+                viz.set_render_mode(RenderMode[value])
+
+        render_mode_cfg = {
+            "label": "Rendering Mode",
+            "type": "dropdown",
+            "default_val": viz.render_mode.value,
+            "items": [member.name for member in RenderMode if member.value >= 0],
+            "tooltip": "Select a rendering mode\n" + (RenderMode.__doc__ or ""),
+            "on_clicked_fn": on_render_mode_changed,
+        }
+        self.ui_window_elements["render_dropdown"] = isaacsim.gui.components.ui_utils.dropdown_builder(
+            **render_mode_cfg
+        )
 
     def _build_viewer_frame(self):
         """Build the viewer-related control frame for the UI."""

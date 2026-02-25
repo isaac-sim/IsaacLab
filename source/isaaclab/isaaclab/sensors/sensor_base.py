@@ -11,27 +11,23 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
-import builtins
 import contextlib
 import inspect
 import re
-import torch
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationContext
-from isaaclab.sim._impl.newton_manager import NewtonManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.warp.utils import make_mask_from_torch_ids
 
-# import omni.kit.app
-# import omni.timeline
-# from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
-
+from .sensor_base_kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -82,7 +78,11 @@ class SensorBase(ABC):
         # timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
         # # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        NewtonManager.add_on_start_callback(lambda: safe_callback("_initialize_callback", None, obj_ref))
+        PhysicsManager.register_callback(
+            lambda _: safe_callback("_initialize_callback", None, obj_ref),
+            PhysicsEvent.PHYSICS_READY,
+            order=10,
+        )
         # # register timeline STOP event callback (lower priority with order=10)
         # self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
         #     int(omni.timeline.TimelineEventType.STOP),
@@ -208,31 +208,57 @@ class SensorBase(ABC):
             env_mask: The sensor mask to reset. Defaults to None (all instances).
         """
         # Resolve sensor ids
-        if env_ids is None:
-            env_ids = slice(None)
-        # Reset the timestamp for the sensors
-        self._timestamp[env_ids] = 0.0
+        if env_ids is None and env_mask is None:
+            env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+        elif env_ids is not None:
+            env_mask = make_mask_from_torch_ids(self._num_envs, env_ids, device=self._device)
 
-        self._timestamp_last_update[env_ids] = 0.0
-        # Set all reset sensors to outdated so that they are updated when data is called the next time.
-        self._is_outdated[env_ids] = True
+        wp.launch(
+            reset_envs_kernel,
+            dim=self._num_envs,
+            inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            device=self._device,
+        )
 
     def update(self, dt: float, force_recompute: bool = False):
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
         # Update the timestamp for the sensors
-        self._timestamp += dt
-        self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
+        wp.launch(
+            update_timestamp_kernel,
+            dim=self._num_envs,
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._sim_physics_dt,
+                self.cfg.update_period,
+            ],
+            device=self._device,
+        )
         # Update the buffers
-        # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
-        #   It is only for the contact sensor but there we should redefine the update function IMO.
-        if force_recompute or self._is_visualizing or (self.cfg.history_length > 0):
+        if force_recompute or self._is_visualizing:
             self._update_outdated_buffers()
 
     """
     Implementation specific.
     """
+
+    _device: str
+    """Memory device for computation."""
+    _backend: str
+    """Simulation backend (e.g., "newton")."""
+    _num_envs: int
+    """Number of environments."""
+    _sim_physics_dt: wp.array
+    """Physics simulation time step. Shape is (num_envs,)."""
+    _is_outdated: wp.array
+    """Boolean array indicating whether the sensor data needs to be refreshed. Shape is (num_envs,)."""
+    _timestamp: wp.array
+    """Current timestamp in seconds. Shape is (num_envs,)."""
+    _timestamp_last_update: wp.array
+    """Timestamp from last update in seconds. Shape is (num_envs,)."""
 
     @abstractmethod
     def _initialize_impl(self):
@@ -244,24 +270,21 @@ class SensorBase(ABC):
         # Obtain device and backend
         self._device = sim.device
         self._backend = sim.backend
-        self._sim_physics_dt = sim.get_physics_dt()
         self._num_envs = NewtonManager._num_envs
-        # Boolean tensor indicating whether the sensor data has to be refreshed
-        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-        # Current timestamp (in seconds)
-        self._timestamp = torch.zeros(self._num_envs, device=self._device)
-        # Timestamp from last update
-        self._timestamp_last_update = torch.zeros_like(self._timestamp)
+        self._sim_physics_dt = wp.full(self._num_envs, sim.get_physics_dt(), dtype=wp.float32, device=self._device)
+        self._is_outdated = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the sensor data for provided environment ids.
 
         This function does not perform any time-based checks and directly fills the data into the
         data container.
 
         Args:
-            env_ids: The indices of the sensors that are ready to capture.
+            env_mask: Mask of the environments to update. None (default): update all environments.
         """
         raise NotImplementedError
 
@@ -293,12 +316,8 @@ class SensorBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
-            try:
-                self._initialize_impl()
-                self._is_initialized = True
-            except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
+            self._initialize_impl()
+            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
@@ -316,9 +335,6 @@ class SensorBase(ABC):
         Note:
             This function is called when the prim is deleted.
         """
-        # skip callback if required
-        if getattr(SimulationContext.instance(), "_skip_next_prim_deletion_callback_fn", False):
-            return
         if prim_path == "/":
             self._clear_callbacks()
             return
@@ -352,11 +368,11 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self):
         """Fills the sensor data for the outdated sensors."""
-        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
-        if len(outdated_env_ids) > 0:
-            # obtain new data
-            self._update_buffers_impl(outdated_env_ids)
-            # update the timestamp from last update
-            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
-            # set outdated flag to false for the updated sensors
-            self._is_outdated[outdated_env_ids] = False
+        self._update_buffers_impl(self._is_outdated)
+        # update timestamps and clear outdated flags
+        wp.launch(
+            update_outdated_envs_kernel,
+            dim=self._num_envs,
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
+            device=self._device,
+        )

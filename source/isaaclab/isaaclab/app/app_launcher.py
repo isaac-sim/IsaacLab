@@ -584,7 +584,7 @@ class AppLauncher:
             return True
 
         # Omniverse visualizer explicitly requested
-        if self._visualizer is not None and "omniverse" in self._visualizer:
+        if self._visualizer is not None and "kit" in self._visualizer:
             return True
 
         # Livestreaming requires Omniverse
@@ -725,7 +725,7 @@ class AppLauncher:
         # Check if visualizers are requested and if omniverse visualizer is among them
         visualizers = launcher_args.get("visualizer", AppLauncher._APPLAUNCHER_CFG_INFO["visualizer"][1])
         visualizers_requested = visualizers is not None and len(visualizers) > 0
-        omniverse_visualizer_requested = visualizers_requested and "omniverse" in visualizers
+        omniverse_visualizer_requested = visualizers_requested and "kit" in visualizers
 
         # Track if headless was explicitly requested (via --headless flag or HEADLESS=1 env var)
         # This is used to determine if visualizers should be disabled

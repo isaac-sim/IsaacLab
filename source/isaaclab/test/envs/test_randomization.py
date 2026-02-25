@@ -30,6 +30,7 @@ import torch
 
 import omni.usd
 import pytest
+from isaaclab_newton.physics import NewtonManager
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -40,7 +41,6 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR

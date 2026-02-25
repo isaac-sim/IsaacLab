@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import UnitreeA1RoughEnvCfg
@@ -14,7 +14,7 @@ from .rough_env_cfg import UnitreeA1RoughEnvCfg
 @configclass
 class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        newton_cfg=NewtonCfg(
+        physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=45,
                 nconmax=30,

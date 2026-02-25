@@ -50,6 +50,10 @@ class RendererBase(ABC):
     def get_output(self):
         return self._output_data_buffers
 
+    def close(self):
+        """Close and clean up the renderer."""
+        pass
+
     def clone(self, cameras):
         """TODO: Clone the camera in renderer."""
         raise NotImplementedError("clone() is not implemented.")

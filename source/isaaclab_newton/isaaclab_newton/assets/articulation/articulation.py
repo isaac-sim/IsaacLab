@@ -29,6 +29,7 @@ from isaaclab_newton.kernels import (
     update_wrench_array_with_torque,
     vec13f,
 )
+from isaaclab_newton.physics import NewtonManager
 from newton import JointType, Model
 from newton.selection import ArticulationView as NewtonArticulationView
 from newton.solvers import SolverMuJoCo, SolverNotifyFlags
@@ -37,14 +38,15 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim._impl.newton_manager import NewtonManager
 from isaaclab.utils.helpers import deprecated
 from isaaclab.utils.warp.update_kernels import (
     update_array1D_with_array1D_masked,
     update_array1D_with_value,
+    update_array1D_with_value_indexed,
     update_array1D_with_value_masked,
     update_array2D_with_array1D_indexed,
     update_array2D_with_array2D_masked,
+    update_array2D_with_value_indexed,
     update_array2D_with_value_masked,
 )
 from isaaclab.utils.warp.utils import (
@@ -2141,6 +2143,8 @@ class Articulation(BaseArticulation):
         self._root_view = NewtonArticulationView(
             NewtonManager.get_model(), prim_path, verbose=True, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
+        # Register view with NewtonManager
+        NewtonManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
         self._data = ArticulationData(self._root_view, self.device)
@@ -2252,6 +2256,89 @@ class Articulation(BaseArticulation):
                     wp.array(indices_list, dtype=wp.int32, device=self.device),
                 ],
             )
+        self._process_parameter_override()
+
+    def _process_parameter_override(self):
+        model = NewtonManager.get_model()
+        for param_name, (param_value, param_expr) in self.cfg.model_parameter_override.items():
+            # Check that the parameter exists in the model.
+            if getattr(model, param_name, None) is None:
+                raise ValueError(f"Parameter '{param_name}' is not found in the model.")
+            # Check that there is a frequency for this parameter.
+            frequency = model.attribute_frequency.get(param_name)
+            if frequency is None:
+                # No frequency, so we can't resolve the value.
+                raise ValueError(
+                    f"Parameter '{param_name}' has no frequency, so it cannot be resolved. "
+                    "Please provide a scalar value instead."
+                )
+            # Get the attribute through the selection API
+            # A frequency exists for this field, so we can resolve the indices if an expression is provided.
+            if frequency == Model.AttributeFrequency.BODY:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all bodies as organized in the environment
+                body_subset = NewtonManager.get_model().body_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, body_subset, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.JOINT_DOF:
+                # 3D array from selection API
+                param = self.root_view.get_attribute(param_name, NewtonManager.get_model())
+                # Make 2D (for now assume only 1 articulation)
+                param = param.reshape(param.shape[0], param.shape[2])
+                # Search over all joint DOFs as organized in the articulation
+                joint_dof_subset = self.root_view.joint_dof_names
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, joint_dof_subset, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.SHAPE:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all shapes as organized in the environment
+                all_shapes = NewtonManager.get_model().shape_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, all_shapes, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            elif frequency == Model.AttributeFrequency.JOINT:
+                # 1D flattened array
+                param = getattr(NewtonManager.get_model(), param_name)
+                # Search over all joints as organized in the environment
+                all_joints = NewtonManager.get_model().joint_key
+                param_expr = ".*" if param_expr is None else param_expr
+                indices, _ = string_utils.resolve_matching_names(param_expr, all_joints, False)
+                indices = wp.array(indices, dtype=wp.int32, device=self.device)
+            else:
+                raise ValueError(f"Parameter '{param_name}' has an unsupported frequency: {frequency}.")
+
+            if param.ndim == 1:
+                wp.launch(
+                    update_array1D_with_value_indexed,
+                    dim=(len(indices),),
+                    inputs=[
+                        param_value,
+                        param,
+                        indices,
+                    ],
+                    device=self.device,
+                )
+            elif param.ndim == 2:
+                wp.launch(
+                    update_array2D_with_value_indexed,
+                    dim=(param.shape[0], len(indices)),
+                    inputs=[
+                        param_value,
+                        param,
+                        None,
+                        indices,
+                    ],
+                    device=self.device,
+                )
+            else:
+                raise ValueError(
+                    f"Parameter '{param_name}' has an unsupported number of dimensions: {param.ndim}. "
+                    "Only 1D and 2D arrays are supported."
+                )
 
     """
     Internal simulation callbacks.

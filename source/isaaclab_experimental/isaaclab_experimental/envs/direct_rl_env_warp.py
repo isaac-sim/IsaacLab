@@ -24,7 +24,8 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 from isaaclab.envs.direct_rl_env_cfg import DirectRLEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
+
+# from isaaclab.envs.ui import ViewportCameraController
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
@@ -150,7 +151,7 @@ class DirectRLEnvWarp(gym.Env):
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
@@ -160,8 +161,11 @@ class DirectRLEnvWarp(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+        has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+        offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+        if has_gui or offscreen_render:
+            # self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+            self.viewport_camera_controller = None
         else:
             self.viewport_camera_controller = None
 
@@ -183,7 +187,7 @@ class DirectRLEnvWarp(gym.Env):
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.sim.reset()
             # update scene to pre populate data buffers for assets and sensors.
             # this is needed for the observation manager to get valid tensors for initialization.
@@ -198,7 +202,7 @@ class DirectRLEnvWarp(gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+        if bool(self.sim.settings.get("/isaaclab/visualizer")) and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -388,7 +392,7 @@ class DirectRLEnvWarp(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.has_rtx_sensors()
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -521,12 +525,19 @@ class DirectRLEnvWarp(gym.Env):
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+            has_gui = bool(self.sim.get_setting("/isaaclab/has_gui"))
+            offscreen_render = bool(self.sim.get_setting("/isaaclab/render/offscreen"))
+            # Rendering is possible if we have GUI or offscreen rendering enabled
+            can_render = has_gui or offscreen_render
+
+            if not can_render:
+                render_mode_name = "NO_GUI_OR_RENDERING"
                 raise RuntimeError(
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
-                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
-                    " If running headless, make sure --enable_cameras is set."
+                    f" '{render_mode_name}'. Please set the simulation render mode"
+                    " to:'PARTIAL_RENDERING' or"
+                    " 'FULL_RENDERING'. If running headless, make"
+                    " sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):

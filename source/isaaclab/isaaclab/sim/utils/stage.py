@@ -3,24 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
 import contextlib
 import logging
 import threading
 import typing
 from collections.abc import Generator
 
-# import carb
-# import omni
-# import omni.kit.app
-# import usdrt
-# from isaacsim.core.utils import stage as sim_stage
-# from isaacsim.core.version import get_version
-# from omni.metrics.assembler.core import get_metrics_assembler_interface
-# from omni.usd.commands import DeletePrimsCommand
 from pxr import Sdf, Usd, UsdGeom, UsdUtils
 
-# import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
@@ -378,10 +368,12 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
             return False
         if prim.GetMetadata("hide_in_stage_window"):
             return False
-        import omni.usd
-
-        if omni.usd.check_ancestral(prim):
-            return False
+        # Check if any ancestor has references (ancestral check)
+        current = prim
+        while current and current.GetPath() != Sdf.Path("/"):
+            if current.HasAuthoredReferences():
+                return False
+            current = current.GetParent()
         return True
 
     def predicate_from_path(prim: Usd.Prim) -> bool:
@@ -394,14 +386,11 @@ def clear_stage(predicate: typing.Callable[[str], bool] | None = None) -> None:
     else:
         prims = get_all_matching_child_prims("/", predicate_from_path)
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
-    from omni.usd.commands import DeletePrimsCommand
 
-    DeletePrimsCommand(prim_paths_to_delete).do()
-
-    if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-        import omni.kit.app
-
-        omni.kit.app.get_app_interface().update()
+    # Delete prims using USD API directly
+    stage = get_current_stage()
+    for prim_path in prim_paths_to_delete:
+        stage.RemovePrim(prim_path)
 
 
 def print_stage_prim_paths(fabric: bool = False) -> None:

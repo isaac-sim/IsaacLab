@@ -3,7 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for Newton physics manager."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
+
+from .newton_manager import NewtonManager
+
+if TYPE_CHECKING:
+    from isaaclab.physics import PhysicsManager
 
 
 @configclass
@@ -51,7 +63,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Solver type. Can be "cg" or "newton", or their corresponding MuJoCo integer constants."""
 
     integrator: str = "euler"
-    """Integrator type. Can be "euler", "rk4", or "implicit", or their corresponding MuJoCo integer constants."""
+    """Integrator type. Can be "euler", "rk4", or "implicitfast", or their corresponding MuJoCo integer constants."""
 
     use_mujoco_cpu: bool = False
     """Whether to use the pure MuJoCo backend instead of `mujoco_warp`."""
@@ -91,7 +103,7 @@ class MJWarpSolverCfg(NewtonSolverCfg):
 
 
 @configclass
-class XPBOSolverCfg(NewtonSolverCfg):
+class XPBDSolverCfg(NewtonSolverCfg):
     """An implicit integrator using eXtended Position-Based Dynamics (XPBD) for rigid and soft body simulation.
 
     References:
@@ -175,3 +187,29 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
 
     fuse_cholesky: bool = True
     """Whether to fuse the Cholesky decomposition."""
+
+
+@configclass
+class NewtonCfg(PhysicsCfg):
+    """Configuration for Newton physics manager.
+
+    This configuration includes Newton-specific simulation settings and solver configuration.
+    """
+
+    class_type: type[PhysicsManager] = NewtonManager
+    """The class type of the NewtonManager."""
+
+    num_substeps: int = 1
+    """Number of substeps to use for the solver."""
+
+    debug_mode: bool = False
+    """Whether to enable debug mode for the solver."""
+
+    use_cuda_graph: bool = True
+    """Whether to use CUDA graphing when simulating.
+
+    If set to False, the simulation performance will be severely degraded.
+    """
+
+    solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
+    """Solver configuration. Default is MJWarpSolverCfg()."""
