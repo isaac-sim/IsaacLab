@@ -428,7 +428,7 @@ class SurfaceGripper(AssetBase):
         self.reset_index(env_ids)
 
     def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
@@ -436,21 +436,24 @@ class SurfaceGripper(AssetBase):
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             shape: The shape to assert.
             dtype: The warp dtype to assert.
+            name: Optional parameter name for error messages.
         """
         if __debug__:
-            if isinstance(tensor, float):
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            if isinstance(tensor, (int, float)):
                 return
-            if isinstance(tensor, wp.array):
-                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
-                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
-            if isinstance(tensor, torch.Tensor):
-                if isinstance(dtype, wp.float32):
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                if dtype is wp.float32:
                     offset = ()
-                elif isinstance(dtype, wp.int32):
+                elif dtype is wp.int32:
                     offset = ()
                 else:
                     raise ValueError(f"Unsupported dtype: {dtype}")
-                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                assert tensor.shape == (*shape, *offset), f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     """
     Initialization.
