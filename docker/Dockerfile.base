@@ -42,6 +42,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     build-essential \
     cmake \
     git \
+    # required to build imgui-bundle (use by isaaclab_newton)
+    libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
     libglib2.0-0 \
     ncurses-term \
     wget && \

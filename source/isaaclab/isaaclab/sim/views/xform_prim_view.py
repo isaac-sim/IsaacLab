@@ -128,6 +128,7 @@ class XformPrimView:
         # Validate all prims have standard xform operations
         if validate_xform_ops:
             for prim in self._prims:
+                sim_utils.standardize_xform_ops(prim)
                 if not sim_utils.validate_standard_xform_ops(prim):
                     raise ValueError(
                         f"Prim at path '{prim.GetPath().pathString}' is not a xformable prim with standard transform"
