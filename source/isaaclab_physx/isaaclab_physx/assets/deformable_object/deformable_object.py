@@ -428,7 +428,6 @@ class DeformableObject(AssetBase):
             env_ids = self._ALL_INDICES
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
-
     """
     Operations - Deprecated wrappers.
     """

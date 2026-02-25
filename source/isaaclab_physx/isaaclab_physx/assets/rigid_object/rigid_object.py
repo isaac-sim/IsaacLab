@@ -1078,7 +1078,6 @@ class RigidObject(BaseRigidObject):
         # set all existing views to None to invalidate them
         self._root_view = None
 
-
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""

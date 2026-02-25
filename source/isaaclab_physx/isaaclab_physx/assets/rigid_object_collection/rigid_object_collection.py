@@ -1386,7 +1386,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self._clear_callbacks()
                 return
 
-
     """
     Deprecated properties and methods.
     """
