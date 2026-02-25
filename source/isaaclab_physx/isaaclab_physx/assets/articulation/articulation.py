@@ -3248,6 +3248,7 @@ class Articulation(BaseArticulation):
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
+        self.assert_shape_and_dtype(env_ids, (env_ids.shape[0]), wp.int32)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
             self.data.fixed_tendon_stiffness,
@@ -3732,6 +3733,7 @@ class Articulation(BaseArticulation):
             env_ids = self._ALL_INDICES
         elif isinstance(env_ids, list):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+        self.assert_shape_and_dtype(env_ids, (env_ids.shape[0]), wp.int32)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
             self.data.spatial_tendon_stiffness,
@@ -4518,6 +4520,35 @@ class Articulation(BaseArticulation):
         if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
             return self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The shape to assert.
+            dtype: The warp dtype to assert.
+        """
+        if __debug__:
+            if isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
+            if isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, wp.float32):
+                    offset = ()
+                elif isinstance(dtype, wp.vec2f):
+                    offset = (2,)
+                elif isinstance(dtype, wp.vec3f):
+                    offset = (3,)
+                elif isinstance(dtype, wp.transformf):
+                    offset = (7,)
+                elif isinstance(dtype, wp.spatial_vectorf):
+                    offset = (6,)
+                else:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     """
     Deprecated methods.

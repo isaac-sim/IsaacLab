@@ -427,6 +427,31 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(indices)
         self.reset_index(env_ids)
 
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The shape to assert.
+            dtype: The warp dtype to assert.
+        """
+        if __debug__:
+            if isinstance(tensor, float):
+                return
+            if isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
+            if isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, wp.float32):
+                    offset = ()
+                elif isinstance(dtype, wp.int32):
+                    offset = ()
+                else:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+
     """
     Initialization.
     """

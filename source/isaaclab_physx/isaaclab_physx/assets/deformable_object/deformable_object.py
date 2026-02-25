@@ -428,6 +428,35 @@ class DeformableObject(AssetBase):
             env_ids = self._ALL_INDICES
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
 
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The shape to assert.
+            dtype: The warp dtype to assert.
+        """
+        if __debug__:
+            if isinstance(tensor, float):
+                return
+            if isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
+            if isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, wp.float32):
+                    offset = ()
+                elif isinstance(dtype, wp.vec3f):
+                    offset = (3,)
+                elif isinstance(dtype, wp.vec4f):
+                    offset = (4,)
+                elif isinstance(dtype, vec6f):
+                    offset = (6,)
+                else:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+
     """
     Operations - Deprecated wrappers.
     """

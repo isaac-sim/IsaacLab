@@ -996,6 +996,69 @@ class RigidObject(BaseRigidObject):
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
     """
+    Validation.
+    """
+
+    def assert_shape_and_dtype(
+        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The shape to assert.
+            dtype: The warp dtype to assert.
+        """
+        if __debug__:
+            if isinstance(tensor, float):
+                return
+            if isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
+            if isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, wp.float32):
+                    offset = ()
+                elif isinstance(dtype, wp.vec3f):
+                    offset = (3,)
+                elif isinstance(dtype, wp.transformf):
+                    offset = (7,)
+                elif isinstance(dtype, wp.spatial_vectorf):
+                    offset = (6,)
+                else:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+
+    def assert_shape_and_dtype_mask(
+        self, tensor: float | torch.Tensor | wp.array, masks: tuple[wp.array, ...], dtype: type
+    ) -> None:
+        """Assert the shape of a tensor or warp array against mask dimensions.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            masks: Tuple of mask arrays whose shape[0] dimensions form the expected shape.
+            dtype: The warp dtype to assert.
+        """
+        if __debug__:
+            if isinstance(tensor, float):
+                return
+            shape = tuple(m.shape[0] for m in masks)
+            if isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"Shape mismatch: {tensor.shape} != {shape}"
+            if isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, wp.float32):
+                    offset = ()
+                elif isinstance(dtype, wp.vec3f):
+                    offset = (3,)
+                elif isinstance(dtype, wp.transformf):
+                    offset = (7,)
+                elif isinstance(dtype, wp.spatial_vectorf):
+                    offset = (6,)
+                else:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), f"Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+
+    """
     Internal helper.
     """
 
