@@ -91,8 +91,7 @@ class TiledCamera(Camera):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        self.renderer = Renderer(cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self.renderer).__name__)
+        self.renderer: Renderer | None = None
         self.render_data = None
         super().__init__(cfg)
 
@@ -100,8 +99,8 @@ class TiledCamera(Camera):
         """Unsubscribes from callbacks and detach from the replicator registry."""
         # unsubscribe from callbacks
         SensorBase.__del__(self)
-        # cleanup render resources
-        if hasattr(self, "renderer"):
+        # cleanup render resources (renderer may be None if never initialized)
+        if hasattr(self, "renderer") and self.renderer is not None:
             self.renderer.cleanup(getattr(self, "render_data", None))
 
     def __str__(self) -> str:
@@ -181,6 +180,10 @@ class TiledCamera(Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
+
+        # Create renderer after scene is ready (post-cloning) so world_count is correct
+        self.renderer = Renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self.renderer).__name__)
 
         self.render_data = self.renderer.create_render_data(self)
 
