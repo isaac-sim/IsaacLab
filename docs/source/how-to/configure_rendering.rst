@@ -19,8 +19,8 @@ Selecting a Rendering Mode Profile
 
 Rendering mode can be selected in two ways:
 
-1. Set ``rendering_quality`` in a visualizer config, which selects an entry from
-   :attr:`~sim.SimulationCfg.rendering_quality_cfgs`.
+1. Set the visualizer profile selector field ``rendering_mode``, which selects an entry from
+   :attr:`~sim.SimulationCfg.rendering_mode_cfgs`.
 
    .. code-block:: python
 
@@ -30,13 +30,13 @@ Rendering mode can be selected in two ways:
       sim_cfg = sim_utils.SimulationCfg(
           visualizer_cfgs=[
               KitVisualizerCfg(
-                  rendering_quality="performance",
+                  rendering_mode="performance",
               ),
           ],
       )
 
 2. Use the ``--rendering_mode`` CLI argument, which takes precedence over
-   ``visualizer_cfg.rendering_quality``.
+   ``visualizer_cfg.rendering_mode``.
 
    .. code-block:: bash
 
@@ -44,7 +44,7 @@ Rendering mode can be selected in two ways:
 
 Notes:
 
-* If ``rendering_quality=None`` for a visualizer, Isaac Lab does not apply rendering overrides
+* If ``rendering_mode=None`` for a visualizer, Isaac Lab does not apply rendering overrides
   for that visualizer, and backend/native defaults (for Kit, USD-authored settings) are used.
 * ``--rendering_mode`` is the supported CLI entry point.
 

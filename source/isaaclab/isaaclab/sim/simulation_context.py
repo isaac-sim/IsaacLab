@@ -296,18 +296,18 @@ class SimulationContext:
             self.get_setting,
             self.set_setting,
             visualizer_cfg,
-            quality_cfgs,
+            mode_cfgs,
             logger,
         )
 
-    def _apply_runtime_quality_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
-        quality_cfgs = getattr(self.cfg, "rendering_quality_cfgs", None) or {}
-        apply_runtime_quality_profile_to_visualizer(
+    def _apply_runtime_mode_profile_to_visualizer(self, viz: Visualizer, force: bool = False) -> None:
+        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        apply_runtime_mode_profile_to_visualizer(
             self.get_setting,
             self.set_setting,
             viz,
-            self._visualizer_quality_keys,
-            quality_cfgs,
+            self._visualizer_mode_keys,
+            mode_cfgs,
             logger,
             force=force,
         )
@@ -588,10 +588,10 @@ class SimulationContext:
 
         for cfg in visualizer_cfgs:
             try:
-                self._apply_quality_profile_to_visualizer_cfg(cfg)
+                self._apply_mode_profile_to_visualizer_cfg(cfg)
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
-                self._apply_runtime_quality_profile_to_visualizer(visualizer, force=True)
+                self._apply_runtime_mode_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
             except Exception as exc:
                 if cli_explicit:
@@ -733,7 +733,7 @@ class SimulationContext:
 
         for viz in visualizers_to_remove:
             try:
-                self._visualizer_quality_keys.pop(id(viz), None)
+                self._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
                 self._visualizers.remove(viz)
                 logger.info("Removed visualizer: %s", type(viz).__name__)
@@ -808,7 +808,7 @@ class SimulationContext:
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
-                cls._instance._visualizer_quality_keys.pop(id(viz), None)
+                cls._instance._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
             cls._instance._visualizers.clear()
             if cls._instance._scene_data_provider is not None:
