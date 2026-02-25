@@ -70,9 +70,12 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
+        # Create camera without renderer first; renderer is attached after the
+        # scene is cloned so that the Newton model has been built by the time
+        # NewtonWarpRenderer.__init__ calls initialize_scene_data_provider().
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
 
-        # clone and replicate
+        # clone and replicate (Newton model is built during this step)
         self.scene.clone_environments(copy_from_source=False)
         if self.device == "cpu":
             # we need to explicitly filter collisions for CPU simulation
@@ -85,6 +88,19 @@ class CartpoleCameraEnv(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
+        # Now that the scene is fully built, create the renderer and attach it.
+        # TiledCamera._initialize_impl() checks self.renderer when it first runs,
+        # so the renderer must be set before the first scene.update() call.
+        renderer_class_path = getattr(self.cfg.tiled_camera, "renderer_class", None)
+        if renderer_class_path is not None:
+            from isaaclab.utils.string import string_to_callable
+
+            renderer = string_to_callable(renderer_class_path)()
+            self._tiled_camera.renderer = renderer
+        else:
+            renderer = None
+        self._renderer = renderer
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()
 
@@ -92,6 +108,11 @@ class CartpoleCameraEnv(DirectRLEnv):
         self._cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
+        # Update Newton renderer transforms after scene.update() so the camera
+        # positions reflect the latest physics state before rendering.
+        if self._renderer is not None:
+            self._renderer.update_transforms()
+
         data_type = self.cfg.tiled_camera.data_types[0]
         if "rgb" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type] / 255.0
@@ -114,7 +135,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
         return observations
 

@@ -65,11 +65,9 @@ class PhysxSceneDataProvider:
         return max_env_id + 1 if max_env_id >= 0 else 0
 
     def __init__(self, visualizer_cfgs: list[Any] | None, stage, simulation_context) -> None:
-        from isaacsim.core.simulation_manager import SimulationManager
-
         self._simulation_context = simulation_context
         self._stage = stage
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = simulation_context.physics_sim_view
         self._rigid_body_view = None
         self._articulation_view = None
         self._xform_views: dict[str, Any] = {}
@@ -152,8 +150,11 @@ class PhysxSceneDataProvider:
             self._newton_state = self._newton_model.state()
 
             # Extract scene structure from Newton model (single source of truth)
-            self._rigid_body_paths = list(self._newton_model.body_label)
-            self._articulation_paths = list(self._newton_model.articulation_label)
+            # Newton >= 0.x renamed body_label -> body_key, articulation_label -> articulation_key
+            body_attr = "body_key" if hasattr(self._newton_model, "body_key") else "body_label"
+            artic_attr = "articulation_key" if hasattr(self._newton_model, "articulation_key") else "articulation_label"
+            self._rigid_body_paths = list(getattr(self._newton_model, body_attr))
+            self._articulation_paths = list(getattr(self._newton_model, artic_attr))
 
             self._xform_views.clear()
             self._view_body_index_map = {}

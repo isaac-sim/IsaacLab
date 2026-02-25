@@ -431,13 +431,22 @@ class SimulationContext:
 
     def initialize_scene_data_provider(self, visualizer_cfgs: list[Any]) -> SceneDataProvider:
         if self._scene_data_provider is None:
-            from .scene_data_providers import PhysxSceneDataProvider
+            from .scene_data_providers import NewtonSceneDataProvider, PhysxSceneDataProvider
 
-            # TODO: When Newton/Warp backend scene data provider is implemented and validated,
-            # switch provider selection to route by physics backend:
-            # - Omni/PhysX -> PhysxSceneDataProvider
-            # - Newton/Warp -> NewtonSceneDataProvider
-            self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
+            # Route by physics backend: Newton -> NewtonSceneDataProvider (reads live
+            # model/state from NewtonManager), PhysX -> PhysxSceneDataProvider.
+            _use_newton = False
+            try:
+                from isaaclab_newton.physics import NewtonManager
+
+                _use_newton = NewtonManager.get_model() is not None
+            except ImportError:
+                pass
+
+            if _use_newton:
+                self._scene_data_provider = NewtonSceneDataProvider(visualizer_cfgs, self)
+            else:
+                self._scene_data_provider = PhysxSceneDataProvider(visualizer_cfgs, self.stage, self)
         return self._scene_data_provider
 
     @property

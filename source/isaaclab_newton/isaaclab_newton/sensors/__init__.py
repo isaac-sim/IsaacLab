@@ -11,5 +11,6 @@ __getattr__, __dir__, __all__ = lazy.attach(
     __name__,
     submod_attrs={
         "contact_sensor": ["ContactSensor", "ContactSensorCfg", "ContactSensorData"],
+        "tiled_camera_cfg": ["TiledCameraCfgNewtonWarpRenderer"],
     },
 )

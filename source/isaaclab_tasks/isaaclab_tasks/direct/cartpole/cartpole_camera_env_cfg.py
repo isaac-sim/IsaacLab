@@ -13,8 +13,9 @@ from isaaclab.sensors import TiledCameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.sensors import TiledCameraCfgNewtonWarpRenderer as NewtonTiledCameraCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_newton.sensors import TiledCameraCfg as NewtonTiledCameraCfg
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 
@@ -24,6 +25,41 @@ class PhysicsCfg:
         "default": PhysxCfg(),
         "newton": NewtonCfg(),
     }
+
+
+@configclass
+class CameraCfg:
+    """Preset selector for the tiled camera.
+
+    - ``default`` — standard Isaac Sim RTX :class:`TiledCamera`
+    - ``newton``  — :class:`TiledCamera` backed by :class:`NewtonWarpRenderer`
+
+    Select at runtime with ``env.tiled_camera=newton``.
+    """
+
+    presets = {
+        "default": TiledCameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+            ),
+            width=100,
+            height=100,
+        ),
+        "newton": NewtonTiledCameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+            ),
+            width=100,
+            height=100,
+        ),
+    }
+
 
 @configclass
 class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
@@ -40,23 +76,14 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
+    # camera — resolved by preset system; defaults to TiledCameraCfg (RTX pipeline)
+    tiled_camera: CameraCfg = CameraCfg()
     write_image_to_file = False
 
-    # spaces
+    # spaces — dimensions fixed at 100 x 100 for all camera presets
     action_space = 1
     state_space = 0
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [100, 100, 3]
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -91,7 +118,7 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 1]
+    observation_space = [100, 100, 1]
 
 
 @configclass
@@ -109,7 +136,7 @@ class CartpoleAlbedoCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [100, 100, 3]
 
 
 @configclass
@@ -127,7 +154,7 @@ class CartpoleSimpleShadingConstantCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [100, 100, 3]
 
 
 @configclass
@@ -145,7 +172,7 @@ class CartpoleSimpleShadingDiffuseCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [100, 100, 3]
 
 
 @configclass
@@ -163,4 +190,4 @@ class CartpoleSimpleShadingFullCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     )
 
     # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
+    observation_space = [100, 100, 3]
