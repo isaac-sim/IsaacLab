@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
@@ -69,16 +68,6 @@ class RayCaster(SensorBase):
             cfg: The configuration parameters.
         """
         RayCaster._instance_count += 1
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the ray-caster sensor: {cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # Initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data

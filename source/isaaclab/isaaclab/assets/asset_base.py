@@ -72,24 +72,25 @@ class AssetBase(ABC):
         # get stage handle
         self.stage = get_current_stage()
 
-        # check if base asset path is valid
-        # note: currently the spawner does not work if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Robot_[1,2]" since the spawner will not
-        #   know which prim to spawn. This is a limitation of the spawner and not the asset.
-        asset_path = self.cfg.prim_path.split("/")[-1]
-        asset_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", asset_path) is None
         # spawn the asset
-        if self.cfg.spawn is not None and not asset_path_is_regex:
+        # determine path where prims should exist after spawn
+        if self.cfg.spawn is not None:
+            # Use spawn_path if set (by InteractiveScene), otherwise fall back to prim_path
+            check_path = self.cfg.spawn.spawn_path if self.cfg.spawn.spawn_path is not None else self.cfg.prim_path
             self.cfg.spawn.func(
-                self.cfg.prim_path,
+                check_path,
                 self.cfg.spawn,
                 translation=self.cfg.init_state.pos,
                 orientation=self.cfg.init_state.rot,
             )
-        # check that spawn was successful
-        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        else:
+            # asset should already exist at prim_path
+            check_path = self.cfg.prim_path
+
+        # check that prims exist
+        matching_prims = sim_utils.find_matching_prims(check_path)
         if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+            raise RuntimeError(f"Could not find prim with path {check_path}.")
 
         # register various callback functions
         self._register_callbacks()

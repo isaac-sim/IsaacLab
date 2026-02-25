@@ -66,6 +66,9 @@ class SpawnerCfg:
     the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.
     """
 
+    spawn_path: str | None = None
+    """Path where the prototype is spawned. Defaults to None."""
+
 
 @configclass
 class RigidObjectSpawnerCfg(SpawnerCfg):

@@ -77,17 +77,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.cfg = cfg.copy()
         # flag for whether the asset is initialized
         self._is_initialized = False
-        self._prim_paths = []
         # spawn the rigid objects
         for rigid_body_cfg in self.cfg.rigid_objects.values():
-            # check if the rigid object path is valid
-            # note: currently the spawner does not work if there is a regex pattern in the leaf
-            #   For example, if the prim path is "/World/Object_[1,2]" since the spawner will not
-            #   know which prim to spawn. This is a limitation of the spawner and not the asset.
-            asset_path = rigid_body_cfg.prim_path.split("/")[-1]
-            asset_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", asset_path) is None
             # spawn the asset
-            if rigid_body_cfg.spawn is not None and not asset_path_is_regex:
+            if rigid_body_cfg.spawn is not None:
                 rigid_body_cfg.spawn.func(
                     rigid_body_cfg.prim_path,
                     rigid_body_cfg.spawn,
@@ -98,7 +91,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            self._prim_paths.append(rigid_body_cfg.prim_path)
         # stores object names
         self._body_names_list = []
 
@@ -1201,7 +1193,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if prim_path == "/":
             self._clear_callbacks()
             return
-        for prim_path_expr in self._prim_paths:
+        for prim_path_expr in [obj.prim_path for obj in self.cfg.rigid_objects.values()]:
             result = re.match(
                 pattern="^" + "/".join(prim_path_expr.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
             )

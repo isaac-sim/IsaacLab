@@ -475,7 +475,7 @@ class SimulationContext:
             render: Whether to render the scene after stepping. Defaults to True.
         """
         self.physics_manager.step()
-        if render:
+        if render and self.is_rendering:
             self.render()
 
     def render(self, mode: int | None = None) -> None:
