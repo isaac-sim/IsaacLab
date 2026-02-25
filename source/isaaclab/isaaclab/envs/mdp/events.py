@@ -394,9 +394,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             # since mass randomization is done on default values, we can use the default inertia tensors
             inertias = wp.to_torch(self.asset.data.body_inertia).clone()
             # inertia has shape: (num_envs, num_bodies, 9) for all assets
-            inertias[env_ids[:, None], body_ids] = (
-                self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
-            )
+            inertias[env_ids[:, None], body_ids] = self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
             print("inertias: ", inertias.shape)
             # set the inertia tensors into the physics simulation
             self.asset.set_inertias_index(inertias=inertias, env_ids=env_ids)

@@ -685,7 +685,9 @@ class RigidObjectData(BaseRigidObjectData):
 
         # -- Body properties
         self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device).reshape((self._num_instances, 1, 9))
+        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device).reshape(
+            (self._num_instances, 1, 9)
+        )
 
     """
     Internal helpers.
