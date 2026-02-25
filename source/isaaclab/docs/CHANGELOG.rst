@@ -503,13 +503,16 @@ Changed
 
 
 0.54.4 (2026-02-04)
-=======
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
 * Improved Docker multi-user isolation behavior by making omitted ``--suffix`` default to a
   user-derived suffix, propagating it to Compose project naming, and adding pre-start conflict
   detection while preserving legacy behavior for explicit ``--suffix ''``.
 
 0.54.3 (2026-02-04)
->>>>>>> 8aa25a8966c (Updates Docker deployment docs and release metadata for multi-user isolation)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
