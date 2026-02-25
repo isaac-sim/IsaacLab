@@ -164,5 +164,3 @@ class Se2SpaceMouse(DeviceBase):
                         # additional callbacks
                         if "R" in self._additional_callbacks:
                             self._additional_callbacks["R"]
-
-

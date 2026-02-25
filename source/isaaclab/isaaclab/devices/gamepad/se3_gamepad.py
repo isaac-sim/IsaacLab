@@ -6,9 +6,10 @@
 """Gamepad controller for SE(3) control."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import weakref
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -20,9 +21,9 @@ import omni
 from isaaclab.app.settings_manager import get_settings_manager
 
 from ..device_base import DeviceBase
+
 if TYPE_CHECKING:
     from .se3_gamepad_cfg import Se3GamepadCfg
-
 
 
 class Se3Gamepad(DeviceBase):
