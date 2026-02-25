@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
@@ -44,10 +45,10 @@ def reset_object_poses_nut_pour(
     sorting_scale = env.scene[sorting_scale_cfg.name]
 
     # get default root state
-    sorting_beaker_root_states = sorting_beaker.data.default_root_state[env_ids].clone()
-    factory_nut_root_states = factory_nut.data.default_root_state[env_ids].clone()
-    sorting_bowl_root_states = sorting_bowl.data.default_root_state[env_ids].clone()
-    sorting_scale_root_states = sorting_scale.data.default_root_state[env_ids].clone()
+    sorting_beaker_root_states = wp.to_torch(sorting_beaker.data.default_root_state)[env_ids].clone()
+    factory_nut_root_states = wp.to_torch(factory_nut.data.default_root_state)[env_ids].clone()
+    sorting_bowl_root_states = wp.to_torch(sorting_bowl.data.default_root_state)[env_ids].clone()
+    sorting_scale_root_states = wp.to_torch(sorting_scale.data.default_root_state)[env_ids].clone()
 
     # get pose ranges
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]

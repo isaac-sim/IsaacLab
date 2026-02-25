@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -120,16 +119,6 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
-        # check if sensor path is valid
-        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Sensor_[1,2]".
-        sensor_path = cfg.prim_path.split("/")[-1]
-        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
-        if sensor_path_is_regex:
-            raise RuntimeError(
-                f"Invalid prim path for the camera sensor: {self.cfg.prim_path}."
-                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
-            )
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
@@ -169,6 +158,14 @@ class Camera(SensorBase):
 
         # spawn the asset
         if self.cfg.spawn is not None:
+            # Use spawn_path when set (points to template location for scene-cloned sensors).
+            # This allows the camera to be spawned inside the asset template (e.g. inside
+            # proto_asset_0) before clone_environments replicates it to all env paths.
+            spawn_target = (
+                self.cfg.spawn.spawn_path
+                if getattr(self.cfg.spawn, "spawn_path", None) is not None
+                else self.cfg.prim_path
+            )
             # compute the rotation offset
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
             rot_offset = convert_camera_frame_orientation_convention(
@@ -178,14 +175,17 @@ class Camera(SensorBase):
             # ensure vertical aperture is set, otherwise replace with default for squared pixels
             if self.cfg.spawn.vertical_aperture is None:
                 self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-            # spawn the asset
-            self.cfg.spawn.func(
-                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
-            )
-        # check that spawn was successful
-        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            self.cfg.spawn.func(spawn_target, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
+        # check that spawn was successful; use spawn_path if set (template location) since env
+        # paths are not yet populated at init time — they are filled in by clone_environments.
+        check_path = (
+            self.cfg.spawn.spawn_path
+            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
+            else self.cfg.prim_path
+        )
+        matching_prims = sim_utils.find_matching_prims(check_path)
         if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+            raise RuntimeError(f"Could not find prim with path {check_path}.")
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
