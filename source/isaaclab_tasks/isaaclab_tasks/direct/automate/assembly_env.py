@@ -67,11 +67,7 @@ class AssemblyEnv(DirectRLEnv):
         )
 
         # Create criterion for dynamic time warping (later used for imitation reward)
-        cuda_version = automate_algo.get_cuda_version()
-        if (cuda_version is not None) and (cuda_version < (13, 0, 0)):
-            self.soft_dtw_criterion = SoftDTW(use_cuda=True, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
-        else:
-            self.soft_dtw_criterion = SoftDTW(use_cuda=False, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
+        self.soft_dtw_criterion = SoftDTW(use_cuda=True, device=self.device, gamma=self.cfg_task.soft_dtw_gamma)
 
         # Evaluate
         if self.cfg_task.if_logging_eval:
@@ -858,7 +854,7 @@ class AssemblyEnv(DirectRLEnv):
         self.step_sim_no_action()
 
         grasp_time = 0.0
-        while grasp_time < 0.25:
+        while grasp_time < 1.0:
             self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
             self.ctrl_target_gripper_dof_pos = 0.0
             self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)

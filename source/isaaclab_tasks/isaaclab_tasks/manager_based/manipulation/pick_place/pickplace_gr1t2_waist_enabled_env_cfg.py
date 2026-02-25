@@ -78,9 +78,10 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
             )
-            pipeline = _build_gr1t2_pickplace_pipeline()
+            pipeline, retargeters = _build_gr1t2_pickplace_pipeline()
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: pipeline,
+                # retargeters_to_tune=lambda: retargeters,
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,
             )

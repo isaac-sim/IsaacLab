@@ -3,36 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Factory for creating renderer instances."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from isaaclab.utils.backend_utils import FactoryBase
 
-if TYPE_CHECKING:
-    import torch
+from .base_renderer import BaseRenderer
+from .renderer_cfg import RendererCfg
 
-    from isaaclab.sensors import SensorBase
+# This is mapping of where backends live in the isaaclab_<backend> package.
+_RENDERER_TYPE_TO_BACKEND = {"isaac_rtx": "physx", "newton_warp": "newton"}
 
 
-class Renderer:
-    def __init__(self):
-        raise NotImplementedError
+class Renderer(FactoryBase, BaseRenderer):
+    """Factory for creating renderer instances."""
 
-    def create_render_data(self, sensor: SensorBase) -> Any:
-        raise NotImplementedError
+    @classmethod
+    def _get_backend(cls, cfg: RendererCfg, *args, **kwargs) -> str:
+        return _RENDERER_TYPE_TO_BACKEND.get(cfg.renderer_type, "physx")
 
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]):
-        raise NotImplementedError
-
-    def update_transforms(self):
-        raise NotImplementedError
-
-    def update_camera(
-        self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
-    ):
-        raise NotImplementedError
-
-    def render(self, render_data: Any):
-        raise NotImplementedError
-
-    def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor):
-        raise NotImplementedError
+    def __new__(cls, cfg: RendererCfg, *args, **kwargs) -> BaseRenderer:
+        """Create a new instance of a renderer based on the backend."""
+        # The `FactoryBase` __new__ method will handle the logic and return
+        # an instance of the correct backend-specific renderer class,
+        # which is guaranteed to be a subclass of `BaseRenderer` by convention.
+        return super().__new__(cls, cfg, *args, **kwargs)

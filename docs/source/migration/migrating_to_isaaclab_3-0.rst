@@ -13,11 +13,44 @@ This guide covers the main breaking changes and deprecations you need to address
 from Isaac Lab 2.x to Isaac Lab 3.0.
 
 
-New ``isaaclab_physx`` Extension
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multi-Backend Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A new extension ``isaaclab_physx`` has been introduced to contain PhysX-specific implementations
-of asset classes. The following classes have been moved to this new extension:
+Isaac Lab 3.0 introduces a **factory-based multi-backend architecture** that allows asset classes
+to be backed by different physics engines — currently **PhysX** and **Newton**.
+
+When you instantiate an asset class from the ``isaaclab`` package (e.g., ``Articulation``,
+``RigidObject``), a factory automatically resolves and loads the correct backend implementation:
+
+.. code-block:: python
+
+   from isaaclab.assets import Articulation, ArticulationCfg
+
+   # The factory pattern creates the appropriate backend implementation.
+   # No import changes are needed — the same isaaclab imports work regardless of backend.
+   robot = Articulation(cfg=ArticulationCfg(...))
+
+The factory works by convention: for a class defined in ``isaaclab.assets.articulation``, it
+imports the matching class from ``isaaclab_{backend}.assets.articulation``. This means the
+``isaaclab_physx`` and ``isaaclab_newton`` packages mirror the ``isaaclab`` module structure.
+
+.. note::
+
+   The backend is currently set to ``"physx"`` by default. Newton backend support is being
+   actively developed. When backend selection is fully configurable, you will be able to
+   switch backends without changing any asset import paths.
+
+
+New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two new backend extensions have been introduced:
+
+- **``isaaclab_physx``** — PhysX-specific implementations of all asset and sensor classes.
+- **``isaaclab_newton``** — Newton-specific implementations of asset classes (Articulation and
+  RigidObject).
+
+The following classes have been moved to ``isaaclab_physx``:
 
 .. list-table::
    :header-rows: 1
@@ -71,6 +104,33 @@ you can import from ``isaaclab_physx.sensors``:
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
+
+
+New ``isaaclab_newton`` Extension
+---------------------------------
+
+A new extension ``isaaclab_newton`` provides Newton physics backend implementations for:
+
+- :class:`~isaaclab_newton.assets.Articulation` and :class:`~isaaclab_newton.assets.ArticulationData`
+- :class:`~isaaclab_newton.assets.RigidObject` and :class:`~isaaclab_newton.assets.RigidObjectData`
+
+These classes implement the same base interfaces as their PhysX counterparts
+(:class:`~isaaclab.assets.BaseArticulation`, :class:`~isaaclab.assets.BaseRigidObject`),
+ensuring a consistent API across backends. They use the same warp-based data conventions
+(``wp.array`` with structured types, ``_index`` / ``_mask`` write methods).
+
+.. note::
+
+   The ``isaaclab_newton`` extension requires the ``newton`` package and its dependencies
+   (``mujoco``, ``mujoco-warp``). These are installed automatically when installing the
+   ``isaaclab_newton`` package.
+
+If you need to import Newton implementations directly (e.g., for type hints or subclassing):
+
+.. code-block:: python
+
+   from isaaclab_newton.assets import Articulation as NewtonArticulation
+   from isaaclab_newton.assets import RigidObject as NewtonRigidObject
 
 
 Sensor Pose Properties Deprecation
@@ -683,10 +743,10 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
    robot.write_root_pose_to_sim(pose_data, env_ids)
 
    # After (Isaac Lab 3.x) — indexed variant (partial data)
-   robot.write_root_pose_to_sim_index(pose_data, env_ids)
+   robot.write_root_pose_to_sim_index(root_pose=pose_data, env_ids=env_ids)
 
    # After (Isaac Lab 3.x) — mask variant (full data, boolean mask)
-   robot.write_root_pose_to_sim_mask(pose_data, env_mask)
+   robot.write_root_pose_to_sim_mask(root_pose=pose_data, env_mask=env_mask)
 
 .. list-table:: Affected write methods (RigidObject / Articulation)
    :header-rows: 1

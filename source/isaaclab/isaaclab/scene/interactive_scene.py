@@ -13,10 +13,10 @@ import torch
 import warp as wp
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg, SurfaceGripper, SurfaceGripperCfg
 
-import carb
-from isaacsim.core.cloner import GridCloner
+from pxr import Sdf
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
@@ -31,7 +31,6 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-from isaaclab.utils.version import get_isaac_sim_version
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
@@ -136,81 +135,48 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
+        # physics backend and clone fn (PhysX uses PhysxSchema/physx_replicate; Newton uses its own worlds)
+        self.physics_backend = self.sim.physics_manager.__name__
+        if "Physx" in self.physics_backend:
+            from isaaclab_physx.cloner import physx_replicate
+
+            physics_clone_fn = physx_replicate
+        elif "Newton" in self.physics_backend:
+            from isaaclab_newton.cloner import newton_replicate
+
+            physics_clone_fn = newton_replicate
+        else:
+            raise ValueError(f"Unsupported physics backend: {self.physics_backend}")
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
-        self.cloner.define_base_env(self.env_ns)
-        self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
+        self.env_prim_paths = [f"{self.env_ns}/env_{i}" for i in range(self.cfg.num_envs)]
+
+        self.cloner_cfg = cloner.TemplateCloneCfg(
+            clone_regex=self.env_regex_ns,
+            clone_in_fabric=self.cfg.clone_in_fabric,
+            device=self.device,
+            physics_clone_fn=physics_clone_fn,
+        )
+
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+        self.stage.DefinePrim(self.cloner_cfg.template_root, "Xform")
+        self.env_fmt = self.env_regex_ns.replace(".*", "{}")
         # allocate env indices
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
-        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
-        # this triggers per-object level cloning in the spawner.
-        if not self.cfg.replicate_physics:
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            if get_isaac_sim_version().major < 5:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                )
-            else:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                    clone_in_fabric=self.cfg.clone_in_fabric,
-                )
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
-        else:
-            # otherwise, environment origins will be initialized during cloning at the end of environment creation
-            self._default_env_origins = None
+        self._default_env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
+        # copy empty prim of env_0 to env_1, env_2, ..., env_{num_envs-1} with correct location.
+        cloner.usd_replicate(
+            self.stage, [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, positions=self._default_env_origins
+        )
 
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
-            # add entities from config
             self._add_entities_from_cfg()
-            # clone environments on a global scope if environment is homogeneous
-            if self.cfg.replicate_physics:
-                self.clone_environments(copy_from_source=False)
-            # replicate physics if we have more than one environment
-            # this is done to make scene initialization faster at play time
-            if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                if get_isaac_sim_version().major < 5:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                    )
-                else:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                        clone_in_fabric=self.cfg.clone_in_fabric,
-                    )
-
-            # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-            # to filter collisions if replicate_physics is not enabled
-            # additionally, env_ids is only supported in GPU simulation
-            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
+            self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
+            # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
+            if self.cfg.filter_collisions and "Physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
@@ -221,57 +187,22 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
-        # check if user spawned different assets in individual environments
-        # this flag will be None if no multi asset is spawned
-        carb_settings_iface = carb.settings.get_settings()
-        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
-        if has_multi_assets and self.cfg.replicate_physics:
-            logger.warning(
-                "Varying assets might have been spawned under different environments."
-                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
-                " This may adversely affect PhysX parsing. We recommend disabling this property."
-            )
+        # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
+        if self.cfg.replicate_physics and "Physx" in self.physics_backend:
+            prim = self.stage.GetPrimAtPath("/physicsScene")
+            prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
-        # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        if get_isaac_sim_version().major < 5:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
-            )
+        if self._is_scene_setup_from_cfg():
+            self.cloner_cfg.clone_physics = not copy_from_source
+            cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
         else:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
-                clone_in_fabric=self.cfg.clone_in_fabric,
-            )
+            mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
+            replicate_args = [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, mapping
 
-        # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-        # to filter collisions if replicate_physics is not enabled
-        # additionally, env_ids is only supported in GPU simulation
-        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-            # if scene is specified through cfg, this is already taken care of
-            if not self._is_scene_setup_from_cfg():
-                logger.warning(
-                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
-                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
-                    " environments."
-                )
-
-        # in case of heterogeneous cloning, the env origins is specified at init
-        if self._default_env_origins is None:
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+            if not copy_from_source:
+                # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
+                self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
+            cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -299,7 +230,8 @@ class InteractiveScene:
             self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
-        self.cloner.filter_collisions(
+        cloner.filter_collisions(
+            self.stage,
             self.physics_scene_path,
             "/World/collisions",
             self.env_prim_paths,
@@ -720,19 +652,40 @@ class InteractiveScene:
             for asset_name, asset_cfg in self.cfg.__dict__.items()
         )
 
-    def _add_entities_from_cfg(self):
+    def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
         # store paths that are in global collision filter
         self._global_prim_paths = list()
-        # parse the entire scene config and resolve regex
-        for asset_name, asset_cfg in self.cfg.__dict__.items():
-            # skip keywords
-            # note: easier than writing a list of keywords: [num_envs, env_spacing, lazy_sensor_update]
-            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
-                continue
-            # resolve regex
+        # Process non-sensor entities before sensors so that asset prims exist in the template
+        # when sensors (e.g. cameras attached to robot links) need to spawn under them.
+        all_items = [
+            (k, v)
+            for k, v in self.cfg.__dict__.items()
+            if k not in InteractiveSceneCfg.__dataclass_fields__ and v is not None
+        ]
+        ordered_items = [(k, v) for k, v in all_items if not isinstance(v, SensorBaseCfg)] + [
+            (k, v) for k, v in all_items if isinstance(v, SensorBaseCfg)
+        ]
+
+        for asset_name, asset_cfg in ordered_items:
+            # resolve prim_path with env regex
             if hasattr(asset_cfg, "prim_path"):
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+            # set spawn_path on spawner if cloning is needed
+            if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
+                if hasattr(asset_cfg, "prim_path") and self.env_ns in asset_cfg.prim_path:
+                    template_base = asset_cfg.prim_path.replace(self.env_regex_ns, self.cloner_cfg.template_root)
+                    proto_id = self.cloner_cfg.template_prototype_identifier
+                    if isinstance(asset_cfg, SensorBaseCfg):
+                        # Sensor may be nested under a proto_asset_N prim (e.g. a camera on a robot
+                        # link). Search for the actual template location so spawning succeeds even
+                        # though the parent asset lives at template_root/<Asset>/proto_asset_0/...
+                        asset_cfg.spawn.spawn_path = self._resolve_sensor_template_spawn_path(template_base, proto_id)
+                    else:
+                        asset_cfg.spawn.spawn_path = f"{template_base}/{proto_id}_.*"
+                else:
+                    # No cloning - spawn directly at prim_path
+                    asset_cfg.spawn.spawn_path = asset_cfg.prim_path
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -748,6 +701,16 @@ class InteractiveScene:
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                    # set spawn_path on spawner if cloning is needed
+                    if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
+                        if self.env_ns in rigid_object_cfg.prim_path:
+                            spawn_tmpl = rigid_object_cfg.prim_path.replace(
+                                self.env_regex_ns, self.cloner_cfg.template_root
+                            )
+                            proto_id = self.cloner_cfg.template_prototype_identifier
+                            rigid_object_cfg.spawn.spawn_path = f"{spawn_tmpl}/{proto_id}_.*"
+                        else:
+                            rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
                 self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
@@ -787,7 +750,7 @@ class InteractiveScene:
                 # manually spawn asset
                 if asset_cfg.spawn is not None:
                     asset_cfg.spawn.func(
-                        asset_cfg.prim_path,
+                        asset_cfg.spawn.spawn_path,
                         asset_cfg.spawn,
                         translation=asset_cfg.init_state.pos,
                         orientation=asset_cfg.init_state.rot,
@@ -797,7 +760,44 @@ class InteractiveScene:
                 self._extras[asset_name] = XformPrimView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
+
             # store global collision paths
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths
+
+    def _resolve_sensor_template_spawn_path(self, template_base: str, proto_id: str) -> str:
+        """Resolve the actual template spawn path for a sensor nested under a proto_asset prim.
+
+        Sensors parented to robot links live inside ``proto_asset_0`` rather than directly under
+        the template root.  For example, a wrist camera at
+        ``/World/template/Robot/panda_hand/wrist_cam`` is actually spawned at
+        ``/World/template/Robot/proto_asset_0/panda_hand/wrist_cam``.
+
+        This method inserts a ``proto_id_.*`` wildcard one level below the template root and
+        searches for the concrete parent prim so the camera spawner can find it.
+
+        Args:
+            template_base: Template path derived by replacing the env regex with the template root.
+                Example: ``/World/template/Robot/panda_hand/wrist_cam``.
+            proto_id: Prototype identifier prefix (e.g. ``proto_asset``).
+
+        Returns:
+            Concrete spawn path (e.g. ``/World/template/Robot/proto_asset_0/panda_hand/wrist_cam``)
+            if the parent is found, otherwise ``template_base/proto_id_.*`` as a fallback.
+        """
+        template_root = self.cloner_cfg.template_root
+        # rel = e.g. "Robot/panda_hand/wrist_cam"
+        rel = template_base[len(template_root) + 1 :]
+        # asset = "Robot", remainder = "panda_hand/wrist_cam"
+        asset, _, remainder = rel.partition("/")
+        if not remainder:
+            return f"{template_base}/{proto_id}_.*"
+
+        # parent = "panda_hand", leaf = "wrist_cam"
+        parent, _, leaf = remainder.rpartition("/")
+        search = (
+            f"{template_root}/{asset}/{proto_id}_.*/{parent}" if parent else f"{template_root}/{asset}/{proto_id}_.*"
+        )
+        found = sim_utils.find_matching_prim_paths(search)
+        return f"{found[0]}/{leaf}" if found else f"{template_base}/{proto_id}_.*"

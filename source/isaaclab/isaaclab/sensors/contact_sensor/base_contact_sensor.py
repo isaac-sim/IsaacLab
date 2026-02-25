@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -63,6 +64,10 @@ class BaseContactSensor(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
+        # check that config is valid
+        if cfg.history_length < 0:
+            raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
+
     """
     Properties
     """
@@ -74,8 +79,8 @@ class BaseContactSensor(SensorBase):
 
     @property
     @abstractmethod
-    def num_bodies(self) -> int:
-        """Number of bodies with contact sensors attached."""
+    def num_sensors(self) -> int:
+        """Number of sensors per environment."""
         raise NotImplementedError
 
     @property
@@ -98,7 +103,7 @@ class BaseContactSensor(SensorBase):
     Operations
     """
 
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_sensors(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Args:
@@ -123,6 +128,11 @@ class BaseContactSensor(SensorBase):
             if the sensor is updated by the physics or the environment stepping time-step and the sensor
             is read by the environment stepping time-step.
 
+        .. caution::
+            This method and :meth:`compute_first_air` share an internal output buffer. Calling one
+            after the other will overwrite the previous result. To avoid data loss, consume or clone
+            the returned array before calling the other method.
+
         Args:
             dt: The time period since the contact was established.
             abs_tol: The absolute tolerance for the comparison.
@@ -135,16 +145,7 @@ class BaseContactSensor(SensorBase):
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
         """
-        # check if the sensor is configured to track contact time
-        if not self.cfg.track_air_time:
-            raise RuntimeError(
-                "The contact sensor is not configured to track contact time."
-                "Please enable the 'track_air_time' in the sensor configuration."
-            )
-        # check if the bodies are in contact
-        currently_in_contact = wp.to_torch(self.data.current_contact_time) > 0.0
-        less_than_dt_in_contact = wp.to_torch(self.data.current_contact_time) < (dt + abs_tol)
-        return wp.from_torch(currently_in_contact * less_than_dt_in_contact)
+        raise NotImplementedError
 
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
@@ -159,6 +160,11 @@ class BaseContactSensor(SensorBase):
             the sensor is updated by the physics or the environment stepping time-step and the sensor
             is read by the environment stepping time-step.
 
+        .. caution::
+            This method and :meth:`compute_first_contact` share an internal output buffer. Calling one
+            after the other will overwrite the previous result. To avoid data loss, consume or clone
+            the returned array before calling the other method.
+
         Args:
             dt: The time period since the contract is broken.
             abs_tol: The absolute tolerance for the comparison.
@@ -170,16 +176,7 @@ class BaseContactSensor(SensorBase):
         Raises:
             RuntimeError: If the sensor is not configured to track contact time.
         """
-        # check if the sensor is configured to track contact time
-        if not self.cfg.track_air_time:
-            raise RuntimeError(
-                "The contact sensor is not configured to track contact time."
-                "Please enable the 'track_air_time' in the sensor configuration."
-            )
-        # check if the sensor is configured to track contact time
-        currently_detached = wp.to_torch(self.data.current_air_time) > 0.0
-        less_than_dt_detached = wp.to_torch(self.data.current_air_time) < (dt + abs_tol)
-        return wp.from_torch(currently_detached * less_than_dt_detached)
+        raise NotImplementedError
 
     """
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
@@ -195,9 +192,28 @@ class BaseContactSensor(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         raise NotImplementedError
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+
+    @property
+    def num_bodies(self) -> int:
+        """Deprecated property. Please use `num_sensors` instead."""
+        warnings.warn(
+            "The `num_bodies` property will be deprecated in a future release. Please use `num_sensors` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.num_sensors
+
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+        """Deprecated method. Please use `find_sensors` instead."""
+        warnings.warn(
+            "The `find_bodies` method will be deprecated in a future release. Please use `find_sensors` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.find_sensors(name_keys, preserve_order)

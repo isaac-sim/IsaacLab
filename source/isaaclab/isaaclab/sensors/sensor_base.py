@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import torch
+import warp as wp
 from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import omni.kit.app
@@ -26,6 +26,8 @@ import omni.kit.app
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.stage import get_current_stage
+
+from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -49,9 +51,6 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        # check that config is valid
-        if cfg.history_length < 0:
-            raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
         # check that the config is valid
         cfg.validate()
         # store inputs
@@ -165,29 +164,42 @@ class SensorBase(ABC):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the sensor internals.
 
         Args:
-            env_ids: The sensor ids to reset. Defaults to None.
+            env_ids: The environment indices to reset. Defaults to None, in which case all
+                environments are reset.
+            env_mask: A boolean warp array indicating which environments to reset. If provided,
+                takes priority over ``env_ids``. Defaults to None.
         """
-        # Resolve sensor ids
-        if env_ids is None:
-            env_ids = slice(None)
-        # Reset the timestamp for the sensors
-        self._timestamp[env_ids] = 0.0
-        self._timestamp_last_update[env_ids] = 0.0
-        # Set all reset sensors to outdated so that they are updated when data is called the next time.
-        self._is_outdated[env_ids] = True
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        wp.launch(
+            reset_envs_kernel,
+            dim=self._num_envs,
+            inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            device=self._device,
+        )
 
     def update(self, dt: float, force_recompute: bool = False):
+        # Skip update if sensor is not initialized
+        if not self._is_initialized:
+            return
         # Update the timestamp for the sensors
-        self._timestamp += dt
-        self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
+        wp.launch(
+            update_timestamp_kernel,
+            dim=self._num_envs,
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                dt,
+                self.cfg.update_period,
+            ],
+            device=self._device,
+        )
         # Update the buffers
-        # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
-        #   It is only for the contact sensor but there we should redefine the update function IMO.
-        if force_recompute or self._is_visualizing or (self.cfg.history_length > 0):
+        if force_recompute or self._is_visualizing:
             self._update_outdated_buffers()
 
     """
@@ -209,12 +221,18 @@ class SensorBase(ABC):
         env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
-        # Boolean tensor indicating whether the sensor data has to be refreshed
-        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-        # Current timestamp (in seconds)
-        self._timestamp = torch.zeros(self._num_envs, device=self._device)
-        # Timestamp from last update
-        self._timestamp_last_update = torch.zeros_like(self._timestamp)
+        # Create warp env mask arrays for "all envs" cases and resets.
+        # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
+        # This allows warp arrays to be passed to warp kernels while the corresponding torch
+        # views support fancy indexing (e.g. tensor[env_ids] = True) without any memory copies.
+        # Both the warp array and torch view share the same underlying device memory.
+        self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
+        self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
+        self._reset_mask_torch = wp.to_torch(self._reset_mask)
+        # timestamp and outdated flags
+        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -222,14 +240,14 @@ class SensorBase(ABC):
             self.set_debug_vis(self.cfg.debug_vis)
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the sensor data for provided environment ids.
 
         This function does not perform any time-based checks and directly fills the data into the
         data container.
 
         Args:
-            env_ids: The indices of the sensors that are ready to capture.
+            env_mask: The mask of the environments that are ready to capture.
         """
         raise NotImplementedError
 
@@ -297,10 +315,10 @@ class SensorBase(ABC):
         if not self._is_initialized:
             try:
                 self._initialize_impl()
+                self._is_initialized = True
             except Exception as e:
                 # Store exception to be raised after callback completes
                 PhysxManager.store_callback_exception(e)
-            self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
@@ -350,11 +368,24 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self):
         """Fills the sensor data for the outdated sensors."""
-        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
-        if len(outdated_env_ids) > 0:
-            # obtain new data
-            self._update_buffers_impl(outdated_env_ids)
-            # update the timestamp from last update
-            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
-            # set outdated flag to false for the updated sensors
-            self._is_outdated[outdated_env_ids] = False
+        self._update_buffers_impl(self._is_outdated)
+        # update timestamps and clear outdated flags
+        wp.launch(
+            update_outdated_envs_kernel,
+            dim=self._num_envs,
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
+            device=self._device,
+        )
+
+    def _resolve_indices_and_mask(
+        self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
+    ) -> wp.array:
+        """Resolve environment indices to a warp array and mask."""
+        if env_ids is None and env_mask is None:
+            return self._ALL_ENV_MASK
+        elif env_mask is not None:
+            return env_mask
+        else:
+            self._reset_mask.zero_()
+            self._reset_mask_torch[env_ids] = True
+            return self._reset_mask

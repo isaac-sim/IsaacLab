@@ -61,6 +61,23 @@ class TeleopSessionLifecycle:
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
         self._retargeting_ui = None
 
+        try:
+            # Importing bridge also performs polyfill of missing omni.kit.xr.system.openxr functions.
+            import isaacsim.kit.xr.teleop.bridge as bridge
+
+            subscribe_required_extensions = getattr(bridge, "subscribe_required_extensions", None)
+            if callable(subscribe_required_extensions):
+                self._required_extensions_subscription = subscribe_required_extensions(
+                    self._on_request_required_extensions
+                )
+            else:
+                logger.info(
+                    "isaacsim.kit.xr.teleop.bridge.subscribe_required_extensions not available; "
+                    "skipping required extensions subscription"
+                )
+        except (ImportError, ModuleNotFoundError):
+            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
+
     @property
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
@@ -151,6 +168,21 @@ class TeleopSessionLifecycle:
             self._pipeline = None
         logger.info("IsaacTeleop session ended")
 
+    def _on_request_required_extensions(self) -> list[str]:
+        """Callback for required extensions subscription.
+
+        Returns:
+            A list of required extensions.
+        """
+        from isaacteleop.teleop_session_manager.helpers import get_required_oxr_extensions_from_pipeline
+
+        required_extensions = (
+            get_required_oxr_extensions_from_pipeline(self._pipeline) if self._pipeline is not None else []
+        )
+
+        logger.info(f"Required extensions: {required_extensions}")
+        return required_extensions
+
     # ------------------------------------------------------------------
     # Deferred session creation
     # ------------------------------------------------------------------
@@ -166,7 +198,7 @@ class TeleopSessionLifecycle:
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
-        Tries to acquire OpenXR handles from Kit's XR bridge.  If the handles
+        Tries to acquire OpenXR handles from Kit's XR.  If the handles
         are available, creates and enters the ``TeleopSession``.  If not (e.g.
         the user hasn't started AR yet), the attempt is silently deferred and
         will be retried on the next :meth:`step` call.
@@ -407,7 +439,7 @@ class TeleopSessionLifecycle:
     def _acquire_kit_oxr_handles(handles_cls: type[OpenXRSessionHandles]) -> OpenXRSessionHandles | None:
         """Acquire OpenXR session handles from Kit's XR bridge extension.
 
-        Imports ``isaacsim.kit.xr.teleop.bridge`` and reads the four raw handle
+        Imports ``omni.kit.xr.openxr`` and reads the four raw handle
         values (XrInstance, XrSession, XrSpace, xrGetInstanceProcAddr) that Kit's
         OpenXR system exposes.  The handles are returned as an
         ``OpenXRSessionHandles`` instance ready for ``DeviceIOSession.run()``.
@@ -421,15 +453,15 @@ class TeleopSessionLifecycle:
             extension is not available (e.g. running outside Isaac Sim).
         """
         try:
-            import isaacsim.kit.xr.teleop.bridge as xr_bridge
+            import omni.kit.xr.system.openxr as openxr
         except (ImportError, ModuleNotFoundError):
-            logger.info("isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session")
+            logger.info("omni.kit.xr.system.openxr not available; IsaacTeleop will create its own OpenXR session")
             return None
 
-        instance = xr_bridge.get_instance_handle()
-        session = xr_bridge.get_session_handle()
-        space = xr_bridge.get_stage_space_handle()
-        proc_addr = xr_bridge.get_instance_proc_addr()
+        instance = openxr.get_instance_handle()
+        session = openxr.get_session_handle()
+        space = openxr.get_stage_space_handle()
+        proc_addr = openxr.get_instance_proc_addr()
 
         if not all((instance, session, space, proc_addr)):
             logger.debug(

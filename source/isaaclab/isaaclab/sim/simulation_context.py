@@ -165,7 +165,6 @@ class SimulationContext:
         self._is_stopped = True
 
         # Monotonic physics-step counter used by camera sensors for
-        # render-update deduplication (see TiledCamera._ensure_render_update).
         self._physics_step_count: int = 0
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
@@ -481,17 +480,15 @@ class SimulationContext:
         """
         self._physics_step_count += 1
         self.physics_manager.step()
-        if render:
+        if render and self.is_rendering:
             self.render()
 
     def render(self, mode: int | None = None) -> None:
         """Update visualizers and render the scene.
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
-        every physics step).  The actual RTX render pump (Kit ``app.update()``) is
-        handled lazily by camera sensors (see
-        :meth:`~isaaclab.sensors.TiledCamera._ensure_render_update`) before they
-        read annotator data, keeping this method backend-agnostic.
+        every physics step). Camera sensors drive their configured renderer when
+        fetching data, so this method remains backend-agnostic.
         """
         self.update_visualizers(self.get_rendering_dt())
 

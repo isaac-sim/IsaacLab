@@ -34,7 +34,7 @@ def set_default_joint_pose(
     asset = env.scene[asset_cfg.name]
     # Convert default_pose to 1D array and create joint indices
     default_pose_1d = torch.tensor(default_pose, device=env.device).repeat(env.num_envs, 1).flatten()
-    num_joints = len(default_pose_1d)
+    num_joints = len(default_pose)
     joint_ids = torch.arange(num_joints, device=env.device, dtype=torch.int32)
     # Use update_default_joint_values kernel to update all joints for all environments
     wp.launch(
