@@ -1078,37 +1078,6 @@ class RigidObject(BaseRigidObject):
         # set all existing views to None to invalidate them
         self._root_view = None
 
-    def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
-    ) -> None:
-        """Assert the shape and dtype of a tensor or warp array.
-
-        Args:
-            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
-            shape: The shape to assert.
-            dtype: The warp dtype to assert.
-            name: Optional parameter name for error messages.
-        """
-        if __debug__:
-            cls = type(self).__name__
-            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
-            if isinstance(tensor, (int, float)):
-                return
-            elif isinstance(tensor, wp.array):
-                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
-                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
-            elif isinstance(tensor, torch.Tensor):
-                if dtype is wp.float32:
-                    offset = ()
-                elif dtype is wp.vec3f:
-                    offset = (3,)
-                elif dtype is wp.transformf:
-                    offset = (7,)
-                elif dtype is wp.spatial_vectorf:
-                    offset = (6,)
-                else:
-                    raise ValueError(f"Unsupported dtype: {dtype}")
-                assert tensor.shape == (*shape, *offset), f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
 
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
