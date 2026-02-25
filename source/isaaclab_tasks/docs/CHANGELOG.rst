@@ -7,7 +7,7 @@ Changelog
 Changed
 ^^^^^^^
 
-* Set replicate physics to False for GR1T2 environments.
+* Set replicate physics to False for GR1T2 and G1 environments.
 
 
 1.1.1 (2026-02-23)
