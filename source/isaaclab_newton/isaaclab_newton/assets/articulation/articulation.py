@@ -1951,7 +1951,9 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
-            self.assert_shape_and_dtype(joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff"
+            )
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_indices,
                 dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -2009,7 +2011,9 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         else:
-            self.assert_shape_and_dtype_mask(joint_friction_coeff, (env_mask, joint_mask), wp.float32, "joint_friction_coeff")
+            self.assert_shape_and_dtype_mask(
+                joint_friction_coeff, (env_mask, joint_mask), wp.float32, "joint_friction_coeff"
+            )
             wp.launch(
                 shared_kernels.write_2d_data_to_buffer_with_mask,
                 dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2281,9 +2285,7 @@ class Articulation(BaseArticulation):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
-        self.assert_shape_and_dtype_mask(
-            inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,)
-        )
+        self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
             shared_kernels.write_body_inertia_to_buffer_mask,
             dim=(env_mask.shape[0], body_mask.shape[0]),

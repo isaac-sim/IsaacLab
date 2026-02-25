@@ -240,9 +240,13 @@ class DeformableObject(AssetBase):
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(nodal_pos, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos")
+            self.assert_shape_and_dtype(
+                nodal_pos, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos"
+            )
         else:
-            self.assert_shape_and_dtype(nodal_pos, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos")
+            self.assert_shape_and_dtype(
+                nodal_pos, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_pos"
+            )
         # convert torch to warp if needed
         if isinstance(nodal_pos, torch.Tensor):
             nodal_pos = wp.from_torch(nodal_pos.contiguous(), dtype=wp.vec3f)
@@ -304,9 +308,13 @@ class DeformableObject(AssetBase):
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(nodal_vel, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel")
+            self.assert_shape_and_dtype(
+                nodal_vel, (self.num_instances, self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel"
+            )
         else:
-            self.assert_shape_and_dtype(nodal_vel, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel")
+            self.assert_shape_and_dtype(
+                nodal_vel, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec3f, "nodal_vel"
+            )
         # convert torch to warp if needed
         if isinstance(nodal_vel, torch.Tensor):
             nodal_vel = wp.from_torch(nodal_vel.contiguous(), dtype=wp.vec3f)
@@ -372,9 +380,13 @@ class DeformableObject(AssetBase):
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
-            self.assert_shape_and_dtype(targets, (self.num_instances, self.max_sim_vertices_per_body), wp.vec4f, "targets")
+            self.assert_shape_and_dtype(
+                targets, (self.num_instances, self.max_sim_vertices_per_body), wp.vec4f, "targets"
+            )
         else:
-            self.assert_shape_and_dtype(targets, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec4f, "targets")
+            self.assert_shape_and_dtype(
+                targets, (env_ids.shape[0], self.max_sim_vertices_per_body), wp.vec4f, "targets"
+            )
         # convert torch to warp if needed, ensuring 2D (num_envs, V, 4) -> (num_envs, V) vec4f
         if isinstance(targets, torch.Tensor):
             if targets.dim() == 2:
@@ -415,7 +427,6 @@ class DeformableObject(AssetBase):
         else:
             env_ids = self._ALL_INDICES
         self.write_nodal_kinematic_target_to_sim_index(targets, env_ids=env_ids, full_data=True)
-
 
     """
     Operations - Deprecated wrappers.

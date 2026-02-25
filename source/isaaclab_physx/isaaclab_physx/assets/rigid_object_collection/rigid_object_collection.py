@@ -616,9 +616,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities")
+            self.assert_shape_and_dtype(
+                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+            )
         else:
-            self.assert_shape_and_dtype(body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities")
+            self.assert_shape_and_dtype(
+                body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
+            )
         wp.launch(
             shared_kernels.set_body_com_velocity_to_sim,
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -720,9 +724,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities")
+            self.assert_shape_and_dtype(
+                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+            )
         else:
-            self.assert_shape_and_dtype(body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities")
+            self.assert_shape_and_dtype(
+                body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
+            )
         # Access body_com_pose_b and body_link_pose_w to ensure they are current.
         wp.launch(
             shared_kernels.set_body_link_velocity_to_sim,
@@ -1377,7 +1385,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             if result:
                 self._clear_callbacks()
                 return
-
 
     """
     Deprecated properties and methods.

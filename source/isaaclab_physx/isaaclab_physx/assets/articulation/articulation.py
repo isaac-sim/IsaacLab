@@ -1733,19 +1733,43 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(joint_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_friction_coeff"
+            )
         else:
-            self.assert_shape_and_dtype(joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff"
+            )
         if joint_dynamic_friction_coeff is not None:
             if full_data:
-                self.assert_shape_and_dtype(joint_dynamic_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_dynamic_friction_coeff")
+                self.assert_shape_and_dtype(
+                    joint_dynamic_friction_coeff,
+                    (self.num_instances, self.num_joints),
+                    wp.float32,
+                    "joint_dynamic_friction_coeff",
+                )
             else:
-                self.assert_shape_and_dtype(joint_dynamic_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_dynamic_friction_coeff")
+                self.assert_shape_and_dtype(
+                    joint_dynamic_friction_coeff,
+                    (env_ids.shape[0], joint_ids.shape[0]),
+                    wp.float32,
+                    "joint_dynamic_friction_coeff",
+                )
         if joint_viscous_friction_coeff is not None:
             if full_data:
-                self.assert_shape_and_dtype(joint_viscous_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_viscous_friction_coeff")
+                self.assert_shape_and_dtype(
+                    joint_viscous_friction_coeff,
+                    (self.num_instances, self.num_joints),
+                    wp.float32,
+                    "joint_viscous_friction_coeff",
+                )
             else:
-                self.assert_shape_and_dtype(joint_viscous_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_viscous_friction_coeff")
+                self.assert_shape_and_dtype(
+                    joint_viscous_friction_coeff,
+                    (env_ids.shape[0], joint_ids.shape[0]),
+                    wp.float32,
+                    "joint_viscous_friction_coeff",
+                )
         # Get the friction properties from the simulation.
         friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -1859,9 +1883,19 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(joint_dynamic_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_dynamic_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_dynamic_friction_coeff,
+                (self.num_instances, self.num_joints),
+                wp.float32,
+                "joint_dynamic_friction_coeff",
+            )
         else:
-            self.assert_shape_and_dtype(joint_dynamic_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_dynamic_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_dynamic_friction_coeff,
+                (env_ids.shape[0], joint_ids.shape[0]),
+                wp.float32,
+                "joint_dynamic_friction_coeff",
+            )
         # Get the friction properties from the simulation.
         friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -1955,9 +1989,19 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
-            self.assert_shape_and_dtype(joint_viscous_friction_coeff, (self.num_instances, self.num_joints), wp.float32, "joint_viscous_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_viscous_friction_coeff,
+                (self.num_instances, self.num_joints),
+                wp.float32,
+                "joint_viscous_friction_coeff",
+            )
         else:
-            self.assert_shape_and_dtype(joint_viscous_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_viscous_friction_coeff")
+            self.assert_shape_and_dtype(
+                joint_viscous_friction_coeff,
+                (env_ids.shape[0], joint_ids.shape[0]),
+                wp.float32,
+                "joint_viscous_friction_coeff",
+            )
         # Get the friction properties from the simulation.
         friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -2570,9 +2614,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
         if full_data:
-            self.assert_shape_and_dtype(stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "stiffness")
+            self.assert_shape_and_dtype(
+                stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "stiffness"
+            )
         else:
-            self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness")
+            self.assert_shape_and_dtype(
+                stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
@@ -2782,9 +2830,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
         if full_data:
-            self.assert_shape_and_dtype(limit_stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit_stiffness")
+            self.assert_shape_and_dtype(
+                limit_stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit_stiffness"
+            )
         else:
-            self.assert_shape_and_dtype(limit_stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit_stiffness")
+            self.assert_shape_and_dtype(
+                limit_stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit_stiffness"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit_stiffness, float):
             wp.launch(
@@ -2994,9 +3046,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
         if full_data:
-            self.assert_shape_and_dtype(rest_length, (self.num_instances, self.num_fixed_tendons), wp.float32, "rest_length")
+            self.assert_shape_and_dtype(
+                rest_length, (self.num_instances, self.num_fixed_tendons), wp.float32, "rest_length"
+            )
         else:
-            self.assert_shape_and_dtype(rest_length, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "rest_length")
+            self.assert_shape_and_dtype(
+                rest_length, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "rest_length"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(rest_length, float):
             wp.launch(
@@ -3256,9 +3312,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
         if full_data:
-            self.assert_shape_and_dtype(stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "stiffness")
+            self.assert_shape_and_dtype(
+                stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "stiffness"
+            )
         else:
-            self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "stiffness")
+            self.assert_shape_and_dtype(
+                stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "stiffness"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
@@ -3469,9 +3529,13 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         spatial_tendon_ids = self._resolve_spatial_tendon_ids(spatial_tendon_ids)
         if full_data:
-            self.assert_shape_and_dtype(limit_stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "limit_stiffness")
+            self.assert_shape_and_dtype(
+                limit_stiffness, (self.num_instances, self.num_spatial_tendons), wp.float32, "limit_stiffness"
+            )
         else:
-            self.assert_shape_and_dtype(limit_stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "limit_stiffness")
+            self.assert_shape_and_dtype(
+                limit_stiffness, (env_ids.shape[0], spatial_tendon_ids.shape[0]), wp.float32, "limit_stiffness"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit_stiffness, float):
             wp.launch(

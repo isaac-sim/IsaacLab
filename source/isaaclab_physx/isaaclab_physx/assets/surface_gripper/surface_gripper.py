@@ -427,7 +427,6 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(indices)
         self.reset_index(env_ids)
 
-
     """
     Initialization.
     """
